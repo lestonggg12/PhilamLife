@@ -1,0 +1,378 @@
+/* ================================
+   BLOCK OVERVIEW CARD
+   ================================ */
+
+.block-overview-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(120, 162, 210, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(120, 162, 210, 0.12), 0 2px 8px rgba(120, 162, 210, 0.06);
+  transition: all 0.3s ease;
+}
+
+.block-overview-card:hover {
+  border-color: rgba(120, 162, 210, 0.4);
+  box-shadow: 0 10px 30px rgba(120, 162, 210, 0.2), 0 4px 12px rgba(120, 162, 210, 0.12);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: rgba(120, 162, 210, 0.08);
+  border-bottom: 1px solid rgba(120, 162, 210, 0.15);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.block-overview-card:hover .card-header {
+  background: rgba(120, 162, 210, 0.12);
+}
+
+.block-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.block-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.block-icon {
+  font-size: 24px;
+}
+
+.expand-icon {
+  transition: transform 0.3s ease;
+  color: var(--primary);
+}
+
+.expand-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.card-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Summary Grid */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px;
+  background: rgba(120, 162, 210, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(120, 162, 210, 0.15);
+}
+
+.summary-item .label {
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.summary-item .value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.summary-item .value.paid {
+  color: var(--success);
+}
+
+.summary-item .value.unpaid {
+  color: var(--danger);
+}
+
+/* Progress Section */
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-header .label {
+  font-size: 13px;
+  color: rgba(44, 62, 80, 0.7);
+  font-weight: 600;
+}
+
+.progress-header .percentage {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.progress-bar {
+  display: flex;
+  height: 12px;
+  background: rgba(120, 162, 210, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(120, 162, 210, 0.2);
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, var(--primary), #5a7da8);
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.progress-uncollected {
+  background: rgba(200, 200, 200, 0.3);
+  height: 100%;
+}
+
+/* Outstanding Section */
+.outstanding-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.outstanding-section .label {
+  font-size: 13px;
+  color: rgba(44, 62, 80, 0.7);
+  font-weight: 600;
+}
+
+.outstanding-section .amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+/* Card Footer */
+.card-footer {
+  padding: 15px 20px;
+  border-top: 1px solid rgba(120, 162, 210, 0.15);
+  background: rgba(120, 162, 210, 0.05);
+}
+
+.expand-button {
+  width: 100%;
+  padding: 10px 15px;
+  background: linear-gradient(135deg, var(--primary), #5a7da8);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(120, 162, 210, 0.3);
+}
+
+.expand-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(120, 162, 210, 0.45);
+}
+
+.expand-button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 1024px) {
+  .card-header {
+    padding: 15px;
+  }
+
+  .block-title h3 {
+    font-size: 16px;
+  }
+
+  .card-content {
+    padding: 15px;
+    gap: 15px;
+  }
+
+  .summary-grid {
+    gap: 12px;
+  }
+
+  .summary-item {
+    padding: 10px;
+  }
+
+  .summary-item .label {
+    font-size: 11px;
+  }
+
+  .summary-item .value {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .card-header {
+    padding: 12px;
+  }
+
+  .block-title h3 {
+    font-size: 14px;
+  }
+
+  .block-icon {
+    font-size: 20px;
+  }
+
+  .card-content {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .summary-item {
+    padding: 8px;
+  }
+
+  .summary-item .label {
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+
+  .summary-item .value {
+    font-size: 14px;
+  }
+
+  .progress-section {
+    gap: 6px;
+  }
+
+  .progress-header .label {
+    font-size: 12px;
+  }
+
+  .progress-header .percentage {
+    font-size: 14px;
+  }
+
+  .outstanding-section {
+    padding: 12px;
+  }
+
+  .outstanding-section .label {
+    font-size: 12px;
+  }
+
+  .outstanding-section .amount {
+    font-size: 16px;
+  }
+
+  .expand-button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .card-footer {
+    padding: 12px 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .card-header {
+    padding: 10px;
+  }
+
+  .block-title h3 {
+    font-size: 13px;
+  }
+
+  .block-icon {
+    font-size: 18px;
+  }
+
+  .card-content {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .summary-grid {
+    gap: 8px;
+  }
+
+  .summary-item {
+    padding: 6px;
+  }
+
+  .summary-item .label {
+    font-size: 9px;
+    margin-bottom: 3px;
+  }
+
+  .summary-item .value {
+    font-size: 12px;
+  }
+
+  .progress-section {
+    gap: 5px;
+  }
+
+  .progress-header .label {
+    font-size: 11px;
+  }
+
+  .progress-header .percentage {
+    font-size: 12px;
+  }
+
+  .progress-bar {
+    height: 10px;
+  }
+
+  .outstanding-section {
+    padding: 10px;
+  }
+
+  .outstanding-section .label {
+    font-size: 11px;
+  }
+
+  .outstanding-section .amount {
+    font-size: 14px;
+  }
+
+  .expand-button {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .card-footer {
+    padding: 10px 12px;
+  }
+}

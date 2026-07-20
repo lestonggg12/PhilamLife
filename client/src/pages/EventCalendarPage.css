@@ -1,0 +1,15 @@
+/* EventCalendarPage.css */
+.cal-page { padding: 24px; }
+.cal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.cal-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.cal-header p { color: #6b7280; margin: 0; }
+.cal-form { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px; margin-bottom: 16px; }
+.cal-form input { flex: 1; min-width: 140px; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+.cal-list { padding: 8px; }
+.cal-row { display: flex; align-items: center; gap: 16px; padding: 14px; border-bottom: 1px solid #eee; }
+.cal-row:last-child { border-bottom: none; }
+.cal-date-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 10px; background: #eaf2fb; color: #1464a0; }
+.cal-day { font-weight: 700; font-size: 1.1rem; }
+.cal-month { font-size: 0.75rem; text-transform: uppercase; }
+.cal-title { font-weight: 600; margin: 0; }
+.cal-meta { font-size: 0.85rem; color: #6b7280; margin: 2px 0 0; }

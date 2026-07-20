@@ -1,0 +1,357 @@
+/* ================================
+   HOMEOWNER LEDGER MODAL
+   ================================ */
+
+.ledger-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ledger-modal {
+  position: relative;
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid rgba(120, 162, 210, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 10px 40px rgba(120, 162, 210, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ledger-modal .close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-light);
+}
+
+.ledger-modal .close-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Modal Header */
+.ledger-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 25px;
+  background: rgba(120, 162, 210, 0.08);
+  border-bottom: 2px solid rgba(120, 162, 210, 0.2);
+}
+
+.homeowner-header-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex: 1;
+}
+
+.avatar-large {
+  font-size: 48px;
+  flex-shrink: 0;
+}
+
+.homeowner-details h2 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.homeowner-details .lot-number {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.homeowner-details .address {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.7);
+}
+
+.header-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.8);
+}
+
+.contact-item svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* Status Banner */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 25px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-banner.overdue {
+  background: rgba(239, 68, 68, 0.12);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+.status-banner.overdue svg {
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.status-banner.paid {
+  background: rgba(16, 185, 129, 0.12);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+  color: var(--success);
+}
+
+.status-banner > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-banner strong {
+  font-weight: 700;
+}
+
+.status-banner p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Ledger Section */
+.ledger-section {
+  flex: 1;
+  overflow-y: auto;
+  padding: 25px;
+}
+
+.ledger-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+/* Ledger Table */
+.ledger-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 15px;
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ledger-table thead {
+  background: rgba(120, 162, 210, 0.1);
+  border-bottom: 2px solid rgba(120, 162, 210, 0.2);
+}
+
+.ledger-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 700;
+  color: rgba(44, 62, 80, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+.ledger-table tbody tr {
+  border-bottom: 1px solid rgba(120, 162, 210, 0.1);
+  transition: background-color 0.2s ease;
+}
+
+.ledger-table tbody tr:hover {
+  background: rgba(120, 162, 210, 0.05);
+}
+
+.ledger-table td {
+  padding: 12px;
+  color: var(--text-light);
+}
+
+.ledger-table .date {
+  font-weight: 600;
+  color: rgba(44, 62, 80, 0.8);
+}
+
+.ledger-table .type-badge {
+  text-align: center;
+}
+
+.ledger-table .type-badge span {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ledger-table .type-badge .payment {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.ledger-table .type-badge .charge {
+  background: rgba(120, 162, 210, 0.15);
+  color: var(--primary);
+}
+
+.ledger-table .amount {
+  text-align: right;
+  font-weight: 600;
+}
+
+.ledger-table .amount .payment {
+  color: var(--success);
+}
+
+.ledger-table .amount .charge {
+  color: var(--danger);
+}
+
+.ledger-table .balance {
+  text-align: right;
+  color: var(--primary);
+}
+
+/* Modal Footer */
+.ledger-footer {
+  display: flex;
+  gap: 12px;
+  padding: 20px 25px;
+  background: rgba(120, 162, 210, 0.05);
+  border-top: 2px solid rgba(120, 162, 210, 0.2);
+  flex-shrink: 0;
+}
+
+.ledger-footer .btn {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .ledger-modal {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .ledger-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .homeowner-header-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .avatar-large {
+    font-size: 40px;
+  }
+
+  .header-contact {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .contact-item {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .ledger-section {
+    padding: 15px;
+  }
+
+  .ledger-table {
+    font-size: 11px;
+  }
+
+  .ledger-table th,
+  .ledger-table td {
+    padding: 8px;
+  }
+
+  .ledger-footer {
+    padding: 15px;
+    flex-wrap: wrap;
+  }
+
+  .ledger-footer .btn {
+    min-width: 120px;
+  }
+}

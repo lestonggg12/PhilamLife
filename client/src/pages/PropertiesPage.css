@@ -1,0 +1,265 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 25px !important;
+  border-radius: 12px;
+  border: 2px solid rgba(120, 162, 210, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 6px 20px rgba(120, 162, 210, 0.15), 0 2px 8px rgba(120, 162, 210, 0.08);
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.page-header p {
+  margin: 5px 0 0 0;
+  color: rgba(44, 62, 80, 0.65);
+  font-size: 14px;
+}
+
+/* Properties View - Block-based Layout */
+.properties-view {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.block-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  background: rgba(120, 162, 210, 0.1);
+  border: 2px solid rgba(120, 162, 210, 0.25);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-light);
+  box-shadow: 0 4px 12px rgba(120, 162, 210, 0.1);
+}
+
+.block-header:hover {
+  background: rgba(120, 162, 210, 0.15);
+  border-color: rgba(120, 162, 210, 0.4);
+  box-shadow: 0 6px 16px rgba(120, 162, 210, 0.15);
+}
+
+.block-header.expanded {
+  background: rgba(120, 162, 210, 0.2);
+  border-color: rgba(120, 162, 210, 0.5);
+  box-shadow: 0 6px 20px rgba(120, 162, 210, 0.2);
+}
+
+.block-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  text-align: left;
+}
+
+.block-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #78A2D2;
+}
+
+.block-details {
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.65);
+  font-weight: 400;
+}
+
+.block-dues {
+  font-size: 15px;
+  font-weight: 600;
+  color: #10b981;
+  min-width: 100px;
+  text-align: right;
+  margin-right: 15px;
+}
+
+.chevron {
+  color: rgba(44, 62, 80, 0.6);
+  transition: transform 0.3s ease;
+}
+
+.block-header.expanded .chevron {
+  transform: rotate(90deg);
+}
+
+/* Lots Container */
+.lots-container {
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+  }
+}
+
+.lots-header {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 120px 80px;
+  gap: 15px;
+  padding: 12px 20px;
+  background: rgba(120, 162, 210, 0.12);
+  border-bottom: 2px solid rgba(120, 162, 210, 0.3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lot-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 120px 80px;
+  gap: 15px;
+  padding: 15px 20px;
+  align-items: center;
+  border-bottom: 1px solid rgba(120, 162, 210, 0.15);
+  transition: background 0.2s ease;
+  color: var(--text-light);
+}
+
+.lot-row:hover {
+  background: rgba(120, 162, 210, 0.08);
+}
+
+.lot-row:last-child {
+  border-bottom: none;
+}
+
+.lot-col {
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.lot-number {
+  font-weight: 600;
+  color: #78A2D2;
+}
+
+.lot-owner {
+  color: rgba(44, 62, 80, 0.85);
+}
+
+.lot-status {
+  display: flex;
+  align-items: center;
+}
+
+.lot-dues {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.lot-actions {
+  text-align: right;
+}
+
+/* Badge Styles */
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.badge-active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-vacant {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+/* Button Link */
+.btn-link {
+  background: none;
+  border: none;
+  color: #78A2D2;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: color 0.2s ease;
+  padding: 0;
+}
+
+.btn-link:hover {
+  color: #5a7da8;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  .lots-header,
+  .lot-row {
+    grid-template-columns: 60px 1fr 80px 80px;
+    gap: 10px;
+  }
+
+  .lot-dues {
+    display: none;
+  }
+
+  .lots-header .lot-col:nth-child(4) {
+    display: none;
+  }
+
+  .block-dues {
+    min-width: auto;
+    margin-right: 10px;
+  }
+
+  .block-details {
+    font-size: 11px;
+  }
+}
+
+  .page-header h2 {
+    font-size: 20px;
+  }
+
+

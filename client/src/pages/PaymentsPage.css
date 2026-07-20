@@ -1,0 +1,8 @@
+.page .amount {
+  font-weight: 600;
+  color: var(--success);
+}
+
+.payments-content {
+  width: 100%;
+}

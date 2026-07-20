@@ -1,0 +1,280 @@
+/* ================================
+   EXPANDED BLOCK VIEW
+   ================================ */
+
+.expanded-block-view {
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(120, 162, 210, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(120, 162, 210, 0.12), 0 2px 8px rgba(120, 162, 210, 0.06);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.expanded-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: rgba(120, 162, 210, 0.08);
+  border-bottom: 2px solid rgba(120, 162, 210, 0.2);
+}
+
+.expanded-header h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.lot-count {
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.6);
+  font-weight: 600;
+  background: rgba(120, 162, 210, 0.1);
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+/* Table Wrapper */
+.homeowners-table-wrapper {
+  overflow-x: auto;
+}
+
+.homeowners-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.homeowners-table thead {
+  background: rgba(120, 162, 210, 0.08);
+  border-bottom: 2px solid rgba(120, 162, 210, 0.2);
+}
+
+.homeowners-table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(44, 62, 80, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.homeowners-table tbody tr {
+  border-bottom: 1px solid rgba(120, 162, 210, 0.1);
+  transition: background-color 0.2s ease;
+}
+
+.homeowners-table tbody tr:hover {
+  background: rgba(120, 162, 210, 0.05);
+}
+
+.homeowners-table td {
+  padding: 14px 15px;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+/* Lot Cell */
+.lot-cell {
+  text-align: center;
+}
+
+.lot-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(120, 162, 210, 0.1);
+  border: 1px solid rgba(120, 162, 210, 0.3);
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 12px;
+}
+
+/* Name Cell */
+.name-cell {
+  min-width: 250px;
+}
+
+.homeowner-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.name-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.name-details .name {
+  font-weight: 600;
+  color: var(--text-light);
+  font-size: 13px;
+}
+
+.name-details .email {
+  font-size: 11px;
+  color: rgba(44, 62, 80, 0.6);
+}
+
+/* Status Cell */
+.status-cell {
+  text-align: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.paid {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge.overdue {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.status-badge.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-icon {
+  font-size: 12px;
+}
+
+.days-overdue {
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+/* Date Cell */
+.date-cell {
+  color: rgba(44, 62, 80, 0.7);
+  font-size: 12px;
+}
+
+/* Amount Cell */
+.amount-cell {
+  text-align: right;
+  font-weight: 600;
+}
+
+.amount-due {
+  color: var(--danger);
+}
+
+.amount-paid {
+  color: var(--success);
+}
+
+/* Actions Cell */
+.actions-cell {
+  text-align: center;
+  min-width: 120px;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(120, 162, 210, 0.3);
+  border-radius: 6px;
+  background: rgba(120, 162, 210, 0.08);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-light);
+}
+
+.action-btn:hover {
+  background: rgba(120, 162, 210, 0.15);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.action-btn.view-btn {
+  color: var(--primary);
+}
+
+.action-btn.pay-btn {
+  color: var(--success);
+}
+
+.action-btn.pay-btn:hover {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--success);
+}
+
+.action-btn.reminder-btn {
+  color: var(--accent);
+}
+
+.action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 768px) {
+  .homeowners-table-wrapper {
+    font-size: 12px;
+  }
+
+  .homeowners-table th,
+  .homeowners-table td {
+    padding: 10px 8px;
+  }
+
+  .name-cell {
+    min-width: 150px;
+  }
+
+  .action-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .action-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+}
