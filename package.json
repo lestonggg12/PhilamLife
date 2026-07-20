@@ -1,0 +1,15 @@
+{
+  "name": "philamlife",
+  "version": "1.0.0",
+  "description": "ledger system with payment system",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm --prefix client run build",
+    "dev": "npm --prefix client run dev",
+    "preview": "npm --prefix client run preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

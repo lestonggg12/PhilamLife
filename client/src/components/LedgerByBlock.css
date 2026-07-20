@@ -1,0 +1,430 @@
+.ledger-by-block {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(120, 162, 210, 0.08);
+  border: 2px solid rgba(120, 162, 210, 0.25);
+  box-shadow: 0 6px 20px rgba(120, 162, 210, 0.12), 0 2px 8px rgba(120, 162, 210, 0.06);
+}
+
+.ledger-header h3 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.ledger-header p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.65);
+}
+
+/* Stats Row */
+.ledger-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  background: rgba(120, 162, 210, 0.1);
+  border: 2px solid rgba(120, 162, 210, 0.25);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(120, 162, 210, 0.1);
+}
+
+.stat-box.status-paid {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.stat-box.status-overdue {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: rgba(44, 62, 80, 0.7);
+  letter-spacing: 0.3px;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #78A2D2;
+}
+
+.stat-box.status-paid .stat-value {
+  color: #10b981;
+}
+
+.stat-box.status-overdue .stat-value {
+  color: #ef4444;
+}
+
+/* Block Sections */
+.ledger-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.block-section {
+  border: 2px solid rgba(120, 162, 210, 0.25);
+  border-radius: 8px;
+  background: rgba(120, 162, 210, 0.05);
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(120, 162, 210, 0.1);
+}
+
+.block-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px;
+  background: rgba(120, 162, 210, 0.08);
+  border: none;
+  border-bottom: 2px solid rgba(120, 162, 210, 0.2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+.block-header:hover {
+  background: rgba(120, 162, 210, 0.12);
+  box-shadow: 0 2px 8px rgba(120, 162, 210, 0.1);
+}
+
+.block-header.expanded {
+  background: rgba(120, 162, 210, 0.15);
+}
+
+.block-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.block-chevron {
+  transition: transform 0.3s ease;
+  color: #78A2D2;
+}
+
+.block-header.expanded .block-chevron {
+  transform: rotate(90deg);
+}
+
+.block-name {
+  font-weight: 700;
+  color: #78A2D2;
+}
+
+.block-count {
+  font-size: 12px;
+  color: rgba(44, 62, 80, 0.6);
+  font-weight: 400;
+}
+
+.block-stats {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.block-total {
+  font-size: 14px;
+  font-weight: 700;
+  color: #10b981;
+  padding: 5px 12px;
+  background: rgba(16, 185, 129, 0.15);
+  border-radius: 6px;
+  border: 2px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Block Owners */
+.block-owners {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+  }
+}
+
+/* Owner Payment Row */
+.owner-payment-row {
+  border-top: 1px solid rgba(120, 162, 210, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.owner-payment-row:last-child {
+  border-bottom: none;
+}
+
+.owner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 14px 15px;
+  background: transparent;
+  transition: background 0.2s ease;
+  color: var(--text-light);
+}
+
+.owner-header:hover {
+  background: rgba(120, 162, 210, 0.08);
+}
+
+.owner-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.owner-info h4 {
+  margin: 0 0 3px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+.owner-property {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.owner-payable {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 100px;
+}
+
+.payable-label {
+  font-size: 11px;
+  color: rgba(15, 23, 42, 0.5);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.payable-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0ea5e9;
+}
+
+.payable-amount.paid {
+  color: #10b981;
+}
+
+.payable-amount.pending {
+  color: #f59e0b;
+}
+
+.payable-amount.overdue {
+  color: #ef4444;
+  font-weight: 800;
+}
+
+.history-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: rgba(139, 92, 246, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #8b5cf6;
+  flex-shrink: 0;
+}
+
+.history-toggle:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.history-toggle.open {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+.history-toggle svg {
+  transition: transform 0.3s ease;
+  transform: rotate(180deg);
+}
+
+.history-toggle.open svg {
+  transform: rotate(0deg);
+}
+
+/* Payment History */
+.payment-history {
+  background: rgba(139, 92, 246, 0.08);
+  border-top: 1px solid rgba(139, 92, 246, 0.15);
+  padding: 0;
+  animation: expandHistory 0.3s ease;
+}
+
+@keyframes expandHistory {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.history-header {
+  padding: 12px 15px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.6);
+  letter-spacing: 0.5px;
+  background: rgba(139, 92, 246, 0.05);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 100px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+  font-size: 12px;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-item:hover {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.history-date {
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.history-amount {
+  font-weight: 700;
+  color: #10b981;
+}
+
+.history-status {
+  text-align: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+}
+
+.history-status.paid {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.history-status.pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.history-status.overdue {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.history-method {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.5);
+  text-align: right;
+}
+
+.history-empty {
+  padding: 20px 15px;
+  text-align: center;
+  color: rgba(226, 232, 240, 0.4);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ledger-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .owner-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .owner-payable {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .history-item {
+    grid-template-columns: 70px 1fr 80px;
+    gap: 8px;
+  }
+
+  .history-method {
+    display: none;
+  }
+
+  .block-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

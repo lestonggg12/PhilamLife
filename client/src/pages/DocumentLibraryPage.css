@@ -1,0 +1,14 @@
+/* DocumentLibraryPage.css */
+.doc-library { padding: 24px; }
+.doc-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.doc-header p { color: #6b7280; margin-bottom: 20px; }
+.doc-toolbar { display: flex; gap: 12px; margin-bottom: 16px; }
+.doc-search { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #d1d5db; }
+.doc-list { padding: 8px; }
+.doc-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-bottom: 1px solid #eee; }
+.doc-row:last-child { border-bottom: none; }
+.doc-icon { color: #1464a0; }
+.doc-info { flex: 1; }
+.doc-name { font-weight: 600; margin: 0; }
+.doc-meta { font-size: 0.85rem; color: #6b7280; margin: 2px 0 0; }
+.doc-empty { text-align: center; padding: 40px; color: #9ca3af; }

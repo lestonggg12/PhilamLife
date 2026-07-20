@@ -1,0 +1,55 @@
+/* ============================================
+   LAYOUT - FIXED NAVBAR + SIDEBAR
+   ============================================ */
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100vh;
+  background: #e6f0fa;
+}
+
+.layout-container {
+  display: flex;
+  flex: 1;
+  margin-top: 56px;
+}
+
+.page-content {
+  flex: 1;
+  margin-left: 280px;
+  padding: 24px 32px;
+  background: #e6f0fa;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .page-content {
+    margin-left: 260px;
+    padding: 20px 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout-container {
+    flex-direction: column;
+  }
+
+  .page-content {
+    margin-left: 0;
+    margin-top: 0;
+    padding: 16px 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-content {
+    padding: 12px 14px;
+  }
+}

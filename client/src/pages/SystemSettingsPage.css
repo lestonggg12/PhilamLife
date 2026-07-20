@@ -1,0 +1,99 @@
+.ss-page { padding: 24px; }
+.ss-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.ss-header p { color: #6b7280; margin-bottom: 20px; }
+
+.ss-layout { display: flex; gap: 20px; align-items: flex-start; }
+
+.ss-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  flex-shrink: 0;
+}
+.ss-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: #374151;
+  font-size: 0.9rem;
+}
+.ss-tab:hover { background: #f3f4f6; }
+.ss-tab.active { background: rgba(20,100,160,0.12); color: #1464a0; font-weight: 600; }
+
+.ss-content { flex: 1; padding: 24px; }
+.ss-section h3 { font-size: 1rem; margin: 0 0 14px; }
+.ss-section h3:not(:first-child) { margin-top: 24px; }
+.ss-desc { color: #6b7280; font-size: 0.88rem; margin: -8px 0 16px; }
+
+.ss-field { margin-bottom: 14px; }
+.ss-field label { display: block; font-size: 0.82rem; color: #6b7280; margin-bottom: 6px; }
+.ss-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+.ss-row { display: flex; gap: 16px; }
+.ss-row .ss-field { flex: 1; }
+
+.ss-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #eee;
+}
+.ss-toggle-row:last-child { border-bottom: none; }
+.ss-toggle-label { font-weight: 600; margin: 0; font-size: 0.92rem; }
+.ss-toggle-desc { font-size: 0.82rem; color: #6b7280; margin: 2px 0 0; }
+
+.ss-switch {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: #d1d5db;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.ss-switch.on { background: #1a8a60; }
+.ss-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: left 0.2s;
+}
+.ss-switch.on .ss-switch-knob { left: 21px; }
+
+.ss-backup-actions { display: flex; gap: 10px; }
+.ss-backup-list { display: flex; flex-direction: column; }
+.ss-backup-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+.ss-backup-row:last-child { border-bottom: none; }
+.ss-backup-date { color: #6b7280; }
+
+.ss-save-bar {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+}
