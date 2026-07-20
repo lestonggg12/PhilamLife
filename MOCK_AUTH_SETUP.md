@@ -13,13 +13,13 @@ The current mock auth accepts any email/password, but these example test credent
 
 Admin
 Email: admin@philamvillage.hoa
-Password: admin123
+Password: philamadmin
 Secretary
 Email: secretary@philamvillage.hoa
-Password: secretary123
+Password: philamsecretary123
 Treasurer
 Email: treasurer@philamvillage.hoa
-Password: treasurer123
+Password: philamtreasurer123
 
 ## Features
 

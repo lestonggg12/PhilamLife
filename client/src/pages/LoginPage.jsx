@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
+import { supabase } from '../lib/supabaseClient';
 
 export default function LoginPage({ setIsAuthenticated, setUser }) {
   const navigate = useNavigate();
@@ -10,33 +11,65 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
+    setError('');
   };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    
-    // Mock authentication - accept any credentials
-    setIsAuthenticated(true);
-    setUser({
+    setError('');
+    setLoading(true);
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
-      role: selectedRole.toLowerCase(),
+      password,
     });
 
-    // Route based on selected role
+    if (authError) {
+      setError('Invalid email or password');
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      setError('Account exists but has no profile. Contact an admin.');
+      setLoading(false);
+      return;
+    }
+
+    // Verify the tab they picked matches their actual role
+    if (profile.role !== selectedRole.toLowerCase()) {
+      setError(`This account is registered as ${profile.role}, not ${selectedRole}. Please select the correct portal.`);
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    setIsAuthenticated(true);
+    setUser(profile);
+    setLoading(false);
+
     const roleRoutes = {
       admin: '/admin/dashboard',
       treasurer: '/treasurer/dashboard',
       secretary: '/secretary/dashboard',
     };
 
-    navigate(roleRoutes[selectedRole.toLowerCase()]);
+    navigate(roleRoutes[profile.role]);
   };
 
   const handleBackHome = () => {
@@ -45,12 +78,10 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
 
   return (
     <div className="login-container">
-      {/* Animated Background Orbs */}
       <div className="login-orb login-orb-1"></div>
       <div className="login-orb login-orb-2"></div>
       <div className="login-orb login-orb-3"></div>
 
-      {/* Back to Home Button */}
       <button className="login-back-link" onClick={handleBackHome}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M19 12H5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -59,9 +90,7 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
         Back to Home
       </button>
 
-      {/* Main Content */}
       <div className="login-wrapper">
-        {/* Brand Section */}
         <div className="login-brand-section">
           <div className="login-brand-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -74,11 +103,11 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
           <p className="login-hint-text">Select your role and sign in to access your dashboard</p>
         </div>
 
-        {/* Role Tab Switcher */}
         <div className="login-tabs-container">
           <button
             className={`login-tab ${selectedRole === 'Admin' ? 'active' : ''}`}
             onClick={() => handleRoleChange('Admin')}
+            type="button"
           >
             <i className="ti ti-settings"></i>
             <span>Admin</span>
@@ -86,6 +115,7 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
           <button
             className={`login-tab ${selectedRole === 'Secretary' ? 'active' : ''}`}
             onClick={() => handleRoleChange('Secretary')}
+            type="button"
           >
             <i className="ti ti-edit"></i>
             <span>Secretary</span>
@@ -93,15 +123,14 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
           <button
             className={`login-tab ${selectedRole === 'Treasurer' ? 'active' : ''}`}
             onClick={() => handleRoleChange('Treasurer')}
+            type="button"
           >
             <i className="ti ti-wallet"></i>
             <span>Treasurer</span>
           </button>
         </div>
 
-        {/* Login Card */}
         <form className="login-card" onSubmit={handleLogin}>
-          {/* Email Field */}
           <div className="login-form-group">
             <label className="login-label">Email Address</label>
             <div className="login-input-wrapper">
@@ -119,7 +148,6 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
             </div>
           </div>
 
-          {/* Password Field */}
           <div className="login-form-group">
             <label className="login-label">Password</label>
             <div className="login-input-wrapper">
@@ -138,7 +166,6 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
             </div>
           </div>
 
-          {/* Remember Me & Forgot Password */}
           <div className="login-remember-row">
             <label className="login-checkbox-label">
               <input
@@ -157,12 +184,12 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
             </a>
           </div>
 
-          {/* Submit Button */}
-          <button type="submit" className="login-submit-btn" id="signinbtn">
-            Sign In To {selectedRole} Portal
+          {error && <p style={{ color: '#c0392b', fontSize: '14px', marginTop: '8px' }}>{error}</p>}
+
+          <button type="submit" className="login-submit-btn" id="signinbtn" disabled={loading}>
+            {loading ? 'Signing in...' : `Sign In To ${selectedRole} Portal`}
           </button>
 
-          {/* Contact Hint */}
           <p className="login-contact-hint">
             Need access?{' '}
             <a href="#" className="login-contact-link" onClick={(e) => e.preventDefault()}>

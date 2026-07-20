@@ -11,5 +11,8 @@
     "dev": "npm --prefix client run dev",
     "preview": "npm --prefix client run preview",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.7"
   }
 }
