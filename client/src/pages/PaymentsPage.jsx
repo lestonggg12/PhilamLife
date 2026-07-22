@@ -130,19 +130,20 @@ export default function PaymentsPage({ user }) {
     setSaving(true)
     setFormError('')
 
-    const payload = {
-      homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
-      block_name: form.blockName,
-      lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
-      coverage_period: form.coveragePeriod.trim().replace(/\s+/g, ' '),
-      previous_balance: previous,
-      amount_paid: paid,
-      payment_method: form.paymentMethod,
-      reference_number: reference || null,
-      note: form.note.trim() || null,
-      recorded_by: user.id,
-      recorded_by_name: recorderName,
-    }
+   const payload = {
+  homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
+  block_name: form.blockName,
+  lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
+  coverage_period: form.coveragePeriod.trim().replace(/\s+/g, ' '),
+  previous_balance: previous,
+  amount_paid: paid,
+  amount: paid,
+  payment_method: form.paymentMethod,
+  reference_number: reference || null,
+  note: form.note.trim() || null,
+  recorded_by: user.id,
+  recorded_by_name: recorderName,
+}
 
     const { data, error } = await supabase
       .from('payments')
