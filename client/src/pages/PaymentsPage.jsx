@@ -138,6 +138,7 @@ export default function PaymentsPage({ user }) {
   previous_balance: previous,
   amount_paid: paid,
   amount: paid,
+  status: 'Completed',
   payment_method: form.paymentMethod,
   reference_number: reference || null,
   note: form.note.trim() || null,
