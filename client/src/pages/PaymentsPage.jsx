@@ -25,7 +25,8 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
-export default function PaymentsPage({ user }) {
+export default function PaymentsPage({ user: suppliedUser }) {
+  const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
   const [blocks, setBlocks] = useState([])
   const [loading, setLoading] = useState(true)
@@ -36,13 +37,33 @@ export default function PaymentsPage({ user }) {
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
 
-  const isAdmin = user?.role?.toLowerCase() === 'admin'
+  const role = currentUser?.role?.trim().toLowerCase()
+  const canManagePayments = role === 'secretary' || role === 'treasurer'
   const recorderName =
-    user?.full_name || user?.name || user?.email || 'Administrator'
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
   useEffect(() => {
     loadPage()
+    resolveCurrentUser()
   }, [])
+
+  async function resolveCurrentUser() {
+    if (suppliedUser) {
+      setCurrentUser(suppliedUser)
+      return
+    }
+
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    if (authError || !authUser) return
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single()
+
+    if (!profileError) setCurrentUser(profile)
+  }
 
   async function loadPage() {
     setLoading(true)
@@ -79,6 +100,7 @@ export default function PaymentsPage({ user }) {
   }
 
   function openForm() {
+    if (!canManagePayments) return
     setForm(EMPTY_FORM)
     setFormError('')
     setShowForm(true)
@@ -92,6 +114,16 @@ export default function PaymentsPage({ user }) {
 
   async function recordPayment(event) {
     event.preventDefault()
+
+    if (!canManagePayments) {
+      setFormError('Only a Secretary or Treasurer can record payments.')
+      return
+    }
+
+    if (!currentUser?.id) {
+      setFormError('Your user profile could not be verified. Please sign in again.')
+      return
+    }
 
     const previous = Number(form.previousBalance)
     const paid = Number(form.amountPaid)
@@ -130,21 +162,19 @@ export default function PaymentsPage({ user }) {
     setSaving(true)
     setFormError('')
 
-   const payload = {
-  homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
-  block_name: form.blockName,
-  lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
-  coverage_period: form.coveragePeriod.trim().replace(/\s+/g, ' '),
-  previous_balance: previous,
-  amount_paid: paid,
-  amount: paid,
-  status: 'Completed',
-  payment_method: form.paymentMethod,
-  reference_number: reference || null,
-  note: form.note.trim() || null,
-  recorded_by: user.id,
-  recorded_by_name: recorderName,
-}
+    const payload = {
+      homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
+      block_name: form.blockName,
+      lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
+      coverage_period: form.coveragePeriod.trim().replace(/\s+/g, ' '),
+      previous_balance: previous,
+      amount_paid: paid,
+      payment_method: form.paymentMethod,
+      reference_number: reference || null,
+      note: form.note.trim() || null,
+      recorded_by: currentUser.id,
+      recorded_by_name: recorderName,
+    }
 
     const { data, error } = await supabase
       .from('payments')
@@ -173,7 +203,7 @@ export default function PaymentsPage({ user }) {
           <p>Record homeowner payments and issue official receipts.</p>
         </div>
 
-        {isAdmin && (
+        {canManagePayments && (
           <button className="payments-primary" type="button" onClick={openForm}>
             + Record Payment
           </button>
@@ -223,7 +253,7 @@ export default function PaymentsPage({ user }) {
         </table>
       </section>
 
-      {showForm && isAdmin && (
+      {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
           <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()}>
             <div className="payment-modal-heading">
