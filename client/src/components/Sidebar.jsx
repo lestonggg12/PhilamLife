@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CreditCard, FileText, DollarSign, RefreshCw, Home, Users, Settings, Activity } from './Icons'
+import { BarChart3, CreditCard, FileText, DollarSign, RefreshCw, Home, Settings, Activity } from './Icons'
 import './Sidebar.css'
 
 export default function Sidebar({ user, onLogout }) {
@@ -22,7 +22,6 @@ export default function Sidebar({ user, onLogout }) {
   ]
 
   const systemItems = [
-    ...(user?.role === 'admin' ? [{ name: 'User Management', path: '/user-management', icon: Users }] : []),
     { name: 'System Settings', path: '/system-settings', icon: Settings },
   ]
 

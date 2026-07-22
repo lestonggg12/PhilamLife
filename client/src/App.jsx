@@ -17,7 +17,6 @@ import SecretaryPayablesPage from './pages/SecretaryPayablesPage'
 import PaymentsPage from './pages/PaymentsPage'
 import ReportsPage from './pages/ReportsPage'
 import LedgerPage from './pages/LedgerPage'
-import UserManagementPage from './pages/UserManagementPage'
 import ActivityLogPage from './pages/ActivityLogPage'
 import DocumentLibraryPage from './pages/DocumentLibraryPage'
 import EventCalendarPage from './pages/EventCalendarPage'
@@ -148,18 +147,6 @@ function AppContent() {
           }
         />
 
-        <Route
-          path="/user-management"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin']}
-            >
-              <UserManagementPage />
-            </ProtectedRoute>
-          }
-        />
 
         <Route
           path="/secretary/payables"
