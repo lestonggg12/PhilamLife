@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import './AdminDashboard.css'
-import { Users, Home, DollarSign, TrendingUp, Lock, HardDrive, BarChart3, AlertCircle, Download, Check, Clock, Zap } from '../components/Icons'
-
+import {
+  Users,
+  Home,
+  DollarSign,
+  TrendingUp,
+  Lock,
+  HardDrive,
+  BarChart3,
+  AlertCircle,
+  Download,
+  Check,
+  Clock,
+  Zap
+} from '../components/Icons'
 export default function AdminDashboard() {
   const [chartsReady, setChartsReady] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -220,13 +232,6 @@ export default function AdminDashboard() {
         </button>
         <div className={`dash-actions-body ${actionsOpen ? 'open' : ''}`}>
           <div className="dash-actions-grid">
-            <div className="dash-action-item">
-              <div className="dash-action-icon"><Users size={20} /></div>
-              <div className="dash-action-content">
-                <h4>User Management</h4>
-                <p>Manage admin & secretary accounts</p>
-              </div>
-            </div>
             <div className="dash-action-item">
               <div className="dash-action-icon"><HardDrive size={20} /></div>
               <div className="dash-action-content">
