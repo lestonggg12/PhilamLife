@@ -54,7 +54,8 @@ function paymentKey(payment) {
   return `${String(payment.block_name || '').trim().toLowerCase()}|${String(payment.lot_number || '').trim().toLowerCase()}`
 }
 
-export default function ReportsPage({ user }) {
+export default function ReportsPage({ user: suppliedUser }) {
+  const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [activeReport, setActiveReport] = useState('collections')
   const [selectedMonth, setSelectedMonth] = useState(currentMonthInManila())
   const [selectedYear, setSelectedYear] = useState(Number(currentMonthInManila().slice(0, 4)))
@@ -67,12 +68,33 @@ export default function ReportsPage({ user }) {
   const [expenseError, setExpenseError] = useState('')
   const [savingExpense, setSavingExpense] = useState(false)
 
-  const isAdmin = user?.role?.toLowerCase() === 'admin'
-  const recorderName = user?.full_name || user?.name || user?.email || 'Administrator'
+  const role = currentUser?.role?.trim().toLowerCase()
+  const canManageExpenses = role === 'treasurer'
+  const canGenerateReports = role === 'admin' || role === 'treasurer'
+  const recorderName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Treasurer'
 
   useEffect(() => {
     loadReports()
+    resolveCurrentUser()
   }, [])
+
+  async function resolveCurrentUser() {
+    if (suppliedUser) {
+      setCurrentUser(suppliedUser)
+      return
+    }
+
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    if (authError || !authUser) return
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single()
+
+    if (!profileError) setCurrentUser(profile)
+  }
 
   async function loadReports() {
     setLoading(true)
@@ -81,7 +103,7 @@ export default function ReportsPage({ user }) {
     const [paymentResult, expenseResult] = await Promise.all([
       supabase
         .from('payments')
-        .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
+        .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at')
         .order('paid_at', { ascending: false }),
       supabase
         .from('expenses')
@@ -97,10 +119,7 @@ export default function ReportsPage({ user }) {
     setLoading(false)
   }
 
-  const validPayments = useMemo(
-    () => payments.filter((payment) => String(payment.status || 'Completed').toLowerCase() !== 'voided'),
-    [payments]
-  )
+  const validPayments = payments
 
   const monthlyPayments = useMemo(() => {
     const { start, end } = monthBounds(selectedMonth)
@@ -161,6 +180,17 @@ export default function ReportsPage({ user }) {
 
   async function saveExpense(event) {
     event.preventDefault()
+
+    if (!canManageExpenses) {
+      setExpenseError('Only the Treasurer can record expenses.')
+      return
+    }
+
+    if (!currentUser?.id) {
+      setExpenseError('Your user profile could not be verified. Please sign in again.')
+      return
+    }
+
     const amount = Number(expenseForm.amount)
     if (!expenseForm.expenseDate || !expenseForm.category.trim() || !expenseForm.description.trim()) {
       setExpenseError('Date, category, and description are required.')
@@ -180,7 +210,7 @@ export default function ReportsPage({ user }) {
         description: expenseForm.description.trim().replace(/\s+/g, ' '),
         amount,
         reference_number: expenseForm.referenceNumber.trim() || null,
-        recorded_by: user.id,
+        recorded_by: currentUser.id,
         recorded_by_name: recorderName,
       })
       .select('*')
@@ -198,6 +228,7 @@ export default function ReportsPage({ user }) {
   }
 
   function generateReport() {
+    if (!canGenerateReports) return
     window.print()
   }
 
@@ -210,9 +241,11 @@ export default function ReportsPage({ user }) {
           <h1>Financial Reports</h1>
           <p>Review collections, unpaid balances, annual totals, and expenses.</p>
         </div>
-        <button type="button" className="reports-primary" onClick={generateReport} disabled={loading}>
-          Generate Report
-        </button>
+        {canGenerateReports && (
+          <button type="button" className="reports-primary" onClick={generateReport} disabled={loading}>
+            Generate Report
+          </button>
+        )}
       </header>
 
       <nav className="reports-tabs no-print" aria-label="Report type">
@@ -228,7 +261,7 @@ export default function ReportsPage({ user }) {
         ) : activeReport !== 'unpaid' ? (
           <label>Report month <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} /></label>
         ) : <span>Shows the latest saved balance for every property.</span>}
-        {activeReport === 'expenses' && isAdmin && (
+        {activeReport === 'expenses' && canManageExpenses && (
           <button type="button" className="reports-secondary" onClick={() => { setExpenseError(''); setShowExpenseForm(true) }}>+ Record Expense</button>
         )}
       </div>
@@ -283,7 +316,7 @@ export default function ReportsPage({ user }) {
         <footer className="report-footer">Generated on {dateLabel.format(new Date())}. Totals are based on saved, non-voided payment receipts and recorded expenses.</footer>
       </main>
 
-      {showExpenseForm && isAdmin && (
+      {showExpenseForm && canManageExpenses && (
         <div className="reports-overlay no-print" onMouseDown={() => !savingExpense && setShowExpenseForm(false)}>
           <form className="expense-form" onSubmit={saveExpense} onMouseDown={(event) => event.stopPropagation()}>
             <div className="expense-heading"><div><h2>Record Expense</h2><p>Enter the details exactly as shown on the supporting document.</p></div><button type="button" onClick={() => setShowExpenseForm(false)}>×</button></div>
