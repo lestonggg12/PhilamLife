@@ -171,8 +171,7 @@ function AppContent() {
           element={<LedgerPage user={user} />}
         />
 
-        <Route path="/payments" element={<PaymentsPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/payments" element={<PaymentsPage user={user} />} />        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/activity-log" element={<ActivityLogPage />} />
         <Route path="/documents" element={<DocumentLibraryPage />} />
         <Route path="/calendar" element={<EventCalendarPage />} />
