@@ -330,6 +330,26 @@ export default function SecretaryDashboard() {
           </button>
 
           <button
+              type="button"
+              className="sec-action"
+              onClick={() =>
+                navigate('/secretary/receipts')
+              }
+            >
+              <span className="sec-action-icon">
+                <FileText size={19} />
+              </span>
+
+              <span>
+                <strong>Official Receipts</strong>
+
+                <small>
+                  Search, view, and reprint all receipts
+                </small>
+              </span>
+            </button>
+
+          <button
             type="button"
             className="sec-action"
             onClick={() => navigate('/secretary/payables')}

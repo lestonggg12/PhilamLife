@@ -20,6 +20,7 @@ export default function Sidebar({ user, onLogout }) {
     { name: 'Payments', path: '/payments', icon: CreditCard },
     { name: 'Services', path: '/secretary/services', icon: DollarSign },
     { name: 'Reports', path: '/reports', icon: BarChart3 },
+    {name: 'Official Receipts', path: '/secretary/receipts',icon: FileText,},
   ]
 
   const systemItems = [
