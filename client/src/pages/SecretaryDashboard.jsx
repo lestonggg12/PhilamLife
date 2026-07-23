@@ -341,6 +341,19 @@ export default function SecretaryDashboard() {
             </span>
           </button>
 
+                <button
+  type="button"
+  className="sec-action"
+  onClick={() => navigate('/secretary/services')}
+>
+  <span className="sec-action-icon"><FileText size={19} /></span>
+  <span>
+    <strong>Services Management</strong>
+    <small>Amenity payments and service receipts</small>
+  </span>
+</button>
+
+
           <button type="button" className="sec-action" onClick={() => navigate('/documents')}>
             <span className="sec-action-icon"><FileText size={19} /></span>
             <span>
