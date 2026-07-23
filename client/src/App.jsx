@@ -15,6 +15,7 @@ import TreasurerDashboard from './pages/TreasurerDashboard'
 import SecretaryDashboard from './pages/SecretaryDashboard'
 import SecretaryPayablesPage from './pages/SecretaryPayablesPage'
 import ServicesManagementPage from './pages/ServicesManagementPage'
+import OfficialReceiptsPage from './pages/OfficialReceiptsPage'
 import PaymentsPage from './pages/PaymentsPage'
 import ReportsPage from './pages/ReportsPage'
 import LedgerPage from './pages/LedgerPage'
@@ -158,6 +159,11 @@ function AppContent() {
           path="/secretary/services"
           element={<ServicesManagementPage user={user} />}
         />
+
+              <Route
+        path="/secretary/receipts"
+        element={<OfficialReceiptsPage />}
+      />
 
         <Route
           path="/ledger"
