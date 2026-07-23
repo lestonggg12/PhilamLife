@@ -1,220 +1,297 @@
-import React, { useState } from 'react'
-import { ChevronDown, Home, DollarSign, AlertCircle, CheckCircle, Clock } from '../components/Icons'
+import React, { useEffect, useMemo, useState } from 'react'
+import { AlertCircle, DollarSign } from '../components/Icons'
 import BlockOverviewCard from '../components/BlockOverviewCard'
 import ExpandedBlockView from '../components/ExpandedBlockView'
 import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
 import ReceiptModal from '../components/ReceiptModal'
+import { supabase } from '../lib/supabaseClient'
 import './SecretaryPayables.css'
 
-// Mock data
-const MOCK_BLOCKS = [
-  {
-    id: 1,
-    name: 'Block A',
-    totalUnits: 24,
-    paidAccounts: 18,
-    unpaidAccounts: 6,
-    collectionRate: 75,
-    totalOutstanding: 45000,
-  },
-  {
-    id: 2,
-    name: 'Block B',
-    totalUnits: 20,
-    paidAccounts: 12,
-    unpaidAccounts: 8,
-    collectionRate: 60,
-    totalOutstanding: 72000,
-  },
-  {
-    id: 3,
-    name: 'Block C',
-    totalUnits: 18,
-    paidAccounts: 16,
-    unpaidAccounts: 2,
-    collectionRate: 89,
-    totalOutstanding: 12000,
-  },
-  {
-    id: 4,
-    name: 'Block D',
-    totalUnits: 22,
-    paidAccounts: 22,
-    unpaidAccounts: 0,
-    collectionRate: 100,
-    totalOutstanding: 0,
-  },
-]
+const peso = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+})
 
-const MOCK_HOMEOWNERS = {
-  1: [
-    {
-      id: 101,
-      name: 'Maria Santos',
-      lot: 'A-1',
-      address: 'Lot 1, Block A, PHILAM Village',
-      phone: '(088) 555-1001',
-      email: 'maria@email.com',
-      status: 'paid',
-      lastPayment: '2026-04-15',
-      amountDue: 0,
-      daysOverdue: 0,
-      avatar: '👩‍🦰',
-    },
-    {
-      id: 102,
-      name: 'Juan Dela Cruz',
-      lot: 'A-2',
-      address: 'Lot 2, Block A, PHILAM Village',
-      phone: '(088) 555-1002',
-      email: 'juan@email.com',
-      status: 'overdue',
-      lastPayment: '2026-02-10',
-      amountDue: 7500,
-      daysOverdue: 50,
-      avatar: '👨‍🦱',
-    },
-    {
-      id: 103,
-      name: 'Ana Garcia',
-      lot: 'A-3',
-      address: 'Lot 3, Block A, PHILAM Village',
-      phone: '(088) 555-1003',
-      email: 'ana@email.com',
-      status: 'pending',
-      lastPayment: '2026-03-20',
-      amountDue: 3000,
-      daysOverdue: 0,
-      avatar: '👩‍🦲',
-    },
-    {
-      id: 104,
-      name: 'Carlos Reyes',
-      lot: 'A-4',
-      address: 'Lot 4, Block A, PHILAM Village',
-      phone: '(088) 555-1004',
-      email: 'carlos@email.com',
-      status: 'overdue',
-      lastPayment: '2026-01-05',
-      amountDue: 15000,
-      daysOverdue: 116,
-      avatar: '👨',
-    },
-    {
-      id: 105,
-      name: 'Rosa Morales',
-      lot: 'A-5',
-      address: 'Lot 5, Block A, PHILAM Village',
-      phone: '(088) 555-1005',
-      email: 'rosa@email.com',
-      status: 'paid',
-      lastPayment: '2026-04-10',
-      amountDue: 0,
-      daysOverdue: 0,
-      avatar: '👵',
-    },
-    {
-      id: 106,
-      name: 'Miguel Torres',
-      lot: 'A-6',
-      address: 'Lot 6, Block A, PHILAM Village',
-      phone: '(088) 555-1006',
-      email: 'miguel@email.com',
-      status: 'overdue',
-      lastPayment: '2026-02-28',
-      amountDue: 19500,
-      daysOverdue: 63,
-      avatar: '👨‍💼',
-    },
-  ],
-  2: [
-    {
-      id: 201,
-      name: 'Lisa Wang',
-      lot: 'B-1',
-      address: 'Lot 1, Block B, PHILAM Village',
-      phone: '(088) 555-2001',
-      email: 'lisa@email.com',
-      status: 'paid',
-      lastPayment: '2026-04-12',
-      amountDue: 0,
-      daysOverdue: 0,
-      avatar: '👩‍🦳',
-    },
-    {
-      id: 202,
-      name: 'Robert Kim',
-      lot: 'B-2',
-      address: 'Lot 2, Block B, PHILAM Village',
-      phone: '(088) 555-2002',
-      email: 'robert@email.com',
-      status: 'overdue',
-      lastPayment: '2026-01-15',
-      amountDue: 22500,
-      daysOverdue: 106,
-      avatar: '👨‍🎓',
-    },
-  ],
+const date = new Intl.DateTimeFormat('en-PH', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Manila',
+})
+
+const normalize = (value) => String(value ?? '').trim().toLowerCase()
+
+function currentManilaPeriod() {
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Manila',
+  }).format(new Date())
 }
 
-const MOCK_LEDGER = {
-  101: [
-    { date: '2026-04-15', type: 'Payment', description: 'March 2026 Dues', amount: -7500, balance: 0 },
-    { date: '2026-03-15', type: 'Charge', description: 'March 2026 HPAssessment', amount: 7500, balance: 7500 },
-    { date: '2026-02-15', type: 'Payment', description: 'February 2026 Dues', amount: -7500, balance: 0 },
-  ],
-  102: [
-    { date: '2026-04-20', type: 'Charge', description: 'April 2026 HOA Assessment', amount: 7500, balance: 7500 },
-    { date: '2026-03-20', type: 'Charge', description: 'March 2026 HOA Assessment', amount: 7500, balance: 0 },
-    { date: '2026-02-10', type: 'Payment', description: 'January 2026 Dues', amount: -7500, balance: -7500 },
-  ],
+function paymentMatchesProperty(payment, property) {
+  if (payment.property_id != null) {
+    return Number(payment.property_id) === Number(property.id)
+  }
+
+  return (
+    normalize(payment.homeowner_name) === normalize(property.homeowner_name) &&
+    normalize(payment.block_name) === normalize(property.block) &&
+    normalize(payment.lot_number).replace(/^lot\s*/, '') ===
+      String(property.lot_number)
+  )
 }
 
-export default function SecretaryPayablesPage() {
+export default function SecretaryPayablesPage({ user: suppliedUser }) {
+  const [currentUser, setCurrentUser] = useState(suppliedUser || null)
+  const [blocks, setBlocks] = useState([])
+  const [properties, setProperties] = useState([])
+  const [payments, setPayments] = useState([])
+  const [duesAmount, setDuesAmount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [pageError, setPageError] = useState('')
   const [expandedBlockId, setExpandedBlockId] = useState(null)
   const [selectedHomeowner, setSelectedHomeowner] = useState(null)
   const [showLedgerModal, setShowLedgerModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [paymentData, setPaymentData] = useState(null)
   const [receiptData, setReceiptData] = useState(null)
 
-  const handleBlockExpand = (blockId) => {
-    setExpandedBlockId(expandedBlockId === blockId ? null : blockId)
+  const role = currentUser?.role?.trim().toLowerCase()
+  const canManagePayments = role === 'secretary' || role === 'treasurer'
+  const recorderName =
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+
+  useEffect(() => {
+    loadPage()
+    resolveCurrentUser()
+  }, [])
+
+  async function resolveCurrentUser() {
+    if (suppliedUser) {
+      setCurrentUser(suppliedUser)
+      return
+    }
+
+    const {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !authUser) return
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single()
+
+    if (!profileError) setCurrentUser(profile)
   }
 
-  const handleViewLedger = (homeowner) => {
+  async function loadPage() {
+    setLoading(true)
+    setPageError('')
+
+    const [blockResult, propertyResult, paymentResult, settingsResult] =
+      await Promise.all([
+        supabase.from('blocks').select('id, name').order('name'),
+        supabase
+          .from('properties')
+          .select('id, block, lot_number, homeowner_name')
+          .order('homeowner_name'),
+        supabase
+          .from('payments')
+          .select('*')
+          .order('paid_at', { ascending: false }),
+        supabase
+          .from('system_settings')
+          .select('dues_amount')
+          .eq('id', 1)
+          .maybeSingle(),
+      ])
+
+    const errors = [
+      blockResult.error,
+      propertyResult.error,
+      paymentResult.error,
+      settingsResult.error,
+    ].filter(Boolean)
+
+    if (errors.length > 0) {
+      setPageError(
+        `Some collection records could not be loaded: ${errors
+          .map((error) => error.message)
+          .join(' ')}`,
+      )
+    }
+
+    setBlocks(blockResult.data || [])
+    setProperties(propertyResult.data || [])
+    setPayments(paymentResult.data || [])
+    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
+    setLoading(false)
+  }
+
+  const homeownersByBlock = useMemo(() => {
+    const grouped = new Map()
+
+    properties.forEach((property) => {
+      const propertyPayments = payments.filter((payment) =>
+        paymentMatchesProperty(payment, property),
+      )
+      const latestPayment = propertyPayments[0]
+      const amountDue = latestPayment
+        ? Number(latestPayment.remaining_balance) || 0
+        : duesAmount
+
+      const homeowner = {
+        id: property.id,
+        name: property.homeowner_name,
+        block: property.block,
+        lot: `Lot ${property.lot_number}`,
+        address: `Lot ${property.lot_number}, ${property.block}`,
+        status: amountDue <= 0 ? 'paid' : latestPayment ? 'pending' : 'overdue',
+        lastPayment: latestPayment?.paid_at
+          ? date.format(new Date(latestPayment.paid_at))
+          : 'No payment yet',
+        amountDue,
+        daysOverdue: 0,
+        avatar: '🏠',
+        payments: propertyPayments,
+      }
+
+      const key = normalize(property.block)
+      grouped.set(key, [...(grouped.get(key) || []), homeowner])
+    })
+
+    return grouped
+  }, [duesAmount, payments, properties])
+
+  const blockSummaries = useMemo(() => {
+    const knownBlocks = [...blocks]
+
+    properties.forEach((property) => {
+      if (!knownBlocks.some((block) => normalize(block.name) === normalize(property.block))) {
+        knownBlocks.push({ id: `property-${property.block}`, name: property.block })
+      }
+    })
+
+    return knownBlocks.map((block) => {
+      const homeowners = homeownersByBlock.get(normalize(block.name)) || []
+      const paidAccounts = homeowners.filter(
+        (homeowner) => homeowner.amountDue <= 0,
+      ).length
+      const unpaidAccounts = homeowners.length - paidAccounts
+      const totalOutstanding = homeowners.reduce(
+        (sum, homeowner) => sum + homeowner.amountDue,
+        0,
+      )
+
+      return {
+        ...block,
+        totalUnits: homeowners.length,
+        paidAccounts,
+        unpaidAccounts,
+        collectionRate:
+          homeowners.length > 0
+            ? Math.round((paidAccounts / homeowners.length) * 100)
+            : 0,
+        totalOutstanding,
+        homeowners,
+      }
+    })
+  }, [blocks, homeownersByBlock, properties])
+
+  const totals = useMemo(
+    () =>
+      blockSummaries.reduce(
+        (result, block) => ({
+          outstanding: result.outstanding + block.totalOutstanding,
+          accounts: result.accounts + block.unpaidAccounts,
+        }),
+        { outstanding: 0, accounts: 0 },
+      ),
+    [blockSummaries],
+  )
+
+  function handleBlockExpand(blockId) {
+    setExpandedBlockId((current) => (current === blockId ? null : blockId))
+  }
+
+  function handleViewLedger(homeowner) {
     setSelectedHomeowner(homeowner)
     setShowLedgerModal(true)
   }
 
-  const handlePayDues = (homeowner) => {
+  function handlePayDues(homeowner) {
+    if (!canManagePayments) return
+
     setSelectedHomeowner(homeowner)
     setPaymentData({
       homeowner: homeowner.name,
+      block: homeowner.block,
       lot: homeowner.lot,
       amount: homeowner.amountDue,
-      period: 'April 2026',
+      period: currentManilaPeriod(),
     })
     setShowPaymentModal(true)
   }
 
-  const handlePaymentConfirmed = (method) => {
-    setReceiptData({
-      orNumber: `OR-${Date.now()}`,
-      date: new Date().toLocaleDateString(),
-      homeowner: paymentData.homeowner,
-      lot: paymentData.lot,
-      amount: paymentData.amount,
-      method: method,
-      period: paymentData.period,
-    })
+  async function handlePaymentConfirmed(form) {
+    if (!canManagePayments) {
+      throw new Error('Only a Secretary or Treasurer can record payments.')
+    }
+
+    if (!currentUser?.id) {
+      throw new Error('Your user profile could not be verified. Please sign in again.')
+    }
+
+    const payload = {
+      homeowner_name: paymentData.homeowner,
+      block_name: paymentData.block,
+      lot_number: paymentData.lot,
+      coverage_period: form.period,
+      previous_balance: paymentData.amount,
+      amount_paid: form.amount,
+      payment_method: form.method,
+      reference_number: form.referenceNumber || null,
+      note: form.note || null,
+      recorded_by: currentUser.id,
+      recorded_by_name: recorderName,
+    }
+
+    const { data, error } = await supabase
+      .from('payments')
+      .insert(payload)
+      .select('*')
+      .single()
+
+    if (error) throw error
+
+    setPayments((current) => [data, ...current])
     setShowPaymentModal(false)
-    setShowReceiptModal(true)
+    setReceiptData({
+      orNumber: data.receipt_number,
+      date: date.format(new Date(data.paid_at)),
+      homeowner: data.homeowner_name,
+      lot: `${data.block_name}, ${data.lot_number}`,
+      amount: Number(data.amount_paid) || 0,
+      method: data.payment_method,
+      period: data.coverage_period,
+    })
+
+    const { error: activityError } = await supabase.from('activity_log').insert({
+      user_id: currentUser.id,
+      action: 'Payment Recorded',
+      target: `${data.receipt_number} — ${data.homeowner_name} (${recorderName})`,
+    })
+
+    if (activityError) {
+      console.warn('Payment saved, but activity logging failed:', activityError.message)
+    }
   }
 
-  const handleCloseLedger = () => {
+  function closeLedger() {
     setShowLedgerModal(false)
     setSelectedHomeowner(null)
   }
@@ -223,51 +300,68 @@ export default function SecretaryPayablesPage() {
     <div className="secretary-payables-page">
       <div className="payables-header">
         <div>
-          <h1>📊 Payables & Collections</h1>
-          <p>Manage block collections and homeowner dues</p>
+          <h1>Payables & Collections</h1>
+          <p>Review block collections, homeowner balances, and payment history.</p>
         </div>
         <div className="header-stats">
           <div className="stat-badge">
             <DollarSign size={20} />
-            <span>₱201,000 Outstanding</span>
+            <span>{loading ? 'Loading...' : `${peso.format(totals.outstanding)} outstanding`}</span>
           </div>
           <div className="stat-badge">
             <AlertCircle size={20} />
-            <span>16 Overdue</span>
+            <span>{loading ? '—' : totals.accounts} outstanding account{totals.accounts === 1 ? '' : 's'}</span>
           </div>
         </div>
       </div>
 
-      <div className="payables-content">
-        <div className="blocks-grid">
-          {MOCK_BLOCKS.map((block) => (
-            <div key={block.id} className="block-section">
-              <BlockOverviewCard
-                block={block}
-                isExpanded={expandedBlockId === block.id}
-                onExpand={() => handleBlockExpand(block.id)}
-              />
+      {pageError && <p className="payables-error">{pageError}</p>}
 
-              {expandedBlockId === block.id && MOCK_HOMEOWNERS[block.id] && (
-                <ExpandedBlockView
+      <div className="payables-content">
+        {loading ? (
+          <div className="payables-state">Loading payables and collections...</div>
+        ) : blockSummaries.length === 0 ? (
+          <div className="payables-state">No blocks or homeowner records found.</div>
+        ) : (
+          <div className="blocks-grid">
+            {blockSummaries.map((block) => (
+              <div key={block.id} className="block-section">
+                <BlockOverviewCard
                   block={block}
-                  homeowners={MOCK_HOMEOWNERS[block.id]}
-                  onViewLedger={handleViewLedger}
-                  onPayDues={handlePayDues}
+                  isExpanded={expandedBlockId === block.id}
+                  onExpand={() => handleBlockExpand(block.id)}
                 />
-              )}
-            </div>
-          ))}
-        </div>
+
+                {expandedBlockId === block.id && (
+                  <ExpandedBlockView
+                    block={block}
+                    homeowners={block.homeowners}
+                    canRecordPayment={canManagePayments}
+                    onViewLedger={handleViewLedger}
+                    onPayDues={handlePayDues}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {showLedgerModal && selectedHomeowner && (
         <HomeownerLedgerModal
           homeowner={selectedHomeowner}
-          ledger={MOCK_LEDGER[selectedHomeowner.id] || []}
-          onClose={handleCloseLedger}
+          ledger={selectedHomeowner.payments.map((payment) => ({
+            id: payment.id,
+            date: date.format(new Date(payment.paid_at)),
+            type: 'Payment',
+            description: payment.coverage_period,
+            amount: -(Number(payment.amount_paid) || 0),
+            balance: Number(payment.remaining_balance) || 0,
+          }))}
+          canRecordPayment={canManagePayments}
+          onClose={closeLedger}
           onPayClick={() => {
-            handleCloseLedger()
+            closeLedger()
             handlePayDues(selectedHomeowner)
           }}
         />
@@ -281,10 +375,10 @@ export default function SecretaryPayablesPage() {
         />
       )}
 
-      {showReceiptModal && receiptData && (
+      {receiptData && (
         <ReceiptModal
           receiptData={receiptData}
-          onClose={() => setShowReceiptModal(false)}
+          onClose={() => setReceiptData(null)}
         />
       )}
     </div>
