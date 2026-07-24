@@ -149,35 +149,147 @@ function AppContent() {
           }
         />
 
-
         <Route
           path="/secretary/payables"
-          element={<SecretaryPayablesPage />}
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary', 'treasurer']}
+            >
+              <SecretaryPayablesPage user={user} />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/secretary/services"
-          element={<ServicesManagementPage user={user} />}
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary']}
+            >
+              <ServicesManagementPage user={user} />
+            </ProtectedRoute>
+          }
         />
 
-              <Route
-        path="/secretary/receipts"
-        element={<OfficialReceiptsPage />}
-      />
+        <Route
+          path="/secretary/receipts"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary']}
+            >
+              <OfficialReceiptsPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/ledger"
-          element={<LedgerPage user={user} />}
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['admin', 'treasurer', 'secretary']}
+            >
+              <LedgerPage user={user} />
+            </ProtectedRoute>
+          }
         />
 
-        <Route path="/payments" element={<PaymentsPage user={user} />} />        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/activity-log" element={<ActivityLogPage />} />
-        <Route path="/documents" element={<DocumentLibraryPage />} />
-        <Route path="/calendar" element={<EventCalendarPage />} />
-        <Route path="/contacts" element={<ContactManagerPage />} />
+        <Route
+          path="/payments"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary', 'treasurer']}
+            >
+              <PaymentsPage user={user} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['admin', 'treasurer']}
+            >
+              <ReportsPage user={user} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/activity-log"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['admin', 'secretary']}
+            >
+              <ActivityLogPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/documents"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary']}
+            >
+              <DocumentLibraryPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary']}
+            >
+              <EventCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/contacts"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['secretary']}
+            >
+              <ContactManagerPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/system-settings"
-          element={<SystemSettingsPage />}
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['admin']}
+            >
+              <SystemSettingsPage user={user} />
+            </ProtectedRoute>
+          }
         />
       </Route>
     </Routes>
