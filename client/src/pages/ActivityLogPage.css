@@ -169,6 +169,17 @@
   min-width: 150px;
 }
 
+.user-cell strong,
+.user-cell small {
+  display: block;
+}
+
+.user-cell small {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .action-cell {
   min-width: 140px;
 }
