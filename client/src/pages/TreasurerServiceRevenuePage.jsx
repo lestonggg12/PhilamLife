@@ -8,11 +8,6 @@ const peso = new Intl.NumberFormat('en-PH', {
   currency: 'PHP',
 })
 
-const dateFormatter = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeZone: 'Asia/Manila',
-})
-
 const dateTimeFormatter = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -35,11 +30,37 @@ function manilaMonthKey(value = new Date()) {
   return `${values.year}-${values.month}`
 }
 
+function manilaDateKey(value) {
+  if (!value) return ''
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(value))
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+function transactionPaymentStatus(transaction) {
+  const amountDue = Number(transaction.amount_due) || 0
+  const amountPaid = Number(transaction.amount_paid) || 0
+
+  return transaction.payment_status === 'paid' || amountPaid >= amountDue
+    ? 'paid'
+    : 'outstanding'
+}
+
 export default function TreasurerServiceRevenuePage() {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [serviceFilter, setServiceFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   useEffect(() => {
     loadTransactions()
@@ -68,18 +89,54 @@ export default function TreasurerServiceRevenuePage() {
   }, [transactions])
 
   const filteredTransactions = useMemo(() => {
-    if (serviceFilter === 'all') return transactions
-    return transactions.filter((t) => t.service_name === serviceFilter)
-  }, [transactions, serviceFilter])
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+
+    return transactions.filter((transaction) => {
+      const paymentDate = manilaDateKey(transaction.paid_at)
+      const paymentStatus = transactionPaymentStatus(transaction)
+      const searchableValues = [
+        transaction.receipt_number,
+        transaction.customer_name,
+        transaction.block_name,
+        transaction.lot_number,
+        transaction.payment_method,
+        transaction.service_name,
+        statusLabel(transaction.payment_status),
+      ]
+
+      const matchesSearch = !normalizedSearch || searchableValues.some(
+        (value) => String(value || '').toLowerCase().includes(normalizedSearch),
+      )
+      const matchesService = serviceFilter === 'all'
+        || transaction.service_name === serviceFilter
+      const matchesStatus = statusFilter === 'all'
+        || paymentStatus === statusFilter
+      const matchesFromDate = !fromDate || (paymentDate && paymentDate >= fromDate)
+      const matchesToDate = !toDate || (paymentDate && paymentDate <= toDate)
+
+      return matchesSearch
+        && matchesService
+        && matchesStatus
+        && matchesFromDate
+        && matchesToDate
+    })
+  }, [
+    transactions,
+    searchTerm,
+    serviceFilter,
+    statusFilter,
+    fromDate,
+    toDate,
+  ])
 
   const summary = useMemo(() => {
     const currentMonthKey = manilaMonthKey()
 
-    const totalCollected = filteredTransactions.reduce(
+    const totalCollected = transactions.reduce(
       (sum, t) => sum + (Number(t.amount_paid) || 0),
       0,
     )
-    const outstanding = filteredTransactions.reduce(
+    const outstanding = transactions.reduce(
       (sum, t) => sum + Math.max(
         (Number(t.amount_due) || 0) - (Number(t.amount_paid) || 0),
         0,
@@ -87,12 +144,12 @@ export default function TreasurerServiceRevenuePage() {
       0,
     )
 
-    const collectedThisMonth = filteredTransactions
+    const collectedThisMonth = transactions
       .filter((t) => t.paid_at && manilaMonthKey(t.paid_at) === currentMonthKey)
       .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
 
     const byService = new Map()
-    filteredTransactions.forEach((t) => {
+    transactions.forEach((t) => {
       const key = t.service_name || 'Uncategorized'
       byService.set(key, (byService.get(key) || 0) + (Number(t.amount_paid) || 0))
     })
@@ -103,11 +160,26 @@ export default function TreasurerServiceRevenuePage() {
       totalCollected,
       collectedThisMonth,
       outstanding,
-      count: filteredTransactions.length,
       byService: [...byService.entries()].sort((a, b) => b[1] - a[1]),
       topService: topService ? { name: topService[0], amount: topService[1] } : null,
     }
-  }, [filteredTransactions])
+  }, [transactions])
+
+  function clearFilters() {
+    setSearchTerm('')
+    setServiceFilter('all')
+    setStatusFilter('all')
+    setFromDate('')
+    setToDate('')
+  }
+
+  const hasActiveFilters = Boolean(
+    searchTerm
+    || serviceFilter !== 'all'
+    || statusFilter !== 'all'
+    || fromDate
+    || toDate,
+  )
 
   return (
     <div className="tsr-page">
@@ -119,16 +191,6 @@ export default function TreasurerServiceRevenuePage() {
           </p>
         </div>
 
-        <select
-          className="tsr-filter-select"
-          value={serviceFilter}
-          onChange={(e) => setServiceFilter(e.target.value)}
-        >
-          <option value="all">All Services</option>
-          {serviceNames.map((name) => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
       </div>
 
       {pageError && (
@@ -180,6 +242,76 @@ export default function TreasurerServiceRevenuePage() {
         <div className="tsr-table-panel">
           <h3 className="tsr-section-title">Transaction History</h3>
 
+          <div className="tsr-controls">
+            <label className="tsr-control tsr-search-control">
+              <span>Search</span>
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Receipt, customer, block/lot, method..."
+              />
+            </label>
+
+            <label className="tsr-control">
+              <span>Service</span>
+              <select
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+              >
+                <option value="all">All Services</option>
+                {serviceNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="tsr-control">
+              <span>Payment Status</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Statuses</option>
+                <option value="paid">Fully Paid</option>
+                <option value="outstanding">Partial / Outstanding</option>
+              </select>
+            </label>
+
+            <label className="tsr-control">
+              <span>From Date</span>
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </label>
+
+            <label className="tsr-control">
+              <span>To Date</span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="tsr-clear-button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+            >
+              Clear Filters
+            </button>
+          </div>
+
+          <p className="tsr-result-count">
+            Showing {filteredTransactions.length} of {transactions.length} transactions
+          </p>
+
           {loading ? (
             <div className="tsr-state">Loading transactions...</div>
           ) : filteredTransactions.length === 0 ? (
@@ -190,7 +322,7 @@ export default function TreasurerServiceRevenuePage() {
                 <thead>
                   <tr>
                     <th>Receipt No.</th>
-                    <th>Date</th>
+                    <th>Payment Date</th>
                     <th>Service</th>
                     <th>Customer</th>
                     <th>Block / Lot</th>
@@ -204,7 +336,7 @@ export default function TreasurerServiceRevenuePage() {
                   {filteredTransactions.map((t) => (
                     <tr key={t.id}>
                       <td><strong>{t.receipt_number}</strong></td>
-                      <td>{t.service_date ? dateFormatter.format(new Date(t.service_date)) : '—'}</td>
+                      <td>{t.paid_at ? dateTimeFormatter.format(new Date(t.paid_at)) : '—'}</td>
                       <td>{t.service_name}</td>
                       <td>{t.customer_name}</td>
                       <td>{t.block_name}, Lot {t.lot_number}</td>

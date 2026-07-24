@@ -183,7 +183,7 @@ function AppContent() {
             <ProtectedRoute
               isAuthenticated={isAuthenticated}
               user={user}
-              allowedRoles={['secretary', 'treasurer']}
+              allowedRoles={['admin', 'secretary', 'treasurer']}
             >
               <SecretaryPayablesPage user={user} />
             </ProtectedRoute>

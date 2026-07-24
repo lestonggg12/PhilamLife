@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import './PaymentsPage.css'
 
 const EMPTY_FORM = {
+  propertyId: '',
   homeownerName: '',
   blockName: '',
   lotNumber: '',
@@ -28,7 +29,7 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
 export default function PaymentsPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
-  const [blocks, setBlocks] = useState([])
+  const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -36,9 +37,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
+  const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManagePayments = role === 'secretary' || role === 'treasurer'
+  const canManagePayments =
+    role === 'admin' || role === 'secretary' || role === 'treasurer'
   const recorderName =
     currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
@@ -69,12 +72,15 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, blockResult] = await Promise.all([
+    const [paymentResult, propertyResult] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
         .order('paid_at', { ascending: false }),
-      supabase.from('blocks').select('id, name').order('name'),
+      supabase
+        .from('properties')
+        .select('id, homeowner_name, block, lot_number')
+        .order('homeowner_name'),
     ])
 
     if (paymentResult.error) {
@@ -83,7 +89,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
       setPayments(paymentResult.data || [])
     }
 
-    if (!blockResult.error) setBlocks(blockResult.data || [])
+    if (propertyResult.error) {
+      setPageError((current) => {
+        const message = `Could not load ledger homeowners: ${propertyResult.error.message}`
+        return current ? `${current} ${message}` : message
+      })
+    } else {
+      setProperties(propertyResult.data || [])
+    }
     setLoading(false)
   }
 
@@ -93,9 +106,55 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return Math.max(previous - paid, 0)
   }, [form.previousBalance, form.amountPaid])
 
+  const matchingHomeowners = useMemo(() => {
+    const search = form.homeownerName.trim().toLowerCase()
+
+    return properties
+      .filter((property) => {
+        if (!search) return true
+
+        const searchableValue = [
+          property.homeowner_name,
+          property.block,
+          `Lot ${property.lot_number}`,
+        ]
+          .join(' ')
+          .toLowerCase()
+
+        return searchableValue.includes(search)
+      })
+      .slice(0, 8)
+  }, [form.homeownerName, properties])
+
   function updateField(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
+    setFormError('')
+  }
+
+  function updateHomeownerSearch(event) {
+    const { value } = event.target
+
+    setForm((current) => ({
+      ...current,
+      propertyId: '',
+      homeownerName: value,
+      blockName: '',
+      lotNumber: '',
+    }))
+    setHomeownerMenuOpen(true)
+    setFormError('')
+  }
+
+  function selectHomeowner(property) {
+    setForm((current) => ({
+      ...current,
+      propertyId: String(property.id),
+      homeownerName: property.homeowner_name,
+      blockName: property.block,
+      lotNumber: String(property.lot_number),
+    }))
+    setHomeownerMenuOpen(false)
     setFormError('')
   }
 
@@ -103,6 +162,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     if (!canManagePayments) return
     setForm(EMPTY_FORM)
     setFormError('')
+    setHomeownerMenuOpen(false)
     setShowForm(true)
   }
 
@@ -116,7 +176,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     event.preventDefault()
 
     if (!canManagePayments) {
-      setFormError('Only a Secretary or Treasurer can record payments.')
+      setFormError('Only an Admin, Secretary, or Treasurer can record payments.')
       return
     }
 
@@ -129,8 +189,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
     const paid = Number(form.amountPaid)
     const reference = form.referenceNumber.trim()
 
-    if (!form.homeownerName.trim() || !form.blockName || !form.lotNumber.trim()) {
-      setFormError('Homeowner name, block, and lot number are required.')
+    if (!form.propertyId || !form.homeownerName.trim() || !form.blockName || !form.lotNumber.trim()) {
+      setFormError('Select a homeowner from the ledger list.')
       return
     }
 
@@ -163,6 +223,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setFormError('')
 
     const payload = {
+      property_id: Number(form.propertyId),
       homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
       block_name: form.blockName,
       lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
@@ -255,7 +316,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
       {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
-          <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()}>
+          <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off">
             <div className="payment-modal-heading">
               <div>
                 <h2>Record Payment</h2>
@@ -265,19 +326,76 @@ export default function PaymentsPage({ user: suppliedUser }) {
             </div>
 
             <div className="payment-form-grid">
-              <label className="payment-span-2">Homeowner full name
-                <input name="homeownerName" value={form.homeownerName} onChange={updateField} maxLength="120" required />
-              </label>
+              <div className="payment-homeowner-field payment-span-2">
+                <label htmlFor="payment-homeowner-search">Homeowner full name</label>
+                <div className="payment-homeowner-combobox">
+                  <input
+                    id="payment-homeowner-search"
+                    name="homeownerName"
+                    type="search"
+                    value={form.homeownerName}
+                    onChange={updateHomeownerSearch}
+                    onFocus={() => setHomeownerMenuOpen(true)}
+                    onBlur={() => window.setTimeout(() => setHomeownerMenuOpen(false), 120)}
+                    placeholder="Search homeowner name, block, or lot..."
+                    maxLength="120"
+                    autoComplete="off"
+                    role="combobox"
+                    aria-expanded={homeownerMenuOpen}
+                    aria-controls="payment-homeowner-options"
+                    required
+                  />
+
+                  {homeownerMenuOpen && (
+                    <div className="payment-homeowner-options" id="payment-homeowner-options" role="listbox">
+                      {loading ? (
+                        <p className="payment-homeowner-empty">Loading ledger homeowners...</p>
+                      ) : matchingHomeowners.length === 0 ? (
+                        <p className="payment-homeowner-empty">No matching homeowner found in the ledger.</p>
+                      ) : (
+                        matchingHomeowners.map((property) => (
+                          <button
+                            type="button"
+                            className={`payment-homeowner-option ${
+                              String(property.id) === form.propertyId ? 'is-selected' : ''
+                            }`}
+                            key={property.id}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectHomeowner(property)}
+                            role="option"
+                            aria-selected={String(property.id) === form.propertyId}
+                          >
+                            <span>{property.homeowner_name}</span>
+                            <small>{property.block} · Lot {property.lot_number}</small>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <small className="payment-homeowner-help">
+                  Select a homeowner from the ledger to fill the property details.
+                </small>
+              </div>
 
               <label>Block
-                <select name="blockName" value={form.blockName} onChange={updateField} required>
-                  <option value="">Select block</option>
-                  {blocks.map((block) => <option key={block.id} value={block.name}>{block.name}</option>)}
-                </select>
+                <input
+                  name="blockName"
+                  value={form.blockName}
+                  placeholder="Filled from ledger"
+                  readOnly
+                  required
+                />
               </label>
 
               <label>Lot number
-                <input name="lotNumber" value={form.lotNumber} onChange={updateField} placeholder="e.g., Lot 5" maxLength="50" required />
+                <input
+                  name="lotNumber"
+                  value={form.lotNumber}
+                  placeholder="Filled from ledger"
+                  readOnly
+                  required
+                />
               </label>
 
               <label className="payment-span-2">Payment purpose / coverage period
