@@ -1,0 +1,297 @@
+/* ============================================
+   TREASURER — AMENITY & SERVICE REVENUE
+   ============================================ */
+
+.tsr-page {
+  padding: 0;
+  background: transparent;
+  min-height: 100%;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.tsr-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s ease;
+}
+
+.tsr-page-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: #071e30;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.3px;
+}
+
+.tsr-page-subtitle {
+  font-size: 13px;
+  color: #2a5470;
+  margin: 0;
+  font-weight: 400;
+}
+
+.tsr-filter-select {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1464a0;
+  border: 1px solid #d0e4f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tsr-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  color: #c0392b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+
+/* STATS */
+.tsr-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tsr-stat-card {
+  background: rgba(255, 255, 255, 0.50);
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+  padding: 18px 16px;
+  transition: all 0.3s ease;
+}
+
+.tsr-stat-card:hover {
+  background: rgba(255, 255, 255, 0.65);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(20, 100, 160, 0.1);
+}
+
+.tsr-stat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.tsr-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #5a7a92;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.tsr-stat-icon-box {
+  width: 36px;
+  height: 36px;
+  background: rgba(20, 100, 160, 0.12);
+  border: 1px solid rgba(20, 100, 160, 0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1464a0;
+  flex-shrink: 0;
+}
+
+.tsr-icon-success {
+  background: rgba(26, 138, 96, 0.12);
+  border-color: rgba(26, 138, 96, 0.2);
+  color: #1a8a60;
+}
+
+.tsr-icon-warning {
+  background: rgba(212, 146, 10, 0.12);
+  border-color: rgba(212, 146, 10, 0.2);
+  color: #d49206;
+}
+
+.tsr-stat-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: #071e30;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.tsr-stat-value-sm {
+  font-size: 18px;
+}
+
+/* CONTENT GRID */
+.tsr-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+}
+
+.tsr-table-panel,
+.tsr-breakdown-panel {
+  background: rgba(255, 255, 255, 0.50);
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.tsr-section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #071e30;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.2px;
+}
+
+.tsr-state {
+  padding: 32px 0;
+  text-align: center;
+  font-size: 13px;
+  color: #5a7a92;
+}
+
+/* TABLE */
+.tsr-table-wrap {
+  overflow-x: auto;
+}
+
+.tsr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tsr-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #5a7a92;
+  border-bottom: 1px solid #d0e4f0;
+  white-space: nowrap;
+}
+
+.tsr-table td {
+  padding: 12px;
+  font-size: 13px;
+  color: #071e30;
+  border-bottom: 1px solid #e6f0f7;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.tsr-table tbody tr:hover {
+  background: rgba(20, 100, 160, 0.04);
+}
+
+.tsr-amount-col {
+  text-align: right;
+}
+
+.tsr-amount-paid {
+  font-weight: 600;
+  color: #1a8a60;
+}
+
+.tsr-status-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tsr-status-paid {
+  background: rgba(26, 138, 96, 0.10);
+  color: #1a8a60;
+}
+
+.tsr-status-partial {
+  background: rgba(212, 146, 10, 0.12);
+  color: #d49206;
+}
+
+/* BREAKDOWN */
+.tsr-breakdown-row {
+  margin-bottom: 16px;
+}
+
+.tsr-breakdown-row:last-child {
+  margin-bottom: 0;
+}
+
+.tsr-breakdown-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.tsr-breakdown-name {
+  font-weight: 600;
+  color: #071e30;
+}
+
+.tsr-breakdown-amount {
+  font-weight: 600;
+  color: #1a8a60;
+}
+
+.tsr-breakdown-bar-track {
+  height: 6px;
+  background: rgba(20, 100, 160, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.tsr-breakdown-bar-fill {
+  height: 100%;
+  background: #1464a0;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .tsr-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tsr-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .tsr-page-header {
+    flex-direction: column;
+  }
+
+  .tsr-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tsr-page-title {
+    font-size: 24px;
+  }
+}

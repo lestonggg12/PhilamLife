@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity } from './Icons'
+import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap } from './Icons'
 import './Sidebar.css'
 
 export default function Sidebar({ user, onLogout }) {
@@ -29,16 +29,35 @@ export default function Sidebar({ user, onLogout }) {
 
   const financeItems = [
     {
+      name: 'Payables & Collections',
+      path: '/secretary/payables',
+      icon: Users,
+      roles: ['treasurer'],
+    },
+    {
       name: 'Ledger',
       path: '/ledger',
       icon: FileText,
       roles: ['admin', 'treasurer', 'secretary'],
     },
     {
+  
+      name: 'Amenity Revenue',
+      path: '/treasurer/service-revenue',
+      icon: Zap,
+      roles: ['treasurer'],
+    },
+    {
       name: 'Payments',
       path: '/payments',
       icon: CreditCard,
       roles: ['treasurer', 'secretary'],
+    },
+    {
+      name: 'Expenses',
+      path: '/treasurer/expenses',
+      icon: DollarSign,
+      roles: ['treasurer'],
     },
     {
       name: 'Services',

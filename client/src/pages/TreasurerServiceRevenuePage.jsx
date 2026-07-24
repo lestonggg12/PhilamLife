@@ -1,0 +1,243 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { AlertCircle, DollarSign, TrendingUp, Clock } from '../components/Icons'
+import { supabase } from '../lib/supabaseClient'
+import './TreasurerServiceRevenue.css'
+
+const peso = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+})
+
+const dateFormatter = new Intl.DateTimeFormat('en-PH', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Manila',
+})
+
+const dateTimeFormatter = new Intl.DateTimeFormat('en-PH', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Manila',
+})
+
+function statusLabel(status) {
+  if (status === 'paid') return 'Paid'
+  if (status === 'partial') return 'Partial'
+  return status || '—'
+}
+
+export default function TreasurerServiceRevenuePage() {
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [pageError, setPageError] = useState('')
+  const [serviceFilter, setServiceFilter] = useState('all')
+
+  useEffect(() => {
+    loadTransactions()
+  }, [])
+
+  async function loadTransactions() {
+    setLoading(true)
+    setPageError('')
+
+    const { data, error } = await supabase
+      .from('service_transactions')
+      .select('*')
+      .order('paid_at', { ascending: false })
+
+    if (error) {
+      setPageError(`Service revenue could not be loaded: ${error.message}`)
+    }
+
+    setTransactions(data || [])
+    setLoading(false)
+  }
+
+  const serviceNames = useMemo(() => {
+    const names = new Set(transactions.map((t) => t.service_name).filter(Boolean))
+    return [...names].sort()
+  }, [transactions])
+
+  const filteredTransactions = useMemo(() => {
+    if (serviceFilter === 'all') return transactions
+    return transactions.filter((t) => t.service_name === serviceFilter)
+  }, [transactions, serviceFilter])
+
+  const summary = useMemo(() => {
+    const now = new Date()
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+    const totalCollected = filteredTransactions.reduce(
+      (sum, t) => sum + (Number(t.amount_paid) || 0),
+      0,
+    )
+    const totalDue = filteredTransactions.reduce(
+      (sum, t) => sum + (Number(t.amount_due) || 0),
+      0,
+    )
+    const outstanding = Math.max(totalDue - totalCollected, 0)
+
+    const collectedThisMonth = filteredTransactions
+      .filter((t) => (t.service_date || '').startsWith(currentMonthKey))
+      .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
+
+    const byService = new Map()
+    filteredTransactions.forEach((t) => {
+      const key = t.service_name || 'Uncategorized'
+      byService.set(key, (byService.get(key) || 0) + (Number(t.amount_paid) || 0))
+    })
+
+    const topService = [...byService.entries()].sort((a, b) => b[1] - a[1])[0]
+
+    return {
+      totalCollected,
+      collectedThisMonth,
+      outstanding,
+      count: filteredTransactions.length,
+      byService: [...byService.entries()].sort((a, b) => b[1] - a[1]),
+      topService: topService ? { name: topService[0], amount: topService[1] } : null,
+    }
+  }, [filteredTransactions])
+
+  return (
+    <div className="tsr-page">
+      <div className="tsr-page-header">
+        <div>
+          <h1 className="tsr-page-title">Amenity & Service Revenue</h1>
+          <p className="tsr-page-subtitle">
+            Review income collected from bookable amenities and services.
+          </p>
+        </div>
+
+        <select
+          className="tsr-filter-select"
+          value={serviceFilter}
+          onChange={(e) => setServiceFilter(e.target.value)}
+        >
+          <option value="all">All Services</option>
+          {serviceNames.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+      </div>
+
+      {pageError && (
+        <p className="tsr-error">
+          <AlertCircle size={14} /> {pageError}
+        </p>
+      )}
+
+      <div className="tsr-stats-grid">
+        <div className="tsr-stat-card">
+          <div className="tsr-stat-top">
+            <span className="tsr-stat-label">Collected This Month</span>
+            <div className="tsr-stat-icon-box">
+              <DollarSign size={18} />
+            </div>
+          </div>
+          <h3 className="tsr-stat-value">{loading ? '—' : peso.format(summary.collectedThisMonth)}</h3>
+        </div>
+
+        <div className="tsr-stat-card">
+          <div className="tsr-stat-top">
+            <span className="tsr-stat-label">Total Collected</span>
+            <div className="tsr-stat-icon-box tsr-icon-success">
+              <TrendingUp size={18} />
+            </div>
+          </div>
+          <h3 className="tsr-stat-value">{loading ? '—' : peso.format(summary.totalCollected)}</h3>
+        </div>
+
+        <div className="tsr-stat-card">
+          <div className="tsr-stat-top">
+            <span className="tsr-stat-label">Outstanding</span>
+            <div className="tsr-stat-icon-box tsr-icon-warning">
+              <Clock size={18} />
+            </div>
+          </div>
+          <h3 className="tsr-stat-value">{loading ? '—' : peso.format(summary.outstanding)}</h3>
+        </div>
+
+        <div className="tsr-stat-card">
+          <span className="tsr-stat-label">Top Service</span>
+          <h3 className="tsr-stat-value tsr-stat-value-sm">
+            {loading || !summary.topService ? '—' : summary.topService.name}
+          </h3>
+        </div>
+      </div>
+
+      <div className="tsr-content-grid">
+        <div className="tsr-table-panel">
+          <h3 className="tsr-section-title">Transaction History</h3>
+
+          {loading ? (
+            <div className="tsr-state">Loading transactions...</div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="tsr-state">No service transactions found.</div>
+          ) : (
+            <div className="tsr-table-wrap">
+              <table className="tsr-table">
+                <thead>
+                  <tr>
+                    <th>Receipt No.</th>
+                    <th>Date</th>
+                    <th>Service</th>
+                    <th>Customer</th>
+                    <th>Block / Lot</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th className="tsr-amount-col">Due</th>
+                    <th className="tsr-amount-col">Paid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.map((t) => (
+                    <tr key={t.id}>
+                      <td><strong>{t.receipt_number}</strong></td>
+                      <td>{t.service_date ? dateFormatter.format(new Date(t.service_date)) : '—'}</td>
+                      <td>{t.service_name}</td>
+                      <td>{t.customer_name}</td>
+                      <td>{t.block_name}, Lot {t.lot_number}</td>
+                      <td>{t.payment_method}</td>
+                      <td>
+                        <span className={`tsr-status-pill tsr-status-${t.payment_status}`}>
+                          {statusLabel(t.payment_status)}
+                        </span>
+                      </td>
+                      <td className="tsr-amount-col">{peso.format(Number(t.amount_due) || 0)}</td>
+                      <td className="tsr-amount-col tsr-amount-paid">{peso.format(Number(t.amount_paid) || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="tsr-breakdown-panel">
+          <h3 className="tsr-section-title">Revenue by Service</h3>
+
+          {loading ? (
+            <div className="tsr-state">Loading...</div>
+          ) : summary.byService.length === 0 ? (
+            <div className="tsr-state">No data yet.</div>
+          ) : (
+            summary.byService.map(([name, amount]) => {
+              const pct = summary.totalCollected > 0 ? (amount / summary.totalCollected) * 100 : 0
+              return (
+                <div className="tsr-breakdown-row" key={name}>
+                  <div className="tsr-breakdown-top">
+                    <span className="tsr-breakdown-name">{name}</span>
+                    <span className="tsr-breakdown-amount">{peso.format(amount)}</span>
+                  </div>
+                  <div className="tsr-breakdown-bar-track">
+                    <div className="tsr-breakdown-bar-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
