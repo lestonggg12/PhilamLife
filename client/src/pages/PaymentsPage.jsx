@@ -249,6 +249,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
       coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
       previous_balance: previous,
+      amount: paid,
       amount_paid: paid,
       payment_method: form.paymentMethod,
       reference_number: reference || null,
