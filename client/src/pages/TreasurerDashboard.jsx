@@ -13,8 +13,14 @@ const dateFormatter = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
-function monthKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+function manilaMonthKey(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date(value))
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}`
 }
 
 export default function TreasurerDashboard() {
@@ -50,8 +56,7 @@ export default function TreasurerDashboard() {
   }
 
   const summary = useMemo(() => {
-    const now = new Date()
-    const currentMonth = monthKey(now)
+    const currentMonth = manilaMonthKey()
 
     const activePayments = payments.filter((p) => p.status !== 'Voided')
     const activeExpenses = expenses.filter((e) => e.status !== 'Voided')
@@ -62,15 +67,15 @@ export default function TreasurerDashboard() {
     const netPosition = totalDuesCollected + totalAmenityRevenue - totalExpenses
 
     const duesThisMonth = activePayments
-      .filter((p) => p.paid_at && monthKey(new Date(p.paid_at)) === currentMonth)
+      .filter((p) => p.paid_at && manilaMonthKey(p.paid_at) === currentMonth)
       .reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
 
     const amenityThisMonth = serviceTransactions
-      .filter((t) => t.service_date && monthKey(new Date(t.service_date)) === currentMonth)
+      .filter((t) => t.paid_at && manilaMonthKey(t.paid_at) === currentMonth)
       .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
 
     const expensesThisMonth = activeExpenses
-      .filter((e) => e.expense_date && monthKey(new Date(e.expense_date)) === currentMonth)
+      .filter((e) => String(e.expense_date || '').slice(0, 7) === currentMonth)
       .reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
 
     const netThisMonth = duesThisMonth + amenityThisMonth - expensesThisMonth
