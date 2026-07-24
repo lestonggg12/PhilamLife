@@ -1,33 +1,73 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity } from './Icons'
 import './Sidebar.css'
 
 export default function Sidebar({ user, onLogout }) {
-  const dashboardPath = user?.role === 'admin'
+  const role = user?.role?.trim().toLowerCase()
+
+  const dashboardPath = role === 'admin'
     ? '/admin/dashboard'
-    : user?.role === 'treasurer'
+    : role === 'treasurer'
     ? '/treasurer/dashboard'
     : '/secretary/dashboard'
 
   const overviewItems = [
-    { name: 'Dashboard', path: dashboardPath, icon: BarChart3 },
-    { name: 'Activity Log', path: '/activity-log', icon: Activity },
-  ]
+    {
+      name: 'Dashboard',
+      path: dashboardPath,
+      icon: BarChart3,
+      roles: ['admin', 'treasurer', 'secretary'],
+    },
+    {
+      name: 'Activity Log',
+      path: '/activity-log',
+      icon: Activity,
+      roles: ['admin', 'secretary'],
+    },
+  ].filter((item) => item.roles.includes(role))
 
   const financeItems = [
-    { name: 'Ledger', path: '/ledger', icon: FileText },
-    { name: 'Payments', path: '/payments', icon: CreditCard },
-    { name: 'Services', path: '/secretary/services', icon: DollarSign },
-    { name: 'Reports', path: '/reports', icon: BarChart3 },
-    {name: 'Official Receipts', path: '/secretary/receipts',icon: FileText,},
-  ]
+    {
+      name: 'Ledger',
+      path: '/ledger',
+      icon: FileText,
+      roles: ['admin', 'treasurer', 'secretary'],
+    },
+    {
+      name: 'Payments',
+      path: '/payments',
+      icon: CreditCard,
+      roles: ['treasurer', 'secretary'],
+    },
+    {
+      name: 'Services',
+      path: '/secretary/services',
+      icon: DollarSign,
+      roles: ['secretary'],
+    },
+    {
+      name: 'Reports',
+      path: '/reports',
+      icon: BarChart3,
+      roles: ['admin', 'treasurer'],
+    },
+    {
+      name: 'Official Receipts',
+      path: '/secretary/receipts',
+      icon: FileText,
+      roles: ['secretary'],
+    },
+  ].filter((item) => item.roles.includes(role))
 
   const systemItems = [
-    { name: 'System Settings', path: '/system-settings', icon: Settings },
-  ]
-
-  // ...rest unchanged
+    {
+      name: 'System Settings',
+      path: '/system-settings',
+      icon: Settings,
+      roles: ['admin'],
+    },
+  ].filter((item) => item.roles.includes(role))
 
   const renderNavItems = (items) =>
     items.map((item) => (
@@ -57,15 +97,19 @@ export default function Sidebar({ user, onLogout }) {
           <div className="nav-items">{renderNavItems(overviewItems)}</div>
         </div>
 
-        <div className="nav-section">
-          <h3 className="nav-section-title">FINANCE</h3>
-          <div className="nav-items">{renderNavItems(financeItems)}</div>
-        </div>
+        {financeItems.length > 0 && (
+          <div className="nav-section">
+            <h3 className="nav-section-title">FINANCE</h3>
+            <div className="nav-items">{renderNavItems(financeItems)}</div>
+          </div>
+        )}
 
-        <div className="nav-section">
-          <h3 className="nav-section-title">SYSTEM</h3>
-          <div className="nav-items">{renderNavItems(systemItems)}</div>
-        </div>
+        {systemItems.length > 0 && (
+          <div className="nav-section">
+            <h3 className="nav-section-title">SYSTEM</h3>
+            <div className="nav-items">{renderNavItems(systemItems)}</div>
+          </div>
+        )}
       </nav>
 
       <div className="sidebar-footer">
