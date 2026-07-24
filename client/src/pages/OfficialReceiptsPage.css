@@ -526,3 +526,90 @@
     width: 100%;
   }
 }
+/* FIX: Keep the Official Receipts table inside the page */
+.official-receipts-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.official-receipts-records {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.official-receipts-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.official-receipts-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.official-receipts-table th:nth-child(1) {
+  width: 13%;
+}
+
+.official-receipts-table th:nth-child(2) {
+  width: 14%;
+}
+
+.official-receipts-table th:nth-child(3) {
+  width: 12%;
+}
+
+.official-receipts-table th:nth-child(4) {
+  width: 16%;
+}
+
+.official-receipts-table th:nth-child(5) {
+  width: 17%;
+}
+
+.official-receipts-table th:nth-child(6) {
+  width: 11%;
+}
+
+.official-receipts-table th:nth-child(7) {
+  width: 9%;
+}
+
+.official-receipts-table th:nth-child(8) {
+  width: 8%;
+}
+
+.official-receipts-table th,
+.official-receipts-table td {
+  padding: 13px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.official-receipts-table td:nth-child(4),
+.official-receipts-table td:nth-child(5) {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.official-receipts-table td:nth-child(6),
+.official-receipts-table td:nth-child(8) {
+  white-space: nowrap;
+}
+
+.official-receipts-table td:nth-child(8) {
+  text-align: right;
+}
+
+.official-type-badge {
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .official-receipts-table {
+    min-width: 850px;
+  }
+}
