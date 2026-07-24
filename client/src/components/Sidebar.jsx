@@ -23,7 +23,7 @@ export default function Sidebar({ user, onLogout }) {
       name: 'Activity Log',
       path: '/activity-log',
       icon: Activity,
-      roles: ['admin', 'secretary'],
+      roles: ['admin', 'secretary', 'treasurer']
     },
   ].filter((item) => item.roles.includes(role))
 

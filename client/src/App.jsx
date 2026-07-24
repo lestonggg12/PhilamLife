@@ -255,18 +255,18 @@ function AppContent() {
           }
         />
 
-        <Route
-          path="/activity-log"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary']}
-            >
-              <ActivityLogPage />
-            </ProtectedRoute>
-          }
-        />
+       <Route
+        path="/activity-log"
+        element={
+          <ProtectedRoute
+            isAuthenticated={isAuthenticated}
+            user={user}
+            allowedRoles={['admin', 'secretary', 'treasurer']}
+          >
+            <ActivityLogPage />
+          </ProtectedRoute>
+        }
+      />
 
         <Route
           path="/documents"
