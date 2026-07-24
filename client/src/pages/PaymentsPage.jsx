@@ -270,6 +270,23 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
+    const { error: activityError } = await supabase
+      .from('activity_log')
+      .insert({
+        user_id: currentUser.id,
+        action: 'Payment Recorded',
+        target: `${data.receipt_number} — ${data.homeowner_name} — ${peso.format(
+          data.amount_paid ?? data.amount,
+        )}`,
+      })
+
+    if (activityError) {
+      console.warn(
+        'Payment saved, but activity logging failed:',
+        activityError.message,
+      )
+    }
+
     setPayments((current) => [data, ...current])
     setShowForm(false)
     setForm(EMPTY_FORM)
