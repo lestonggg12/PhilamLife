@@ -12,12 +12,14 @@ import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import AdminDashboard from './pages/AdminDashboard'
 import TreasurerDashboard from './pages/TreasurerDashboard'
+import TreasurerExpensesPage from './pages/TreasurerExpensesPage'
 import SecretaryDashboard from './pages/SecretaryDashboard'
 import SecretaryPayablesPage from './pages/SecretaryPayablesPage'
 import ServicesManagementPage from './pages/ServicesManagementPage'
 import OfficialReceiptsPage from './pages/OfficialReceiptsPage'
 import PaymentsPage from './pages/PaymentsPage'
 import ReportsPage from './pages/ReportsPage'
+import TreasurerServiceRevenuePage from './pages/TreasurerServiceRevenuePage'
 import LedgerPage from './pages/LedgerPage'
 import ActivityLogPage from './pages/ActivityLogPage'
 import DocumentLibraryPage from './pages/DocumentLibraryPage'
@@ -135,6 +137,32 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+          <Route
+          path="/treasurer/expenses"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['treasurer']}
+            >
+              <TreasurerExpensesPage user={user} />
+            </ProtectedRoute>
+          }
+        />
+           <Route
+              path="/treasurer/service-revenue"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  user={user}
+                  allowedRoles={['treasurer']}
+                >
+                  <TreasurerServiceRevenuePage />
+                </ProtectedRoute>
+              }
+            />
+
+
 
         <Route
           path="/secretary/dashboard"
