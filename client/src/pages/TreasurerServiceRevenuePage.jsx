@@ -25,6 +25,16 @@ function statusLabel(status) {
   return status || '—'
 }
 
+function manilaMonthKey(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date(value))
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}`
+}
+
 export default function TreasurerServiceRevenuePage() {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -63,21 +73,22 @@ export default function TreasurerServiceRevenuePage() {
   }, [transactions, serviceFilter])
 
   const summary = useMemo(() => {
-    const now = new Date()
-    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const currentMonthKey = manilaMonthKey()
 
     const totalCollected = filteredTransactions.reduce(
       (sum, t) => sum + (Number(t.amount_paid) || 0),
       0,
     )
-    const totalDue = filteredTransactions.reduce(
-      (sum, t) => sum + (Number(t.amount_due) || 0),
+    const outstanding = filteredTransactions.reduce(
+      (sum, t) => sum + Math.max(
+        (Number(t.amount_due) || 0) - (Number(t.amount_paid) || 0),
+        0,
+      ),
       0,
     )
-    const outstanding = Math.max(totalDue - totalCollected, 0)
 
     const collectedThisMonth = filteredTransactions
-      .filter((t) => (t.service_date || '').startsWith(currentMonthKey))
+      .filter((t) => t.paid_at && manilaMonthKey(t.paid_at) === currentMonthKey)
       .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
 
     const byService = new Map()
