@@ -51,7 +51,7 @@ export default function Sidebar({ user, onLogout }) {
       name: 'Payments',
       path: '/payments',
       icon: CreditCard,
-      roles: ['treasurer', 'secretary'],
+      roles: ['admin', 'treasurer', 'secretary'],
     },
     {
       name: 'Expenses',
