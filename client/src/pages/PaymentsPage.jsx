@@ -2,11 +2,22 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import './PaymentsPage.css'
 
+const PAYMENT_PURPOSES = [
+  'Association Dues',
+  'Special Assessment',
+  'Penalty / Late Fee',
+  'Sticker / ID Fee',
+  'Document / Certification Fee',
+  'Other',
+]
+
 const EMPTY_FORM = {
   propertyId: '',
   homeownerName: '',
   blockName: '',
   lotNumber: '',
+  paymentPurpose: '',
+  customPaymentPurpose: '',
   coveragePeriod: '',
   previousBalance: '',
   amountPaid: '',
@@ -188,14 +199,23 @@ export default function PaymentsPage({ user: suppliedUser }) {
     const previous = Number(form.previousBalance)
     const paid = Number(form.amountPaid)
     const reference = form.referenceNumber.trim()
+    const selectedPurpose =
+      form.paymentPurpose === 'Other'
+        ? form.customPaymentPurpose.trim()
+        : form.paymentPurpose
 
     if (!form.propertyId || !form.homeownerName.trim() || !form.blockName || !form.lotNumber.trim()) {
       setFormError('Select a homeowner from the ledger list.')
       return
     }
 
+    if (!selectedPurpose) {
+      setFormError('Select or enter a payment purpose.')
+      return
+    }
+
     if (!form.coveragePeriod.trim()) {
-      setFormError('Enter the payment purpose or coverage period.')
+      setFormError('Enter the coverage period or payment details.')
       return
     }
 
@@ -227,7 +247,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
       block_name: form.blockName,
       lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
-      coverage_period: form.coveragePeriod.trim().replace(/\s+/g, ' '),
+      coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
       previous_balance: previous,
       amount_paid: paid,
       payment_method: form.paymentMethod,
@@ -398,8 +418,47 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 />
               </label>
 
-              <label className="payment-span-2">Payment purpose / coverage period
-                <input name="coveragePeriod" value={form.coveragePeriod} onChange={updateField} placeholder="e.g., Association dues — July 2026" maxLength="120" required />
+              <label className="payment-purpose-field payment-span-2">
+                Payment purpose
+                <div className="payment-purpose-select-wrap">
+                  <select
+                    name="paymentPurpose"
+                    value={form.paymentPurpose}
+                    onChange={updateField}
+                    required
+                  >
+                    <option value="" disabled>Select payment purpose</option>
+                    {PAYMENT_PURPOSES.map((purpose) => (
+                      <option value={purpose} key={purpose}>
+                        {purpose}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+
+              {form.paymentPurpose === 'Other' && (
+                <label className="payment-span-2">Other payment purpose
+                  <input
+                    name="customPaymentPurpose"
+                    value={form.customPaymentPurpose}
+                    onChange={updateField}
+                    placeholder="Enter the payment purpose"
+                    maxLength="80"
+                    required
+                  />
+                </label>
+              )}
+
+              <label className="payment-span-2">Coverage period / payment details
+                <input
+                  name="coveragePeriod"
+                  value={form.coveragePeriod}
+                  onChange={updateField}
+                  placeholder="e.g., July 2026 or Homeowner ID renewal"
+                  maxLength="120"
+                  required
+                />
               </label>
 
               <label>Previous balance
