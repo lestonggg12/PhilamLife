@@ -8,6 +8,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import './OfficialReceiptsPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -317,7 +318,7 @@ function receiptRows(receipt) {
   return rows
 }
 
-function printOfficialReceipt(receipt) {
+function printOfficialReceipt(receipt, associationName) {
   const printWindow = window.open(
     '',
     '_blank',
@@ -479,7 +480,7 @@ function printOfficialReceipt(receipt) {
           <div class="check">✓</div>
 
           <p class="association">
-            PHILAM Village Homeowners Association
+            ${escapePrintText(associationName)}
           </p>
 
           <h1>
@@ -497,7 +498,7 @@ function printOfficialReceipt(receipt) {
           <p class="note">
             This computer-generated receipt is based
             on a permanent transaction saved in the
-            PHILAM Village Homeowners Association
+            ${escapePrintText(associationName)}
             system.
           </p>
         </main>
@@ -509,6 +510,7 @@ function printOfficialReceipt(receipt) {
 }
 
 export default function OfficialReceiptsPage() {
+  const { organization } = useOrganization()
   const [receipts, setReceipts] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
@@ -1048,8 +1050,7 @@ export default function OfficialReceiptsPage() {
             <div className="official-receipt-modal-heading">
               <div>
                 <p>
-                  PHILAM Village Homeowners
-                  Association
+                  {organization.associationName}
                 </p>
 
                 <h2 id="official-receipt-title">
@@ -1119,6 +1120,7 @@ export default function OfficialReceiptsPage() {
                 onClick={() =>
                   printOfficialReceipt(
                     selectedReceipt,
+                    organization.associationName,
                   )
                 }
               >

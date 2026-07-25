@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { supabase } from '../lib/supabaseClient';
+import { useOrganization } from '../context/OrganizationContext';
 
 export default function LoginPage({ setIsAuthenticated, setUser }) {
   const navigate = useNavigate();
+  const { organization } = useOrganization();
   const [selectedRole, setSelectedRole] = useState('Secretary');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -98,7 +100,7 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
               <path d="M9 22V12H15V22" stroke="#1464a0" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <h1 className="login-brand-name">PHILAM Village</h1>
+          <h1 className="login-brand-name">{organization.hoaName}</h1>
           <div className="login-portal-label">PORTAL LOGIN</div>
           <p className="login-hint-text">Select your role and sign in to access your dashboard</p>
         </div>

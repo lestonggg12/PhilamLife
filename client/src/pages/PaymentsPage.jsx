@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
 
 const PAYMENT_PURPOSES = [
@@ -38,6 +39,7 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
 })
 
 export default function PaymentsPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
   const [properties, setProperties] = useState([])
@@ -526,7 +528,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
             <div className="receipt-copy">
               <header className="receipt-header">
                 <div>
-                  <h2>Philam Life Homeowners Association</h2>
+                  <h2>{organization.associationName}</h2>
                   <p>Official Payment Receipt</p>
                 </div>
                 <div className="receipt-number"><span>Receipt No.</span><strong>{receipt.receipt_number}</strong></div>

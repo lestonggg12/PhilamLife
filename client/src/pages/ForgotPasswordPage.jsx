@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useOrganization } from '../context/OrganizationContext';
 import './ForgotPasswordPage.css';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
+  const { organization } = useOrganization();
   const [step, setStep] = useState(1); // Step 1: Email, Step 2: Verify Code, Step 3: New Password
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -199,7 +201,7 @@ export default function ForgotPasswordPage() {
               <path d="M9 22V12H15V22" stroke="#1464a0" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <h1 className="forgot-brand-name">PHILAM Village</h1>
+          <h1 className="forgot-brand-name">{organization.hoaName}</h1>
           <div className="forgot-portal-label">RESET PASSWORD</div>
           <p className="forgot-hint-text">
             {step === 1 && 'Enter your email to receive a verification code'}
@@ -322,4 +324,4 @@ export default function ForgotPasswordPage() {
       </div>
     </div>
   );
-}
+}r
