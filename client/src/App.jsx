@@ -302,7 +302,7 @@ function AppContent() {
               user={user}
               allowedRoles={['secretary']}
             >
-              <ContactManagerPage />
+              <ContactManagerPage user={user} />
             </ProtectedRoute>
           }
         />
