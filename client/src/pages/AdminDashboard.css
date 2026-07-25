@@ -111,6 +111,29 @@
   font-weight: 400;
 }
 
+.dash-page-error,
+.dash-chart-message {
+  display: flex;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: 8px;
+  background: rgba(192, 57, 43, 0.08);
+  color: #8f2f24;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dash-empty-state {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 16px 8px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  text-align: center;
+}
+
 /* ============================================
    STATS GRID
    ============================================ */
@@ -461,11 +484,15 @@
 
 .dash-action-item {
   display: flex;
+  width: 100%;
   gap: var(--space-lg);
   padding: var(--space-lg);
   background: rgba(255, 255, 255, 0.35);
   border: 1px solid rgba(120, 162, 210, 0.15);
   border-radius: var(--radius-md);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   transition: all var(--transition-fast);
   cursor: pointer;
 }
@@ -625,12 +652,16 @@
 
 .dash-tool-item {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: var(--space-lg);
   padding: var(--space-lg) var(--space-md);
   background: rgba(255, 255, 255, 0.35);
   border: 1px solid rgba(120, 162, 210, 0.1);
   border-radius: var(--radius-md);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
