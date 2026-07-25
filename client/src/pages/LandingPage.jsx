@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useOrganization } from '../context/OrganizationContext';
 import '../styles/LandingPage.css';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { organization } = useOrganization();
   return (
     <div className="lp-container">
       {/* Animated Background Orbs */}
@@ -24,7 +26,7 @@ export default function LandingPage() {
                 <path d="M22 22V28" stroke="#1766a0" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <span className="lp-brand-name">PHILAM Village</span>
+            <span className="lp-brand-name">{organization.hoaName}</span>
           </div>
 
           {/* Status Pill */}
@@ -40,7 +42,16 @@ export default function LandingPage() {
         <div className="lp-hero-content">
           <div className="lp-hero-eyebrow">HOMEOWNERS ASSOCIATION</div>
           <h1 className="lp-hero-title">
-            <span>PHILAM</span> <span className="lp-hero-highlight">Village</span>
+            {(() => {
+              const words = organization.hoaName.trim().split(' ')
+              const lastWord = words.pop()
+              return (
+                <>
+                  {words.length > 0 && <span>{words.join(' ')}</span>}{' '}
+                  <span className="lp-hero-highlight">{lastWord}</span>
+                </>
+              )
+            })()}
           </h1>
           <div className="lp-hero-subtitle">LEDGER & PAYMENT SYSTEM</div>
           <p className="lp-hero-description">
@@ -109,7 +120,7 @@ export default function LandingPage() {
         <div className="lp-footer-content">
           {/* Brand Column */}
           <div className="lp-footer-column">
-            <h4 className="lp-footer-brand">PHILAM Village</h4>
+            <h4 className="lp-footer-brand">{organization.hoaName}</h4>
             <p className="lp-footer-tagline">Empowering our community through transparent management and modern tools.</p>
           </div>
 
@@ -140,7 +151,7 @@ export default function LandingPage() {
 
         {/* Footer Bottom */}
         <div className="lp-footer-bottom">
-          <span className="lp-footer-copyright">© 2024 PHILAM Village. All rights reserved.</span>
+          <span className="lp-footer-copyright">© {new Date().getFullYear()} {organization.hoaName}. All rights reserved.</span>
           <div className="lp-footer-status">
             <div className="lp-status-dot"></div>
             <span>All systems operational</span>
