@@ -235,7 +235,7 @@ function AppContent() {
             <ProtectedRoute
               isAuthenticated={isAuthenticated}
               user={user}
-              allowedRoles={['secretary', 'treasurer']}
+              allowedRoles={['admin', 'secretary', 'treasurer']}
             >
               <PaymentsPage user={user} />
             </ProtectedRoute>
@@ -289,7 +289,7 @@ function AppContent() {
               user={user}
               allowedRoles={['secretary']}
             >
-              <EventCalendarPage />
+              <EventCalendarPage user={user} />
             </ProtectedRoute>
           }
         />

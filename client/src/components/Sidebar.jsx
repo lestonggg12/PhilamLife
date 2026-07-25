@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap } from './Icons'
+import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar } from './Icons'
 import './Sidebar.css'
 
 export default function Sidebar({ user, onLogout }) {
@@ -24,6 +24,12 @@ export default function Sidebar({ user, onLogout }) {
       path: '/activity-log',
       icon: Activity,
       roles: ['admin', 'secretary', 'treasurer']
+    },
+    {
+      name: 'Event Calendar',
+      path: '/calendar',
+      icon: Calendar,
+      roles: ['secretary'],
     },
   ].filter((item) => item.roles.includes(role))
 

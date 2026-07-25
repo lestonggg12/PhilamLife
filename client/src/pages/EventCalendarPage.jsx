@@ -1,82 +1,695 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  Clock,
+  Edit,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from '../components/Icons'
+import { supabase } from '../lib/supabaseClient'
 import './EventCalendarPage.css'
 
-export default function EventCalendarPage() {
-  const [events, setEvents] = useState([
-    { id: 1, title: 'Board Meeting', date: '2026-07-25', time: '6:00 PM', location: 'Clubhouse' },
-    { id: 2, title: 'Community Clean-up Drive', date: '2026-08-02', time: '7:00 AM', location: 'Main Park' },
-    { id: 3, title: 'Homeowners Annual Assembly', date: '2026-08-15', time: '2:00 PM', location: 'Multipurpose Hall' },
-  ])
+const EMPTY_FORM = {
+  title: '',
+  eventDate: '',
+  startTime: '',
+  endTime: '',
+  location: '',
+  description: '',
+}
 
+const eventDateFormatter = new Intl.DateTimeFormat('en-PH', {
+  dateStyle: 'full',
+  timeZone: 'Asia/Manila',
+})
+
+const monthFormatter = new Intl.DateTimeFormat('en-PH', {
+  month: 'short',
+  timeZone: 'Asia/Manila',
+})
+
+function manilaToday() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+
+  const part = (type) => parts.find((item) => item.type === type)?.value
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+function dateInManila(date) {
+  return new Date(`${date}T00:00:00+08:00`)
+}
+
+function formatTime(time) {
+  if (!time) return ''
+
+  const [hourValue, minute = '00'] = time.split(':')
+  const hour = Number(hourValue)
+
+  if (Number.isNaN(hour)) return time
+
+  const period = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minute} ${period}`
+}
+
+function formatTimeRange(event) {
+  if (!event.start_time) return 'Time to be announced'
+  if (!event.end_time) return formatTime(event.start_time)
+
+  return `${formatTime(event.start_time)} – ${formatTime(event.end_time)}`
+}
+
+function eventSortValue(event) {
+  return `${event.event_date}T${event.start_time || '00:00:00'}`
+}
+
+function normalize(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+export default function EventCalendarPage({ user: suppliedUser }) {
+  const [currentUser, setCurrentUser] = useState(suppliedUser || null)
+  const [events, setEvents] = useState([])
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('upcoming')
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [pageError, setPageError] = useState('')
+  const [notice, setNotice] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', date: '', time: '', location: '' })
+  const [editingEvent, setEditingEvent] = useState(null)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
-  const handleAdd = (e) => {
-    e.preventDefault()
-    if (!form.title || !form.date) return
-    setEvents([...events, { id: Date.now(), ...form }])
-    setForm({ title: '', date: '', time: '', location: '' })
-    setShowForm(false)
+  const role = currentUser?.role?.trim().toLowerCase()
+  const canManageEvents = role === 'secretary'
+  const actorName =
+    currentUser?.full_name ||
+    currentUser?.name ||
+    currentUser?.email ||
+    'Secretary'
+
+  useEffect(() => {
+    loadEvents()
+    resolveCurrentUser()
+  }, [])
+
+  async function resolveCurrentUser() {
+    if (suppliedUser) {
+      setCurrentUser(suppliedUser)
+      return
+    }
+
+    const {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !authUser) return
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role')
+      .eq('id', authUser.id)
+      .single()
+
+    if (!profileError) setCurrentUser(profile)
   }
 
-  const sorted = [...events].sort((a, b) => new Date(a.date) - new Date(b.date))
+  async function loadEvents(isRefresh = false) {
+    if (isRefresh) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
+
+    setPageError('')
+    setNotice('')
+
+    const { data, error } = await supabase
+      .from('events')
+      .select(
+        'id, title, description, event_date, start_time, end_time, location, created_by, created_by_name, created_at, updated_at',
+      )
+      .order('event_date', { ascending: true })
+      .order('start_time', { ascending: true, nullsFirst: true })
+
+    if (error) {
+      setEvents([])
+      setPageError(`Events could not be loaded: ${error.message}`)
+    } else {
+      setEvents(data || [])
+    }
+
+    setLoading(false)
+    setRefreshing(false)
+  }
+
+  function updateForm(event) {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+    setFormError('')
+  }
+
+  function openCreateForm() {
+    setEditingEvent(null)
+    setForm({
+      ...EMPTY_FORM,
+      eventDate: manilaToday(),
+    })
+    setFormError('')
+    setNotice('')
+    setShowForm(true)
+  }
+
+  function openEditForm(event) {
+    setEditingEvent(event)
+    setForm({
+      title: event.title || '',
+      eventDate: event.event_date || '',
+      startTime: event.start_time?.slice(0, 5) || '',
+      endTime: event.end_time?.slice(0, 5) || '',
+      location: event.location || '',
+      description: event.description || '',
+    })
+    setFormError('')
+    setNotice('')
+    setShowForm(true)
+  }
+
+  function closeForm() {
+    if (saving) return
+    setShowForm(false)
+    setEditingEvent(null)
+    setForm(EMPTY_FORM)
+    setFormError('')
+  }
+
+  function validateForm() {
+    const title = form.title.trim().replace(/\s+/g, ' ')
+    const location = form.location.trim().replace(/\s+/g, ' ')
+    const description = form.description.trim().replace(/\s+/g, ' ')
+
+    if (!title) return { error: 'Enter an event title.' }
+    if (!form.eventDate) return { error: 'Choose an event date.' }
+    if (title.length > 160) {
+      return { error: 'Event title must be 160 characters or fewer.' }
+    }
+    if (location.length > 160) {
+      return { error: 'Location must be 160 characters or fewer.' }
+    }
+    if (description.length > 1000) {
+      return { error: 'Description must be 1,000 characters or fewer.' }
+    }
+    if (form.endTime && !form.startTime) {
+      return { error: 'Add a start time before adding an end time.' }
+    }
+    if (form.startTime && form.endTime && form.endTime <= form.startTime) {
+      return { error: 'End time must be later than the start time.' }
+    }
+
+    return {
+      payload: {
+        title,
+        description: description || null,
+        event_date: form.eventDate,
+        start_time: form.startTime || null,
+        end_time: form.endTime || null,
+        location: location || null,
+        updated_at: new Date().toISOString(),
+      },
+    }
+  }
+
+  async function saveEvent(event) {
+    event.preventDefault()
+
+    if (!canManageEvents || !currentUser?.id) {
+      setFormError('Only a verified Secretary can manage events.')
+      return
+    }
+
+    const validation = validateForm()
+
+    if (validation.error) {
+      setFormError(validation.error)
+      return
+    }
+
+    setSaving(true)
+    setFormError('')
+
+    const fields =
+      'id, title, description, event_date, start_time, end_time, location, created_by, created_by_name, created_at, updated_at'
+    let result
+
+    if (editingEvent) {
+      result = await supabase
+        .from('events')
+        .update(validation.payload)
+        .eq('id', editingEvent.id)
+        .select(fields)
+        .single()
+    } else {
+      result = await supabase
+        .from('events')
+        .insert({
+          ...validation.payload,
+          created_by: currentUser.id,
+          created_by_name: actorName,
+        })
+        .select(fields)
+        .single()
+    }
+
+    if (result.error) {
+      setFormError(result.error.message)
+      setSaving(false)
+      return
+    }
+
+    const savedEvent = result.data
+    const action = editingEvent ? 'Event Updated' : 'Event Scheduled'
+    const { error: activityError } = await supabase
+      .from('activity_log')
+      .insert({
+        user_id: currentUser.id,
+        action,
+        target: `${savedEvent.title} — ${savedEvent.event_date} (by ${actorName})`,
+      })
+
+    if (activityError) {
+      console.warn(
+        'Event saved, but activity logging failed:',
+        activityError.message,
+      )
+    }
+
+    setEvents((current) => {
+      const next = editingEvent
+        ? current.map((item) => (item.id === savedEvent.id ? savedEvent : item))
+        : [...current, savedEvent]
+
+      return next.sort((left, right) =>
+        eventSortValue(left).localeCompare(eventSortValue(right)),
+      )
+    })
+
+    setShowForm(false)
+    setEditingEvent(null)
+    setForm(EMPTY_FORM)
+    setSaving(false)
+    setNotice(
+      editingEvent
+        ? `“${savedEvent.title}” was updated.`
+        : `“${savedEvent.title}” was scheduled.`,
+    )
+  }
+
+  async function deleteEvent(event) {
+    if (!canManageEvents || !currentUser?.id) return
+
+    const confirmed = window.confirm(
+      `Delete “${event.title}”? This cannot be undone.`,
+    )
+
+    if (!confirmed) return
+
+    setDeletingId(event.id)
+    setPageError('')
+    setNotice('')
+
+    const { error } = await supabase.from('events').delete().eq('id', event.id)
+
+    if (error) {
+      setPageError(`Event could not be deleted: ${error.message}`)
+      setDeletingId(null)
+      return
+    }
+
+    const { error: activityError } = await supabase
+      .from('activity_log')
+      .insert({
+        user_id: currentUser.id,
+        action: 'Event Deleted',
+        target: `${event.title} — ${event.event_date} (by ${actorName})`,
+      })
+
+    if (activityError) {
+      console.warn(
+        'Event deleted, but activity logging failed:',
+        activityError.message,
+      )
+    }
+
+    setEvents((current) => current.filter((item) => item.id !== event.id))
+    setDeletingId(null)
+    setNotice(`“${event.title}” was deleted.`)
+  }
+
+  const today = manilaToday()
+  const upcomingCount = events.filter((event) => event.event_date >= today).length
+  const thisMonth = today.slice(0, 7)
+  const thisMonthCount = events.filter((event) =>
+    event.event_date.startsWith(thisMonth),
+  ).length
+
+  const filteredEvents = useMemo(() => {
+    const term = normalize(search)
+
+    return events
+      .filter((event) => {
+        const isUpcoming = event.event_date >= today
+        const matchesStatus =
+          statusFilter === 'all' ||
+          (statusFilter === 'upcoming' && isUpcoming) ||
+          (statusFilter === 'past' && !isUpcoming)
+        const matchesSearch =
+          !term ||
+          [event.title, event.location, event.description].some((value) =>
+            normalize(value).includes(term),
+          )
+
+        return matchesStatus && matchesSearch
+      })
+      .sort((left, right) => {
+        const comparison = eventSortValue(left).localeCompare(
+          eventSortValue(right),
+        )
+
+        return statusFilter === 'past' ? -comparison : comparison
+      })
+  }, [events, search, statusFilter, today])
 
   return (
     <div className="cal-page">
-      <div className="cal-header">
+      <header className="cal-header">
         <div>
           <h1>Event Calendar</h1>
           <p>Schedule and manage community meetings and events.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : '+ Schedule Event'}
-        </button>
+
+        <div className="cal-header-actions">
+          <button
+            type="button"
+            className="cal-refresh-button"
+            onClick={() => loadEvents(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw size={17} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button
+            type="button"
+            className="cal-primary-button"
+            onClick={openCreateForm}
+            disabled={!canManageEvents}
+          >
+            <Plus size={18} />
+            Schedule Event
+          </button>
+        </div>
+      </header>
+
+      <section className="cal-summary" aria-label="Event summaries">
+        <article>
+          <span>Total events</span>
+          <strong>{loading ? '—' : events.length}</strong>
+        </article>
+        <article>
+          <span>Upcoming</span>
+          <strong>{loading ? '—' : upcomingCount}</strong>
+        </article>
+        <article>
+          <span>This month</span>
+          <strong>{loading ? '—' : thisMonthCount}</strong>
+        </article>
+      </section>
+
+      <div className="cal-toolbar">
+        <label className="cal-search">
+          <Search size={18} />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by event, location, or description..."
+            aria-label="Search events"
+          />
+        </label>
+
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="cal-filter"
+          aria-label="Filter events by status"
+        >
+          <option value="upcoming">Upcoming Events</option>
+          <option value="past">Past Events</option>
+          <option value="all">All Events</option>
+        </select>
       </div>
+
+      <div className="cal-result-count">
+        Showing {filteredEvents.length} of {events.length} events
+      </div>
+
+      {pageError && <p className="cal-message cal-error">{pageError}</p>}
+      {notice && <p className="cal-message cal-success">{notice}</p>}
+
+      <section className="cal-list glass-card" aria-live="polite">
+        {loading ? (
+          <p className="cal-empty">Loading events...</p>
+        ) : filteredEvents.length === 0 ? (
+          <p className="cal-empty">
+            {events.length === 0
+              ? 'No events have been scheduled yet.'
+              : 'No events match your search or filter.'}
+          </p>
+        ) : (
+          filteredEvents.map((event) => {
+            const eventDate = dateInManila(event.event_date)
+            const isPast = event.event_date < today
+
+            return (
+              <article
+                key={event.id}
+                className={`cal-row ${isPast ? 'cal-row-past' : ''}`}
+              >
+                <div className="cal-date-badge" aria-hidden="true">
+                  <span className="cal-month">
+                    {monthFormatter.format(eventDate)}
+                  </span>
+                  <span className="cal-day">
+                    {Number(event.event_date.slice(8, 10))}
+                  </span>
+                  <span className="cal-year">
+                    {event.event_date.slice(0, 4)}
+                  </span>
+                </div>
+
+                <div className="cal-info">
+                  <div className="cal-title-row">
+                    <h2>{event.title}</h2>
+                    <span className={`cal-status ${isPast ? 'past' : 'upcoming'}`}>
+                      {isPast ? 'Past' : 'Upcoming'}
+                    </span>
+                  </div>
+                  <p className="cal-full-date">
+                    {eventDateFormatter.format(eventDate)}
+                  </p>
+                  <div className="cal-meta">
+                    <span>
+                      <Clock size={16} />
+                      {formatTimeRange(event)}
+                    </span>
+                    <span>
+                      <MapPin size={16} />
+                      {event.location || 'Location to be announced'}
+                    </span>
+                  </div>
+                  {event.description && (
+                    <p className="cal-description">{event.description}</p>
+                  )}
+                </div>
+
+                <div className="cal-row-actions">
+                  <button
+                    type="button"
+                    className="cal-icon-button"
+                    onClick={() => openEditForm(event)}
+                    disabled={!canManageEvents || deletingId === event.id}
+                    aria-label={`Edit ${event.title}`}
+                  >
+                    <Edit size={17} />
+                  </button>
+                  <button
+                    type="button"
+                    className="cal-icon-button cal-delete-button"
+                    onClick={() => deleteEvent(event)}
+                    disabled={!canManageEvents || deletingId === event.id}
+                    aria-label={`Delete ${event.title}`}
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+              </article>
+            )
+          })
+        )}
+      </section>
 
       {showForm && (
-        <form className="cal-form glass-card" onSubmit={handleAdd}>
-          <input
-            placeholder="Event title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            required
-          />
-          <input
-            type="date"
-            value={form.date}
-            onChange={(e) => setForm({ ...form, date: e.target.value })}
-            required
-          />
-          <input
-            type="time"
-            value={form.time}
-            onChange={(e) => setForm({ ...form, time: e.target.value })}
-          />
-          <input
-            placeholder="Location"
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-          />
-          <button type="submit" className="btn btn-primary">Save Event</button>
-        </form>
-      )}
+        <div
+          className="cal-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeForm()
+          }}
+        >
+          <section
+            className="cal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cal-form-title"
+          >
+            <div className="cal-modal-header">
+              <div>
+                <h2 id="cal-form-title">
+                  {editingEvent ? 'Edit Event' : 'Schedule Event'}
+                </h2>
+                <p>
+                  {editingEvent
+                    ? 'Update the event information below.'
+                    : 'Add a community event to the shared calendar.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="cal-close-button"
+                onClick={closeForm}
+                disabled={saving}
+                aria-label="Close event form"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-      <div className="cal-list glass-card">
-        {sorted.map((event) => (
-          <div key={event.id} className="cal-row">
-            <div className="cal-date-badge">
-              <span className="cal-day">{new Date(event.date).getDate()}</span>
-              <span className="cal-month">
-                {new Date(event.date).toLocaleString('default', { month: 'short' })}
-              </span>
-            </div>
-            <div className="cal-info">
-              <p className="cal-title">{event.title}</p>
-              <p className="cal-meta">{event.time} • {event.location}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+            <form className="cal-form" onSubmit={saveEvent}>
+              <label className="cal-field-full">
+                Event title
+                <input
+                  type="text"
+                  name="title"
+                  value={form.title}
+                  onChange={updateForm}
+                  maxLength={160}
+                  placeholder="e.g. Homeowners General Assembly"
+                  disabled={saving}
+                  autoFocus
+                  required
+                />
+              </label>
+
+              <label>
+                Event date
+                <input
+                  type="date"
+                  name="eventDate"
+                  value={form.eventDate}
+                  onChange={updateForm}
+                  disabled={saving}
+                  required
+                />
+              </label>
+
+              <label>
+                Location
+                <input
+                  type="text"
+                  name="location"
+                  value={form.location}
+                  onChange={updateForm}
+                  maxLength={160}
+                  placeholder="e.g. Clubhouse"
+                  disabled={saving}
+                />
+              </label>
+
+              <label>
+                Start time
+                <input
+                  type="time"
+                  name="startTime"
+                  value={form.startTime}
+                  onChange={updateForm}
+                  disabled={saving}
+                />
+              </label>
+
+              <label>
+                End time
+                <input
+                  type="time"
+                  name="endTime"
+                  value={form.endTime}
+                  onChange={updateForm}
+                  disabled={saving}
+                />
+              </label>
+
+              <label className="cal-field-full">
+                Description
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={updateForm}
+                  maxLength={1000}
+                  rows={4}
+                  placeholder="Add optional event details or instructions"
+                  disabled={saving}
+                />
+              </label>
+
+              {formError && (
+                <p className="cal-form-error cal-field-full">{formError}</p>
+              )}
+
+              <div className="cal-modal-actions cal-field-full">
+                <button
+                  type="button"
+                  className="cal-cancel-button"
+                  onClick={closeForm}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="cal-primary-button"
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'Saving...'
+                    : editingEvent
+                      ? 'Save Changes'
+                      : 'Schedule Event'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   )
 }
