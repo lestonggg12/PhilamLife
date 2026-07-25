@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import './Navbar.css'
 import { X, Bell, Search } from './Icons'
+import { useOrganization } from '../context/OrganizationContext'
 
 export default function Navbar({ user, onLogout }) {
+  const { organization } = useOrganization()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   const handleLogoutClick = () => {
@@ -25,7 +27,7 @@ export default function Navbar({ user, onLogout }) {
       <nav className="navbar">
         <div className="navbar-left">
           <div className="breadcrumb">
-            <span className="breadcrumb-item">PHILAM Village</span>
+            <span className="breadcrumb-item">{organization.hoaName}</span>
             <span className="breadcrumb-sep">/</span>
             <span className="breadcrumb-item">Dashboard</span>
             <span className="breadcrumb-sep">/</span>

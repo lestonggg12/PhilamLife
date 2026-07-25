@@ -27,6 +27,7 @@ import EventCalendarPage from './pages/EventCalendarPage'
 import ContactManagerPage from './pages/ContactManagerPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import ProtectedRoute from './components/ProtectedRoute'
+import { OrganizationProvider } from './context/OrganizationContext'
 import './App.css'
 
 function AppContent() {
@@ -87,7 +88,8 @@ function AppContent() {
   }
 
   return (
-    <Routes>
+    <OrganizationProvider enabled={isAuthenticated}>
+      <Routes>
       <Route path="/" element={<LandingPage />} />
 
       <Route
@@ -321,6 +323,7 @@ function AppContent() {
         />
       </Route>
     </Routes>
+    </OrganizationProvider>
   )
 }
 

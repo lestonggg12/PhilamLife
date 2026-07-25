@@ -1,10 +1,13 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar } from './Icons'
+import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
 export default function Sidebar({ user, onLogout }) {
+  const { organization } = useOrganization()
   const role = user?.role?.trim().toLowerCase()
+  const displayName = user?.full_name?.trim() || user?.email || 'User'
 
   const dashboardPath = role === 'admin'
     ? '/admin/dashboard'
@@ -112,7 +115,7 @@ export default function Sidebar({ user, onLogout }) {
       <div className="sidebar-header">
         <div className="logo">
           <Home size={20} />
-          <span className="logo-text">PHILAM Village</span>
+          <span className="logo-text">{organization.hoaName}</span>
         </div>
       </div>
 
@@ -140,10 +143,10 @@ export default function Sidebar({ user, onLogout }) {
       <div className="sidebar-footer">
         <div className="user-section">
           <div className="user-avatar">
-            {user?.email?.charAt(0).toUpperCase() || 'U'}
+            {(user?.full_name?.trim()?.charAt(0) || user?.email?.charAt(0) || 'U').toUpperCase()}
           </div>
           <div className="user-info">
-            <div className="user-name">User</div>
+            <div className="user-name">{displayName}</div>
             <div className="user-role">{user?.role || 'Admin'}</div>
           </div>
         </div>
