@@ -15,6 +15,7 @@ import {
   Zap,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import Chart from 'chart.js/auto'
 
 const MANILA_TIME_ZONE = 'Asia/Manila'
 
@@ -153,49 +154,10 @@ export default function AdminDashboard() {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
-  const [chartError, setChartError] = useState('')
-  const [chartsReady, setChartsReady] = useState(
-    () => typeof window !== 'undefined' && Boolean(window.Chart),
-  )
   const [actionsOpen, setActionsOpen] = useState(false)
 
   useEffect(() => {
     loadDashboard()
-  }, [])
-
-  useEffect(() => {
-    if (window.Chart) {
-      setChartsReady(true)
-      return undefined
-    }
-
-    let script = document.getElementById('philam-chart-js')
-
-    const handleLoad = () => {
-      setChartError('')
-      setChartsReady(Boolean(window.Chart))
-    }
-
-    const handleError = () => {
-      setChartError('Charts could not be loaded. Dashboard totals remain available.')
-    }
-
-    if (!script) {
-      script = document.createElement('script')
-      script.id = 'philam-chart-js'
-      script.src =
-        'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
-      script.async = true
-      document.head.appendChild(script)
-    }
-
-    script.addEventListener('load', handleLoad)
-    script.addEventListener('error', handleError)
-
-    return () => {
-      script?.removeEventListener('load', handleLoad)
-      script?.removeEventListener('error', handleError)
-    }
   }, [])
 
   async function loadDashboard() {
@@ -360,13 +322,13 @@ export default function AdminDashboard() {
   }, [activities, profiles])
 
   useEffect(() => {
-    if (!chartsReady || loading || !window.Chart) return undefined
+    if (loading) return undefined
 
     chartInstancesRef.current.forEach((chart) => chart.destroy())
     chartInstancesRef.current = []
 
     if (barChartRef.current) {
-      const barChart = new window.Chart(barChartRef.current, {
+      const barChart = new Chart(barChartRef.current, {
         type: 'bar',
         data: {
           labels: paymentsByBlock.labels,
@@ -433,7 +395,7 @@ export default function AdminDashboard() {
     }
 
     if (donutChartRef.current) {
-      const donutChart = new window.Chart(donutChartRef.current, {
+      const donutChart = new Chart(donutChartRef.current, {
         type: 'doughnut',
         data: {
           labels: ['Paid', 'Balance Due', 'No Payment Record'],
@@ -493,7 +455,6 @@ export default function AdminDashboard() {
     }
   }, [
     accountStatus,
-    chartsReady,
     loading,
     paymentsByBlock,
   ])
@@ -644,8 +605,6 @@ export default function AdminDashboard() {
         <h2 className="dash-section-title">Analytics Overview</h2>
         <span className="dash-section-link">Last 6 months</span>
       </div>
-
-      {chartError && <p className="dash-chart-message">{chartError}</p>}
 
       <div className="dash-charts-grid">
         <div className="dash-chart-card">

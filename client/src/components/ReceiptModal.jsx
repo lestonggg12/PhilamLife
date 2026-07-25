@@ -1,8 +1,11 @@
 import React from 'react'
 import { X, Download, Mail, Printer } from './Icons'
+import { useOrganization } from '../context/OrganizationContext'
 import './ReceiptModal.css'
 
 export default function ReceiptModal({ receiptData, onClose }) {
+  const { organization } = useOrganization()
+
   const handlePrint = () => {
     window.print()
   }
@@ -26,8 +29,8 @@ export default function ReceiptModal({ receiptData, onClose }) {
             {/* Receipt Header */}
             <div className="receipt-header print-section">
               <div className="receipt-logo">
-                <h1>🏠 PHILAM VILLAGE HOA</h1>
-                <p>Cagayan de Oro City</p>
+                <h1>🏠 {organization.associationName.toUpperCase()}</h1>
+                <p>{organization.address}</p>
               </div>
 
               <div className="receipt-title">
@@ -99,7 +102,9 @@ export default function ReceiptModal({ receiptData, onClose }) {
                   ✓ Thank you for your payment. Your account has been updated.
                 </p>
                 <p>
-                  For inquiries, contact the HOA office at (088) 858-1234
+                  {organization.contactPhone
+                    ? `For inquiries, contact the HOA office at ${organization.contactPhone}`
+                    : 'For inquiries, please contact the HOA office.'}
                 </p>
               </div>
             </div>

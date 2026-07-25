@@ -1,65 +1,235 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, DollarSign } from '../components/Icons'
-import BlockOverviewCard from '../components/BlockOverviewCard'
-import ExpandedBlockView from '../components/ExpandedBlockView'
-import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
-import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
-import ReceiptModal from '../components/ReceiptModal'
+import {
+  CheckCircle,
+  CreditCard,
+  Eye,
+  FileText,
+  Plus,
+  RefreshCw,
+  X,
+} from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import './SecretaryPayables.css'
+import { useOrganization } from '../context/OrganizationContext'
+import './ServicesManagementPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
+  maximumFractionDigits: 2,
 })
 
-const date = new Intl.DateTimeFormat('en-PH', {
+const dateTime = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
+  timeStyle: 'short',
   timeZone: 'Asia/Manila',
 })
 
-const normalize = (value) => String(value ?? '').trim().toLowerCase()
+const escapePrintText = (value) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
 
-function currentManilaPeriod() {
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Manila',
-  }).format(new Date())
-}
+function printServiceReceipt(receipt, associationName) {
+  const printWindow = window.open('', '_blank', 'width=900,height=700')
 
-function paymentMatchesProperty(payment, property) {
-  if (payment.property_id != null) {
-    return Number(payment.property_id) === Number(property.id)
+  if (!printWindow) {
+    window.alert('Please allow pop-ups to print the service receipt.')
+    return
   }
 
-  return (
-    normalize(payment.homeowner_name) === normalize(property.homeowner_name) &&
-    normalize(payment.block_name) === normalize(property.block) &&
-    normalize(payment.lot_number).replace(/^lot\s*/, '') ===
-      String(property.lot_number)
+  const rows = [
+    ['Received from', receipt.customer_name],
+    ['Property', `${receipt.block_name}, Lot ${receipt.lot_number}`],
+    ['Service', receipt.service_name],
+    ['Service date', receipt.service_date],
+    ['Amount paid', peso.format(Number(receipt.amount_paid) || 0)],
+    ['Payment method', receipt.payment_method],
+    ['Date issued', dateTime.format(new Date(receipt.paid_at))],
+    ['Processed by', receipt.recorded_by_name],
+  ]
+
+  const receiptRows = rows
+    .map(
+      ([label, value]) => `
+        <div class="receipt-row">
+          <span>${escapePrintText(label)}</span>
+          <strong>${escapePrintText(value)}</strong>
+        </div>
+      `,
+    )
+    .join('')
+
+  printWindow.addEventListener(
+    'load',
+    () => {
+      printWindow.focus()
+      printWindow.print()
+    },
+    { once: true },
   )
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapePrintText(receipt.receipt_number)} - Official Service Receipt</title>
+        <style>
+          @page { size: A4 portrait; margin: 16mm; }
+          * { box-sizing: border-box; }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #17324a;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+          .receipt {
+            width: 100%;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 22px 28px;
+            border: 1px solid #dce8f0;
+          }
+          .check {
+            display: grid;
+            width: 44px;
+            height: 44px;
+            margin: 0 auto 12px;
+            place-items: center;
+            border-radius: 50%;
+            background: #dcfce7;
+            color: #15803d;
+            font-size: 28px;
+            font-weight: 700;
+          }
+          .association {
+            margin: 0 0 6px;
+            color: #5d7d98;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-align: center;
+            text-transform: uppercase;
+          }
+          h1 {
+            margin: 0;
+            color: #071e30;
+            font-size: 24px;
+            text-align: center;
+          }
+          .number {
+            display: block;
+            margin: 12px 0 24px;
+            color: #1464a0;
+            font-size: 17px;
+            text-align: right;
+          }
+          .receipt-details { border-top: 1px solid #dce8f0; }
+          .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e7eff4;
+          }
+          .receipt-row span { color: #5d7d98; }
+          .receipt-row strong {
+            color: #071e30;
+            text-align: right;
+          }
+          .note {
+            margin: 20px 0 0;
+            color: #7890a2;
+            font-size: 11px;
+            line-height: 1.5;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <main class="receipt">
+          <div class="check">✓</div>
+          <p class="association">${escapePrintText(associationName)}</p>
+          <h1>Official Service Receipt</h1>
+          <strong class="number">${escapePrintText(receipt.receipt_number)}</strong>
+          <section class="receipt-details">${receiptRows}</section>
+          <p class="note">
+            This receipt is a permanent transaction record and cannot be deleted
+            from the Services Management page.
+          </p>
+        </main>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
 }
 
-export default function SecretaryPayablesPage({ user: suppliedUser }) {
+const today = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+
+function isCurrentManilaMonth(value) {
+  if (!value) return false
+  const parts = (date) =>
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+    }).format(date)
+
+  return parts(new Date(value)) === parts(new Date())
+}
+
+const emptyService = {
+  name: '',
+  description: '',
+  rate: '',
+  rate_unit: 'per use',
+  is_active: true,
+}
+
+const emptyTransaction = {
+  service_id: '',
+  property_id: '',
+  service_date: today(),
+  start_time: '',
+  quantity: '1',
+  amount_paid: '',
+  payment_method: 'Cash',
+  reference_number: '',
+  notes: '',
+}
+
+export default function ServicesManagementPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
-  const [blocks, setBlocks] = useState([])
+  const [services, setServices] = useState([])
+  const [transactions, setTransactions] = useState([])
   const [properties, setProperties] = useState([])
-  const [payments, setPayments] = useState([])
-  const [duesAmount, setDuesAmount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [pageError, setPageError] = useState('')
-  const [expandedBlockId, setExpandedBlockId] = useState(null)
-  const [selectedHomeowner, setSelectedHomeowner] = useState(null)
-  const [showLedgerModal, setShowLedgerModal] = useState(false)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentData, setPaymentData] = useState(null)
-  const [receiptData, setReceiptData] = useState(null)
+  const [search, setSearch] = useState('')
+  const [serviceFilter, setServiceFilter] = useState('all')
+  const [showServiceForm, setShowServiceForm] = useState(false)
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [editingServiceId, setEditingServiceId] = useState(null)
+  const [serviceForm, setServiceForm] = useState(emptyService)
+  const [transactionForm, setTransactionForm] = useState(emptyTransaction)
+  const [receipt, setReceipt] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManagePayments = role === 'secretary' || role === 'treasurer'
+  const canManageServices = role === 'secretary'
   const recorderName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Secretary'
 
   useEffect(() => {
     loadPage()
@@ -79,307 +249,774 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
 
     if (authError || !authUser) return
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', authUser.id)
       .single()
 
-    if (!profileError) setCurrentUser(profile)
+    if (!error) setCurrentUser(profile)
   }
 
   async function loadPage() {
     setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, settingsResult] =
-      await Promise.all([
-        supabase.from('blocks').select('id, name').order('name'),
-        supabase
-          .from('properties')
-          .select('id, block, lot_number, homeowner_name')
-          .order('homeowner_name'),
-        supabase
-          .from('payments')
-          .select('*')
-          .order('paid_at', { ascending: false }),
-        supabase
-          .from('system_settings')
-          .select('dues_amount')
-          .eq('id', 1)
-          .maybeSingle(),
-      ])
+    const [serviceResult, transactionResult, propertyResult] = await Promise.all([
+      supabase.from('amenity_services').select('*').order('name'),
+      supabase
+        .from('service_transactions')
+        .select('*')
+        .order('paid_at', { ascending: false }),
+      supabase
+        .from('properties')
+        .select('id, homeowner_name, block, lot_number')
+        .order('homeowner_name'),
+    ])
 
     const errors = [
-      blockResult.error,
+      serviceResult.error,
+      transactionResult.error,
       propertyResult.error,
-      paymentResult.error,
-      settingsResult.error,
     ].filter(Boolean)
 
-    if (errors.length > 0) {
+    if (errors.length) {
       setPageError(
-        `Some collection records could not be loaded: ${errors
+        `Some service records could not be loaded: ${errors
           .map((error) => error.message)
           .join(' ')}`,
       )
     }
 
-    setBlocks(blockResult.data || [])
+    setServices(serviceResult.data || [])
+    setTransactions(transactionResult.data || [])
     setProperties(propertyResult.data || [])
-    setPayments(paymentResult.data || [])
-    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setLoading(false)
   }
 
-  const homeownersByBlock = useMemo(() => {
-    const grouped = new Map()
-
-    properties.forEach((property) => {
-      const propertyPayments = payments.filter((payment) =>
-        paymentMatchesProperty(payment, property),
-      )
-      const latestPayment = propertyPayments[0]
-      const amountDue = latestPayment
-        ? Number(latestPayment.remaining_balance) || 0
-        : duesAmount
-
-      const homeowner = {
-        id: property.id,
-        name: property.homeowner_name,
-        block: property.block,
-        lot: `Lot ${property.lot_number}`,
-        address: `Lot ${property.lot_number}, ${property.block}`,
-        status: amountDue <= 0 ? 'paid' : latestPayment ? 'pending' : 'overdue',
-        lastPayment: latestPayment?.paid_at
-          ? date.format(new Date(latestPayment.paid_at))
-          : 'No payment yet',
-        amountDue,
-        daysOverdue: 0,
-        avatar: '🏠',
-        payments: propertyPayments,
-      }
-
-      const key = normalize(property.block)
-      grouped.set(key, [...(grouped.get(key) || []), homeowner])
-    })
-
-    return grouped
-  }, [duesAmount, payments, properties])
-
-  const blockSummaries = useMemo(() => {
-    const knownBlocks = [...blocks]
-
-    properties.forEach((property) => {
-      if (!knownBlocks.some((block) => normalize(block.name) === normalize(property.block))) {
-        knownBlocks.push({ id: `property-${property.block}`, name: property.block })
-      }
-    })
-
-    return knownBlocks.map((block) => {
-      const homeowners = homeownersByBlock.get(normalize(block.name)) || []
-      const paidAccounts = homeowners.filter(
-        (homeowner) => homeowner.amountDue <= 0,
-      ).length
-      const unpaidAccounts = homeowners.length - paidAccounts
-      const totalOutstanding = homeowners.reduce(
-        (sum, homeowner) => sum + homeowner.amountDue,
-        0,
-      )
-
-      return {
-        ...block,
-        totalUnits: homeowners.length,
-        paidAccounts,
-        unpaidAccounts,
-        collectionRate:
-          homeowners.length > 0
-            ? Math.round((paidAccounts / homeowners.length) * 100)
-            : 0,
-        totalOutstanding,
-        homeowners,
-      }
-    })
-  }, [blocks, homeownersByBlock, properties])
-
-  const totals = useMemo(
-    () =>
-      blockSummaries.reduce(
-        (result, block) => ({
-          outstanding: result.outstanding + block.totalOutstanding,
-          accounts: result.accounts + block.unpaidAccounts,
-        }),
-        { outstanding: 0, accounts: 0 },
-      ),
-    [blockSummaries],
+  const activeServices = useMemo(
+    () => services.filter((service) => service.is_active),
+    [services],
   )
 
-  function handleBlockExpand(blockId) {
-    setExpandedBlockId((current) => (current === blockId ? null : blockId))
-  }
+  const summary = useMemo(() => {
+    const thisMonth = transactions.filter((item) =>
+      isCurrentManilaMonth(item.paid_at),
+    )
 
-  function handleViewLedger(homeowner) {
-    setSelectedHomeowner(homeowner)
-    setShowLedgerModal(true)
-  }
+    return {
+      activeServices: activeServices.length,
+      monthlyTransactions: thisMonth.length,
+      monthlyCollections: thisMonth.reduce(
+        (sum, item) => sum + (Number(item.amount_paid) || 0),
+        0,
+      ),
+      receipts: transactions.length,
+    }
+  }, [activeServices, transactions])
 
-  function handlePayDues(homeowner) {
-    if (!canManagePayments) return
+  const filteredTransactions = useMemo(() => {
+    const query = search.trim().toLowerCase()
 
-    setSelectedHomeowner(homeowner)
-    setPaymentData({
-      homeowner: homeowner.name,
-      block: homeowner.block,
-      lot: homeowner.lot,
-      amount: homeowner.amountDue,
-      period: currentManilaPeriod(),
+    return transactions.filter((item) => {
+      const matchesService =
+        serviceFilter === 'all' || item.service_id === serviceFilter
+      const matchesSearch =
+        !query ||
+        [
+          item.receipt_number,
+          item.service_name,
+          item.customer_name,
+          item.block_name,
+          item.lot_number,
+        ].some((value) => String(value || '').toLowerCase().includes(query))
+
+      return matchesService && matchesSearch
     })
-    setShowPaymentModal(true)
+  }, [search, serviceFilter, transactions])
+
+  const selectedService = services.find(
+    (service) => service.id === transactionForm.service_id,
+  )
+  const amountDue =
+    (Number(selectedService?.rate) || 0) *
+    Math.max(Number(transactionForm.quantity) || 1, 1)
+
+  function openPaymentForm(service = null) {
+    if (!canManageServices) return
+
+    const chosen = service || activeServices[0]
+    setTransactionForm({
+      ...emptyTransaction,
+      service_date: today(),
+      service_id: chosen?.id || '',
+      amount_paid: chosen?.rate ? String(chosen.rate) : '',
+    })
+    setShowPaymentForm(true)
   }
 
-  async function handlePaymentConfirmed(form) {
-    if (!canManagePayments) {
-      throw new Error('Only a Secretary or Treasurer can record payments.')
+  function openServiceForm(service = null) {
+    setEditingServiceId(service?.id || null)
+    setServiceForm(
+      service
+        ? {
+            name: service.name,
+            description: service.description || '',
+            rate: String(service.rate),
+            rate_unit: service.rate_unit,
+            is_active: service.is_active,
+          }
+        : emptyService,
+    )
+    setShowServiceForm(true)
+  }
+
+  function handleServiceChange(event) {
+    const service = services.find((item) => item.id === event.target.value)
+    setTransactionForm((current) => ({
+      ...current,
+      service_id: event.target.value,
+      amount_paid: service?.rate ? String(service.rate) : '',
+    }))
+  }
+
+  async function saveService(event) {
+    event.preventDefault()
+    if (!canManageServices || !currentUser?.id) {
+      setPageError('Only a verified Secretary can add an amenity or service.')
+      return
     }
 
-    if (!currentUser?.id) {
-      throw new Error('Your user profile could not be verified. Please sign in again.')
-    }
+    setSaving(true)
+    setPageError('')
 
     const payload = {
-      homeowner_name: paymentData.homeowner,
-      block_name: paymentData.block,
-      lot_number: paymentData.lot,
-      coverage_period: form.period,
-      previous_balance: paymentData.amount,
-      amount_paid: form.amount,
-      payment_method: form.method,
-      reference_number: form.referenceNumber || null,
-      note: form.note || null,
+      name: serviceForm.name.trim(),
+      description: serviceForm.description.trim() || null,
+      rate: Number(serviceForm.rate),
+      rate_unit: serviceForm.rate_unit,
+      is_active: serviceForm.is_active,
+    }
+
+    const query = editingServiceId
+      ? supabase
+          .from('amenity_services')
+          .update(payload)
+          .eq('id', editingServiceId)
+      : supabase
+          .from('amenity_services')
+          .insert({ ...payload, created_by: currentUser.id })
+
+    const { data, error } = await query.select('*').single()
+
+    if (error) {
+      setPageError(error.message)
+      setSaving(false)
+      return
+    }
+
+    setServices((current) => {
+      const updated = editingServiceId
+        ? current.map((item) => (item.id === data.id ? data : item))
+        : [...current, data]
+      return updated.sort((left, right) => left.name.localeCompare(right.name))
+    })
+    setServiceForm(emptyService)
+    setEditingServiceId(null)
+    setShowServiceForm(false)
+    setSaving(false)
+
+    await supabase.from('activity_log').insert({
+      user_id: currentUser.id,
+      action: editingServiceId ? 'Service Updated' : 'Service Added',
+      target: `${data.name} (${recorderName})`,
+    })
+  }
+
+  async function saveTransaction(event) {
+    event.preventDefault()
+    if (!canManageServices || !currentUser?.id) {
+      setPageError('Only a verified Secretary can record service payments.')
+      return
+    }
+
+    const property = properties.find(
+      (item) => String(item.id) === transactionForm.property_id,
+    )
+    const service = services.find(
+      (item) => item.id === transactionForm.service_id,
+    )
+
+    if (!property || !service) {
+      setPageError('Select a valid homeowner and service.')
+      return
+    }
+
+    setSaving(true)
+    setPageError('')
+
+    const paid = Number(transactionForm.amount_paid)
+    const payload = {
+      service_id: service.id,
+      service_name: service.name,
+      customer_name: property.homeowner_name,
+      block_name: property.block,
+      lot_number: String(property.lot_number),
+      service_date: transactionForm.service_date,
+      start_time: transactionForm.start_time || null,
+      quantity: Math.max(Number(transactionForm.quantity) || 1, 1),
+      amount_due: amountDue,
+      amount_paid: paid,
+      payment_method: transactionForm.payment_method,
+      reference_number: transactionForm.reference_number.trim() || null,
+      notes: transactionForm.notes.trim() || null,
+      payment_status: paid >= amountDue ? 'paid' : 'partial',
       recorded_by: currentUser.id,
       recorded_by_name: recorderName,
     }
 
     const { data, error } = await supabase
-      .from('payments')
+      .from('service_transactions')
       .insert(payload)
       .select('*')
       .single()
 
-    if (error) throw error
+    if (error) {
+      setPageError(error.message)
+      setSaving(false)
+      return
+    }
 
-    setPayments((current) => [data, ...current])
-    setShowPaymentModal(false)
-    setReceiptData({
-      orNumber: data.receipt_number,
-      date: date.format(new Date(data.paid_at)),
-      homeowner: data.homeowner_name,
-      lot: `${data.block_name}, ${data.lot_number}`,
-      amount: Number(data.amount_paid) || 0,
-      method: data.payment_method,
-      period: data.coverage_period,
-    })
+    setTransactions((current) => [data, ...current])
+    setTransactionForm(emptyTransaction)
+    setShowPaymentForm(false)
+    setReceipt(data)
+    setSaving(false)
 
     const { error: activityError } = await supabase.from('activity_log').insert({
       user_id: currentUser.id,
-      action: 'Payment Recorded',
-      target: `${data.receipt_number} — ${data.homeowner_name} (${recorderName})`,
+      action: 'Service Payment Recorded',
+      target: `${data.receipt_number} — ${data.service_name} for ${data.customer_name}`,
     })
 
     if (activityError) {
-      console.warn('Payment saved, but activity logging failed:', activityError.message)
+      console.warn('Service saved, but activity logging failed:', activityError.message)
     }
   }
 
-  function closeLedger() {
-    setShowLedgerModal(false)
-    setSelectedHomeowner(null)
-  }
-
   return (
-    <div className="secretary-payables-page">
-      <div className="payables-header">
+    <div className="services-page">
+      <header className="services-header">
         <div>
-          <h1>Payables & Collections</h1>
-          <p>Review block collections, homeowner balances, and payment history.</p>
+          <p className="services-eyebrow">Secretary workspace</p>
+          <h1>Services Management</h1>
+          <p>Manage village amenities, process service payments, and issue receipts.</p>
         </div>
-        <div className="header-stats">
-          <div className="stat-badge">
-            <DollarSign size={20} />
-            <span>{loading ? 'Loading...' : `${peso.format(totals.outstanding)} outstanding`}</span>
-          </div>
-          <div className="stat-badge">
-            <AlertCircle size={20} />
-            <span>{loading ? '—' : totals.accounts} outstanding account{totals.accounts === 1 ? '' : 's'}</span>
+
+        <div className="services-header-actions">
+          <button
+            type="button"
+            className="services-button services-button-secondary"
+            onClick={loadPage}
+            disabled={loading}
+          >
+            <RefreshCw size={17} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          {canManageServices && (
+            <>
+              <button
+                type="button"
+                className="services-button services-button-secondary"
+                onClick={() => openServiceForm()}
+              >
+                <Plus size={17} /> Add Service
+              </button>
+              <button
+                type="button"
+                className="services-button services-button-primary"
+                onClick={() => openPaymentForm()}
+                disabled={activeServices.length === 0}
+              >
+                <CreditCard size={17} /> Record Payment
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      {pageError && <p className="services-error">{pageError}</p>}
+      {!loading && !canManageServices && (
+        <p className="services-notice">
+          You have view-only access. Service management and payment actions are
+          restricted to the Secretary.
+        </p>
+      )}
+
+      <section className="services-summary" aria-label="Service summaries">
+        <article>
+          <span>Active Services</span>
+          <strong>{loading ? '—' : summary.activeServices}</strong>
+          <small>Available village amenities</small>
+        </article>
+        <article>
+          <span>Transactions This Month</span>
+          <strong>{loading ? '—' : summary.monthlyTransactions}</strong>
+          <small>Service payments recorded</small>
+        </article>
+        <article>
+          <span>Collections This Month</span>
+          <strong>{loading ? '—' : peso.format(summary.monthlyCollections)}</strong>
+          <small>Based on Manila time</small>
+        </article>
+        <article>
+          <span>Receipts Issued</span>
+          <strong>{loading ? '—' : summary.receipts}</strong>
+          <small>Permanent service records</small>
+        </article>
+      </section>
+
+      <section className="service-catalog">
+        <div className="services-section-heading">
+          <div>
+            <h2>Amenities & Services</h2>
+            <p>Select an active amenity to record a payment.</p>
           </div>
         </div>
-      </div>
 
-      {pageError && <p className="payables-error">{pageError}</p>}
-
-      <div className="payables-content">
         {loading ? (
-          <div className="payables-state">Loading payables and collections...</div>
-        ) : blockSummaries.length === 0 ? (
-          <div className="payables-state">No blocks or homeowner records found.</div>
+          <div className="services-state">Loading services...</div>
+        ) : services.length === 0 ? (
+          <div className="services-state">No services have been added yet.</div>
         ) : (
-          <div className="blocks-grid">
-            {blockSummaries.map((block) => (
-              <div key={block.id} className="block-section">
-                <BlockOverviewCard
-                  block={block}
-                  isExpanded={expandedBlockId === block.id}
-                  onExpand={() => handleBlockExpand(block.id)}
-                />
-
-                {expandedBlockId === block.id && (
-                  <ExpandedBlockView
-                    block={block}
-                    homeowners={block.homeowners}
-                    canRecordPayment={canManagePayments}
-                    onViewLedger={handleViewLedger}
-                    onPayDues={handlePayDues}
-                  />
+          <div className="service-card-grid">
+            {services.map((service) => (
+              <article
+                className={`service-card${service.is_active ? '' : ' service-card-inactive'}`}
+                key={service.id}
+              >
+                <div className="service-card-top">
+                  <span className="service-card-icon"><FileText size={19} /></span>
+                  <span className={`service-status ${service.is_active ? 'active' : 'inactive'}`}>
+                    {service.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <h3>{service.name}</h3>
+                <p>{service.description || 'Village amenity or service.'}</p>
+                <div className="service-rate">
+                  <strong>{peso.format(Number(service.rate) || 0)}</strong>
+                  <span>{service.rate_unit}</span>
+                </div>
+                {canManageServices && (
+                  <div className="service-card-actions">
+                    <button type="button" onClick={() => openServiceForm(service)}>
+                      Edit
+                    </button>
+                    {service.is_active && (
+                      <button type="button" onClick={() => openPaymentForm(service)}>
+                        Record payment
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
+              </article>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {showLedgerModal && selectedHomeowner && (
-        <HomeownerLedgerModal
-          homeowner={selectedHomeowner}
-          ledger={selectedHomeowner.payments.map((payment) => ({
-            id: payment.id,
-            date: date.format(new Date(payment.paid_at)),
-            type: 'Payment',
-            description: payment.coverage_period,
-            amount: -(Number(payment.amount_paid) || 0),
-            balance: Number(payment.remaining_balance) || 0,
-          }))}
-          canRecordPayment={canManagePayments}
-          onClose={closeLedger}
-          onPayClick={() => {
-            closeLedger()
-            handlePayDues(selectedHomeowner)
-          }}
-        />
+      <section className="services-transactions">
+        <div className="services-section-heading services-transaction-heading">
+          <div>
+            <h2>Service Transactions</h2>
+            <p>Search payments and open their official receipts.</p>
+          </div>
+          <div className="services-filters">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search receipt, service, or homeowner..."
+            />
+            <select
+              value={serviceFilter}
+              onChange={(event) => setServiceFilter(event.target.value)}
+            >
+              <option value="all">All services</option>
+              {services.map((service) => (
+                <option value={service.id} key={service.id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="services-table-wrap">
+          <table className="services-table">
+            <thead>
+              <tr>
+                <th>Receipt No.</th>
+                <th>Service</th>
+                <th>Homeowner</th>
+                <th>Schedule</th>
+                <th>Amount Paid</th>
+                <th>Status</th>
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="7" className="services-empty">Loading transactions...</td></tr>
+              ) : filteredTransactions.length === 0 ? (
+                <tr><td colSpan="7" className="services-empty">No service transactions found.</td></tr>
+              ) : (
+                filteredTransactions.map((item) => (
+                  <tr key={item.id}>
+                    <td><strong>{item.receipt_number}</strong></td>
+                    <td>{item.service_name}</td>
+                    <td>
+                      <strong>{item.customer_name}</strong>
+                      <span>{item.block_name}, Lot {item.lot_number}</span>
+                    </td>
+                    <td>
+                      {item.service_date}
+                      {item.start_time ? ` • ${item.start_time.slice(0, 5)}` : ''}
+                    </td>
+                    <td>{peso.format(Number(item.amount_paid) || 0)}</td>
+                    <td>
+                      <span className={`payment-status ${item.payment_status}`}>
+                        {item.payment_status}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="receipt-link"
+                        onClick={() => setReceipt(item)}
+                      >
+                        <Eye size={16} /> Receipt
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {showServiceForm && (
+        <div className="services-modal-backdrop" role="presentation">
+          <form className="services-modal" onSubmit={saveService}>
+            <div className="services-modal-header">
+              <div>
+                <h2>{editingServiceId ? 'Edit Amenity or Service' : 'Add Amenity or Service'}</h2>
+                <p>Set its standard rate and availability.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowServiceForm(false)
+                  setEditingServiceId(null)
+                }}
+                aria-label="Close"
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <label>
+              Service name
+              <input
+                required
+                value={serviceForm.name}
+                onChange={(event) =>
+                  setServiceForm((current) => ({ ...current, name: event.target.value }))
+                }
+              />
+            </label>
+            <label>
+              Description
+              <textarea
+                rows="3"
+                value={serviceForm.description}
+                onChange={(event) =>
+                  setServiceForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <div className="services-form-row">
+              <label>
+                Standard rate
+                <input
+                  required
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={serviceForm.rate}
+                  onChange={(event) =>
+                    setServiceForm((current) => ({ ...current, rate: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Rate unit
+                <select
+                  value={serviceForm.rate_unit}
+                  onChange={(event) =>
+                    setServiceForm((current) => ({
+                      ...current,
+                      rate_unit: event.target.value,
+                    }))
+                  }
+                >
+                  <option>per use</option>
+                  <option>per hour</option>
+                  <option>per person</option>
+                  <option>per day</option>
+                </select>
+              </label>
+            </div>
+            <label className="services-checkbox">
+              <input
+                type="checkbox"
+                checked={serviceForm.is_active}
+                onChange={(event) =>
+                  setServiceForm((current) => ({
+                    ...current,
+                    is_active: event.target.checked,
+                  }))
+                }
+              />
+              Active and available for new payments
+            </label>
+            <div className="services-modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowServiceForm(false)
+                  setEditingServiceId(null)
+                }}
+              >
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}>
+                {saving
+                  ? 'Saving...'
+                  : editingServiceId
+                    ? 'Save Changes'
+                    : 'Add Service'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
-      {showPaymentModal && paymentData && (
-        <PaymentCheckoutModal
-          paymentData={paymentData}
-          onConfirm={handlePaymentConfirmed}
-          onCancel={() => setShowPaymentModal(false)}
-        />
+      {showPaymentForm && (
+        <div className="services-modal-backdrop" role="presentation">
+          <form className="services-modal services-payment-modal" onSubmit={saveTransaction}>
+            <div className="services-modal-header">
+              <div>
+                <h2>Record Service Payment</h2>
+                <p>The official receipt is created only after a successful save.</p>
+              </div>
+              <button type="button" onClick={() => setShowPaymentForm(false)} aria-label="Close">
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="services-form-row">
+              <label>
+                Service
+                <select
+                  required
+                  value={transactionForm.service_id}
+                  onChange={handleServiceChange}
+                >
+                  <option value="">Select service</option>
+                  {activeServices.map((service) => (
+                    <option value={service.id} key={service.id}>{service.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Homeowner
+                <select
+                  required
+                  value={transactionForm.property_id}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      property_id: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Select homeowner</option>
+                  {properties.map((property) => (
+                    <option value={String(property.id)} key={property.id}>
+                      {property.homeowner_name} — {property.block}, Lot {property.lot_number}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="services-form-row services-form-row-three">
+              <label>
+                Service date
+                <input
+                  required
+                  type="date"
+                  value={transactionForm.service_date}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      service_date: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Start time
+                <input
+                  type="time"
+                  value={transactionForm.start_time}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      start_time: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Quantity
+                <input
+                  required
+                  min="1"
+                  type="number"
+                  value={transactionForm.quantity}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      quantity: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="services-amount-due">
+              <span>Amount due</span>
+              <strong>{peso.format(amountDue)}</strong>
+            </div>
+
+            <div className="services-form-row">
+              <label>
+                Amount paid
+                <input
+                  required
+                  min="0.01"
+                  step="0.01"
+                  type="number"
+                  value={transactionForm.amount_paid}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      amount_paid: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Payment method
+                <select
+                  value={transactionForm.payment_method}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      payment_method: event.target.value,
+                    }))
+                  }
+                >
+                  <option>Cash</option>
+                  <option>GCash</option>
+                  <option>Bank Transfer</option>
+                  <option>Check</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Reference number
+              <input
+                value={transactionForm.reference_number}
+                onChange={(event) =>
+                  setTransactionForm((current) => ({
+                    ...current,
+                    reference_number: event.target.value,
+                  }))
+                }
+                placeholder="Optional for cash payments"
+              />
+            </label>
+            <label>
+              Notes
+              <textarea
+                rows="2"
+                value={transactionForm.notes}
+                onChange={(event) =>
+                  setTransactionForm((current) => ({
+                    ...current,
+                    notes: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <div className="services-modal-actions">
+              <button type="button" onClick={() => setShowPaymentForm(false)}>
+                Cancel
+              </button>
+              <button type="submit" disabled={saving || amountDue <= 0}>
+                {saving ? 'Saving...' : 'Save & Issue Receipt'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
-      {receiptData && (
-        <ReceiptModal
-          receiptData={receiptData}
-          onClose={() => setReceiptData(null)}
-        />
+      {receipt && (
+        <div className="services-modal-backdrop" role="presentation">
+          <article className="service-receipt">
+            <div className="receipt-success"><CheckCircle size={24} /></div>
+            <p className="receipt-kicker">{organization.associationName}</p>
+            <h2>Official Service Receipt</h2>
+            <strong className="receipt-number">{receipt.receipt_number}</strong>
+            <dl>
+              <div><dt>Received from</dt><dd>{receipt.customer_name}</dd></div>
+              <div><dt>Property</dt><dd>{receipt.block_name}, Lot {receipt.lot_number}</dd></div>
+              <div><dt>Service</dt><dd>{receipt.service_name}</dd></div>
+              <div><dt>Service date</dt><dd>{receipt.service_date}</dd></div>
+              <div><dt>Amount paid</dt><dd>{peso.format(Number(receipt.amount_paid) || 0)}</dd></div>
+              <div><dt>Payment method</dt><dd>{receipt.payment_method}</dd></div>
+              <div><dt>Date issued</dt><dd>{dateTime.format(new Date(receipt.paid_at))}</dd></div>
+              <div><dt>Processed by</dt><dd>{receipt.recorded_by_name}</dd></div>
+            </dl>
+            <p className="receipt-note">
+              This receipt is a permanent transaction record and cannot be deleted
+              from the Services Management page.
+            </p>
+            <div className="services-modal-actions">
+              <button type="button" onClick={() => setReceipt(null)}>Close</button>
+              <button type="button" onClick={() => printServiceReceipt(receipt, organization.associationName)}>
+                Print Receipt
+              </button>
+            </div>
+          </article>
+        </div>
       )}
     </div>
   )
