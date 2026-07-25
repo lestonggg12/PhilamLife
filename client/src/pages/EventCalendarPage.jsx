@@ -409,15 +409,16 @@ export default function EventCalendarPage({ user: suppliedUser }) {
             <RefreshCw size={17} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          <button
-            type="button"
-            className="cal-primary-button"
-            onClick={openCreateForm}
-            disabled={!canManageEvents}
-          >
-            <Plus size={18} />
-            Schedule Event
-          </button>
+          {canManageEvents && (
+            <button
+              type="button"
+              className="cal-primary-button"
+              onClick={openCreateForm}
+            >
+              <Plus size={18} />
+              Schedule Event
+            </button>
+          )}
         </div>
       </header>
 

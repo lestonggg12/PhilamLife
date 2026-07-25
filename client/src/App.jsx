@@ -287,7 +287,7 @@ function AppContent() {
             <ProtectedRoute
               isAuthenticated={isAuthenticated}
               user={user}
-              allowedRoles={['secretary']}
+              allowedRoles={['admin', 'treasurer', 'secretary']}
             >
               <EventCalendarPage user={user} />
             </ProtectedRoute>

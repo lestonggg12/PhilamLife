@@ -29,7 +29,7 @@ export default function Sidebar({ user, onLogout }) {
       name: 'Event Calendar',
       path: '/calendar',
       icon: Calendar,
-      roles: ['secretary'],
+      roles: ['admin', 'treasurer', 'secretary'],
     },
   ].filter((item) => item.roles.includes(role))
 
