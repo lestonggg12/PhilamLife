@@ -49,6 +49,9 @@ export default function HomeownerLedgerModal({
               <strong>Account Overdue</strong>
               <p>
                 ₱{homeowner.amountDue.toLocaleString()} due • {daysOverdueText}
+                {homeowner.penaltyAmount > 0 && (
+                  <> • +₱{homeowner.penaltyAmount.toLocaleString()} late penalty applies</>
+                )}
               </p>
             </div>
           </div>

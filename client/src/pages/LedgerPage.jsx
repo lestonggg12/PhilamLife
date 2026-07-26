@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { computeLateFee } from '../lib/latePenalty'
 
 const EMPTY_HOMEOWNER = {
   homeownerName: '',
@@ -30,6 +31,11 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
+  const [penaltySettings, setPenaltySettings] = useState({
+    dueDay: 5,
+    gracePeriodDays: 0,
+    latePenalty: 0,
+  })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [showAddHomeowner, setShowAddHomeowner] = useState(false)
@@ -80,7 +86,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           .select('id, block, lot_number, homeowner_name, created_at')
           .order('homeowner_name'),
         supabase.from('payments').select('*').order('paid_at', { ascending: false }),
-        supabase.from('system_settings').select('dues_amount').eq('id', 1).maybeSingle(),
+        supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
       ])
 
     const errors = [blockResult.error, propertyResult.error, paymentResult.error]
@@ -95,6 +101,11 @@ export default function LedgerPage({ user: suppliedUser }) {
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
+    setPenaltySettings({
+      dueDay: Number(settingsResult.data?.due_day) || 5,
+      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
+      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
+    })
     setLoading(false)
   }
 
@@ -259,7 +270,10 @@ export default function LedgerPage({ user: suppliedUser }) {
         )
       })
 
-      const latestPayment = propertyPayments[0]
+      const activePropertyPayments = propertyPayments.filter(
+        (payment) => payment.status !== 'Voided',
+      )
+      const latestPayment = activePropertyPayments[0]
       const dueAmount = latestPayment
         ? Number(latestPayment.previous_balance) || duesAmount
         : duesAmount
@@ -267,7 +281,19 @@ export default function LedgerPage({ user: suppliedUser }) {
       const balance = latestPayment
         ? Number(latestPayment.remaining_balance) || 0
         : dueAmount
-      const status = balance <= 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Overdue'
+      const lateFee = computeLateFee({
+        balance,
+        dueDay: penaltySettings.dueDay,
+        gracePeriodDays: penaltySettings.gracePeriodDays,
+        latePenalty: penaltySettings.latePenalty,
+      })
+      const status = balance <= 0
+        ? 'Paid'
+        : paidAmount > 0
+          ? 'Partial'
+          : lateFee.isOverdue
+            ? 'Overdue'
+            : 'Pending'
 
       return {
         id: property.id,
@@ -277,13 +303,15 @@ export default function LedgerPage({ user: suppliedUser }) {
         dueAmount,
         paidAmount,
         balance,
+        penaltyAmount: lateFee.penaltyAmount,
+        totalDue: lateFee.totalDue,
         lastPayment: latestPayment?.paid_at
           ? date.format(new Date(latestPayment.paid_at))
           : '—',
         status,
       }
     })
-  }, [properties, payments, duesAmount])
+  }, [properties, payments, duesAmount, penaltySettings])
 
   const filtered = useMemo(() => {
     const term = normalize(search)
@@ -372,6 +400,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           <option value="all">All Statuses</option>
           <option value="Paid">Paid</option>
           <option value="Partial">Partial</option>
+          <option value="Pending">Pending</option>
           <option value="Overdue">Overdue</option>
         </select>
       </div>
@@ -379,7 +408,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       <div className="ledger-table-wrap glass-card">
         <table className="ledger-table">
           <thead>
-            <tr><th>Homeowner</th><th>Block / Lot</th><th>Due</th><th>Paid</th><th>Balance</th><th>Last Payment</th><th>Status</th></tr>
+            <tr><th>Homeowner</th><th>Block / Lot</th><th>Due</th><th>Paid</th><th>Balance</th><th>Late Penalty</th><th>Last Payment</th><th>Status</th></tr>
           </thead>
           <tbody>
             {loading ? (
@@ -393,6 +422,9 @@ export default function LedgerPage({ user: suppliedUser }) {
                 <td>{peso.format(entry.dueAmount)}</td>
                 <td>{peso.format(entry.paidAmount)}</td>
                 <td className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
+                <td className={entry.penaltyAmount > 0 ? 'ledger-balance-due' : ''}>
+                  {entry.penaltyAmount > 0 ? peso.format(entry.penaltyAmount) : '—'}
+                </td>
                 <td>{entry.lastPayment}</td>
                 <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
               </tr>
