@@ -6,6 +6,7 @@ import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
 import ReceiptModal from '../components/ReceiptModal'
 import { supabase } from '../lib/supabaseClient'
+import { computeLateFee } from '../lib/latePenalty'
 import './SecretaryPayables.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -47,6 +48,11 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
+  const [penaltySettings, setPenaltySettings] = useState({
+    dueDay: 5,
+    gracePeriodDays: 0,
+    latePenalty: 0,
+  })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [expandedBlockId, setExpandedBlockId] = useState(null)
@@ -105,7 +111,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
           .order('paid_at', { ascending: false }),
         supabase
           .from('system_settings')
-          .select('dues_amount')
+          .select('dues_amount, due_day, grace_period_days, late_penalty')
           .eq('id', 1)
           .maybeSingle(),
       ])
@@ -129,6 +135,11 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
+    setPenaltySettings({
+      dueDay: Number(settingsResult.data?.due_day) || 5,
+      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
+      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
+    })
     setLoading(false)
   }
 
@@ -146,6 +157,12 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
       const amountDue = latestPayment
         ? Number(latestPayment.remaining_balance) || 0
         : duesAmount
+      const lateFee = computeLateFee({
+        balance: amountDue,
+        dueDay: penaltySettings.dueDay,
+        gracePeriodDays: penaltySettings.gracePeriodDays,
+        latePenalty: penaltySettings.latePenalty,
+      })
 
       const homeowner = {
         id: property.id,
@@ -153,12 +170,18 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         block: property.block,
         lot: `Lot ${property.lot_number}`,
         address: `Lot ${property.lot_number}, ${property.block}`,
-        status: amountDue <= 0 ? 'paid' : latestPayment ? 'pending' : 'overdue',
+        status: amountDue <= 0
+          ? 'paid'
+          : lateFee.isOverdue
+            ? 'overdue'
+            : 'pending',
         lastPayment: latestPayment?.paid_at
           ? date.format(new Date(latestPayment.paid_at))
           : 'No payment yet',
         amountDue,
-        daysOverdue: 0,
+        penaltyAmount: lateFee.penaltyAmount,
+        totalDue: lateFee.totalDue,
+        daysOverdue: lateFee.daysOverdue,
         avatar: '🏠',
         payments: propertyPayments,
       }
@@ -168,7 +191,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     })
 
     return grouped
-  }, [duesAmount, payments, properties])
+  }, [duesAmount, payments, properties, penaltySettings])
 
   const blockSummaries = useMemo(() => {
     const knownBlocks = [...blocks]

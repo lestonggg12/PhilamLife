@@ -48,6 +48,7 @@
 .ledger-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
 .ledger-badge-paid { background: rgba(26,138,96,0.12); color: #1a8a60; }
 .ledger-badge-partial { background: rgba(212,146,10,0.12); color: #d49206; }
+.ledger-badge-pending { background: rgba(90,122,146,0.12); color: #5a7a92; }
 .ledger-badge-overdue { background: rgba(192,57,43,0.12); color: #c0392b; }
 
 @media (max-width: 640px) {

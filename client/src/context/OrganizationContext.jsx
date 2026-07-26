@@ -39,6 +39,10 @@ function mapSettings(settings) {
     timezone:
       String(settings?.timezone || '').trim() ||
       DEFAULT_ORGANIZATION.timezone,
+    sessionTimeoutMinutes:
+      Number(settings?.session_timeout) > 0
+        ? Number(settings.session_timeout)
+        : DEFAULT_ORGANIZATION.sessionTimeoutMinutes,
   }
 }
 
@@ -64,7 +68,7 @@ export function OrganizationProvider({ enabled, children }) {
     const { data, error } = await supabase
       .from('system_settings')
       .select(
-        'hoa_name, address, contact_email, contact_phone, currency, timezone',
+        'hoa_name, address, contact_email, contact_phone, currency, timezone, session_timeout',
       )
       .eq('id', 1)
       .maybeSingle()

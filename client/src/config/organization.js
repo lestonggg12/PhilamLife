@@ -9,6 +9,7 @@ export const DEFAULT_ORGANIZATION = {
   currency: 'PHP',
   locale: 'en-PH',
   timezone: 'Asia/Manila',
+  sessionTimeoutMinutes: 30,
 }
 
 const CURRENCY_SYMBOLS = {
