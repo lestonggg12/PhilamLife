@@ -386,4 +386,4 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
       )}
     </div>
   )
-}r
+}
