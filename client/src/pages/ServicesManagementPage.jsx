@@ -9,6 +9,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import './ServicesManagementPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -31,7 +32,7 @@ const escapePrintText = (value) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 
-function printServiceReceipt(receipt) {
+function printServiceReceipt(receipt, associationName) {
   const printWindow = window.open('', '_blank', 'width=900,height=700')
 
   if (!printWindow) {
@@ -152,7 +153,7 @@ function printServiceReceipt(receipt) {
       <body>
         <main class="receipt">
           <div class="check">✓</div>
-          <p class="association">PHILAM Village Homeowners Association</p>
+          <p class="association">${escapePrintText(associationName)}</p>
           <h1>Official Service Receipt</h1>
           <strong class="number">${escapePrintText(receipt.receipt_number)}</strong>
           <section class="receipt-details">${receiptRows}</section>
@@ -208,6 +209,7 @@ const emptyTransaction = {
 }
 
 export default function ServicesManagementPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [services, setServices] = useState([])
   const [transactions, setTransactions] = useState([])
@@ -990,7 +992,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         <div className="services-modal-backdrop" role="presentation">
           <article className="service-receipt">
             <div className="receipt-success"><CheckCircle size={24} /></div>
-            <p className="receipt-kicker">PHILAM Village Homeowners Association</p>
+            <p className="receipt-kicker">{organization.associationName}</p>
             <h2>Official Service Receipt</h2>
             <strong className="receipt-number">{receipt.receipt_number}</strong>
             <dl>
@@ -1009,7 +1011,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             </p>
             <div className="services-modal-actions">
               <button type="button" onClick={() => setReceipt(null)}>Close</button>
-              <button type="button" onClick={() => printServiceReceipt(receipt)}>
+              <button type="button" onClick={() => printServiceReceipt(receipt, organization.associationName)}>
                 Print Receipt
               </button>
             </div>
