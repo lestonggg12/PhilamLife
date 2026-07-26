@@ -150,9 +150,6 @@ export default function Sidebar({ user, onLogout }) {
             <div className="user-role">{user?.role || 'Admin'}</div>
           </div>
         </div>
-        <button className="logout-btn" onClick={onLogout}>
-          Logout
-        </button>
       </div>
     </aside>
   )
