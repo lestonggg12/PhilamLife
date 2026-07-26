@@ -6,7 +6,7 @@ import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
 import ReceiptModal from '../components/ReceiptModal'
 import { supabase } from '../lib/supabaseClient'
-import { computeLateFee } from '../lib/latePenalty'
+import { computeLateFee } from '../lib/latepenalty'
 import './SecretaryPayables.css'
 
 const peso = new Intl.NumberFormat('en-PH', {

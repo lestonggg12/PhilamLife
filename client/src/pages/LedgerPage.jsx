@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { computeLateFee } from '../lib/latePenalty'
+import { computeLateFee } from '../lib/latepenalty'
 
 const EMPTY_HOMEOWNER = {
   homeownerName: '',
