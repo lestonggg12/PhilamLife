@@ -90,7 +90,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     const [paymentResult, serviceResult, expenseResult] = await Promise.all([
       supabase
         .from('payments')
-        .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at')
+        .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
         .order('paid_at', { ascending: false }),
       supabase
         .from('service_transactions')
@@ -112,7 +112,10 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(false)
   }
 
-  const validPayments = payments
+  const validPayments = useMemo(
+    () => payments.filter((payment) => payment.status !== 'Voided'),
+    [payments]
+  )
   const activeExpenses = useMemo(
     () => expenses.filter((expense) => expense.status !== 'Voided'),
     [expenses]
@@ -272,7 +275,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             )}
           </>
         )}
-        <footer className="report-footer">Generated on {dateLabel.format(new Date())}. Collection totals include dues and amenity/service receipts by payment date. Expense totals exclude voided records.</footer>
+        <footer className="report-footer">Generated on {dateLabel.format(new Date())}. Collection totals include dues and amenity/service receipts by payment date, excluding voided payments. Expense totals exclude voided records.</footer>
       </main>
     </div>
   )
