@@ -1,174 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '../context/OrganizationContext';
+import { supabase } from '../lib/supabaseClient';
 import './ForgotPasswordPage.css';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
   const { organization } = useOrganization();
-  const [step, setStep] = useState(1); // Step 1: Email, Step 2: Verify Code, Step 3: New Password
   const [email, setEmail] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [codeExpiry, setCodeExpiry] = useState(null);
-  const [attempts, setAttempts] = useState(0);
-  const [lockoutTime, setLockoutTime] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
 
-  // Simulate code expiry countdown
-  useEffect(() => {
-    if (codeExpiry && step === 2) {
-      const timer = setInterval(() => {
-        const now = new Date();
-        if (now > codeExpiry) {
-          setError('Code expired. Please request a new one.');
-          setStep(1);
-          setCodeExpiry(null);
-        }
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [codeExpiry, step]);
-
-  // Security: Check lockout
-  useEffect(() => {
-    if (lockoutTime) {
-      const timer = setInterval(() => {
-        const now = new Date();
-        if (now > lockoutTime) {
-          setLockoutTime(null);
-          setAttempts(0);
-          setError('');
-        }
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [lockoutTime]);
-
-  const getRemainingTime = () => {
-    if (!codeExpiry) return '';
-    const now = new Date();
-    const remaining = Math.floor((codeExpiry - now) / 1000);
-    const minutes = Math.floor(remaining / 60);
-    const seconds = remaining % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleSendCode = async (e) => {
+  const handleSendResetLink = async (e) => {
     e.preventDefault();
     setError('');
     setMessage('');
 
-    if (!email) {
-      setError('Please enter your email address.');
-      return;
-    }
-
-    // Security: Check if account exists (mock)
-    const mockEmails = ['officer@philamvillage.hoa', 'admin@philamvillage.hoa', 'treasurer@philamvillage.hoa'];
-    if (!mockEmails.includes(email) && !email.includes('@')) {
-      setError('Invalid email format.');
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address.');
       return;
     }
 
     setLoading(true);
-    // Simulate API call delay
-    setTimeout(() => {
-      setLoading(false);
-      // Generate mock code
-      const mockCode = Math.floor(100000 + Math.random() * 900000).toString();
-      sessionStorage.setItem('resetCode', mockCode);
-      
-      // Set 10-minute expiry
-      const expiryTime = new Date(Date.now() + 10 * 60 * 1000);
-      setCodeExpiry(expiryTime);
-      
-      setMessage(`Verification code sent to ${email}`);
-      setStep(2);
-      setAttempts(0);
-    }, 1500);
-  };
 
-  const handleVerifyCode = (e) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      { redirectTo: `${window.location.origin}/reset-password` },
+    );
 
-    // Security: Lockout after 3 failed attempts
-    if (lockoutTime) {
-      const remaining = Math.floor((lockoutTime - new Date()) / 1000);
-      setError(`Too many attempts. Try again in ${Math.ceil(remaining / 60)} minutes.`);
-      return;
+    setLoading(false);
+
+    // Always show the same success message regardless of whether the
+    // email exists in the system. This prevents attackers from using this
+    // form to discover which email addresses have accounts (account
+    // enumeration), while still working correctly for real users.
+    if (resetError) {
+      console.error('Password reset request failed:', resetError.message);
     }
 
-    if (!verificationCode) {
-      setError('Please enter the verification code.');
-      return;
-    }
-
-    const storedCode = sessionStorage.getItem('resetCode');
-    if (verificationCode !== storedCode) {
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
-
-      if (newAttempts >= 3) {
-        setLockoutTime(new Date(Date.now() + 15 * 60 * 1000)); // 15-minute lockout
-        setError('Too many failed attempts. Account locked for 15 minutes.');
-        return;
-      }
-
-      setError(`Invalid code. ${3 - newAttempts} attempts remaining.`);
-      return;
-    }
-
-    setMessage('Code verified successfully!');
-    setStep(3);
-  };
-
-  const handleResetPassword = (e) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
-
-    if (!newPassword || !confirmPassword) {
-      setError('Please fill in all fields.');
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    // Password strength validation
-    const hasUpperCase = /[A-Z]/.test(newPassword);
-    const hasLowerCase = /[a-z]/.test(newPassword);
-    const hasNumbers = /\d/.test(newPassword);
-    const hasSpecialChar = /[!@#$%^&*]/.test(newPassword);
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-      setError('Password must contain uppercase, lowercase, and numbers.');
-      return;
-    }
-
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      sessionStorage.removeItem('resetCode');
-      setMessage('Password reset successfully! Redirecting to login...');
-      setTimeout(() => {
-        navigate('/login');
-      }, 2000);
-    }, 1500);
+    setSubmitted(true);
+    setMessage(
+      `If an account exists for ${email.trim()}, a password reset link has been sent. Please check your inbox (and spam folder).`,
+    );
   };
 
   const handleBackToLogin = () => {
@@ -204,16 +79,15 @@ export default function ForgotPasswordPage() {
           <h1 className="forgot-brand-name">{organization.hoaName}</h1>
           <div className="forgot-portal-label">RESET PASSWORD</div>
           <p className="forgot-hint-text">
-            {step === 1 && 'Enter your email to receive a verification code'}
-            {step === 2 && 'Enter the code sent to your email'}
-            {step === 3 && 'Create a new secure password'}
+            {submitted
+              ? 'Check your email for a reset link'
+              : 'Enter your email and we\'ll send you a link to reset your password'}
           </p>
         </div>
 
         {/* Form Card */}
-        <form className="forgot-card" onSubmit={step === 1 ? handleSendCode : step === 2 ? handleVerifyCode : handleResetPassword}>
-          {/* Step 1: Email */}
-          {step === 1 && (
+        <form className="forgot-card" onSubmit={handleSendResetLink}>
+          {!submitted && (
             <div className="forgot-form-group">
               <label className="forgot-label">Email Address</label>
               <div className="forgot-input-wrapper">
@@ -233,95 +107,32 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
-          {/* Step 2: Verification Code */}
-          {step === 2 && (
-            <>
-              <div className="forgot-form-group">
-                <label className="forgot-label">Verification Code</label>
-                <p className="forgot-code-timer">Code expires in: {getRemainingTime()}</p>
-                <div className="forgot-input-wrapper">
-                  <svg className="forgot-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 1C6.5 1 2 5.5 2 11V20C2 21.1 2.9 22 4 22H20C21.1 22 22 21.1 22 20V11C22 5.5 17.5 1 12 1Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M7 11C7 8.2 9.2 6 12 6C14.8 6 17 8.2 17 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <input
-                    type="text"
-                    className="forgot-input"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
-                    placeholder="Enter 6-digit code"
-                    maxLength="6"
-                    disabled={loading}
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                className="forgot-secondary-btn"
-                onClick={() => {
-                  setStep(1);
-                  setVerificationCode('');
-                  setError('');
-                }}
-              >
-                Resend Code
-              </button>
-            </>
-          )}
-
-          {/* Step 3: New Password */}
-          {step === 3 && (
-            <>
-              <div className="forgot-form-group">
-                <label className="forgot-label">New Password</label>
-                <div className="forgot-input-wrapper">
-                  <svg className="forgot-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 1C6.5 1 2 5.5 2 11V20C2 21.1 2.9 22 4 22H20C21.1 22 22 21.1 22 20V11C22 5.5 17.5 1 12 1Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M7 11C7 8.2 9.2 6 12 6C14.8 6 17 8.2 17 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <input
-                    type="password"
-                    className="forgot-input"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="At least 8 characters"
-                    disabled={loading}
-                  />
-                </div>
-              </div>
-              <div className="forgot-form-group">
-                <label className="forgot-label">Confirm Password</label>
-                <div className="forgot-input-wrapper">
-                  <svg className="forgot-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 1C6.5 1 2 5.5 2 11V20C2 21.1 2.9 22 4 22H20C21.1 22 22 21.1 22 20V11C22 5.5 17.5 1 12 1Z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M7 11C7 8.2 9.2 6 12 6C14.8 6 17 8.2 17 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <input
-                    type="password"
-                    className="forgot-input"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
-                    disabled={loading}
-                  />
-                </div>
-              </div>
-              <p className="forgot-password-requirements">
-                Password must contain: uppercase, lowercase, numbers, and be at least 8 characters
-              </p>
-            </>
-          )}
-
           {/* Messages */}
           {error && <div className="forgot-error-message">{error}</div>}
           {message && <div className="forgot-success-message">{message}</div>}
 
           {/* Submit Button */}
-          <button type="submit" className="forgot-submit-btn" disabled={loading || lockoutTime}>
-            {loading ? 'Processing...' : step === 1 ? 'Send Code' : step === 2 ? 'Verify Code' : 'Reset Password'}
-          </button>
+          {!submitted && (
+            <button type="submit" className="forgot-submit-btn" disabled={loading}>
+              {loading ? 'Sending...' : 'Send Reset Link'}
+            </button>
+          )}
+
+          {submitted && (
+            <button
+              type="button"
+              className="forgot-secondary-btn"
+              onClick={() => {
+                setSubmitted(false);
+                setMessage('');
+                setEmail('');
+              }}
+            >
+              Send another link
+            </button>
+          )}
         </form>
       </div>
     </div>
   );
-}r
+}
