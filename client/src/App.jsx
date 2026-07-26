@@ -308,7 +308,7 @@ function AppContent() {
             <ProtectedRoute
               isAuthenticated={isAuthenticated}
               user={user}
-              allowedRoles={['secretary']}
+              allowedRoles={['admin', 'secretary', 'treasurer']}
             >
               <ContactManagerPage user={user} />
             </ProtectedRoute>
