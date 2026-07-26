@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar } from './Icons'
+import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar, FileArchive, Phone } from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
@@ -33,6 +33,18 @@ export default function Sidebar({ user, onLogout }) {
       path: '/calendar',
       icon: Calendar,
       roles: ['admin', 'treasurer', 'secretary'],
+    },
+    {
+      name: 'Contact Manager',
+      path: '/contacts',
+      icon: Phone,
+      roles: ['admin', 'secretary', 'treasurer'],
+    },
+    {
+      name: 'Document Library',
+      path: '/documents',
+      icon: FileArchive,
+      roles: ['secretary'],
     },
   ].filter((item) => item.roles.includes(role))
 
