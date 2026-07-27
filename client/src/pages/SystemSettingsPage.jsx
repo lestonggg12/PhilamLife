@@ -4,17 +4,22 @@ import './SystemSettingsPage.css'
 
 const TABLES = [
   'activity_log',
+  'amenity_services',
   'blocks',
+  'documents',
+  'events',
   'expenses',
   'payments',
   'profiles',
   'properties',
+  'service_transactions',
   'system_settings',
   'user_management_logs',
 ]
 
 const EXPORTS = [
   { table: 'payments', label: 'Payments', description: 'Payment records, balances, and receipt details' },
+  { table: 'service_transactions', label: 'Amenity & Service Revenue', description: 'Bookable service transactions and receipts' },
   { table: 'expenses', label: 'Expenses', description: 'Recorded HOA expenses and references' },
   { table: 'properties', label: 'Properties', description: 'Blocks, lots, and homeowner records' },
   { table: 'profiles', label: 'User Profiles', description: 'System users, roles, and account status' },
@@ -158,6 +163,20 @@ export default function SystemSettingsPage({ user }) {
     const next = [{ label, filename, by: user?.full_name || user?.email || 'Administrator', at: new Date().toISOString() }, ...history].slice(0, 8)
     setHistory(next)
     localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+
+    // Also write a real, persisted audit record. localStorage is per-browser
+    // and clears easily, so it can't be relied on as an actual audit trail —
+    // this activity_log entry is the source of truth for "who exported what,
+    // and when," visible to any admin from any device via the Activity Log.
+    if (user?.id) {
+      supabase.from('activity_log').insert({
+        user_id: user.id,
+        action: 'Data Exported',
+        target: `${label} (${filename})`,
+      }).then(({ error }) => {
+        if (error) console.warn('Export completed, but audit logging failed:', error.message)
+      })
+    }
   }
 
   async function exportTable(table, label) {
@@ -177,12 +196,17 @@ export default function SystemSettingsPage({ user }) {
   async function exportLedger() {
     setExporting('ledger')
     setMessage(null)
-    const [payments, expenses] = await Promise.all([supabase.from('payments').select('*'), supabase.from('expenses').select('*')])
-    const error = payments.error || expenses.error
+    const [payments, expenses, services] = await Promise.all([
+      supabase.from('payments').select('*'),
+      supabase.from('expenses').select('*'),
+      supabase.from('service_transactions').select('*'),
+    ])
+    const error = payments.error || expenses.error || services.error
     if (error) setMessage({ type: 'error', text: `Unable to export ledger: ${error.message}` })
     else {
       const rows = [
         ...(payments.data || []).map((row) => ({ transaction_type: 'Payment', transaction_date: row.paid_at || row.payment_date || row.created_at, description: `${row.homeowner_name || ''} ${row.coverage_period || ''}`.trim(), amount: row.amount_paid ?? row.amount, reference_number: row.receipt_number || row.reference_number, recorded_by: row.recorded_by_name, ...row })),
+        ...(services.data || []).map((row) => ({ transaction_type: 'Amenity/Service Revenue', transaction_date: row.paid_at || row.service_date || row.created_at, description: `${row.service_name || ''} — ${row.customer_name || ''}`.trim(), amount: row.amount_paid, reference_number: row.receipt_number, recorded_by: row.recorded_by_name, ...row })),
         ...(expenses.data || []).map((row) => ({ transaction_type: 'Expense', transaction_date: row.expense_date || row.created_at, description: row.description, amount: row.amount, reference_number: row.reference_number, recorded_by: row.recorded_by_name, ...row })),
       ].sort((a, b) => String(b.transaction_date || '').localeCompare(String(a.transaction_date || '')))
       const filename = `combined-ledger-${stamp()}.csv`
