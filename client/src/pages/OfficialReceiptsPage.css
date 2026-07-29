@@ -326,6 +326,26 @@
   font-weight: 800;
 }
 
+.official-amount-voided {
+  color: #7890a1 !important;
+  text-decoration: line-through;
+}
+
+.official-row-voided {
+  opacity: 0.55;
+}
+
+.official-voided-badge {
+  display: inline-block;
+  margin-left: 6px;
+  background: rgba(120, 144, 161, 0.15);
+  color: #7890a1;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .official-view-button {
   min-height: 34px;
   padding: 7px 11px;
