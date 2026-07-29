@@ -144,6 +144,7 @@ function mapPaymentReceipt(payment) {
     recordedBy:
       payment.recorded_by_name ||
       'Staff member',
+    isVoided: payment.status === 'Voided',
     raw: payment,
   }
 
@@ -658,7 +659,7 @@ export default function OfficialReceiptsPage() {
       serviceCount: serviceReceipts.length,
       collected: receipts.reduce(
         (sum, receipt) =>
-          sum + receipt.amount,
+          receipt.isVoided ? sum : sum + receipt.amount,
         0,
       ),
     }
@@ -962,7 +963,7 @@ export default function OfficialReceiptsPage() {
               ) : (
                 filteredReceipts.map(
                   (receipt) => (
-                    <tr key={receipt.id}>
+                    <tr key={receipt.id} className={receipt.isVoided ? 'official-row-voided' : ''}>
                       <td>
                         <strong>
                           {receipt.receiptNumber}
@@ -981,6 +982,9 @@ export default function OfficialReceiptsPage() {
                         >
                           {receipt.typeLabel}
                         </span>
+                        {receipt.isVoided && (
+                          <span className="official-voided-badge">Voided</span>
+                        )}
                       </td>
 
                       <td>
@@ -997,7 +1001,7 @@ export default function OfficialReceiptsPage() {
                         {receipt.description}
                       </td>
 
-                      <td className="official-amount">
+                      <td className={`official-amount ${receipt.isVoided ? 'official-amount-voided' : ''}`}>
                         {peso.format(
                           receipt.amount,
                         )}

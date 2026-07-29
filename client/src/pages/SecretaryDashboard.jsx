@@ -122,10 +122,12 @@ export default function SecretaryDashboard() {
   }
 
   const summary = useMemo(() => {
-    const monthlyPayments = payments.filter((payment) =>
+    const activePayments = payments.filter((payment) => payment.status !== 'Voided')
+
+    const monthlyPayments = activePayments.filter((payment) =>
       sameManilaMonth(payment.paid_at),
     )
-    const yearlyPayments = payments.filter((payment) =>
+    const yearlyPayments = activePayments.filter((payment) =>
       sameManilaYear(payment.paid_at),
     )
 
@@ -139,7 +141,7 @@ export default function SecretaryDashboard() {
     )
 
     const outstandingAccounts = properties.filter((property) => {
-      const latestPayment = payments.find((payment) => {
+      const latestPayment = activePayments.find((payment) => {
         if (payment.property_id != null) {
           return Number(payment.property_id) === Number(property.id)
         }
@@ -267,16 +269,17 @@ export default function SecretaryDashboard() {
                   <th>Property</th>
                   <th>Amount</th>
                   <th>Date</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="4" className="sec-empty">Loading payments...</td>
+                    <td colSpan="5" className="sec-empty">Loading payments...</td>
                   </tr>
                 ) : recentPayments.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="sec-empty">No payments recorded yet.</td>
+                    <td colSpan="5" className="sec-empty">No payments recorded yet.</td>
                   </tr>
                 ) : (
                   recentPayments.map((payment) => (
@@ -296,6 +299,11 @@ export default function SecretaryDashboard() {
                         {payment.paid_at
                           ? formatActivityTime(payment.paid_at)
                           : '—'}
+                      </td>
+                      <td>
+                        <span className={payment.status === 'Voided' ? 'sec-status-voided' : 'sec-status-completed'}>
+                          {payment.status === 'Voided' ? 'Voided' : 'Completed'}
+                        </span>
                       </td>
                     </tr>
                   ))

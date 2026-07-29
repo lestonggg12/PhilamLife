@@ -14,6 +14,35 @@
 .payments-table tr:last-child td { border-bottom: 0; }
 .payments-link { border: 0; padding: 4px; background: none; color: #1464a0; font-weight: 700; white-space: nowrap; }
 .payments-empty { padding: 42px !important; text-align: center; color: #98a2b3; }
+
+.payments-status-completed {
+  display: inline-block;
+  background: rgba(26, 138, 96, 0.10);
+  color: #1a8a60;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.payments-status-voided {
+  display: inline-block;
+  background: rgba(120, 144, 161, 0.15);
+  color: #7890a1;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.payments-row-voided {
+  opacity: 0.55;
+}
+
+.payments-amount-voided {
+  color: #7890a1 !important;
+  text-decoration: line-through;
+}
 .payments-error { margin: 12px 0; color: #b42318; font-size: .9rem; }
 .payments-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .52); overflow-y: auto; }
 .payment-form, .receipt { width: min(720px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; border-radius: 14px; background: #fff; box-shadow: 0 24px 70px rgba(0, 0, 0, .22); }

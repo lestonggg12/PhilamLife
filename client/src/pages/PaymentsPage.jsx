@@ -324,24 +324,30 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <th>Coverage</th>
               <th>Amount</th>
               <th>Method</th>
+              <th>Status</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="8" className="payments-empty">Loading payments...</td></tr>
+              <tr><td colSpan="9" className="payments-empty">Loading payments...</td></tr>
             ) : payments.length === 0 ? (
-              <tr><td colSpan="8" className="payments-empty">No payments recorded yet.</td></tr>
+              <tr><td colSpan="9" className="payments-empty">No payments recorded yet.</td></tr>
             ) : (
               payments.map((payment) => (
-                <tr key={payment.id}>
+                <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
                   <td><strong>{payment.receipt_number}</strong></td>
                   <td>{dateTime.format(new Date(payment.paid_at))}</td>
                   <td>{payment.homeowner_name}</td>
                   <td>{payment.block_name}, {payment.lot_number}</td>
                   <td>{payment.coverage_period}</td>
-                  <td>{peso.format(payment.amount_paid)}</td>
+                  <td className={payment.status === 'Voided' ? 'payments-amount-voided' : ''}>{peso.format(payment.amount_paid)}</td>
                   <td>{payment.payment_method}</td>
+                  <td>
+                    <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
+                      {payment.status === 'Voided' ? 'Voided' : 'Completed'}
+                    </span>
+                  </td>
                   <td>
                     <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
                       View receipt
