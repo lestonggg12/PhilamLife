@@ -1,8 +1,13 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
+
+const BUCKET = "hoa-documents";
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -12,235 +17,508 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const allowedRoles = new Set(["admin", "secretary", "treasurer"]);
+const cleanText = (value: unknown, maxLength: number) =>
+  typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 
-const cleanName = (value: unknown) =>
-  typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+const cleanFileName = (value: unknown) => {
+  const fileName = cleanText(value, 255)
+    .replace(/[^\w.\- ()]/g, "_")
+    .replace(/\s+/g, " ");
+  return fileName.toLowerCase().endsWith(".pdf")
+    ? fileName
+    : `${fileName || "homeowner-notice"}.pdf`;
+};
 
-const cleanEmail = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character]!,
+  );
 
-Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
+const toBase64 = (bytes: Uint8Array) => {
+  let result = "";
+  const chunkSize = 0x8000;
+
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    result += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+
+  return btoa(result);
+};
+
+const sleep = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+type Delivery = {
+  id: string;
+  property_id: number | null;
+  homeowner_name: string;
+  recipient_email: string;
+  attempt_count: number;
+};
+
+Deno.serve(async (request: Request): Promise<Response> => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (request.method !== "POST") {
+    return json({ error: "Method not allowed." }, 405);
+  }
+
+  let campaignId: string | null = null;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey =
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-      Deno.env.get("SUPABASE_SECRET_KEY");
-    const authHeader = req.headers.get("Authorization");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const resendFrom = Deno.env.get("RESEND_FROM");
+    const authHeader = request.headers.get("Authorization");
 
-    if (!supabaseUrl || !serviceKey) {
-      return json({ error: "Supabase server environment is not configured." }, 500);
+    if (!supabaseUrl || !serviceRoleKey) {
+      return json({ error: "Supabase server configuration is incomplete." }, 500);
     }
+
+    if (!resendApiKey || !resendFrom) {
+      return json(
+        {
+          error:
+            "Email sending is not configured. Add RESEND_API_KEY and RESEND_FROM to the Edge Function secrets.",
+        },
+        503,
+      );
+    }
+
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "You must be signed in." }, 401);
     }
 
-    const admin = createClient(supabaseUrl, serviceKey, {
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
     const token = authHeader.slice(7);
-    const { data: authData, error: authError } = await admin.auth.getUser(token);
-    if (authError || !authData.user) return json({ error: "Invalid or expired session." }, 401);
+    const { data: authData, error: authError } =
+      await admin.auth.getUser(token);
+
+    if (authError || !authData.user) {
+      return json({ error: "Your session is invalid or expired." }, 401);
+    }
 
     const actor = authData.user;
-    const { data: actorProfile, error: actorError } = await admin
+    const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("id, full_name, role, is_active")
       .eq("id", actor.id)
       .single();
 
     if (
-      actorError ||
-      !actorProfile ||
-      actorProfile.role?.toLowerCase() !== "admin" ||
-      actorProfile.is_active === false
+      profileError ||
+      !profile ||
+      profile.is_active === false ||
+      profile.role?.trim().toLowerCase() !== "secretary"
     ) {
-      return json({ error: "Only an active administrator can manage users." }, 403);
+      return json(
+        { error: "Only the active Secretary can send homeowner PDFs." },
+        403,
+      );
     }
 
-    const body = await req.json().catch(() => ({}));
-    const action = typeof body.action === "string" ? body.action : "";
+    const body = await request.json().catch(() => ({}));
+    const mode = body.mode === "retry" ? "retry" : "send";
+    let storagePath = "";
+    let subject = "";
+    let message = "";
+    let originalFileName = "";
+    let deliveries: Delivery[] = [];
+    let skippedCount = 0;
 
-    const writeLog = async (
-      targetId: string | null,
-      targetName: string,
-      logAction: string,
-      details: string,
-    ) => {
-      const { error } = await admin.from("user_management_logs").insert({
-        actor_id: actor.id,
-        actor_name: actorProfile.full_name || actor.email || "Administrator",
-        target_user_id: targetId,
-        target_user_name: targetName,
-        action: logAction,
-        details,
-      });
-      if (error) console.error("Activity log error:", error.message);
-    };
+    if (mode === "retry") {
+      campaignId = cleanText(body.campaignId, 64);
 
-    if (action === "list") {
-      const { data: authUsers, error: listError } = await admin.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      });
-      if (listError) throw listError;
+      if (!campaignId) {
+        return json({ error: "A campaign ID is required." }, 400);
+      }
 
-      const { data: profiles, error: profilesError } = await admin
-        .from("profiles")
-        .select("id, full_name, email, role, is_active, created_at, updated_at");
-      if (profilesError) throw profilesError;
+      const { data: campaign, error: campaignError } = await admin
+        .from("email_campaigns")
+        .select(
+          "id, subject, message, storage_path, original_file_name, skipped_count",
+        )
+        .eq("id", campaignId)
+        .single();
 
-      const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
-      const users = authUsers.users.map((user) => {
-        const profile = profileMap.get(user.id);
-        return {
-          id: user.id,
-          name: profile?.full_name || user.user_metadata?.full_name || "Unnamed User",
-          email: profile?.email || user.email || "",
-          role: profile?.role || "secretary",
-          status: profile?.is_active === false || user.banned_until ? "Inactive" : "Active",
-          is_active: profile?.is_active !== false && !user.banned_until,
-          created_at: profile?.created_at || user.created_at,
-          updated_at: profile?.updated_at || user.updated_at,
-          last_sign_in_at: user.last_sign_in_at,
-          is_current_user: user.id === actor.id,
-        };
-      });
-      return json({ users });
+      if (campaignError || !campaign) {
+        return json({ error: "The email campaign was not found." }, 404);
+      }
+
+      const { data: failedDeliveries, error: deliveriesError } = await admin
+        .from("email_deliveries")
+        .select(
+          "id, property_id, homeowner_name, recipient_email, attempt_count",
+        )
+        .eq("campaign_id", campaignId)
+        .eq("status", "failed")
+        .order("created_at");
+
+      if (deliveriesError) throw deliveriesError;
+      if (!failedDeliveries?.length) {
+        return json({ error: "This campaign has no failed emails to retry." }, 409);
+      }
+
+      storagePath = campaign.storage_path;
+      subject = campaign.subject;
+      message = campaign.message;
+      originalFileName = campaign.original_file_name;
+      skippedCount = campaign.skipped_count;
+      deliveries = failedDeliveries;
+
+      await admin
+        .from("email_campaigns")
+        .update({ status: "sending", completed_at: null })
+        .eq("id", campaignId);
+    } else {
+      storagePath = cleanText(body.storagePath, 600);
+      subject = cleanText(body.subject, 200);
+      message = cleanText(body.message, 5000);
+      originalFileName = cleanFileName(body.fileName);
+      const statedFileSize = Number(body.fileSize);
+
+      const requiredPrefix = `email-campaigns/${actor.id}/`;
+      if (
+        !storagePath.startsWith(requiredPrefix) ||
+        !storagePath.toLowerCase().endsWith(".pdf")
+      ) {
+        return json({ error: "The uploaded PDF path is invalid." }, 400);
+      }
+
+      if (!subject || !message) {
+        return json({ error: "A subject and message are required." }, 400);
+      }
+
+      if (
+        !Number.isFinite(statedFileSize) ||
+        statedFileSize <= 0 ||
+        statedFileSize > MAX_PDF_BYTES
+      ) {
+        return json({ error: "The PDF must be between 1 byte and 10 MB." }, 400);
+      }
+
+      const { data: existingCampaign } = await admin
+        .from("email_campaigns")
+        .select("id, status, recipient_count, sent_count, failed_count")
+        .eq("storage_path", storagePath)
+        .maybeSingle();
+
+      if (existingCampaign) {
+        return json(
+          {
+            error: "This PDF has already been submitted.",
+            campaign: existingCampaign,
+          },
+          409,
+        );
+      }
+
+      const { data: properties, error: propertiesError } = await admin
+        .from("properties")
+        .select("id, homeowner_name, contact_email")
+        .order("id");
+
+      if (propertiesError) throw propertiesError;
+
+      const recipients = new Map<string, {
+        property_id: number;
+        homeowner_name: string;
+        recipient_email: string;
+      }>();
+
+      for (const property of properties ?? []) {
+        const email =
+          typeof property.contact_email === "string"
+            ? property.contact_email.trim().toLowerCase()
+            : "";
+
+        if (!EMAIL_PATTERN.test(email) || recipients.has(email)) {
+          skippedCount += 1;
+          continue;
+        }
+
+        recipients.set(email, {
+          property_id: property.id,
+          homeowner_name:
+            cleanText(property.homeowner_name, 160) || "Homeowner",
+          recipient_email: email,
+        });
+      }
+
+      if (recipients.size === 0) {
+        return json(
+          { error: "No valid homeowner email addresses are available." },
+          400,
+        );
+      }
+
+      const { data: campaign, error: campaignError } = await admin
+        .from("email_campaigns")
+        .insert({
+          subject,
+          message,
+          storage_path: storagePath,
+          original_file_name: originalFileName,
+          file_size: statedFileSize,
+          status: "sending",
+          recipient_count: recipients.size,
+          skipped_count: skippedCount,
+          created_by: actor.id,
+          created_by_name:
+            cleanText(profile.full_name, 160) || actor.email || "Secretary",
+        })
+        .select("id")
+        .single();
+
+      if (campaignError || !campaign) throw campaignError;
+      campaignId = campaign.id;
+
+      const { data: createdDeliveries, error: createDeliveriesError } =
+        await admin
+          .from("email_deliveries")
+          .insert(
+            [...recipients.values()].map((recipient) => ({
+              campaign_id: campaignId,
+              ...recipient,
+            })),
+          )
+          .select(
+            "id, property_id, homeowner_name, recipient_email, attempt_count",
+          );
+
+      if (createDeliveriesError) throw createDeliveriesError;
+      deliveries = createdDeliveries ?? [];
     }
 
-    if (action === "create") {
-      const fullName = cleanName(body.fullName);
-      const email = cleanEmail(body.email);
-      const role = cleanName(body.role).toLowerCase();
-      const password = typeof body.password === "string" ? body.password : "";
+    const { data: pdfBlob, error: downloadError } = await admin.storage
+      .from(BUCKET)
+      .download(storagePath);
 
-      if (!fullName || !email || !allowedRoles.has(role)) {
-        return json({ error: "Enter a valid name, email, and role." }, 400);
-      }
-      if (password.length < 8) {
-        return json({ error: "The temporary password must have at least 8 characters." }, 400);
-      }
-
-      const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: fullName, role },
-      });
-      if (createError || !created.user) throw createError ?? new Error("Account was not created.");
-
-      const { error: profileError } = await admin.from("profiles").upsert({
-        id: created.user.id,
-        full_name: fullName,
-        email,
-        role,
-        is_active: true,
-      });
-      if (profileError) {
-        await admin.auth.admin.deleteUser(created.user.id);
-        throw profileError;
-      }
-
-      await writeLog(created.user.id, fullName, "CREATE_USER", `Created ${role} account for ${email}.`);
-      return json({ message: "Account created successfully.", userId: created.user.id }, 201);
+    if (downloadError || !pdfBlob) {
+      throw new Error(downloadError?.message || "The uploaded PDF was not found.");
     }
 
-    const targetId = typeof body.userId === "string" ? body.userId : "";
-    if (!targetId) return json({ error: "A user account must be selected." }, 400);
+    if (pdfBlob.size <= 0 || pdfBlob.size > MAX_PDF_BYTES) {
+      throw new Error("The PDF must be between 1 byte and 10 MB.");
+    }
 
-    const { data: targetResult, error: targetError } = await admin.auth.admin.getUserById(targetId);
-    if (targetError || !targetResult.user) return json({ error: "User account not found." }, 404);
-    const target = targetResult.user;
+    const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
+    const pdfSignature = new TextDecoder().decode(pdfBytes.subarray(0, 5));
 
-    const { data: targetProfile } = await admin
-      .from("profiles")
-      .select("full_name, email, role, is_active")
-      .eq("id", targetId)
+    if (pdfSignature !== "%PDF-") {
+      throw new Error("The uploaded file is not a valid PDF.");
+    }
+
+    await admin
+      .from("email_campaigns")
+      .update({ file_size: pdfBlob.size })
+      .eq("id", campaignId);
+
+    const pdfBase64 = toBase64(pdfBytes);
+    const { data: organization } = await admin
+      .from("system_settings")
+      .select("hoa_name, contact_email")
+      .eq("id", 1)
       .maybeSingle();
-    const targetName = targetProfile?.full_name || target.email || "User";
 
-    if (action === "update") {
-      const fullName = cleanName(body.fullName);
-      const role = cleanName(body.role).toLowerCase();
-      if (!fullName || !allowedRoles.has(role)) {
-        return json({ error: "Enter a valid name and role." }, 400);
-      }
-      if (targetId === actor.id && role !== "admin") {
-        return json({ error: "You cannot remove your own administrator role." }, 400);
-      }
+    const hoaName = cleanText(organization?.hoa_name, 160) || "PHILAM Village";
+    const replyTo = cleanText(organization?.contact_email, 320);
+    const emailHtml = escapeHtml(message).replace(/\r?\n/g, "<br>");
+    let sentCount = 0;
+    let failedCount = 0;
 
-      const { error: metadataError } = await admin.auth.admin.updateUserById(targetId, {
-        user_metadata: { ...target.user_metadata, full_name: fullName, role },
-      });
-      if (metadataError) throw metadataError;
+    for (let index = 0; index < deliveries.length; index += 3) {
+      const group = deliveries.slice(index, index + 3);
 
-      const { error: updateError } = await admin.from("profiles").update({
-        full_name: fullName,
-        role,
-      }).eq("id", targetId);
-      if (updateError) throw updateError;
+      await Promise.all(
+        group.map(async (delivery) => {
+          const attemptedAt = new Date().toISOString();
+          const personalizedHtml = `<p>Dear ${escapeHtml(
+            delivery.homeowner_name,
+          )},</p><p>${emailHtml}</p><p>Regards,<br>${escapeHtml(hoaName)}</p>`;
 
-      await writeLog(targetId, fullName, "UPDATE_USER", `Updated name and role to ${role}.`);
-      return json({ message: "User details updated successfully." });
-    }
+          try {
+            const response = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${resendApiKey}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": `${campaignId}/${delivery.id}`,
+              },
+              body: JSON.stringify({
+                from: resendFrom,
+                to: [delivery.recipient_email],
+                subject,
+                html: personalizedHtml,
+                text: `Dear ${delivery.homeowner_name},\n\n${message}\n\nRegards,\n${hoaName}`,
+                ...(EMAIL_PATTERN.test(replyTo) ? { reply_to: replyTo } : {}),
+                attachments: [
+                  { filename: originalFileName, content: pdfBase64 },
+                ],
+                tags: [
+                  { name: "campaign_id", value: campaignId! },
+                  { name: "property_id", value: String(delivery.property_id ?? "none") },
+                ],
+              }),
+            });
 
-    if (action === "set-active") {
-      const isActive = body.isActive === true;
-      if (targetId === actor.id && !isActive) {
-        return json({ error: "You cannot deactivate your own account." }, 400);
-      }
+            const result = await response.json().catch(() => ({}));
 
-      const { error: authUpdateError } = await admin.auth.admin.updateUserById(targetId, {
-        ban_duration: isActive ? "none" : "876000h",
-      });
-      if (authUpdateError) throw authUpdateError;
+            if (!response.ok) {
+              throw new Error(
+                cleanText(result?.message || result?.error, 1000) ||
+                  `Resend returned HTTP ${response.status}.`,
+              );
+            }
 
-      const { error: statusError } = await admin
-        .from("profiles")
-        .update({ is_active: isActive })
-        .eq("id", targetId);
-      if (statusError) throw statusError;
+            sentCount += 1;
+            const { error: sentUpdateError } = await admin
+              .from("email_deliveries")
+              .update({
+                status: "sent",
+                resend_email_id: result.id || null,
+                error_message: null,
+                attempt_count: delivery.attempt_count + 1,
+                last_attempt_at: attemptedAt,
+                sent_at: attemptedAt,
+              })
+              .eq("id", delivery.id);
 
-      await writeLog(
-        targetId,
-        targetName,
-        isActive ? "ACTIVATE_USER" : "DEACTIVATE_USER",
-        `${isActive ? "Activated" : "Deactivated"} ${target.email}.`,
+            if (sentUpdateError) throw sentUpdateError;
+          } catch (error) {
+            failedCount += 1;
+            await admin
+              .from("email_deliveries")
+              .update({
+                status: "failed",
+                error_message:
+                  error instanceof Error
+                    ? error.message.slice(0, 1000)
+                    : "Unknown email delivery error.",
+                attempt_count: delivery.attempt_count + 1,
+                last_attempt_at: attemptedAt,
+              })
+              .eq("id", delivery.id);
+          }
+        }),
       );
-      return json({ message: `Account ${isActive ? "activated" : "deactivated"} successfully.` });
+
+      if (index + 3 < deliveries.length) await sleep(450);
     }
 
-    if (action === "reset-password") {
-      if (!target.email) return json({ error: "This user has no email address." }, 400);
+    const { data: deliveryTotals, error: totalsError } = await admin
+      .from("email_deliveries")
+      .select("status")
+      .eq("campaign_id", campaignId);
 
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-      if (!anonKey) return json({ error: "SUPABASE_ANON_KEY is not configured." }, 500);
-      const publicClient = createClient(supabaseUrl, anonKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const redirectTo = typeof body.redirectTo === "string" && body.redirectTo
-        ? body.redirectTo
-        : undefined;
-      const { error: resetError } = await publicClient.auth.resetPasswordForEmail(
-        target.email,
-        redirectTo ? { redirectTo } : undefined,
-      );
-      if (resetError) throw resetError;
+    if (totalsError) throw totalsError;
 
-      await writeLog(targetId, targetName, "RESET_PASSWORD", `Sent a password-reset email to ${target.email}.`);
-      return json({ message: "Password-reset email sent successfully." });
-    }
+    const totalSent =
+      deliveryTotals?.filter((delivery) => delivery.status === "sent").length ?? 0;
+    const totalFailed =
+      deliveryTotals?.filter((delivery) => delivery.status === "failed").length ??
+      0;
+    const finalStatus =
+      totalFailed === 0
+        ? "completed"
+        : totalSent === 0
+          ? "failed"
+          : "partial";
 
-    return json({ error: "Unknown user-management action." }, 400);
+    const { data: finalCampaign, error: updateCampaignError } = await admin
+      .from("email_campaigns")
+      .update({
+        status: finalStatus,
+        sent_count: totalSent,
+        failed_count: totalFailed,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", campaignId)
+      .select(
+        "id, status, recipient_count, sent_count, failed_count, skipped_count",
+      )
+      .single();
+
+    if (updateCampaignError) throw updateCampaignError;
+
+    await admin.from("activity_log").insert({
+      user_id: actor.id,
+      action: mode === "retry" ? "Homeowner PDF Retried" : "Homeowner PDF Sent",
+      target: `${subject} — ${sentCount} sent, ${failedCount} failed in this attempt`,
+    });
+
+    return json({
+      message:
+        totalFailed === 0
+          ? `PDF sent to all ${totalSent} homeowner email address(es).`
+          : `PDF sent to ${totalSent}; ${totalFailed} email(s) failed.`,
+      campaign: finalCampaign,
+    });
   } catch (error) {
     console.error(error);
+
+    if (campaignId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const errorMessage =
+        error instanceof Error
+          ? error.message.slice(0, 1000)
+          : "Unexpected email delivery error.";
+
+      await admin
+        .from("email_deliveries")
+        .update({
+          status: "failed",
+          error_message: errorMessage,
+          last_attempt_at: new Date().toISOString(),
+        })
+        .eq("campaign_id", campaignId)
+        .eq("status", "pending");
+
+      const { data: totals } = await admin
+        .from("email_deliveries")
+        .select("status")
+        .eq("campaign_id", campaignId);
+      const sentCount =
+        totals?.filter((delivery) => delivery.status === "sent").length ?? 0;
+      const failedCount =
+        totals?.filter((delivery) => delivery.status !== "sent").length ?? 0;
+
+      await admin
+        .from("email_campaigns")
+        .update({
+          status: sentCount > 0 ? "partial" : "failed",
+          sent_count: sentCount,
+          failed_count: failedCount,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", campaignId);
+    }
+
     return json(
-      { error: error instanceof Error ? error.message : "An unexpected server error occurred." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "An unexpected email sending error occurred.",
+      },
       500,
     );
   }
