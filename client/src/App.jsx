@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   BrowserRouter,
+  Navigate,
   Routes,
   Route,
   useNavigate,
@@ -118,6 +119,22 @@ function AppContent() {
     <OrganizationProvider enabled={isAuthenticated}>
       <Routes>
       <Route path="/" element={<LandingPage />} />
+
+      <Route
+  path="*"
+  element={
+    <Navigate
+      to={
+        isAuthenticated
+          ? dashboardForRole(user?.role)
+          : '/login'
+      }
+      replace
+    />
+  }
+/>
+
+
 
       <Route
         path="/login"
@@ -360,10 +377,17 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <AppContent />
     </BrowserRouter>
   )
 }
 
 export default App
+
+
