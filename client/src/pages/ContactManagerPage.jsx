@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Edit, Mail, Phone, RefreshCw } from '../components/Icons'
+import { Edit, Mail, Phone, RefreshCw, UserPlus } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import './ContactManagerPage.css'
 
@@ -8,6 +8,12 @@ const EMPTY_FORM = {
   email: '',
 }
 
+const EMPTY_BLOCK_FORM = {
+  name: '',
+}
+
+const ADD_BLOCK_OPTION = '__add_block__'
+
 const PAGE_SIZE = 24
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
@@ -15,12 +21,25 @@ const normalize = (value) => String(value ?? '').trim().toLowerCase()
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [contacts, setContacts] = useState([])
+  const [blocks, setBlocks] = useState([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
   const [notice, setNotice] = useState('')
+  const [showAddHomeowner, setShowAddHomeowner] = useState(false)
+  const [homeownerForm, setHomeownerForm] = useState({
+    homeownerName: '',
+    blockName: '',
+    lotNumber: '',
+  })
+  const [homeownerFormError, setHomeownerFormError] = useState('')
+  const [savingHomeowner, setSavingHomeowner] = useState(false)
+  const [showAddBlock, setShowAddBlock] = useState(false)
+  const [blockForm, setBlockForm] = useState(EMPTY_BLOCK_FORM)
+  const [blockFormError, setBlockFormError] = useState('')
+  const [savingBlock, setSavingBlock] = useState(false)
   const [selectedContact, setSelectedContact] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
@@ -71,22 +90,223 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setPageError('')
     setNotice('')
 
-    const { data, error } = await supabase
-      .from('properties')
-      .select(
-        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at',
-      )
-      .order('homeowner_name')
+    const [contactsResult, blocksResult] = await Promise.all([
+      supabase
+        .from('properties')
+        .select(
+          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at',
+        )
+        .order('homeowner_name'),
+      supabase.from('blocks').select('id, name').order('name'),
+    ])
 
-    if (error) {
+    if (contactsResult.error) {
       setContacts([])
-      setPageError(`Contact directory could not be loaded: ${error.message}`)
+      setPageError(`Contact directory could not be loaded: ${contactsResult.error.message}`)
     } else {
-      setContacts(data || [])
+      setContacts(contactsResult.data || [])
+    }
+
+    if (blocksResult.error) {
+      setBlocks([])
+      setPageError((current) =>
+        current
+          ? `${current} Block list could not be loaded: ${blocksResult.error.message}`
+          : `Block list could not be loaded: ${blocksResult.error.message}`,
+      )
+    } else {
+      setBlocks(blocksResult.data || [])
     }
 
     setLoading(false)
     setRefreshing(false)
+  }
+
+  function openHomeownerForm() {
+    setHomeownerForm({
+      homeownerName: '',
+      blockName: '',
+      lotNumber: '',
+    })
+    setHomeownerFormError('')
+    setNotice('')
+    setShowAddHomeowner(true)
+  }
+
+  function closeHomeownerForm() {
+    if (savingHomeowner) return
+    setShowAddHomeowner(false)
+    setHomeownerFormError('')
+  }
+
+  function openBlockForm() {
+    setBlockForm(EMPTY_BLOCK_FORM)
+    setBlockFormError('')
+    setShowAddBlock(true)
+  }
+
+  function closeBlockForm() {
+    if (savingBlock) return
+    setShowAddBlock(false)
+    setBlockFormError('')
+  }
+
+  function updateHomeownerField(event) {
+    const { name, value } = event.target
+
+    if (name === 'blockName' && value === ADD_BLOCK_OPTION) {
+      setHomeownerForm((current) => ({ ...current, blockName: '' }))
+      setHomeownerFormError('')
+      openBlockForm()
+      return
+    }
+
+    setHomeownerForm((current) => ({ ...current, [name]: value }))
+    setHomeownerFormError('')
+  }
+
+  function updateBlockField(event) {
+    const { value } = event.target
+    setBlockForm({ name: value })
+    setBlockFormError('')
+  }
+
+  async function saveBlock(event) {
+    event.preventDefault()
+
+    if (!canManageContacts) {
+      setBlockFormError('Only an Admin or Secretary can add blocks.')
+      return
+    }
+
+    const name = blockForm.name.trim().replace(/\s+/g, ' ')
+
+    if (!name) {
+      setBlockFormError('Enter a block name.')
+      return
+    }
+
+    if (blocks.some((block) => normalize(block.name) === normalize(name))) {
+      setBlockFormError('That block already exists.')
+      return
+    }
+
+    setSavingBlock(true)
+    setBlockFormError('')
+
+    const { data, error } = await supabase
+      .from('blocks')
+      .insert({ name })
+      .select('id, name')
+      .single()
+
+    if (error) {
+      setBlockFormError(error.code === '23505' ? 'That block already exists.' : error.message)
+      setSavingBlock(false)
+      return
+    }
+
+    setBlocks((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)))
+    setSavingBlock(false)
+    setShowAddBlock(false)
+    setBlockForm(EMPTY_BLOCK_FORM)
+    setHomeownerForm((current) => ({ ...current, blockName: data.name }))
+
+    if (currentUser?.id) {
+      const { error: activityError } = await supabase.from('activity_log').insert({
+        user_id: currentUser.id,
+        action: 'Block Added',
+        target: `${data.name} (by ${actorName})`,
+      })
+
+      if (activityError) {
+        console.warn('Block saved, but activity logging failed:', activityError.message)
+      }
+    }
+
+    setNotice(`Block ${name} was added.`)
+  }
+
+  async function saveHomeowner(event) {
+    event.preventDefault()
+
+    if (!canManageContacts) {
+      setHomeownerFormError('Only an Admin or Secretary can add homeowners.')
+      return
+    }
+
+    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
+    const blockName = homeownerForm.blockName
+    const lotNumber = Number(homeownerForm.lotNumber)
+
+    if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
+      setHomeownerFormError('Homeowner name, block, and lot number are required.')
+      return
+    }
+
+    if (!Number.isInteger(lotNumber) || lotNumber <= 0) {
+      setHomeownerFormError('Lot number must be a whole number greater than zero.')
+      return
+    }
+
+    const lotIsOccupied = contacts.some(
+      (contact) =>
+        normalize(contact.block) === normalize(blockName) &&
+        Number(contact.lot_number) === lotNumber,
+    )
+
+    if (lotIsOccupied) {
+      setHomeownerFormError('That block and lot already has a homeowner.')
+      return
+    }
+
+    setSavingHomeowner(true)
+    setHomeownerFormError('')
+
+    const { data, error } = await supabase
+      .from('properties')
+      .insert({
+        homeowner_name: homeownerName,
+        block: blockName,
+        lot_number: lotNumber,
+      })
+      .select(
+        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at',
+      )
+      .single()
+
+    if (error) {
+      setHomeownerFormError(
+        error.code === '23505'
+          ? 'That block and lot already has a homeowner.'
+          : error.message,
+      )
+      setSavingHomeowner(false)
+      return
+    }
+
+    setContacts((current) =>
+      [...current, data].sort((a, b) =>
+        (a.homeowner_name || '').localeCompare(b.homeowner_name || ''),
+      ),
+    )
+    setShowAddHomeowner(false)
+    setHomeownerForm({ homeownerName: '', blockName: '', lotNumber: '' })
+    setSavingHomeowner(false)
+
+    if (currentUser?.id) {
+      const { error: activityError } = await supabase.from('activity_log').insert({
+        user_id: currentUser.id,
+        action: 'Homeowner Added',
+        target: `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
+      })
+
+      if (activityError) {
+        console.warn('Homeowner saved, but activity logging failed:', activityError.message)
+      }
+    }
+
+    setNotice(`Homeowner ${homeownerName} was added.`)
   }
 
   function openContactForm(contact) {
@@ -238,6 +458,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
 
         <div className="contact-header-actions">
+          {canManageContacts && (
+            <button
+              type="button"
+              className="contact-add-homeowner-button"
+              onClick={openHomeownerForm}
+            >
+              <UserPlus size={17} />
+              Add New Homeowner
+            </button>
+          )}
           <button
             type="button"
             className="contact-refresh-button"
@@ -376,6 +606,175 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {showAddHomeowner && (
+        <div
+          className="contact-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeHomeownerForm()
+          }}
+        >
+          <form
+            className="contact-modal glass-card"
+            onSubmit={saveHomeowner}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-homeowner-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="contact-modal-heading">
+              <div>
+                <h2 id="add-homeowner-title">Add New Homeowner</h2>
+                <p>Add the homeowner and assign an available block and lot.</p>
+              </div>
+              <button
+                type="button"
+                className="contact-modal-close"
+                onClick={closeHomeownerForm}
+                aria-label="Close homeowner form"
+              >
+                ×
+              </button>
+            </div>
+
+            <label htmlFor="homeowner-name">Homeowner full name</label>
+            <input
+              id="homeowner-name"
+              name="homeownerName"
+              value={homeownerForm.homeownerName}
+              onChange={updateHomeownerField}
+              maxLength={120}
+              autoFocus
+              required
+            />
+
+            <div className="contact-form-row">
+              <div>
+                <label htmlFor="homeowner-block">Block</label>
+                <select
+                  id="homeowner-block"
+                  name="blockName"
+                  value={homeownerForm.blockName}
+                  onChange={updateHomeownerField}
+                  required
+                >
+                  <option value="">Select block</option>
+                  {blocks.map((block) => (
+                    <option key={block.id} value={block.name}>
+                      {block.name}
+                    </option>
+                  ))}
+                  <option value={ADD_BLOCK_OPTION}>+ Add Block</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="homeowner-lot">Lot number</label>
+                <input
+                  id="homeowner-lot"
+                  name="lotNumber"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={homeownerForm.lotNumber}
+                  onChange={updateHomeownerField}
+                  placeholder="e.g. 12"
+                  required
+                />
+              </div>
+            </div>
+
+            {homeownerFormError && (
+              <p className="contact-form-error">{homeownerFormError}</p>
+            )}
+
+            <div className="contact-modal-actions">
+              <button
+                type="button"
+                className="contact-cancel-button"
+                onClick={closeHomeownerForm}
+                disabled={savingHomeowner}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="contact-save-button"
+                disabled={savingHomeowner || blocks.length === 0}
+              >
+                {savingHomeowner ? 'Saving...' : 'Save Homeowner'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showAddBlock && (
+        <div
+          className="contact-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeBlockForm()
+          }}
+        >
+          <form
+            className="contact-modal glass-card"
+            onSubmit={saveBlock}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-block-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="contact-modal-heading">
+              <div>
+                <h2 id="add-block-title">Add Block</h2>
+                <p>Create a new block before assigning homeowners to it.</p>
+              </div>
+              <button
+                type="button"
+                className="contact-modal-close"
+                onClick={closeBlockForm}
+                aria-label="Close block form"
+              >
+                ×
+              </button>
+            </div>
+
+            <label htmlFor="block-name">Block name</label>
+            <input
+              id="block-name"
+              value={blockForm.name}
+              onChange={updateBlockField}
+              placeholder="e.g. Block F"
+              maxLength={50}
+              autoFocus
+              required
+            />
+
+            {blockFormError && (
+              <p className="contact-form-error">{blockFormError}</p>
+            )}
+
+            <div className="contact-modal-actions">
+              <button
+                type="button"
+                className="contact-cancel-button"
+                onClick={closeBlockForm}
+                disabled={savingBlock}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="contact-save-button"
+                disabled={savingBlock}
+              >
+                {savingBlock ? 'Saving...' : 'Save Block'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

@@ -27,6 +27,7 @@
   gap: 10px;
 }
 
+.contact-add-homeowner-button,
 .contact-refresh-button,
 .contact-send-button,
 .contact-edit-button,
@@ -39,6 +40,17 @@
   gap: 8px;
   border-radius: 8px;
   font-weight: 600;
+}
+
+.contact-add-homeowner-button {
+  padding: 10px 14px;
+  border: 0;
+  background: #1464a0;
+  color: #fff;
+}
+
+.contact-add-homeowner-button:hover:not(:disabled) {
+  background: #10517f;
 }
 
 .contact-refresh-button {
@@ -432,6 +444,17 @@
   background: #fff;
 }
 
+.contact-modal select {
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
 .contact-modal textarea {
   width: 100%;
   min-height: 116px;
@@ -446,9 +469,20 @@
 }
 
 .contact-modal input:focus,
+.contact-modal select:focus,
 .contact-modal textarea:focus {
   border-color: #1464a0;
   outline: 3px solid rgba(20, 100, 160, 0.12);
+}
+
+.contact-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.contact-form-row > div {
+  min-width: 0;
 }
 
 .contact-email-modal {
@@ -595,6 +629,7 @@
     flex-direction: column;
   }
 
+  .contact-add-homeowner-button,
   .contact-send-button,
   .contact-refresh-button {
     align-self: flex-start;
@@ -610,6 +645,10 @@
 
   .contact-modal-actions {
     flex-direction: column-reverse;
+  }
+
+  .contact-form-row {
+    grid-template-columns: 1fr;
   }
 
   .contact-cancel-button,
