@@ -340,6 +340,32 @@
   color: #6ea8c8;
 }
 
+.login-input-password {
+  padding-right: 42px;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #2a6080;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+
+.login-password-toggle:hover {
+  opacity: 1;
+}
+
 .login-input:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.82);

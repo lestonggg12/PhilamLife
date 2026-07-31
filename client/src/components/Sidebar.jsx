@@ -4,7 +4,7 @@ import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, 
 import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
-export default function Sidebar({ user, onLogout }) {
+export default function Sidebar({ user }) {
   const { organization } = useOrganization()
   const role = user?.role?.trim().toLowerCase()
   const displayName = user?.full_name?.trim() || user?.email || 'User'
