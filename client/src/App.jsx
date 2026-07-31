@@ -11,6 +11,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import TwoFactorPage from './pages/TwoFactorPage'
 import AdminDashboard from './pages/AdminDashboard'
 import TreasurerDashboard from './pages/TreasurerDashboard'
 import TreasurerExpensesPage from './pages/TreasurerExpensesPage'
@@ -29,31 +30,74 @@ import ContactManagerPage from './pages/ContactManagerPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { OrganizationProvider } from './context/OrganizationContext'
+import {
+  clearRememberMePreference,
+} from './lib/supabaseClient'
+import { getMfaRequirement } from './lib/mfa'
 import './App.css'
 
 function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState(null)
+  const [pendingUser, setPendingUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const navigate = useNavigate()
 
+  const dashboardForRole = (role) => ({
+    admin: '/admin/dashboard',
+    treasurer: '/treasurer/dashboard',
+    secretary: '/secretary/dashboard',
+  })[role] || '/login'
+
+  const completeAuthentication = (profile) => {
+    setPendingUser(null)
+    setUser(profile)
+    setIsAuthenticated(true)
+    navigate(dashboardForRole(profile?.role), { replace: true })
+  }
+
+  const requireMfa = (profile) => {
+    setIsAuthenticated(false)
+    setUser(null)
+    setPendingUser(profile)
+    navigate('/two-factor', { replace: true })
+  }
+
   useEffect(() => {
     const restoreSession = async () => {
+      if (window.location.pathname === '/reset-password') {
+        setLoading(false)
+        return
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession()
 
       if (session) {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
+        try {
+          const [{ data: profile, error }, requirement] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single(),
+            getMfaRequirement(),
+          ])
 
-        if (!error && profile) {
-          setIsAuthenticated(true)
-          setUser(profile)
+          if (!error && profile) {
+            if (requirement.status === 'ready') {
+              setIsAuthenticated(true)
+              setUser(profile)
+            } else {
+              setPendingUser(profile)
+              navigate('/two-factor', { replace: true })
+            }
+          }
+        } catch (restoreError) {
+          console.error('Unable to restore the secure session:', restoreError)
+          await supabase.auth.signOut()
         }
       }
 
@@ -67,6 +111,7 @@ function AppContent() {
         if (!session) {
           setIsAuthenticated(false)
           setUser(null)
+          setPendingUser(null)
         }
       }
     )
@@ -76,11 +121,47 @@ function AppContent() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!isAuthenticated || !user) return undefined
+
+    let active = true
+
+    const enforceWeeklyMfa = async () => {
+      try {
+        const requirement = await getMfaRequirement()
+        if (active && requirement.status !== 'ready') {
+          requireMfa(user)
+        }
+      } catch (mfaError) {
+        console.error('Unable to recheck two-factor authentication:', mfaError)
+      }
+    }
+
+    const intervalId = window.setInterval(enforceWeeklyMfa, 60 * 1000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        enforceWeeklyMfa()
+      }
+    }
+
+    window.addEventListener('focus', enforceWeeklyMfa)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', enforceWeeklyMfa)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [isAuthenticated, user])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    clearRememberMePreference()
 
     setIsAuthenticated(false)
     setUser(null)
+    setPendingUser(null)
     navigate('/login')
   }
 
@@ -97,9 +178,30 @@ function AppContent() {
         path="/login"
         element={
           <LoginPage
-            setIsAuthenticated={setIsAuthenticated}
-            setUser={setUser}
+            onAuthenticated={completeAuthentication}
+            onMfaRequired={requireMfa}
           />
+        }
+      />
+
+      <Route
+        path="/two-factor"
+        element={
+          pendingUser ? (
+            <TwoFactorPage
+              pendingUser={pendingUser}
+              onVerified={() => completeAuthentication(pendingUser)}
+              onCancel={handleLogout}
+            />
+          ) : (
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <TwoFactorPage
+                pendingUser={user}
+                onVerified={() => completeAuthentication(user)}
+                onCancel={handleLogout}
+              />
+            </ProtectedRoute>
+          )
         }
       />
 

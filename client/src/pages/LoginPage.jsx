@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
-import { supabase } from '../lib/supabaseClient';
+import { setRememberMePreference, supabase } from '../lib/supabaseClient';
+import { getMfaRequirement } from '../lib/mfa';
 import { useOrganization } from '../context/OrganizationContext';
 
-export default function LoginPage({ setIsAuthenticated, setUser }) {
+export default function LoginPage({ onAuthenticated, onMfaRequired }) {
   const navigate = useNavigate();
   const { organization } = useOrganization();
   const [selectedRole, setSelectedRole] = useState('Secretary');
@@ -29,6 +30,7 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setRememberMePreference(rememberMe);
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
@@ -61,17 +63,20 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
       return;
     }
 
-    setIsAuthenticated(true);
-    setUser(profile);
-    setLoading(false);
+    try {
+      const requirement = await getMfaRequirement();
+      setLoading(false);
 
-    const roleRoutes = {
-      admin: '/admin/dashboard',
-      treasurer: '/treasurer/dashboard',
-      secretary: '/secretary/dashboard',
-    };
-
-    navigate(roleRoutes[profile.role]);
+      if (requirement.status === 'ready') {
+        onAuthenticated(profile);
+      } else {
+        onMfaRequired(profile);
+      }
+    } catch (mfaError) {
+      setError(mfaError.message || 'Unable to check two-factor authentication.');
+      await supabase.auth.signOut();
+      setLoading(false);
+    }
   };
 
   const handleBackHome = () => {
@@ -176,7 +181,7 @@ export default function LoginPage({ setIsAuthenticated, setUser }) {
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
               />
-              <span>Remember me</span>
+              <span>Remember me on this device</span>
             </label>
             <a href="#" className="login-forgot-link" onClick={(e) => {
               e.preventDefault();
