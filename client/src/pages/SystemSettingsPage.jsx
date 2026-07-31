@@ -42,7 +42,6 @@ const DEFAULT_SETTINGS = {
   reminder_days_before: '3',
   require_strong_password: true,
   session_timeout: '30',
-  two_factor: false,
   currency: 'PHP',
   timezone: 'Asia/Manila',
   date_format: 'MM/DD/YYYY',
@@ -282,7 +281,6 @@ export default function SystemSettingsPage({ user }) {
       {activeTab === 'security' && <SettingsCard title="Security preferences" subtitle="Configure account and session policies." full>
         <div className="ss-toggle-list">
           <Toggle label="Require strong passwords" description="Require at least eight characters, uppercase, number, and symbol." checked={settings.require_strong_password} onChange={(v) => update('require_strong_password', v)} />
-          <Toggle label="Two-factor authentication" description="Require a verification code for Admin accounts." checked={settings.two_factor} onChange={(v) => update('two_factor', v)} />
         </div>
         <Field label="Session Timeout (minutes)" type="number" min="5" max="1440" value={settings.session_timeout} onChange={(v) => update('session_timeout', v)} />
         <p className="ss-info">These rules are stored as system preferences. Login and session enforcement must also read these values.</p>
