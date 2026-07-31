@@ -8,12 +8,15 @@ const EMPTY_FORM = {
   email: '',
 }
 
+const PAGE_SIZE = 24
+
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [contacts, setContacts] = useState([])
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
@@ -201,6 +204,27 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     })
   }, [contacts, search])
 
+  // Whenever the search term (or the underlying contact list) changes, the
+  // previously selected page may no longer exist — jump back to page 1 so
+  // search results always start from the top, same as before pagination.
+  useEffect(() => {
+    setPage(1)
+  }, [search, contacts])
+
+  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageStartIndex = (safePage - 1) * PAGE_SIZE
+  const pagedContacts = filteredContacts.slice(
+    pageStartIndex,
+    pageStartIndex + PAGE_SIZE,
+  )
+  const rangeStart = filteredContacts.length === 0 ? 0 : pageStartIndex + 1
+  const rangeEnd = Math.min(pageStartIndex + PAGE_SIZE, filteredContacts.length)
+
+  const goToPage = (nextPage) => {
+    setPage(Math.min(Math.max(nextPage, 1), totalPages))
+  }
+
   const completedContactCount = contacts.filter(
     (contact) => contact.contact_phone || contact.contact_email,
   ).length
@@ -253,7 +277,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           aria-label="Search homeowner contacts"
         />
         <span className="contact-result-count">
-          Showing {filteredContacts.length} of {contacts.length}
+          Showing {rangeStart}-{rangeEnd} of {filteredContacts.length}
         </span>
       </div>
 
@@ -270,7 +294,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
       ) : (
         <div className="contact-grid">
-          {filteredContacts.map((contact) => {
+          {pagedContacts.map((contact) => {
             const hasContactDetails =
               contact.contact_phone || contact.contact_email
 
@@ -328,6 +352,30 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               </article>
             )
           })}
+        </div>
+      )}
+
+      {!loading && filteredContacts.length > PAGE_SIZE && (
+        <div className="contact-pagination">
+          <button
+            type="button"
+            className="contact-page-button"
+            onClick={() => goToPage(safePage - 1)}
+            disabled={safePage === 1}
+          >
+            Previous
+          </button>
+          <span className="contact-page-indicator">
+            Page {safePage} of {totalPages}
+          </span>
+          <button
+            type="button"
+            className="contact-page-button"
+            onClick={() => goToPage(safePage + 1)}
+            disabled={safePage === totalPages}
+          >
+            Next
+          </button>
         </div>
       )}
 

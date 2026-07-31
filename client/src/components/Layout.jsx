@@ -22,7 +22,7 @@ export default function Layout({ user, onLogout }) {
     <div className="layout">
       <Navbar user={user} onLogout={onLogout} />
       <div className="layout-container">
-        <Sidebar user={user} onLogout={onLogout} />
+        <Sidebar user={user} />
         <div className="page-content">
           <Outlet />
         </div>

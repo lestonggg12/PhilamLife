@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
-import { Mail, Lock } from '../components/Icons';
+import { Mail, Lock, Eye } from '../components/Icons';
 import { setRememberMePreference, supabase } from '../lib/supabaseClient';
 import { useOrganization } from '../context/OrganizationContext';
 
@@ -149,14 +149,23 @@ export default function LoginPage({ onAuthenticated }) {
                 <Lock size={18} />
               </span>
               <input
-                type="password"
-                className="login-input"
+                type={showPassword ? 'text' : 'password'}
+                className="login-input login-input-password"
                 id="pwfield"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 required
               />
+              <button
+                type="button"
+                className="login-password-toggle"
+                onClick={togglePasswordVisibility}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+              >
+                <Eye size={18} />
+              </button>
             </div>
           </div>
 
