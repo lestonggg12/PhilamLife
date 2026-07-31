@@ -131,7 +131,8 @@
 .cal-search:focus-within,
 .cal-filter:focus,
 .cal-form input:focus,
-.cal-form textarea:focus {
+.cal-form textarea:focus,
+.cal-time-control:focus-within {
   border-color: #1464a0;
   outline: none;
   box-shadow: 0 0 0 3px rgb(20 100 160 / 12%);
@@ -413,6 +414,107 @@
   font-weight: 700;
 }
 
+.cal-time-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.cal-time-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #344054;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.cal-optional-label {
+  color: #98a2b3;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.cal-time-control {
+  display: grid;
+  grid-template-columns: auto minmax(48px, 0.8fr) auto minmax(48px, 0.8fr) minmax(72px, 1fr) auto;
+  min-height: 43px;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px 4px 11px;
+  border: 1px solid #d4dae4;
+  border-radius: 9px;
+  background: #fff;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.cal-time-control > svg {
+  margin-right: 2px;
+  color: #667085;
+}
+
+.cal-time-control select {
+  width: 100%;
+  min-width: 0;
+  height: 33px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #172033;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.cal-time-control select:hover:not(:disabled),
+.cal-time-control select:focus {
+  background: #edf6fc;
+}
+
+.cal-time-control select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.cal-time-separator {
+  color: #667085;
+  font-weight: 800;
+}
+
+.cal-period-select {
+  text-transform: uppercase;
+}
+
+.cal-time-clear {
+  display: inline-flex;
+  width: 29px;
+  height: 29px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #98a2b3;
+  cursor: pointer;
+}
+
+.cal-time-clear:hover:not(:disabled) {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.cal-time-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .cal-field-full {
   grid-column: 1 / -1;
 }
@@ -541,5 +643,10 @@
 
   .cal-modal-actions button {
     width: 100%;
+  }
+
+  .cal-time-control {
+    grid-template-columns: auto minmax(44px, 0.8fr) auto minmax(44px, 0.8fr) minmax(68px, 1fr) auto;
+    padding-left: 9px;
   }
 }
