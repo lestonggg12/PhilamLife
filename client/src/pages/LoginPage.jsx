@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { setRememberMePreference, supabase } from '../lib/supabaseClient';
-import { getMfaRequirement } from '../lib/mfa';
 import { useOrganization } from '../context/OrganizationContext';
 
-export default function LoginPage({ onAuthenticated, onMfaRequired }) {
+export default function LoginPage({ onAuthenticated }) {
   const navigate = useNavigate();
   const { organization } = useOrganization();
   const [selectedRole, setSelectedRole] = useState('Secretary');
@@ -63,20 +62,8 @@ export default function LoginPage({ onAuthenticated, onMfaRequired }) {
       return;
     }
 
-    try {
-      const requirement = await getMfaRequirement();
-      setLoading(false);
-
-      if (requirement.status === 'ready') {
-        onAuthenticated(profile);
-      } else {
-        onMfaRequired(profile);
-      }
-    } catch (mfaError) {
-      setError(mfaError.message || 'Unable to check two-factor authentication.');
-      await supabase.auth.signOut();
-      setLoading(false);
-    }
+    setLoading(false);
+    onAuthenticated(profile);
   };
 
   const handleBackHome = () => {
