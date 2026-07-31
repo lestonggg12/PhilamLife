@@ -1,66 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Edit, FileText, Mail, Phone, RefreshCw, Send } from '../components/Icons'
+import { Edit, Mail, Phone, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import './ContactManagerPage.css'
-
-const MAX_PDF_BYTES = 10 * 1024 * 1024
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const EMPTY_FORM = {
   phone: '',
   email: '',
 }
 
-const EMPTY_EMAIL_FORM = {
-  subject: '',
-  message: '',
-  file: null,
-}
-
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
-
-const formatFileSize = (bytes) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB'
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-const formatCampaignDate = (value) =>
-  new Intl.DateTimeFormat('en-PH', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'Asia/Manila',
-  }).format(new Date(value))
-
-const safeFileName = (name) =>
-  name
-    .replace(/[^\w.\-() ]/g, '_')
-    .replace(/\s+/g, '-')
-    .slice(-180)
 
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [contacts, setContacts] = useState([])
-  const [campaigns, setCampaigns] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [campaignsLoading, setCampaignsLoading] = useState(false)
   const [pageError, setPageError] = useState('')
   const [notice, setNotice] = useState('')
   const [selectedContact, setSelectedContact] = useState(null)
-  const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [emailForm, setEmailForm] = useState(EMPTY_EMAIL_FORM)
   const [formError, setFormError] = useState('')
-  const [emailError, setEmailError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [retryingCampaignId, setRetryingCampaignId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageContacts = role === 'admin' || role === 'secretary'
-  const canSendPdf = role === 'secretary'
   const actorName =
     currentUser?.full_name ||
     currentUser?.name ||
@@ -71,10 +35,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     loadContacts()
     resolveCurrentUser()
   }, [])
-
-  useEffect(() => {
-    if (canSendPdf) loadCampaigns()
-  }, [canSendPdf])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -126,27 +86,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setRefreshing(false)
   }
 
-  async function loadCampaigns() {
-    setCampaignsLoading(true)
-
-    const { data, error } = await supabase
-      .from('email_campaigns')
-      .select(
-        'id, subject, original_file_name, status, recipient_count, sent_count, failed_count, skipped_count, created_at',
-      )
-      .order('created_at', { ascending: false })
-      .limit(10)
-
-    if (error) {
-      setCampaigns([])
-      setPageError(`Email history could not be loaded: ${error.message}`)
-    } else {
-      setCampaigns(data || [])
-    }
-
-    setCampaignsLoading(false)
-  }
-
   function openContactForm(contact) {
     setSelectedContact(contact)
     setForm({
@@ -162,21 +101,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setSelectedContact(null)
     setForm(EMPTY_FORM)
     setFormError('')
-  }
-
-  function openEmailModal() {
-    setSelectedContact(null)
-    setEmailForm(EMPTY_EMAIL_FORM)
-    setEmailError('')
-    setNotice('')
-    setEmailModalOpen(true)
-  }
-
-  function closeEmailModal() {
-    if (sending) return
-    setEmailModalOpen(false)
-    setEmailForm(EMPTY_EMAIL_FORM)
-    setEmailError('')
   }
 
   function updateField(event) {
@@ -260,141 +184,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setNotice(`Contact details for ${data.homeowner_name} were saved.`)
   }
 
-  async function removeOrphanedUpload(storagePath) {
-    const { data: campaign } = await supabase
-      .from('email_campaigns')
-      .select('id')
-      .eq('storage_path', storagePath)
-      .maybeSingle()
-
-    if (!campaign) {
-      await supabase.storage.from('hoa-documents').remove([storagePath])
-    }
-  }
-
-  async function getFunctionError(error) {
-    try {
-      const details = await error?.context?.json()
-      return details?.error || error?.message
-    } catch {
-      return error?.message
-    }
-  }
-
-  async function sendPdf(event) {
-    event.preventDefault()
-
-    if (!canSendPdf || !currentUser?.id) {
-      setEmailError('Only the Secretary can send homeowner PDFs.')
-      return
-    }
-
-    const subject = emailForm.subject.trim()
-    const message = emailForm.message.trim()
-    const file = emailForm.file
-
-    if (!subject || !message) {
-      setEmailError('Enter an email subject and message.')
-      return
-    }
-
-    if (!file) {
-      setEmailError('Choose a PDF file to send.')
-      return
-    }
-
-    if (
-      file.type !== 'application/pdf' &&
-      !file.name.toLowerCase().endsWith('.pdf')
-    ) {
-      setEmailError('Only PDF files are allowed.')
-      return
-    }
-
-    if (file.size <= 0 || file.size > MAX_PDF_BYTES) {
-      setEmailError('The PDF must be between 1 byte and 10 MB.')
-      return
-    }
-
-    if (validEmailRecipients.length === 0) {
-      setEmailError('No valid homeowner email addresses are available.')
-      return
-    }
-
-    setSending(true)
-    setEmailError('')
-
-    const storagePath = `email-campaigns/${currentUser.id}/${crypto.randomUUID()}-${safeFileName(
-      file.name,
-    )}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('hoa-documents')
-      .upload(storagePath, file, {
-        contentType: 'application/pdf',
-        upsert: false,
-      })
-
-    if (uploadError) {
-      setEmailError(`PDF upload failed: ${uploadError.message}`)
-      setSending(false)
-      return
-    }
-
-    const { data, error } = await supabase.functions.invoke(
-      'send-homeowner-pdf',
-      {
-        body: {
-          mode: 'send',
-          storagePath,
-          subject,
-          message,
-          fileName: file.name,
-          fileSize: file.size,
-        },
-      },
-    )
-
-    if (error) {
-      const errorMessage = await getFunctionError(error)
-      await removeOrphanedUpload(storagePath)
-      setEmailError(errorMessage || 'The PDF could not be sent.')
-      setSending(false)
-      return
-    }
-
-    setSending(false)
-    setEmailModalOpen(false)
-    setEmailForm(EMPTY_EMAIL_FORM)
-    setNotice(data?.message || 'The homeowner PDF campaign is complete.')
-    await loadCampaigns()
-  }
-
-  async function retryFailedEmails(campaign) {
-    if (!canSendPdf || !campaign?.id || retryingCampaignId) return
-
-    setRetryingCampaignId(campaign.id)
-    setPageError('')
-    setNotice('')
-
-    const { data, error } = await supabase.functions.invoke(
-      'send-homeowner-pdf',
-      {
-        body: { mode: 'retry', campaignId: campaign.id },
-      },
-    )
-
-    if (error) {
-      const errorMessage = await getFunctionError(error)
-      setPageError(errorMessage || 'Failed emails could not be retried.')
-    } else {
-      setNotice(data?.message || 'Failed emails were retried.')
-    }
-
-    setRetryingCampaignId(null)
-    await loadCampaigns()
-  }
-
   const filteredContacts = useMemo(() => {
     const term = normalize(search)
 
@@ -416,19 +205,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     (contact) => contact.contact_phone || contact.contact_email,
   ).length
 
-  const validEmailRecipients = useMemo(() => {
-    const uniqueEmails = new Set()
-
-    return contacts.filter((contact) => {
-      const email = normalize(contact.contact_email)
-      if (!EMAIL_PATTERN.test(email) || uniqueEmails.has(email)) return false
-      uniqueEmails.add(email)
-      return true
-    })
-  }, [contacts])
-
-  const skippedEmailCount = contacts.length - validEmailRecipients.length
-
   return (
     <div className="contact-page">
       <div className="contact-header">
@@ -438,17 +214,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
 
         <div className="contact-header-actions">
-          {canSendPdf && (
-            <button
-              type="button"
-              className="contact-send-button"
-              onClick={openEmailModal}
-              disabled={loading || validEmailRecipients.length === 0}
-            >
-              <Send size={17} />
-              Send PDF to Homeowners
-            </button>
-          )}
           <button
             type="button"
             className="contact-refresh-button"
@@ -566,81 +331,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {canSendPdf && (
-        <section className="contact-campaign-section glass-card">
-          <div className="contact-campaign-heading">
-            <div>
-              <h2>PDF Email History</h2>
-              <p>Latest sends to the homeowner contact directory.</p>
-            </div>
-            <span>{campaigns.length} recent campaign(s)</span>
-          </div>
-
-          {campaignsLoading ? (
-            <p className="contact-campaign-empty">Loading email history...</p>
-          ) : campaigns.length === 0 ? (
-            <p className="contact-campaign-empty">
-              No homeowner PDFs have been sent yet.
-            </p>
-          ) : (
-            <div className="contact-campaign-table-wrap">
-              <table className="contact-campaign-table">
-                <thead>
-                  <tr>
-                    <th>Sent</th>
-                    <th>Subject and PDF</th>
-                    <th>Recipients</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((campaign) => (
-                    <tr key={campaign.id}>
-                      <td>{formatCampaignDate(campaign.created_at)}</td>
-                      <td>
-                        <strong>{campaign.subject}</strong>
-                        <span>{campaign.original_file_name}</span>
-                      </td>
-                      <td>
-                        {campaign.sent_count}/{campaign.recipient_count} sent
-                        {campaign.skipped_count > 0 && (
-                          <span>{campaign.skipped_count} without valid email</span>
-                        )}
-                      </td>
-                      <td>
-                        <span
-                          className={`contact-campaign-status ${campaign.status}`}
-                        >
-                          {campaign.status}
-                        </span>
-                      </td>
-                      <td>
-                        {campaign.failed_count > 0 ? (
-                          <button
-                            type="button"
-                            className="contact-retry-button"
-                            onClick={() => retryFailedEmails(campaign)}
-                            disabled={Boolean(retryingCampaignId)}
-                          >
-                            <RefreshCw size={14} />
-                            {retryingCampaignId === campaign.id
-                              ? 'Retrying...'
-                              : `Retry ${campaign.failed_count} failed`}
-                          </button>
-                        ) : (
-                          <span className="contact-no-action">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
       {selectedContact && (
         <div
           className="contact-modal-backdrop"
@@ -716,146 +406,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 disabled={saving}
               >
                 {saving ? 'Saving...' : 'Save Contact'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {emailModalOpen && (
-        <div
-          className="contact-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeEmailModal()
-          }}
-        >
-          <form
-            className="contact-modal contact-email-modal glass-card"
-            onSubmit={sendPdf}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="contact-email-modal-title"
-          >
-            <div className="contact-modal-heading">
-              <div>
-                <h2 id="contact-email-modal-title">Send PDF to Homeowners</h2>
-                <p>
-                  Each homeowner receives a separate private email.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="contact-modal-close"
-                onClick={closeEmailModal}
-                aria-label="Close PDF email form"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="contact-recipient-summary">
-              <Mail size={19} />
-              <div>
-                <strong>
-                  {validEmailRecipients.length} valid recipient
-                  {validEmailRecipients.length === 1 ? '' : 's'}
-                </strong>
-                <span>
-                  {skippedEmailCount} homeowner
-                  {skippedEmailCount === 1 ? '' : 's'} missing a valid email
-                </span>
-              </div>
-            </div>
-
-            <label htmlFor="campaign-subject">Email Subject</label>
-            <input
-              id="campaign-subject"
-              type="text"
-              value={emailForm.subject}
-              onChange={(event) => {
-                setEmailForm((current) => ({
-                  ...current,
-                  subject: event.target.value,
-                }))
-                setEmailError('')
-              }}
-              maxLength={200}
-              placeholder="e.g. July HOA Community Notice"
-              disabled={sending}
-            />
-
-            <label htmlFor="campaign-message">Message</label>
-            <textarea
-              id="campaign-message"
-              value={emailForm.message}
-              onChange={(event) => {
-                setEmailForm((current) => ({
-                  ...current,
-                  message: event.target.value,
-                }))
-                setEmailError('')
-              }}
-              maxLength={5000}
-              rows={5}
-              placeholder="Write the short message that will appear in the email."
-              disabled={sending}
-            />
-
-            <label htmlFor="campaign-pdf">PDF Attachment</label>
-            <label className="contact-file-picker" htmlFor="campaign-pdf">
-              <FileText size={22} />
-              <span>
-                {emailForm.file
-                  ? emailForm.file.name
-                  : 'Choose a PDF file (maximum 10 MB)'}
-              </span>
-              {emailForm.file && (
-                <small>{formatFileSize(emailForm.file.size)}</small>
-              )}
-            </label>
-            <input
-              id="campaign-pdf"
-              className="contact-file-input"
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(event) => {
-                setEmailForm((current) => ({
-                  ...current,
-                  file: event.target.files?.[0] || null,
-                }))
-                setEmailError('')
-              }}
-              disabled={sending}
-            />
-
-            <p className="contact-send-warning">
-              Confirm the subject, message, PDF, and homeowner email addresses
-              before sending. This action emails every valid address on file.
-            </p>
-
-            {emailError && <p className="contact-form-error">{emailError}</p>}
-
-            <div className="contact-modal-actions">
-              <button
-                type="button"
-                className="contact-cancel-button"
-                onClick={closeEmailModal}
-                disabled={sending}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="contact-save-button"
-                disabled={sending || validEmailRecipients.length === 0}
-              >
-                <Send size={16} />
-                {sending
-                  ? 'Sending PDF...'
-                  : `Send to ${validEmailRecipients.length} Homeowner${
-                      validEmailRecipients.length === 1 ? '' : 's'
-                    }`}
               </button>
             </div>
           </form>
