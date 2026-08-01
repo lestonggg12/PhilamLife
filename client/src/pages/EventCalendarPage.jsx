@@ -76,6 +76,130 @@ function normalize(value) {
   return String(value ?? '').trim().toLowerCase()
 }
 
+const TIME_HOURS = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, '0'),
+)
+
+const TIME_MINUTES = Array.from({ length: 60 }, (_, index) =>
+  String(index).padStart(2, '0'),
+)
+
+function timeParts(value) {
+  if (!value) return { hour: '', minute: '', period: '' }
+
+  const [hourValue, minute = '00'] = value.split(':')
+  const hour = Number(hourValue)
+
+  if (Number.isNaN(hour)) return { hour: '', minute: '', period: '' }
+
+  return {
+    hour: String(hour % 12 || 12).padStart(2, '0'),
+    minute: minute.slice(0, 2),
+    period: hour >= 12 ? 'PM' : 'AM',
+  }
+}
+
+function timeValue({ hour, minute, period }) {
+  const hour12 = Number(hour || '12')
+  const hour24 = (hour12 % 12) + (period === 'PM' ? 12 : 0)
+  return `${String(hour24).padStart(2, '0')}:${minute || '00'}`
+}
+
+function TimePicker({ label, name, value, onChange, disabled }) {
+  const parts = timeParts(value)
+
+  function updatePart(part, nextValue) {
+    const nextParts = {
+      hour: parts.hour || '12',
+      minute: parts.minute || '00',
+      period: parts.period || 'AM',
+      [part]: nextValue,
+    }
+
+    onChange({ target: { name, value: timeValue(nextParts) } })
+  }
+
+  function clearTime() {
+    onChange({ target: { name, value: '' } })
+  }
+
+  return (
+    <div className="cal-time-field">
+      <div className="cal-time-label">
+        <span>{label}</span>
+        <span className="cal-optional-label">Optional</span>
+      </div>
+
+      <div className="cal-time-control">
+        <Clock size={17} aria-hidden="true" />
+
+        <select
+          value={parts.hour}
+          onChange={(event) => updatePart('hour', event.target.value)}
+          disabled={disabled}
+          aria-label={`${label} hour`}
+        >
+          <option value="" disabled>
+            HH
+          </option>
+          {TIME_HOURS.map((hour) => (
+            <option key={hour} value={hour}>
+              {hour}
+            </option>
+          ))}
+        </select>
+
+        <span className="cal-time-separator" aria-hidden="true">
+          :
+        </span>
+
+        <select
+          value={parts.minute}
+          onChange={(event) => updatePart('minute', event.target.value)}
+          disabled={disabled}
+          aria-label={`${label} minute`}
+        >
+          <option value="" disabled>
+            MM
+          </option>
+          {TIME_MINUTES.map((minute) => (
+            <option key={minute} value={minute}>
+              {minute}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="cal-period-select"
+          value={parts.period}
+          onChange={(event) => updatePart('period', event.target.value)}
+          disabled={disabled}
+          aria-label={`${label} period`}
+        >
+          <option value="" disabled>
+            AM/PM
+          </option>
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+
+        {value && (
+          <button
+            type="button"
+            className="cal-time-clear"
+            onClick={clearTime}
+            disabled={disabled}
+            aria-label={`Clear ${label.toLowerCase()}`}
+            title={`Clear ${label.toLowerCase()}`}
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function EventCalendarPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [events, setEvents] = useState([])
@@ -87,11 +211,11 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [notice, setNotice] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
-  const [pendingDelete, setPendingDelete] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageEvents = role === 'secretary'
@@ -627,27 +751,21 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                 />
               </label>
 
-              <label>
-                Start time
-                <input
-                  type="time"
-                  name="startTime"
-                  value={form.startTime}
-                  onChange={updateForm}
-                  disabled={saving}
-                />
-              </label>
+              <TimePicker
+                label="Start time"
+                name="startTime"
+                value={form.startTime}
+                onChange={updateForm}
+                disabled={saving}
+              />
 
-              <label>
-                End time
-                <input
-                  type="time"
-                  name="endTime"
-                  value={form.endTime}
-                  onChange={updateForm}
-                  disabled={saving}
-                />
-              </label>
+              <TimePicker
+                label="End time"
+                name="endTime"
+                value={form.endTime}
+                onChange={updateForm}
+                disabled={saving}
+              />
 
               <label className="cal-field-full">
                 Description
