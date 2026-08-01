@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './DocumentLibraryPage.css'
 import {
+  AlertCircle,
   Download,
   FileText,
   Plus,
@@ -11,6 +12,10 @@ import { supabase } from '../lib/supabaseClient'
 
 const BUCKET = 'hoa-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
+// Supabase's free tier includes 1 GiB of Storage across the whole project,
+// shared by every bucket. This isn't just this library's own budget.
+const STORAGE_LIMIT = 1024 * 1024 * 1024
+const STORAGE_WARNING_THRESHOLD = 0.8 // start warning at 80% used
 const CATEGORIES = [
   'Minutes',
   'Reports',
@@ -220,6 +225,13 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     const title = form.title.trim().replace(/\s+/g, ' ')
     const fileError = validateFile(selectedFile)
 
+    if (selectedFile && totalSize + selectedFile.size > STORAGE_LIMIT) {
+      setFormError(
+        `This upload would exceed the ${formatFileSize(STORAGE_LIMIT)} storage limit. Free up space or ask your administrator to upgrade the plan.`,
+      )
+      return
+    }
+
     if (!title) {
       setFormError('Enter a document title.')
       return
@@ -367,6 +379,9 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     0,
   )
   const categoryCount = new Set(documents.map((document) => document.category)).size
+  const storageUsedRatio = totalSize / STORAGE_LIMIT
+  const storageIsFull = totalSize >= STORAGE_LIMIT
+  const storageIsNearlyFull = storageUsedRatio >= STORAGE_WARNING_THRESHOLD
 
   return (
     <div className="doc-library">
@@ -394,13 +409,30 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
         <div className="doc-summary-item">
           <span>Storage used</span>
-          <strong>{loading ? '—' : formatFileSize(totalSize)}</strong>
+          <strong>
+            {loading
+              ? '—'
+              : `${formatFileSize(totalSize)} of ${formatFileSize(STORAGE_LIMIT)} (${Math.round(storageUsedRatio * 100)}%)`}
+          </strong>
         </div>
         <div className="doc-summary-item">
           <span>Categories used</span>
           <strong>{loading ? '—' : categoryCount}</strong>
         </div>
       </div>
+
+      {!loading && storageIsFull && (
+        <p className="doc-storage-alert doc-storage-alert-full">
+          <AlertCircle size={16} />
+          Storage is full. Delete some documents to free up space before uploading more.
+        </p>
+      )}
+      {!loading && !storageIsFull && storageIsNearlyFull && (
+        <p className="doc-storage-alert doc-storage-alert-warning">
+          <AlertCircle size={16} />
+          Storage is {Math.round(storageUsedRatio * 100)}% full. Consider removing unneeded files soon.
+        </p>
+      )}
 
       <div className="doc-toolbar">
         <input
@@ -430,7 +462,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           type="button"
           className="doc-upload-button"
           onClick={openUploadForm}
-          disabled={!canManageDocuments}
+          disabled={!canManageDocuments || storageIsFull}
+          title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
         >
           <Plus size={18} />
           Upload Document
