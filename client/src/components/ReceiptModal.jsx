@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { X, Download, Mail, Printer } from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
+import ActionDialog from './ActionDialog'
 import './ReceiptModal.css'
 
 export default function ReceiptModal({ receiptData, onClose }) {
   const { organization } = useOrganization()
+  const [emailNotice, setEmailNotice] = useState('')
 
   const handlePrint = () => {
     window.print()
@@ -12,8 +14,8 @@ export default function ReceiptModal({ receiptData, onClose }) {
 
   const handleEmail = () => {
     // Mock email functionality
-    alert(
-      `Receipt ${receiptData.orNumber} would be sent to ${receiptData.homeowner}`
+    setEmailNotice(
+      `Receipt ${receiptData.orNumber} would be sent to ${receiptData.homeowner}`,
     )
   }
 
@@ -126,6 +128,13 @@ export default function ReceiptModal({ receiptData, onClose }) {
           </div>
         </div>
       </div>
+
+      <ActionDialog
+        open={!!emailNotice}
+        title="Email Receipt"
+        message={emailNotice}
+        onConfirm={() => setEmailNotice('')}
+      />
     </div>
   )
 }

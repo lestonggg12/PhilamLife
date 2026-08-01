@@ -1,225 +1,107 @@
-.action-dialog-backdrop {
+.action-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 2400;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(7, 30, 48, 0.55);
-  backdrop-filter: blur(5px);
-  animation: action-dialog-fade 160ms ease-out;
+  background: rgba(7, 30, 48, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  animation: action-dialog-fade-in 0.15s ease;
+}
+
+@keyframes action-dialog-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .action-dialog {
-  position: relative;
-  width: min(100%, 440px);
-  overflow: hidden;
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 400px;
   padding: 28px;
-  border: 1px solid #d5e3ed;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 24px 70px rgba(7, 30, 48, 0.28);
-  color: #071e30;
-  animation: action-dialog-rise 180ms ease-out;
+  box-shadow: 0 20px 60px rgba(7, 30, 48, 0.3);
+  font-family: 'DM Sans', sans-serif;
+  animation: action-dialog-pop-in 0.15s ease;
 }
 
-.action-dialog::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 4px;
-  background: #1464a0;
-  content: '';
-}
-
-.action-dialog-danger::before { background: #c0392b; }
-.action-dialog-warning::before { background: #d49206; }
-.action-dialog-success::before { background: #1a8a60; }
-
-.action-dialog-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 9px;
-  background: transparent;
-  color: #6c879b;
-}
-
-.action-dialog-close:hover:not(:disabled) {
-  background: #eef5fa;
-  color: #17324a;
+@keyframes action-dialog-pop-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 .action-dialog-icon {
-  display: grid;
-  width: 50px;
-  height: 50px;
-  margin-bottom: 18px;
-  place-items: center;
-  border-radius: 14px;
-  background: #eaf3fb;
-  color: #1464a0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
 }
 
-.action-dialog-danger .action-dialog-icon {
-  background: #fcebea;
-  color: #b83227;
+.action-dialog-icon-danger {
+  background: rgba(192, 57, 43, 0.1);
+  color: #c0392b;
 }
 
-.action-dialog-warning .action-dialog-icon {
-  background: #fff5d9;
-  color: #a76500;
-}
-
-.action-dialog-success .action-dialog-icon {
-  background: #e3f5ed;
-  color: #167a55;
-}
-
-.action-dialog-copy { padding-right: 22px; }
-
-.action-dialog-eyebrow {
-  margin: 0 0 5px;
-  color: #6c879b;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.action-dialog-copy h2 {
-  margin: 0;
-  color: #071e30;
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 25px;
-  line-height: 1.15;
-}
-
-.action-dialog-copy > p:last-child {
-  margin: 10px 0 0;
-  color: #526f84;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.action-dialog-details {
-  display: grid;
-  gap: 9px;
-  margin: 20px 0 0;
-  padding: 14px 16px;
-  border: 1px solid #dce8f0;
-  border-radius: 12px;
-  background: #f6f9fc;
-}
-
-.action-dialog-details div {
-  display: grid;
-  grid-template-columns: minmax(90px, 0.45fr) 1fr;
-  gap: 12px;
-  align-items: start;
-}
-
-.action-dialog-details dt,
-.action-dialog-details dd {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.action-dialog-details dt {
-  color: #6c879b;
+.action-dialog-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 19px;
   font-weight: 600;
+  color: #071e30;
+  margin: 0 0 10px 0;
 }
 
-.action-dialog-details dd {
-  color: #17324a;
-  font-weight: 700;
-  overflow-wrap: anywhere;
+.action-dialog-message {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #2a5470;
+  margin: 0 0 22px 0;
+  white-space: normal;
 }
 
 .action-dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 24px;
 }
 
-.action-dialog-button {
-  min-height: 42px;
-  padding: 10px 18px;
-  border-radius: 10px;
+.action-dialog-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.action-dialog-cancel {
-  border: 1px solid #c9dae6;
-  background: #ffffff;
-  color: #35566e;
+.action-dialog-btn-secondary {
+  background: #eef4f8;
+  color: #2a5470;
 }
 
-.action-dialog-cancel:hover:not(:disabled) { background: #f1f6fa; }
+.action-dialog-btn-secondary:hover {
+  background: #e0ebf2;
+}
 
-.action-dialog-confirm {
+.action-dialog-btn-primary {
   background: #1464a0;
-  box-shadow: 0 6px 14px rgba(20, 100, 160, 0.2);
-  color: #ffffff;
+  color: #fff;
 }
 
-.action-dialog-danger .action-dialog-confirm {
-  background: #b83227;
-  box-shadow: 0 6px 14px rgba(184, 50, 39, 0.2);
+.action-dialog-btn-primary:hover {
+  background: #0f4d7d;
 }
 
-.action-dialog-warning .action-dialog-confirm {
-  background: #a76500;
-  box-shadow: 0 6px 14px rgba(167, 101, 0, 0.2);
+.action-dialog-btn-danger {
+  background: #c0392b;
+  color: #fff;
 }
 
-.action-dialog-success .action-dialog-confirm {
-  background: #167a55;
-  box-shadow: 0 6px 14px rgba(22, 122, 85, 0.2);
-}
-
-.action-dialog-confirm:hover:not(:disabled) { filter: brightness(0.92); }
-
-.action-dialog-button:focus-visible,
-.action-dialog-close:focus-visible {
-  outline: 3px solid rgba(20, 100, 160, 0.24);
-  outline-offset: 2px;
-}
-
-.action-dialog-button:disabled,
-.action-dialog-close:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-@keyframes action-dialog-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes action-dialog-rise {
-  from { opacity: 0; transform: translateY(12px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@media (max-width: 520px) {
-  .action-dialog-backdrop { padding: 16px; }
-  .action-dialog { padding: 24px 20px 20px; }
-  .action-dialog-copy h2 { font-size: 23px; }
-  .action-dialog-actions { flex-direction: column-reverse; }
-  .action-dialog-button { width: 100%; }
-  .action-dialog-details div { grid-template-columns: 1fr; gap: 2px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .action-dialog-backdrop,
-  .action-dialog { animation: none; }
+.action-dialog-btn-danger:hover {
+  background: #a5301f;
 }

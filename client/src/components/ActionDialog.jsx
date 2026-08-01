@@ -1,138 +1,107 @@
-import React, { useEffect, useRef } from 'react'
-import { AlertCircle, CheckCircle, Trash2, X } from './Icons'
+import React from 'react'
+import { AlertCircle } from './Icons'
 import './ActionDialog.css'
 
-const ICONS = {
-  danger: Trash2,
-  warning: AlertCircle,
-  info: AlertCircle,
-  success: CheckCircle,
-}
-
+/**
+ * A styled replacement for window.confirm() / window.alert().
+ *
+ * Usage as a confirm dialog (Cancel + Confirm):
+ *   <ActionDialog
+ *     open={!!pendingAction}
+ *     title="Delete Event?"
+ *     message={`Delete "${event.title}"? This cannot be undone.`}
+ *     confirmLabel="Delete"
+ *     tone="danger"
+ *     onConfirm={() => { doDelete(); setPendingAction(null) }}
+ *     onCancel={() => setPendingAction(null)}
+ *   />
+ *
+ * Usage as a simple alert/notice (OK only) — just omit onCancel:
+ *   <ActionDialog
+ *     open={!!notice}
+ *     title="Heads up"
+ *     message={notice}
+ *     onConfirm={() => setNotice('')}
+ *   />
+ */
 export default function ActionDialog({
   open,
   title,
   message,
-  details = [],
-  variant = 'info',
-  confirmLabel = 'Continue',
+  confirmLabel,
   cancelLabel = 'Cancel',
-  loading = false,
   onConfirm,
   onCancel,
+  tone = 'default', // 'default' | 'danger'
 }) {
-  const cancelButtonRef = useRef(null)
-  const confirmButtonRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return undefined
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const focusTimer = window.setTimeout(() => {
-      ;(onCancel ? cancelButtonRef : confirmButtonRef).current?.focus()
-    }, 0)
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape' && onCancel && !loading) onCancel()
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.clearTimeout(focusTimer)
-      document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [loading, onCancel, open])
-
   if (!open) return null
 
-  const Icon = ICONS[variant] || AlertCircle
+  const isConfirmStyle = Boolean(onCancel)
+  const resolvedConfirmLabel = confirmLabel || (isConfirmStyle ? 'Confirm' : 'OK')
 
   return (
     <div
-      className="action-dialog-backdrop"
+      className="action-dialog-overlay"
       role="presentation"
-      onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && onCancel && !loading) {
-          onCancel()
-        }
+        if (event.target === event.currentTarget && onCancel) onCancel()
       }}
     >
-      <section
-        className={`action-dialog action-dialog-${variant}`}
+      <div
+        className="action-dialog"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="action-dialog-title"
-        aria-describedby="action-dialog-message"
       >
-        {onCancel && (
-          <button
-            type="button"
-            className="action-dialog-close"
-            onClick={onCancel}
-            disabled={loading}
-            aria-label="Close dialog"
-          >
-            <X size={19} />
-          </button>
+        {tone === 'danger' && (
+          <div className="action-dialog-icon action-dialog-icon-danger">
+            <AlertCircle size={20} />
+          </div>
         )}
 
-        <div className="action-dialog-icon" aria-hidden="true">
-          <Icon size={25} />
-        </div>
+        {title && (
+          <h2 id="action-dialog-title" className="action-dialog-title">
+            {title}
+          </h2>
+        )}
 
-        <div className="action-dialog-copy">
-          <p className="action-dialog-eyebrow">
-            {variant === 'danger'
-              ? 'Please confirm'
-              : variant === 'success'
-                ? 'Completed'
-                : variant === 'warning'
-                  ? 'Attention needed'
-                  : 'System notice'}
+        {message && (
+          <p className="action-dialog-message">
+            {String(message)
+              .split('\n')
+              .map((line, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <br />}
+                  {line}
+                </React.Fragment>
+              ))}
           </p>
-          <h2 id="action-dialog-title">{title}</h2>
-          <p id="action-dialog-message">{message}</p>
-        </div>
-
-        {details.length > 0 && (
-          <dl className="action-dialog-details">
-            {details.map(({ label, value }) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
         )}
 
         <div className="action-dialog-actions">
-          {onCancel && (
+          {isConfirmStyle && (
             <button
-              ref={cancelButtonRef}
               type="button"
-              className="action-dialog-button action-dialog-cancel"
+              className="action-dialog-btn action-dialog-btn-secondary"
               onClick={onCancel}
-              disabled={loading}
             >
               {cancelLabel}
             </button>
           )}
           <button
-            ref={confirmButtonRef}
             type="button"
-            className="action-dialog-button action-dialog-confirm"
+            className={`action-dialog-btn ${
+              tone === 'danger'
+                ? 'action-dialog-btn-danger'
+                : 'action-dialog-btn-primary'
+            }`}
             onClick={onConfirm}
-            disabled={loading}
+            autoFocus
           >
-            {loading ? 'Please wait...' : confirmLabel}
+            {resolvedConfirmLabel}
           </button>
         </div>
-      </section>
+      </div>
     </div>
   )
 }

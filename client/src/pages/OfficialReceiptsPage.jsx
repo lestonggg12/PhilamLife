@@ -9,6 +9,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
+import ActionDialog from '../components/ActionDialog'
 import './OfficialReceiptsPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -319,7 +320,7 @@ function receiptRows(receipt) {
   return rows
 }
 
-function printOfficialReceipt(receipt, associationName) {
+function printOfficialReceipt(receipt, associationName, onPopupBlocked) {
   const printWindow = window.open(
     '',
     '_blank',
@@ -327,9 +328,7 @@ function printOfficialReceipt(receipt, associationName) {
   )
 
   if (!printWindow) {
-    window.alert(
-      'Please allow pop-ups to print this receipt.',
-    )
+    onPopupBlocked?.('Please allow pop-ups to print this receipt.')
     return
   }
 
@@ -515,6 +514,7 @@ export default function OfficialReceiptsPage() {
   const [receipts, setReceipts] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [popupNotice, setPopupNotice] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] =
     useState('all')
@@ -1125,6 +1125,7 @@ export default function OfficialReceiptsPage() {
                   printOfficialReceipt(
                     selectedReceipt,
                     organization.associationName,
+                    setPopupNotice,
                   )
                 }
               >
@@ -1135,6 +1136,13 @@ export default function OfficialReceiptsPage() {
           </article>
         </div>
       )}
+
+      <ActionDialog
+        open={!!popupNotice}
+        title="Pop-up Blocked"
+        message={popupNotice}
+        onConfirm={() => setPopupNotice('')}
+      />
     </div>
   )
 }
