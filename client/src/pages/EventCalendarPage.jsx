@@ -810,5 +810,4 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         </div>
       )}
     </div>
-  )
-}
+  )}
