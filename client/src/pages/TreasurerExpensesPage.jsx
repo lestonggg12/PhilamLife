@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import ActionDialog from '../components/ActionDialog'
 import './TreasurerExpenses.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -50,6 +51,8 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [voidingId, setVoidingId] = useState(null)
+  const [pendingVoid, setPendingVoid] = useState(null)
+  const [voidError, setVoidError] = useState('')
 
   const recorderName =
     currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
@@ -202,14 +205,13 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     }
   }
 
-  async function handleVoid(expense) {
+  function requestVoid(expense) {
     if (expense.status === 'Voided') return
+    setPendingVoid(expense)
+  }
 
-    const confirmed = window.confirm(
-      `Void this expense?\n\n${expense.category} — ${peso.format(expense.amount)}\n${expense.description}\n\nVoided expenses stay on record but are excluded from totals.`,
-    )
-    if (!confirmed) return
-
+  async function handleVoid(expense) {
+    setPendingVoid(null)
     setVoidingId(expense.id)
 
     const { data, error } = await supabase
@@ -222,7 +224,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     setVoidingId(null)
 
     if (error) {
-      window.alert(`Could not void expense: ${error.message}`)
+      setVoidError(`Could not void expense: ${error.message}`)
       return
     }
 
@@ -317,7 +319,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                       <td>
                         <button
                           className="tex-void-btn"
-                          onClick={() => handleVoid(expense)}
+                          onClick={() => requestVoid(expense)}
                           disabled={isVoided || voidingId === expense.id}
                           title={isVoided ? 'Already voided' : 'Void expense'}
                         >
@@ -420,6 +422,27 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
           </div>
         </div>
       )}
+
+      <ActionDialog
+        open={!!pendingVoid}
+        title="Void This Expense?"
+        message={
+          pendingVoid
+            ? `${pendingVoid.category} — ${peso.format(pendingVoid.amount)}\n${pendingVoid.description}\n\nVoided expenses stay on record but are excluded from totals.`
+            : ''
+        }
+        confirmLabel="Void Expense"
+        tone="danger"
+        onConfirm={() => handleVoid(pendingVoid)}
+        onCancel={() => setPendingVoid(null)}
+      />
+
+      <ActionDialog
+        open={!!voidError}
+        title="Could Not Void Expense"
+        message={voidError}
+        onConfirm={() => setVoidError('')}
+      />
     </div>
   )
 }

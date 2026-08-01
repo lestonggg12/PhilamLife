@@ -398,7 +398,6 @@ PHILAMLIFE/
 - Fully responsive across all devices
 - Accessibility features included (ARIA labels, semantic HTML)
 - Ready for backend integration
-- Scalable for additional factors (2FA, backup codes, etc.)
 
 ---
 

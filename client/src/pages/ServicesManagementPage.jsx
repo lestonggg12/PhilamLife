@@ -10,6 +10,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
+import ActionDialog from '../components/ActionDialog'
 import './ServicesManagementPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -32,11 +33,11 @@ const escapePrintText = (value) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 
-function printServiceReceipt(receipt, associationName) {
+function printServiceReceipt(receipt, associationName, onPopupBlocked) {
   const printWindow = window.open('', '_blank', 'width=900,height=700')
 
   if (!printWindow) {
-    window.alert('Please allow pop-ups to print the service receipt.')
+    onPopupBlocked?.('Please allow pop-ups to print the service receipt.')
     return
   }
 
@@ -210,6 +211,7 @@ const emptyTransaction = {
 
 export default function ServicesManagementPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
+  const [popupNotice, setPopupNotice] = useState('')
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [services, setServices] = useState([])
   const [transactions, setTransactions] = useState([])
@@ -1011,13 +1013,20 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             </p>
             <div className="services-modal-actions">
               <button type="button" onClick={() => setReceipt(null)}>Close</button>
-              <button type="button" onClick={() => printServiceReceipt(receipt, organization.associationName)}>
+              <button type="button" onClick={() => printServiceReceipt(receipt, organization.associationName, setPopupNotice)}>
                 Print Receipt
               </button>
             </div>
           </article>
         </div>
       )}
+
+      <ActionDialog
+        open={!!popupNotice}
+        title="Pop-up Blocked"
+        message={popupNotice}
+        onConfirm={() => setPopupNotice('')}
+      />
     </div>
   )
 }
