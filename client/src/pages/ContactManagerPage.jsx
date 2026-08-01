@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Edit, Mail, Phone, RefreshCw, UserPlus } from '../components/Icons'
+import { Edit, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import ActionDialog from '../components/ActionDialog'
 import './ContactManagerPage.css'
 
 const EMPTY_FORM = {
@@ -44,6 +45,13 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [pendingDeleteContact, setPendingDeleteContact] = useState(null)
+  const [deletingContactId, setDeletingContactId] = useState(null)
+  const [deleteContactError, setDeleteContactError] = useState('')
+  const [showManageBlocks, setShowManageBlocks] = useState(false)
+  const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null)
+  const [deletingBlockId, setDeletingBlockId] = useState(null)
+  const [deleteBlockError, setDeleteBlockError] = useState('')
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageContacts = role === 'admin' || role === 'secretary'
@@ -407,6 +415,96 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setNotice(`Contact details for ${data.homeowner_name} were saved.`)
   }
 
+  function requestDeleteContact(contact) {
+    if (!canManageContacts) return
+    setDeleteContactError('')
+    setPendingDeleteContact(contact)
+  }
+
+  async function deleteContact(contact) {
+    setPendingDeleteContact(null)
+    setDeletingContactId(contact.id)
+    setDeleteContactError('')
+
+    const { error } = await supabase.from('properties').delete().eq('id', contact.id)
+
+    setDeletingContactId(null)
+
+    if (error) {
+      // Postgres blocks this delete (NO ACTION) if the homeowner has real
+      // payment history, protecting financial records from being lost.
+      const message =
+        error.code === '23503'
+          ? `${contact.homeowner_name} cannot be deleted because they have payment records on file. This protects the association's financial history.`
+          : `Could not delete homeowner: ${error.message}`
+      setDeleteContactError(message)
+      return
+    }
+
+    setContacts((current) => current.filter((item) => item.id !== contact.id))
+
+    if (currentUser?.id) {
+      const { error: activityError } = await supabase.from('activity_log').insert({
+        user_id: currentUser.id,
+        action: 'Homeowner Deleted',
+        target: `${contact.homeowner_name} — ${contact.block}, Lot ${contact.lot_number} (by ${actorName})`,
+      })
+
+      if (activityError) {
+        console.warn('Homeowner deleted, but activity logging failed:', activityError.message)
+      }
+    }
+
+    setNotice(`${contact.homeowner_name} was removed from the directory.`)
+  }
+
+  function requestDeleteBlock(block) {
+    if (!canManageContacts) return
+    setDeleteBlockError('')
+
+    const homeownersInBlock = contacts.filter(
+      (contact) => normalize(contact.block) === normalize(block.name),
+    ).length
+
+    if (homeownersInBlock > 0) {
+      setDeleteBlockError(
+        `${block.name} cannot be deleted — ${homeownersInBlock} homeowner(s) are still assigned to it. Delete or reassign them first.`,
+      )
+      return
+    }
+
+    setPendingDeleteBlock(block)
+  }
+
+  async function deleteBlock(block) {
+    setPendingDeleteBlock(null)
+    setDeletingBlockId(block.id)
+    setDeleteBlockError('')
+
+    const { error } = await supabase.from('blocks').delete().eq('id', block.id)
+
+    setDeletingBlockId(null)
+
+    if (error) {
+      setDeleteBlockError(`Could not delete block: ${error.message}`)
+      return
+    }
+
+    setBlocks((current) => current.filter((item) => item.id !== block.id))
+
+    if (currentUser?.id) {
+      const { error: activityError } = await supabase.from('activity_log').insert({
+        user_id: currentUser.id,
+        action: 'Block Deleted',
+        target: `${block.name} (by ${actorName})`,
+      })
+
+      if (activityError) {
+        console.warn('Block deleted, but activity logging failed:', activityError.message)
+      }
+    }
+  }
+
   const filteredContacts = useMemo(() => {
     const term = normalize(search)
 
@@ -458,6 +556,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
 
         <div className="contact-header-actions">
+          {canManageContacts && (
+            <button
+              type="button"
+              className="contact-manage-blocks-button"
+              onClick={() => setShowManageBlocks(true)}
+            >
+              <Settings size={17} />
+              Manage Blocks
+            </button>
+          )}
           {canManageContacts && (
             <button
               type="button"
@@ -513,6 +621,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       {pageError && <p className="contact-message contact-error">{pageError}</p>}
       {notice && <p className="contact-message contact-success">{notice}</p>}
+      {deleteContactError && <p className="contact-message contact-error">{deleteContactError}</p>}
 
       {loading ? (
         <div className="contact-empty glass-card">Loading contacts...</div>
@@ -567,18 +676,32 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                   </div>
                 </div>
 
-                {canManageContacts && (
-                  <button
-                    type="button"
-                    className="contact-edit-button"
-                    onClick={() => openContactForm(contact)}
-                  >
-                    <Edit size={16} />
-                    {hasContactDetails
-                      ? 'Edit Contact Details'
-                      : 'Add Contact Details'}
-                  </button>
-                )}
+                <div className="contact-card-actions">
+                  {canManageContacts && (
+                    <button
+                      type="button"
+                      className="contact-edit-button"
+                      onClick={() => openContactForm(contact)}
+                    >
+                      <Edit size={16} />
+                      {hasContactDetails
+                        ? 'Edit Contact Details'
+                        : 'Add Contact Details'}
+                    </button>
+                  )}
+                  {canManageContacts && (
+                    <button
+                      type="button"
+                      className="contact-delete-button"
+                      onClick={() => requestDeleteContact(contact)}
+                      disabled={deletingContactId === contact.id}
+                      aria-label={`Delete ${contact.homeowner_name}`}
+                      title="Delete this homeowner"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </article>
             )
           })}
@@ -608,6 +731,96 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           </button>
         </div>
       )}
+
+      <ActionDialog
+        open={!!pendingDeleteContact}
+        title="Delete Homeowner?"
+        message={
+          pendingDeleteContact
+            ? `Delete ${pendingDeleteContact.homeowner_name} — ${pendingDeleteContact.block}, Lot ${pendingDeleteContact.lot_number}? This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => deleteContact(pendingDeleteContact)}
+        onCancel={() => setPendingDeleteContact(null)}
+      />
+
+      {showManageBlocks && (
+        <div
+          className="contact-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowManageBlocks(false)
+          }}
+        >
+          <div
+            className="contact-modal glass-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manage-blocks-title"
+          >
+            <div className="contact-modal-heading">
+              <div>
+                <h2 id="manage-blocks-title">Manage Blocks</h2>
+                <p>Blocks with homeowners still assigned to them can't be deleted.</p>
+              </div>
+              <button
+                type="button"
+                className="contact-modal-close"
+                onClick={() => setShowManageBlocks(false)}
+                aria-label="Close manage blocks"
+              >
+                ×
+              </button>
+            </div>
+
+            {deleteBlockError && <p className="contact-form-error">{deleteBlockError}</p>}
+
+            {blocks.length === 0 ? (
+              <p className="contact-form-note">No blocks have been added yet.</p>
+            ) : (
+              <ul className="contact-blocks-list">
+                {blocks.map((block) => (
+                  <li key={block.id} className="contact-blocks-list-item">
+                    <span>{block.name}</span>
+                    <button
+                      type="button"
+                      className="contact-delete-button"
+                      onClick={() => requestDeleteBlock(block)}
+                      disabled={deletingBlockId === block.id}
+                      aria-label={`Delete ${block.name}`}
+                      title="Delete this block"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="contact-modal-actions">
+              <button
+                type="button"
+                className="contact-cancel-button"
+                onClick={() => setShowManageBlocks(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ActionDialog
+        open={!!pendingDeleteBlock}
+        title="Delete Block?"
+        message={pendingDeleteBlock ? `Delete "${pendingDeleteBlock.name}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => deleteBlock(pendingDeleteBlock)}
+        onCancel={() => setPendingDeleteBlock(null)}
+      />
 
       {showAddHomeowner && (
         <div

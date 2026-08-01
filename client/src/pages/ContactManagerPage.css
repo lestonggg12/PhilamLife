@@ -235,9 +235,14 @@
   font-style: italic;
 }
 
-.contact-edit-button {
-  width: 100%;
+.contact-card-actions {
+  display: flex;
+  gap: 8px;
   margin-top: auto;
+}
+
+.contact-edit-button {
+  flex: 1;
   padding: 10px 14px;
   background: #1464a0;
   color: #fff;
@@ -245,6 +250,72 @@
 
 .contact-edit-button:hover {
   background: #10517f;
+}
+
+.contact-delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 0 10px;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+  border-radius: 8px;
+  background: #fff;
+  color: #c0392b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.contact-delete-button:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.contact-delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.contact-manage-blocks-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #cdd7e4;
+  border-radius: 8px;
+  background: #fff;
+  color: #2a5470;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.contact-manage-blocks-button:hover {
+  border-color: #1464a0;
+  background: #f0f8fd;
+}
+
+.contact-blocks-list {
+  list-style: none;
+  margin: 0 0 16px 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e1e6ee;
+  border-radius: 10px;
+}
+
+.contact-blocks-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e1e6ee;
+  font-size: 13px;
+  color: #172033;
+}
+
+.contact-blocks-list-item:last-child {
+  border-bottom: none;
 }
 
 .contact-empty {
