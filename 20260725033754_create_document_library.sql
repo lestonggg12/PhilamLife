@@ -47,14 +47,14 @@ create index documents_uploaded_by_idx
 alter table public.documents enable row level security;
 
 revoke all on table public.documents from anon;
-grant select, insert on table public.documents to authenticated;
+grant select, insert, delete on table public.documents to authenticated;
 
-create policy "Secretary can view documents"
+create policy "Admin and Secretary can view documents"
 on public.documents
 for select
 to authenticated
 using (
-  (select public.current_user_role()) = 'secretary'
+  (select public.current_user_role()) in ('admin', 'secretary')
 );
 
 create policy "Secretary can upload documents"
@@ -64,6 +64,14 @@ to authenticated
 with check (
   uploaded_by = (select auth.uid())
   and (select public.current_user_role()) = 'secretary'
+);
+
+create policy "Admin and Secretary can delete documents"
+on public.documents
+for delete
+to authenticated
+using (
+  (select public.current_user_role()) in ('admin', 'secretary')
 );
 
 insert into storage.buckets (
@@ -94,14 +102,14 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
-create policy "Secretary can read HOA document files"
+create policy "Admin and Secretary can read HOA document files"
 on storage.objects
 for select
 to authenticated
 using (
   bucket_id = 'hoa-documents'
   and (storage.foldername(name))[1] = 'documents'
-  and (select public.current_user_role()) = 'secretary'
+  and (select public.current_user_role()) in ('admin', 'secretary')
 );
 
 create policy "Secretary can upload HOA document files"
@@ -114,14 +122,14 @@ with check (
   and (select public.current_user_role()) = 'secretary'
 );
 
-create policy "Secretary can remove failed HOA document uploads"
+create policy "Admin and Secretary can delete HOA document files"
 on storage.objects
 for delete
 to authenticated
 using (
   bucket_id = 'hoa-documents'
   and (storage.foldername(name))[1] = 'documents'
-  and (select public.current_user_role()) = 'secretary'
+  and (select public.current_user_role()) in ('admin', 'secretary')
 );
 
 commit;

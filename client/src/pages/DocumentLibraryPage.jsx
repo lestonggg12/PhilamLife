@@ -104,7 +104,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [deletingId, setDeletingId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageDocuments = role === 'secretary'
+  const canUploadDocuments = role === 'secretary'
+  const canDeleteDocuments = ['admin', 'secretary'].includes(role)
   const actorName =
     currentUser?.full_name ||
     currentUser?.name ||
@@ -221,7 +222,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   async function uploadDocument(event) {
     event.preventDefault()
 
-    if (!canManageDocuments || !currentUser?.id) {
+    if (!canUploadDocuments || !currentUser?.id) {
       setFormError('Only a verified Secretary can upload documents.')
       return
     }
@@ -360,11 +361,17 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   }
 
   function requestDeleteDocument(document) {
-    if (!canManageDocuments) return
+    if (!canDeleteDocuments) return
     setPendingDelete(document)
   }
 
   async function deleteDocument(document) {
+    if (!canDeleteDocuments || !document || !currentUser?.id) {
+      setPendingDelete(null)
+      setPageError('Only an Admin or Secretary can delete documents.')
+      return
+    }
+
     setPendingDelete(null)
     setDeletingId(document.id)
     setPageError('')
@@ -525,7 +532,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           type="button"
           className="doc-upload-button"
           onClick={openUploadForm}
-          disabled={!canManageDocuments || storageIsFull}
+          disabled={!canUploadDocuments || storageIsFull}
           title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
         >
           <Plus size={18} />
@@ -580,7 +587,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                   {downloadingId === document.id ? 'Downloading...' : 'Download'}
                 </button>
 
-                {canManageDocuments && (
+                {canDeleteDocuments && (
                   <button
                     type="button"
                     className="doc-delete-button"
