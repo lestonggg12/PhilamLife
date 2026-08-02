@@ -258,6 +258,35 @@
   background: #f0f8fd;
 }
 
+.doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-delete-button {
+  min-height: 39px;
+  min-width: 39px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+  border-radius: 8px;
+  background: #fff;
+  color: #c0392b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.doc-delete-button:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.doc-delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .doc-empty {
   margin: 0;
   padding: 56px 24px;
