@@ -29,6 +29,25 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 const normalizeLot = (value) => normalize(value).replace(/^lot\s*/, '')
 
+function storedStatusLabel(value, fallback = 'Not recorded') {
+  const normalized = normalize(value)
+  if (!normalized) return fallback
+
+  const labels = {
+    completed: 'Completed',
+    paid: 'Paid',
+    partial: 'Partial',
+    pending: 'Pending',
+    recorded: 'Recorded',
+    voided: 'Voided',
+  }
+
+  return (
+    labels[normalized] ||
+    normalized.replace(/(^|[\s_-])\w/g, (character) => character.toUpperCase())
+  )
+}
+
 function initials(name) {
   return String(name || 'Homeowner')
     .trim()
@@ -75,7 +94,9 @@ function regularPaymentCategory(payment) {
 }
 
 function homeownerStatus(propertyPayments) {
-  const active = propertyPayments.filter((payment) => payment.status !== 'Voided')
+  const active = propertyPayments.filter(
+    (payment) => normalize(payment.status) !== 'voided',
+  )
   if (!active.length) return { key: 'no-history', label: 'No payment history' }
 
   const latest = active[0]
@@ -244,7 +265,10 @@ export default function HomeownersPage() {
   )
 
   const activePayments = useMemo(
-    () => selectedPayments.filter((payment) => payment.status !== 'Voided'),
+    () =>
+      selectedPayments.filter(
+        (payment) => normalize(payment.status) !== 'voided',
+      ),
     [selectedPayments],
   )
 
@@ -267,7 +291,6 @@ export default function HomeownersPage() {
   const history = useMemo(() => {
     const regular = selectedPayments.map((payment) => {
       const remaining = Number(payment.remaining_balance) || 0
-      const isVoided = normalize(payment.status) === 'voided'
       return {
         id: `payment-${payment.id}`,
         kind: regularPaymentCategory(payment),
@@ -280,7 +303,7 @@ export default function HomeownersPage() {
         amount: Number(payment.amount_paid ?? payment.amount) || 0,
         remaining,
         method: payment.payment_method || '—',
-        status: isVoided ? 'Voided' : remaining > 0 ? 'Partial' : 'Completed',
+        status: storedStatusLabel(payment.status),
         paidAt: payment.paid_at,
       }
     })
@@ -300,7 +323,7 @@ export default function HomeownersPage() {
         amount: Number(transaction.amount_paid) || 0,
         remaining,
         method: transaction.payment_method || '—',
-        status: remaining > 0 ? 'Partial' : 'Completed',
+        status: storedStatusLabel(transaction.payment_status),
         paidAt: transaction.paid_at,
       }
     })

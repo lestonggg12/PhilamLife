@@ -74,9 +74,11 @@ function AppContent() {
             .eq('id', session.user.id)
             .single()
 
-          if (!error && profile) {
+          if (!error && profile?.is_active !== false) {
             setIsAuthenticated(true)
             setUser(profile)
+          } else if (profile?.is_active === false) {
+            await supabase.auth.signOut()
           }
         } catch (restoreError) {
           console.error('Unable to restore the session:', restoreError)

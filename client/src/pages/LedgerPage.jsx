@@ -274,6 +274,11 @@ export default function LedgerPage({ user: suppliedUser }) {
         lastPaymentDateKey: latestPayment?.paid_at
           ? dateKeyFromDate(new Date(latestPayment.paid_at))
           : null,
+        paymentDateKeys: new Set(
+          activePropertyPayments
+            .filter((payment) => payment.paid_at)
+            .map((payment) => dateKeyFromDate(new Date(payment.paid_at))),
+        ),
         status,
       }
     })
@@ -300,7 +305,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         normalize(entry.name).includes(term) || normalize(entry.lot).includes(term)
       const matchesBlock = blockFilter === 'all' || entry.block === blockFilter
       const matchesStatus = statusFilter === 'all' || entry.status === statusFilter
-      const matchesDate = !selectedDate || entry.lastPaymentDateKey === selectedDate
+      const matchesDate = !selectedDate || entry.paymentDateKeys.has(selectedDate)
       return matchesSearch && matchesBlock && matchesStatus && matchesDate
     })
   }, [ledgerEntries, search, blockFilter, statusFilter, selectedDate])

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronRight, Eye, RefreshCw } from '../components/Icons'
+import { Calendar, ChevronRight, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -127,6 +127,30 @@ function typeBadgeClass(type) {
   return 'other'
 }
 
+function paymentStatusMeta(status) {
+  const normalized = String(status || '').trim().toLowerCase()
+
+  if (!normalized) {
+    return { label: 'Not recorded', className: 'not-recorded' }
+  }
+
+  const labels = {
+    completed: 'Completed',
+    paid: 'Paid',
+    partial: 'Partial',
+    pending: 'Pending',
+    recorded: 'Recorded',
+    voided: 'Voided',
+  }
+
+  return {
+    label:
+      labels[normalized] ||
+      normalized.replace(/(^|[\s_-])\w/g, (character) => character.toUpperCase()),
+    className: labels[normalized] ? normalized : 'not-recorded',
+  }
+}
+
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
@@ -241,7 +265,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number')
+        .select('id, homeowner_name, block, lot_number, homeowner_status')
         .order('homeowner_name'),
     ])
 
@@ -274,6 +298,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
     return properties
       .filter((property) => {
+        if (
+          property.homeowner_status &&
+          property.homeowner_status.toLowerCase() !== 'active'
+        ) {
+          return false
+        }
+
         if (!search) return true
 
         const searchableValue = [
@@ -648,7 +679,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
                       )
                     })}
                   </div>
-
                   <div className="payments-calendar-legend-row">
                     <div className="payments-calendar-legend">
                       <span>
@@ -656,7 +686,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
                         Today
                       </span>
                       <span>
-                        <i className="payments-activity-key" />
                         Has payments
                       </span>
                     </div>
@@ -689,11 +718,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
           <table className="payments-table">
             <thead>
               <tr>
-                <th>Receipt No.</th>
-                <th>Date Issued</th>
-                <th>Type</th>
+                <th>Receipt / Date</th>
+                <th>Payment</th>
                 <th>Homeowner</th>
-                <th>Payment Details</th>
                 <th>Amount</th>
                 <th>Method</th>
                 <th>Status</th>
@@ -702,10 +729,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="9" className="payments-empty">Loading payments...</td></tr>
+                <tr><td colSpan="7" className="payments-empty">Loading payments...</td></tr>
               ) : selectedDayPayments.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="payments-empty">
+                  <td colSpan="7" className="payments-empty">
                     {isTodaySelected
                       ? 'No payments recorded yet today.'
                       : 'No payments were recorded on this day.'}
@@ -714,37 +741,40 @@ export default function PaymentsPage({ user: suppliedUser }) {
               ) : (
                 selectedDayPayments.map((payment) => {
                   const { type, details } = splitCoverage(payment.coverage_period)
+                  const status = paymentStatusMeta(payment.status)
+                  const isVoided = status.className === 'voided'
 
                   return (
-                    <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
-                      <td><strong>{payment.receipt_number}</strong></td>
-                      <td>{dateTime.format(new Date(payment.paid_at))}</td>
-                      <td>
+                    <tr key={payment.id} className={isVoided ? 'payments-row-voided' : ''}>
+                      <td className="payments-receipt-info" data-label="Receipt / Date">
+                        <strong>{payment.receipt_number}</strong>
+                        <small>{dateTime.format(new Date(payment.paid_at))}</small>
+                      </td>
+                      <td className="payments-description-cell" data-label="Payment">
                         {type && (
                           <span className={`payments-type-badge ${typeBadgeClass(type)}`}>
                             {type}
                           </span>
                         )}
+                        <span
+                          className="payments-detail-text"
+                          title={details || 'No additional payment details'}
+                        >
+                          {details || 'No additional details'}
+                        </span>
                       </td>
-                      <td>
+                      <td className="payments-homeowner-cell" data-label="Homeowner">
                         <strong>{payment.homeowner_name}</strong>
                         <small>{payment.block_name}, {payment.lot_number}</small>
                       </td>
-                      <td>{details}</td>
-                      <td className={`payments-amount ${payment.status === 'Voided' ? 'payments-amount-voided' : ''}`}>
-                        {peso.format(payment.amount_paid)}
+                      <td className={`payments-amount ${isVoided ? 'payments-amount-voided' : ''}`} data-label="Amount">
+                        {peso.format(payment.amount_paid ?? payment.amount ?? 0)}
                       </td>
-                      <td>{payment.payment_method}</td>
-                      <td>
-                        <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
-                          {payment.status === 'Voided' ? 'Voided' : 'Completed'}
+                      <td data-label="Method">{payment.payment_method || 'Not recorded'}</td>
+                      <td data-label="Status">
+                        <span className={`payments-status-pill payments-status-${status.className}`}>
+                          {status.label}
                         </span>
-                      </td>
-                      <td className="payments-receipt-cell">
-                        <button className="payments-view-btn" type="button" onClick={() => setReceipt(payment)}>
-                          <Eye size={16} />
-                          View
-                        </button>
                       </td>
                     </tr>
                   )

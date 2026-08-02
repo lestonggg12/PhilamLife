@@ -272,7 +272,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number')
+        .select('id, homeowner_name, block, lot_number, homeowner_status')
         .order('homeowner_name'),
     ])
 
@@ -857,11 +857,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   }
                 >
                   <option value="">Select homeowner</option>
-                  {properties.map((property) => (
-                    <option value={String(property.id)} key={property.id}>
-                      {property.homeowner_name} — {property.block}, Lot {property.lot_number}
-                    </option>
-                  ))}
+                  {properties
+                    .filter(
+                      (property) =>
+                        !property.homeowner_status ||
+                        property.homeowner_status.toLowerCase() === 'active',
+                    )
+                    .map((property) => (
+                      <option value={String(property.id)} key={property.id}>
+                        {property.homeowner_name} — {property.block}, Lot {property.lot_number}
+                      </option>
+                    ))}
                 </select>
               </label>
             </div>
