@@ -90,24 +90,42 @@
    ============================================ */
 
 .dash-page-header {
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 22px 24px;
+  border: 1px solid rgba(20, 100, 160, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 30px rgba(20, 100, 160, 0.08);
   animation: fadeInDown 0.6s ease;
+}
+
+.dash-page-eyebrow {
+  margin: 0 0 4px;
+  color: #1464a0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .dash-page-title {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 600;
   color: #071e30;
-  margin: 0 0 4px 0;
+  margin: 0;
   letter-spacing: -0.3px;
 }
 
 .dash-page-subtitle {
   font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  color: #2a5470;
-  margin: 0;
+  font-size: 14px;
+  color: #648096;
+  margin: 5px 0 0;
   font-weight: 400;
 }
 

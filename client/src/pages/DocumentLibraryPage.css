@@ -1,5 +1,8 @@
 .doc-library {
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
   overflow-x: hidden;
 }
 
@@ -11,31 +14,48 @@
 
 .doc-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(20, 100, 160, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 30px rgba(20, 100, 160, 0.08);
+}
+
+.doc-eyebrow {
+  margin: 0 0 4px;
+  color: #1464a0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .doc-header h1 {
-  margin: 0 0 4px;
-  font-size: 1.6rem;
-  color: var(--text-dark);
+  margin: 0;
+  font-size: 30px;
+  color: #071e30;
 }
 
-.doc-header p {
-  margin: 0;
-  color: #6b7280;
+.doc-header p:not(.doc-eyebrow) {
+  margin: 5px 0 0;
+  color: #648096;
+  font-size: 14px;
 }
+
+.doc-header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 .doc-refresh-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 14px;
-  border: 1px solid #bfd0df;
-  border-radius: 8px;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid #1464a0;
+  border-radius: 9px;
   background: #fff;
   color: #1464a0;
   font-weight: 600;
@@ -74,8 +94,8 @@
 .doc-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .doc-summary-item {

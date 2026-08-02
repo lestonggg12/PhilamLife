@@ -352,7 +352,6 @@ export default function LedgerPage({ user: suppliedUser }) {
       <div className="ledger-header-row">
         <div className="ledger-header">
           <h1>Ledger</h1>
-          <p>Track homeowner dues, payments, and outstanding balances.</p>
         </div>
 
         <div className="ledger-header-actions">

@@ -349,7 +349,7 @@ export default function HomeownersPage() {
     <div className="homeowners-page">
       <header className="homeowners-header">
         <div>
-          <p className="homeowners-eyebrow">Homeowner records</p>
+          <p className="homeowners-eyebrow">Secretary workspace</p>
           <h1>Homeowners</h1>
           <p>Search for a homeowner to view their profile, property, balances, and complete payment history.</p>
         </div>

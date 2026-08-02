@@ -211,6 +211,10 @@
   min-width: 0;
 }
 
+.official-search-field {
+  min-width: 0;
+}
+
 .official-receipts-filters label > span {
   color: #557188;
   font-size: 11px;
@@ -239,8 +243,19 @@
   box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
 }
 
+.official-search-input {
+  text-align: center;
+}
+
+.official-search-input::placeholder {
+  color: #98a6b7;
+  text-align: center;
+}
+
 .official-clear-button {
-  min-width: 108px;
+  min-width: 0;
+  width: 100%;
+  justify-self: stretch;
   padding: 9px 13px;
   border: 1px solid #cadce8;
   background: #fff;
