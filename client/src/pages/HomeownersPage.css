@@ -672,25 +672,28 @@
 
 .homeowner-history-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 
 .homeowner-history-table th {
-  padding: 10px 10px;
+  padding: 10px 8px;
   border-bottom: 2px solid #e5edf2;
+  overflow: hidden;
   color: #718597;
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-size: 0.64rem;
+  letter-spacing: 0.03em;
   text-align: left;
+  text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .homeowner-history-table td {
-  padding: 10px;
+  padding: 9px 8px;
   border-bottom: 1px solid #edf2f5;
   color: #405e72;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   vertical-align: middle;
 }
 
@@ -706,23 +709,62 @@
   border-bottom: 0;
 }
 
+.homeowner-history-table th:nth-child(1),
 .homeowner-history-table td:nth-child(1) {
-  min-width: 125px;
+  width: 13%;
 }
 
+.homeowner-history-table th:nth-child(2),
+.homeowner-history-table td:nth-child(2) {
+  width: 10%;
+}
+
+.homeowner-history-table th:nth-child(3),
+.homeowner-history-table td:nth-child(3) {
+  width: 11%;
+}
+
+.homeowner-history-table th:nth-child(4),
 .homeowner-history-table td:nth-child(4) {
-  min-width: 150px;
+  width: 18%;
 }
 
-/* Pin the Status column so it stays visible when the table scrolls
-   horizontally on narrower screens — it's the one field a secretary
-   needs to see at a glance, so it shouldn't require scrolling to find. */
+.homeowner-history-table th:nth-child(5),
+.homeowner-history-table td:nth-child(5) {
+  width: 9%;
+}
+
+.homeowner-history-table th:nth-child(6),
+.homeowner-history-table td:nth-child(6) {
+  width: 13%;
+}
+
+.homeowner-history-table th:nth-child(7),
+.homeowner-history-table td:nth-child(7) {
+  width: 13%;
+}
+
+.homeowner-history-table th:nth-child(8),
+.homeowner-history-table td:nth-child(8) {
+  width: 13%;
+}
+
+.homeowner-history-table td:nth-child(3),
+.homeowner-history-table td:nth-child(4),
+.homeowner-history-table td:nth-child(5) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pin the Status column so it stays visible in the rare case content still
+   overflows (e.g. a very narrow window) — harmless no-op otherwise since
+   the fixed-width columns above are sized to fit without scrolling. */
 .homeowner-history-table th:last-child,
 .homeowner-history-table td:last-child {
   position: sticky;
   right: 0;
   background: #fff;
-  box-shadow: -8px 0 12px -8px rgba(20, 60, 100, 0.18);
 }
 
 .homeowner-history-table thead th:last-child {
