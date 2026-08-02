@@ -626,6 +626,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     <div className="contact-page">
       <div className="contact-header">
         <div>
+          <p className="contact-eyebrow">Secretary workspace</p>
           <h1>Contact Manager</h1>
           <p>Homeowner directory and contact information.</p>
         </div>

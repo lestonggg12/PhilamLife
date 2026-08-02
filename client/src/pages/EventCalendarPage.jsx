@@ -519,6 +519,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     <div className="cal-page">
       <header className="cal-header">
         <div>
+          <p className="cal-eyebrow">Secretary workspace</p>
           <h1>Event Calendar</h1>
           <p>Schedule and manage community meetings and events.</p>
         </div>
@@ -583,10 +584,6 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           <option value="past">Past Events</option>
           <option value="all">All Events</option>
         </select>
-      </div>
-
-      <div className="cal-result-count">
-        Showing {filteredEvents.length} of {events.length} events
       </div>
 
       {pageError && <p className="cal-message cal-error">{pageError}</p>}

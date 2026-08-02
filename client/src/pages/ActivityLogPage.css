@@ -16,23 +16,32 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 24px 26px;
-  border: 2px solid #78a2d2;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(120, 162, 210, 0.1), rgba(254, 255, 175, 0.24));
-  box-shadow: 0 4px 15px rgba(120, 162, 210, 0.1);
+  gap: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(20, 100, 160, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 30px rgba(20, 100, 160, 0.08);
+}
+
+.activity-eyebrow {
+  margin: 0 0 4px;
+  color: #1464a0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .header-content h1 {
-  margin: 0 0 7px;
-  color: #25364a;
-  font-size: 28px;
+  margin: 0;
+  color: #071e30;
+  font-size: 30px;
 }
 
-.header-content p {
-  margin: 0;
-  color: #6d7c8b;
+.header-content p:not(.activity-eyebrow) {
+  margin: 5px 0 0;
+  color: #648096;
   font-size: 14px;
 }
 
@@ -90,7 +99,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 22px 16px;
+  padding: 18px 20px 14px;
 }
 
 .activity-day-title-row {

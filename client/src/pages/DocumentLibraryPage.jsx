@@ -457,19 +457,22 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     <div className="doc-library">
       <div className="doc-header">
         <div>
+          <p className="doc-eyebrow">Secretary workspace</p>
           <h1>Document Library</h1>
           <p>Store and download official HOA documents securely.</p>
         </div>
 
-        <button
-          type="button"
-          className="doc-refresh-button"
-          onClick={() => loadDocuments(true)}
-          disabled={refreshing}
-        >
-          <RefreshCw size={17} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="doc-header-actions">
+          <button
+            type="button"
+            className="doc-refresh-button"
+            onClick={() => loadDocuments(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw size={17} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       <div className="doc-summary">

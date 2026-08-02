@@ -351,6 +351,7 @@ export default function ActivityLogPage() {
     <div className="activity-log-page">
       <div className="activity-header">
         <div className="header-content">
+          <p className="activity-eyebrow">Secretary workspace</p>
           <h1>Activity Log</h1>
           <p>Daily system activity and calendar-based archive</p>
         </div>

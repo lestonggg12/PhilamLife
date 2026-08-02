@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronRight, RefreshCw } from '../components/Icons'
+import { Calendar, ChevronRight, Eye, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -102,6 +102,29 @@ function getCalendarDays(monthKey) {
   const gridStart = addDays(firstDateKey, -firstDay)
 
   return Array.from({ length: 42 }, (_, index) => addDays(gridStart, index))
+}
+
+// coverage_period is saved as "Purpose — Details". Split it back apart
+// so the table can show the purpose as a "Type" badge and the rest as
+// plain payment-detail text, matching the Official Receipts table.
+function splitCoverage(coverage) {
+  if (!coverage) return { type: '', details: '' }
+  const separatorIndex = coverage.indexOf('—')
+  if (separatorIndex === -1) return { type: coverage, details: '' }
+  return {
+    type: coverage.slice(0, separatorIndex).trim(),
+    details: coverage.slice(separatorIndex + 1).trim(),
+  }
+}
+
+function typeBadgeClass(type) {
+  const key = type.toLowerCase()
+  if (key.includes('dues')) return 'dues'
+  if (key.includes('assessment')) return 'assessment'
+  if (key.includes('penalty') || key.includes('late')) return 'penalty'
+  if (key.includes('sticker') || key.includes('id fee')) return 'sticker'
+  if (key.includes('document') || key.includes('certification')) return 'document'
+  return 'other'
 }
 
 export default function PaymentsPage({ user: suppliedUser }) {
@@ -488,15 +511,18 @@ export default function PaymentsPage({ user: suppliedUser }) {
     <div className="payments-page">
       <header className="payments-header">
         <div>
+          <p className="payments-eyebrow">Secretary workspace</p>
           <h1>Payments</h1>
           <p>Record homeowner payments and issue official receipts.</p>
         </div>
 
-        {canManagePayments && (
-          <button className="payments-primary" type="button" onClick={openForm}>
-            + Record Payment
-          </button>
-        )}
+        <div className="payments-header-actions">
+          {canManagePayments && (
+            <button className="payments-primary" type="button" onClick={openForm}>
+              + Record Payment
+            </button>
+          )}
+        </div>
       </header>
 
       {pageError && <p className="payments-error">{pageError}</p>}
@@ -664,10 +690,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
             <thead>
               <tr>
                 <th>Receipt No.</th>
-                <th>Date</th>
+                <th>Date Issued</th>
+                <th>Type</th>
                 <th>Homeowner</th>
-                <th>Block / Lot</th>
-                <th>Coverage</th>
+                <th>Payment Details</th>
                 <th>Amount</th>
                 <th>Method</th>
                 <th>Status</th>
@@ -686,27 +712,43 @@ export default function PaymentsPage({ user: suppliedUser }) {
                   </td>
                 </tr>
               ) : (
-                selectedDayPayments.map((payment) => (
-                  <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
-                    <td><strong>{payment.receipt_number}</strong></td>
-                    <td>{dateTime.format(new Date(payment.paid_at))}</td>
-                    <td>{payment.homeowner_name}</td>
-                    <td>{payment.block_name}, {payment.lot_number}</td>
-                    <td>{payment.coverage_period}</td>
-                    <td className={payment.status === 'Voided' ? 'payments-amount-voided' : ''}>{peso.format(payment.amount_paid)}</td>
-                    <td>{payment.payment_method}</td>
-                    <td>
-                      <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
-                        {payment.status === 'Voided' ? 'Voided' : 'Completed'}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
-                        View receipt
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                selectedDayPayments.map((payment) => {
+                  const { type, details } = splitCoverage(payment.coverage_period)
+
+                  return (
+                    <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
+                      <td><strong>{payment.receipt_number}</strong></td>
+                      <td>{dateTime.format(new Date(payment.paid_at))}</td>
+                      <td>
+                        {type && (
+                          <span className={`payments-type-badge ${typeBadgeClass(type)}`}>
+                            {type}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <strong>{payment.homeowner_name}</strong>
+                        <small>{payment.block_name}, {payment.lot_number}</small>
+                      </td>
+                      <td>{details}</td>
+                      <td className={`payments-amount ${payment.status === 'Voided' ? 'payments-amount-voided' : ''}`}>
+                        {peso.format(payment.amount_paid)}
+                      </td>
+                      <td>{payment.payment_method}</td>
+                      <td>
+                        <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
+                          {payment.status === 'Voided' ? 'Voided' : 'Completed'}
+                        </span>
+                      </td>
+                      <td className="payments-receipt-cell">
+                        <button className="payments-view-btn" type="button" onClick={() => setReceipt(payment)}>
+                          <Eye size={16} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

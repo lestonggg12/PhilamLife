@@ -843,18 +843,15 @@ export default function OfficialReceiptsPage() {
 
         <div className="official-receipts-filters">
           <label className="official-search-field">
-            <span>Search</span>
-
             <input
               type="search"
               value={search}
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              placeholder="
-                Receipt no., homeowner,
-                property, or purpose
-              "
+              placeholder="Enter Name of Homeowner"
+              aria-label="Enter name of homeowner"
+              className="official-search-input"
             />
           </label>
 
