@@ -274,7 +274,7 @@ export default function HomeownersPage() {
         category:
           regularPaymentCategory(payment) === 'dues'
             ? 'Association Dues'
-            : 'Other Payment',
+            : 'Other',
         receipt: payment.receipt_number || '—',
         description: payment.coverage_period || payment.note || 'Payment',
         amount: Number(payment.amount_paid ?? payment.amount) || 0,
@@ -294,7 +294,7 @@ export default function HomeownersPage() {
       return {
         id: `service-${transaction.id}`,
         kind: 'services',
-        category: 'Amenity / Service',
+        category: 'Amenities',
         receipt: transaction.receipt_number || '—',
         description: transaction.service_name || 'Amenity or service',
         amount: Number(transaction.amount_paid) || 0,
