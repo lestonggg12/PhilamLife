@@ -273,11 +273,13 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     }
 
     const payload = {
+      property_id: selectedHomeowner?.id ?? null,
       homeowner_name: paymentData.homeowner,
       block_name: paymentData.block,
       lot_number: paymentData.lot,
       coverage_period: form.period,
       previous_balance: paymentData.amount,
+      amount: form.amount,
       amount_paid: form.amount,
       payment_method: form.method,
       reference_number: form.referenceNumber || null,
