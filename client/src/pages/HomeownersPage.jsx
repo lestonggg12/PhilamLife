@@ -7,7 +7,6 @@ import {
   Home,
   Mail,
   Phone,
-  Printer,
   RefreshCw,
   Search,
   Users,
@@ -25,6 +24,18 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
   timeStyle: 'short',
   timeZone: 'Asia/Manila',
 })
+
+const manilaYearMonth = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric',
+  month: '2-digit',
+  timeZone: 'Asia/Manila',
+})
+
+const monthNames = Array.from({ length: 12 }, (_, month) =>
+  new Intl.DateTimeFormat('en-PH', { month: 'long' }).format(
+    new Date(2024, month, 1),
+  ),
+)
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 const normalizeLot = (value) => normalize(value).replace(/^lot\s*/, '')
@@ -62,6 +73,40 @@ function formatDate(value) {
   if (!value) return '—'
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? '—' : dateTime.format(parsed)
+}
+
+function getManilaYearMonth(value) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+
+  const parts = Object.fromEntries(
+    manilaYearMonth
+      .formatToParts(parsed)
+      .filter(({ type }) => type === 'year' || type === 'month')
+      .map(({ type, value: partValue }) => [type, Number(partValue)]),
+  )
+
+  return parts.year && parts.month
+    ? { year: parts.year, month: parts.month - 1 }
+    : null
+}
+
+function trackerStatus(records) {
+  if (!records.length) {
+    return { key: 'empty', label: 'No payment recorded' }
+  }
+
+  const statuses = records.map((record) => normalize(record.statusKey))
+  if (statuses.some((status) => status === 'partial' || status === 'pending')) {
+    return { key: 'partial', label: 'Partial / Pending' }
+  }
+
+  if (statuses.every((status) => status === 'paid' || status === 'completed')) {
+    return { key: 'paid', label: 'Paid' }
+  }
+
+  return { key: 'recorded', label: 'Recorded' }
 }
 
 function paymentMatchesProperty(payment, property) {
@@ -117,10 +162,16 @@ export default function HomeownersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [trackerOpen, setTrackerOpen] = useState(false)
+  const [trackerView, setTrackerView] = useState('monthly')
+  const [trackerYear, setTrackerYear] = useState(() =>
+    getManilaYearMonth(new Date())?.year || new Date().getFullYear(),
+  )
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
   const searchWrapRef = useRef(null)
+  const trackerRef = useRef(null)
 
   useEffect(() => {
     loadHomeowners()
@@ -128,6 +179,11 @@ export default function HomeownersPage() {
 
   useEffect(() => {
     setActiveTab('overview')
+    setTrackerOpen(false)
+    setTrackerView('monthly')
+    setTrackerYear(
+      getManilaYearMonth(new Date())?.year || new Date().getFullYear(),
+    )
   }, [homeownerId])
 
   // Close the results dropdown on outside click, not just on blur, so it
@@ -303,6 +359,7 @@ export default function HomeownersPage() {
         amount: Number(payment.amount_paid ?? payment.amount) || 0,
         remaining,
         method: payment.payment_method || '—',
+        statusKey: normalize(payment.status),
         status: storedStatusLabel(payment.status),
         paidAt: payment.paid_at,
       }
@@ -323,6 +380,7 @@ export default function HomeownersPage() {
         amount: Number(transaction.amount_paid) || 0,
         remaining,
         method: transaction.payment_method || '—',
+        statusKey: normalize(transaction.payment_status),
         status: storedStatusLabel(transaction.payment_status),
         paidAt: transaction.paid_at,
       }
@@ -365,6 +423,98 @@ export default function HomeownersPage() {
     if (activeTab === 'other') return history.filter((item) => item.kind === 'other')
     return history
   }, [activeTab, history])
+
+  const trackerRecords = useMemo(
+    () =>
+      history
+        .map((record) => ({
+          ...record,
+          trackerDate: getManilaYearMonth(record.paidAt),
+        }))
+        .filter(
+          (record) => record.trackerDate && record.statusKey !== 'voided',
+        ),
+    [history],
+  )
+
+  const trackerYears = useMemo(() => {
+    const currentYear = getManilaYearMonth(new Date())?.year || new Date().getFullYear()
+    return Array.from(
+      new Set([
+        currentYear,
+        ...trackerRecords.map((record) => record.trackerDate.year),
+      ]),
+    ).sort((left, right) => right - left)
+  }, [trackerRecords])
+
+  const monthlyTracker = useMemo(
+    () =>
+      monthNames.map((month, monthIndex) => {
+        const records = trackerRecords.filter(
+          (record) =>
+            record.trackerDate.year === trackerYear &&
+            record.trackerDate.month === monthIndex,
+        )
+        const categoryTotal = (kind) =>
+          records
+            .filter((record) => record.kind === kind)
+            .reduce((sum, record) => sum + record.amount, 0)
+
+        const dues = categoryTotal('dues')
+        const services = categoryTotal('services')
+        const other = categoryTotal('other')
+
+        return {
+          month,
+          records,
+          status: trackerStatus(records),
+          dues,
+          services,
+          other,
+          total: dues + services + other,
+        }
+      }),
+    [trackerRecords, trackerYear],
+  )
+
+  const annualTracker = useMemo(
+    () =>
+      trackerYears.map((year) => {
+        const records = trackerRecords.filter(
+          (record) => record.trackerDate.year === year,
+        )
+        const categoryTotal = (kind) =>
+          records
+            .filter((record) => record.kind === kind)
+            .reduce((sum, record) => sum + record.amount, 0)
+        const dues = categoryTotal('dues')
+        const services = categoryTotal('services')
+        const other = categoryTotal('other')
+
+        return {
+          year,
+          months: new Set(records.map((record) => record.trackerDate.month)).size,
+          transactions: records.length,
+          dues,
+          services,
+          other,
+          total: dues + services + other,
+        }
+      }),
+    [trackerRecords, trackerYears],
+  )
+
+  function togglePaymentTracker() {
+    setTrackerOpen((isOpen) => {
+      const nextOpen = !isOpen
+      if (nextOpen) {
+        window.requestAnimationFrame(() => {
+          trackerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+      }
+      return nextOpen
+    })
+  }
 
   const selectedStatus = homeownerStatus(selectedPayments)
 
@@ -511,8 +661,14 @@ export default function HomeownersPage() {
                 <button type="button" onClick={() => navigate('/payments')}>
                   <CreditCard size={16} /> Record Payment
                 </button>
-                <button type="button" onClick={() => window.print()}>
-                  <Printer size={16} /> Print Statement
+               <button
+                type="button"
+                className={trackerOpen ? 'is-tracker-open' : ''}
+                aria-expanded={trackerOpen}
+                aria-controls="homeowner-payment-tracker"
+                onClick={togglePaymentTracker}
+                >
+                <Calendar size={16} /> {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
                 </button>
               </div>
             </section>
@@ -539,6 +695,123 @@ export default function HomeownersPage() {
                 <small>Across all categories</small>
               </article>
             </section>
+
+            {trackerOpen && (
+              <section
+                id="homeowner-payment-tracker"
+                ref={trackerRef}
+                className="homeowner-payment-tracker"
+                aria-label="Monthly and annual payment tracker"
+              >
+                <div className="homeowner-tracker-header">
+                  <div className="homeowner-section-heading">
+                    <Calendar size={18} />
+                    <div>
+                      <h3>Payment Tracker</h3>
+                      <p>Monthly and annual payments recorded for this homeowner.</p>
+                    </div>
+                  </div>
+                  <div className="homeowner-tracker-controls">
+                    <div className="homeowner-tracker-switch" aria-label="Tracker view">
+                      <button
+                        type="button"
+                        className={trackerView === 'monthly' ? 'is-active' : ''}
+                        aria-pressed={trackerView === 'monthly'}
+                        onClick={() => setTrackerView('monthly')}
+                      >
+                        Monthly
+                      </button>
+                      <button
+                        type="button"
+                        className={trackerView === 'annual' ? 'is-active' : ''}
+                        aria-pressed={trackerView === 'annual'}
+                        onClick={() => setTrackerView('annual')}
+                      >
+                        Annual
+                      </button>
+                    </div>
+                    {trackerView === 'monthly' && (
+                      <label className="homeowner-tracker-year">
+                        <span>Year</span>
+                        <select
+                          value={trackerYear}
+                          onChange={(event) => setTrackerYear(Number(event.target.value))}
+                        >
+                          {trackerYears.map((year) => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                <div className="homeowner-tracker-table-wrap">
+                  {trackerView === 'monthly' ? (
+                    <table className="homeowner-tracker-table">
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th>Status</th>
+                          <th>Payments</th>
+                          <th>Association Dues</th>
+                          <th>Amenities &amp; Services</th>
+                          <th>Other</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyTracker.map((month) => (
+                          <tr key={month.month}>
+                            <td><strong>{month.month}</strong></td>
+                            <td>
+                              <span className={`homeowner-tracker-status tracker-${month.status.key}`}>
+                                {month.status.label}
+                              </span>
+                            </td>
+                            <td>{month.records.length}</td>
+                            <td className="homeowner-number">{peso.format(month.dues)}</td>
+                            <td className="homeowner-number">{peso.format(month.services)}</td>
+                            <td className="homeowner-number">{peso.format(month.other)}</td>
+                            <td className="homeowner-tracker-total">{peso.format(month.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <table className="homeowner-tracker-table annual">
+                      <thead>
+                        <tr>
+                          <th>Year</th>
+                          <th>Months with Payments</th>
+                          <th>Payments</th>
+                          <th>Association Dues</th>
+                          <th>Amenities &amp; Services</th>
+                          <th>Other</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {annualTracker.map((year) => (
+                          <tr key={year.year}>
+                            <td><strong>{year.year}</strong></td>
+                            <td>{year.months} of 12</td>
+                            <td>{year.transactions}</td>
+                            <td className="homeowner-number">{peso.format(year.dues)}</td>
+                            <td className="homeowner-number">{peso.format(year.services)}</td>
+                            <td className="homeowner-number">{peso.format(year.other)}</td>
+                            <td className="homeowner-tracker-total">{peso.format(year.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <p className="homeowner-tracker-note">
+                  Voided records are excluded. A blank month means no payment was recorded; it does not automatically mean an unpaid balance.
+                </p>
+              </section>
+            )}
 
             <nav className="homeowner-tabs" aria-label="Homeowner profile sections">
               {[
