@@ -41,6 +41,12 @@ export default function Sidebar({ user }) {
       roles: ['admin', 'secretary', 'treasurer'],
     },
     {
+      name: 'Homeowners',
+      path: '/homeowners',
+      icon: Users,
+      roles: ['admin', 'secretary', 'treasurer'],
+    },
+    {
       name: 'Document Library',
       path: '/documents',
       icon: FileArchive,

@@ -27,6 +27,7 @@ import ActivityLogPage from './pages/ActivityLogPage'
 import DocumentLibraryPage from './pages/DocumentLibraryPage'
 import EventCalendarPage from './pages/EventCalendarPage'
 import ContactManagerPage from './pages/ContactManagerPage'
+import HomeownersPage from './pages/HomeownersPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { OrganizationProvider } from './context/OrganizationContext'
@@ -358,6 +359,19 @@ function AppContent() {
         />
 
         <Route
+          path="/homeowners/:homeownerId?"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['admin', 'secretary', 'treasurer']}
+            >
+              <HomeownersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/system-settings"
           element={
             <ProtectedRoute
@@ -389,5 +403,3 @@ function App() {
 }
 
 export default App
-
-
