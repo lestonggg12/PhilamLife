@@ -6,9 +6,11 @@ import {
   FileText,
   Plus,
   RefreshCw,
+  Trash2,
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import ActionDialog from '../components/ActionDialog'
 
 const BUCKET = 'hoa-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -98,6 +100,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [formError, setFormError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [downloadingId, setDownloadingId] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageDocuments = role === 'secretary'
@@ -355,6 +359,65 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     setDownloadingId(null)
   }
 
+  function requestDeleteDocument(document) {
+    if (!canManageDocuments) return
+    setPendingDelete(document)
+  }
+
+  async function deleteDocument(document) {
+    setPendingDelete(null)
+    setDeletingId(document.id)
+    setPageError('')
+    setNotice('')
+
+    // Remove the actual file from Storage first — that's what frees up
+    // space against the 1 GB limit. The metadata row alone takes up
+    // negligible space, so removing only that wouldn't help.
+    const { error: storageError } = await supabase.storage
+      .from(BUCKET)
+      .remove([document.storage_path])
+
+    if (storageError) {
+      setPageError(`Could not delete file: ${storageError.message}`)
+      setDeletingId(null)
+      return
+    }
+
+    const { error: metadataError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', document.id)
+
+    if (metadataError) {
+      setPageError(
+        `The file was removed, but its record could not be deleted: ${metadataError.message}`,
+      )
+      setDeletingId(null)
+      return
+    }
+
+    if (currentUser?.id) {
+      const { error: activityError } = await supabase
+        .from('activity_log')
+        .insert({
+          user_id: currentUser.id,
+          action: 'Document Deleted',
+          target: `${document.title} — ${document.original_file_name} (by ${actorName})`,
+        })
+
+      if (activityError) {
+        console.warn(
+          'Document deleted, but activity logging failed:',
+          activityError.message,
+        )
+      }
+    }
+
+    setDocuments((current) => current.filter((doc) => doc.id !== document.id))
+    setDeletingId(null)
+    setNotice(`“${document.title}” was deleted and its storage space freed.`)
+  }
+
   const filteredDocuments = useMemo(() => {
     const term = search.trim().toLowerCase()
 
@@ -505,20 +568,49 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="doc-download-button"
-                onClick={() => downloadDocument(document)}
-                disabled={downloadingId === document.id}
-                aria-label={`Download ${document.title}`}
-              >
-                <Download size={17} />
-                {downloadingId === document.id ? 'Downloading...' : 'Download'}
-              </button>
+              <div className="doc-actions">
+                <button
+                  type="button"
+                  className="doc-download-button"
+                  onClick={() => downloadDocument(document)}
+                  disabled={downloadingId === document.id}
+                  aria-label={`Download ${document.title}`}
+                >
+                  <Download size={17} />
+                  {downloadingId === document.id ? 'Downloading...' : 'Download'}
+                </button>
+
+                {canManageDocuments && (
+                  <button
+                    type="button"
+                    className="doc-delete-button"
+                    onClick={() => requestDeleteDocument(document)}
+                    disabled={deletingId === document.id}
+                    aria-label={`Delete ${document.title}`}
+                    title="Delete this document"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                )}
+              </div>
             </article>
           ))
         )}
       </div>
+
+      <ActionDialog
+        open={!!pendingDelete}
+        title="Delete Document?"
+        message={
+          pendingDelete
+            ? `Delete "${pendingDelete.title}" (${pendingDelete.original_file_name})? This cannot be undone and will free up ${formatFileSize(pendingDelete.file_size)} of storage.`
+            : ''
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => deleteDocument(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       {showUpload && (
         <div
