@@ -1,4 +1,4 @@
-.payments-page { padding: 24px; color: #172033; }
+.payments-page { padding: 24px; color: #172033; min-width: 0; max-width: 100%; overflow-x: hidden; }
 .payments-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
 .payments-header h1 { margin: 0 0 4px; font-size: 1.65rem; }
 .payments-header p, .payment-modal-heading p { margin: 0; color: #667085; }
@@ -7,11 +7,34 @@
 .payments-primary:hover { background: #10517f; }
 .payments-primary:disabled, .payments-secondary:disabled { opacity: .6; cursor: not-allowed; }
 .payments-secondary { border: 1px solid #d0d5dd; border-radius: 8px; padding: 10px 16px; background: #fff; color: #344054; font-weight: 600; }
-.payments-table-card { overflow-x: auto; border: 1px solid #eaecf0; border-radius: 12px; background: #fff; box-shadow: 0 4px 18px rgba(16, 24, 40, .05); }
+.payments-table-card {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(16, 24, 40, .05);
+}
 .payments-table { width: 100%; min-width: 980px; border-collapse: collapse; }
 .payments-table th { padding: 12px 14px; text-align: left; color: #667085; background: #f9fafb; border-bottom: 1px solid #eaecf0; font-size: .76rem; text-transform: uppercase; }
 .payments-table td { padding: 13px 14px; border-bottom: 1px solid #f0f1f3; font-size: .9rem; }
 .payments-table tr:last-child td { border-bottom: 0; }
+
+/* Keep the action column reachable even when the table is scrolled
+   horizontally, since it's the only interactive control per row. */
+.payments-table th:last-child,
+.payments-table td:last-child {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  box-shadow: -8px 0 12px -10px rgba(16, 24, 40, .18);
+}
+.payments-table th:last-child { background: #f9fafb; }
+.payments-table tr.payments-row-voided td:last-child { background: #fdfdfe; }
+
 .payments-link { border: 0; padding: 4px; background: none; color: #1464a0; font-weight: 700; white-space: nowrap; }
 .payments-empty { padding: 42px !important; text-align: center; color: #98a2b3; }
 

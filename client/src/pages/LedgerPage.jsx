@@ -14,6 +14,8 @@ const date = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
+const TABLE_COLUMN_COUNT = 8
+
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 export default function LedgerPage({ user: suppliedUser }) {
@@ -182,14 +184,13 @@ export default function LedgerPage({ user: suppliedUser }) {
           <h1>Ledger</h1>
           <p>Track homeowner dues, payments, and outstanding balances.</p>
         </div>
-
-        {canManageHomeowners && (
-          <div className="ledger-header-actions">
-          </div>
-        )}
       </div>
 
-      {pageError && <p className="ledger-load-error">{pageError}</p>}
+      {pageError && (
+        <p className="ledger-load-error" role="alert">
+          {pageError}
+        </p>
+      )}
 
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
@@ -207,38 +208,64 @@ export default function LedgerPage({ user: suppliedUser }) {
       </div>
 
       <div className="ledger-toolbar">
-        <input
-          type="search"
-          placeholder="Search by name or lot..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="ledger-search"
-        />
-        <select value={blockFilter} onChange={(event) => setBlockFilter(event.target.value)} className="ledger-select" disabled={loading}>
+        <div className="ledger-search-wrap">
+          <input
+            type="search"
+            placeholder="Search by name or lot..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="ledger-search"
+            aria-label="Search the ledger by homeowner name or lot"
+          />
+        </div>
+        <select
+          value={blockFilter}
+          onChange={(event) => setBlockFilter(event.target.value)}
+          className="ledger-select"
+          disabled={loading}
+          aria-label="Filter by block"
+        >
           <option value="all">{loading ? 'Loading blocks...' : 'All Blocks'}</option>
           {blocks.map((block) => <option key={block.id} value={block.name}>{block.name}</option>)}
         </select>
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="ledger-select">
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="ledger-select"
+          aria-label="Filter by payment status"
+        >
           <option value="all">All Statuses</option>
           <option value="Paid">Paid</option>
           <option value="Partial">Partial</option>
           <option value="Pending">Pending</option>
           <option value="Overdue">Overdue</option>
         </select>
+        <span className="ledger-result-count">
+          {loading ? '—' : `${filtered.length} of ${ledgerEntries.length}`}
+        </span>
       </div>
 
       <div className="ledger-table-wrap glass-card">
         <table className="ledger-table">
           <thead>
-            <tr><th>Homeowner</th><th>Block / Lot</th><th>Due</th><th>Paid</th><th>Balance</th><th>Late Penalty</th><th>Last Payment</th><th>Status</th></tr>
+            <tr>
+              <th scope="col">Homeowner</th>
+              <th scope="col">Block / Lot</th>
+              <th scope="col">Due</th>
+              <th scope="col">Paid</th>
+              <th scope="col">Balance</th>
+              <th scope="col">Late Penalty</th>
+              <th scope="col">Last Payment</th>
+              <th scope="col">Status</th>
+            </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="7" className="ledger-empty">Loading ledger...</td></tr>
+              <tr><td colSpan={TABLE_COLUMN_COUNT} className="ledger-empty">Loading ledger...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan="7" className="ledger-empty">No homeowner records found.</td></tr>
+              <tr><td colSpan={TABLE_COLUMN_COUNT} className="ledger-empty">No homeowner records found.</td></tr>
             ) : filtered.map((entry) => (
-              <tr key={entry.id}>
+              <tr key={entry.id} className={`ledger-row-${entry.status.toLowerCase()}`}>
                 <td><strong>{entry.name}</strong></td>
                 <td>{entry.block}, {entry.lot}</td>
                 <td>{peso.format(entry.dueAmount)}</td>

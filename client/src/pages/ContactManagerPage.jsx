@@ -273,14 +273,18 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       return
     }
 
+    // Only currently-active occupants block a lot from being reused. Once a
+    // homeowner has been marked Moved/Transferred, the lot is vacant again
+    // and should be assignable to a new homeowner.
     const lotIsOccupied = contacts.some(
       (contact) =>
         normalize(contact.block) === normalize(blockName) &&
-        Number(contact.lot_number) === lotNumber,
+        Number(contact.lot_number) === lotNumber &&
+        normalize(contact.homeowner_status || 'active') === 'active',
     )
 
     if (lotIsOccupied) {
-      setHomeownerFormError('That block and lot already has a homeowner.')
+      setHomeownerFormError('That block and lot already has an active homeowner.')
       return
     }
 
@@ -295,14 +299,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         lot_number: lotNumber,
       })
       .select(
-        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at',
+        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
       )
       .single()
 
     if (error) {
       setHomeownerFormError(
         error.code === '23505'
-          ? 'That block and lot already has a homeowner.'
+          ? 'That block and lot already has a homeowner record. Check Manage Blocks or search all statuses.'
           : error.message,
       )
       setSavingHomeowner(false)
@@ -390,7 +394,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       })
       .eq('id', selectedContact.id)
       .select(
-        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at',
+        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
       )
       .single()
 
@@ -461,7 +465,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     }
 
     if (!transferForm.effectiveDate) {
-      setTransferError('Enter the effective date.')
+      setTransferError('Enter the Effective date.')
       return
     }
 
@@ -497,7 +501,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       const { error: activityError } = await supabase.from('activity_log').insert({
         user_id: currentUser.id,
         action: `Homeowner ${transferForm.status === 'moved' ? 'Moved' : 'Transferred'}`,
-        target: `${contact.homeowner_name} — ${contact.block}, Lot ${contact.lot_number}; effective ${transferForm.effectiveDate} (by ${actorName})`,
+        target: `${contact.homeowner_name} — ${contact.block}, Lot ${contact.lot_number}; Effective ${transferForm.effectiveDate} (by ${actorName})`,
       })
 
       if (activityError) {
@@ -527,7 +531,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
     if (homeownersInBlock > 0) {
       setDeleteBlockError(
-        `${block.name} cannot be deleted — ${homeownersInBlock} homeowner(s) are still assigned to it. Delete or reassign them first.`,
+        `${block.name} cannot be deleted — ${homeownersInBlock} homeowner record(s) (active or historical) are still assigned to it. Delete or reassign them first.`,
       )
       return
     }
@@ -653,7 +657,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             onClick={() => loadContacts(true)}
             disabled={refreshing}
           >
-            <RefreshCw size={17} />
+            <RefreshCw size={17} className={refreshing ? 'contact-spin' : ''} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
@@ -675,14 +679,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       </div>
 
       <div className="contact-toolbar">
-        <input
-          type="search"
-          placeholder="Search by name, block, lot, phone, or email..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="contact-search"
-          aria-label="Search homeowner contacts"
-        />
+        <div className="contact-search-wrap">
+          <input
+            type="search"
+            placeholder="Search by name, block, lot, phone, or email..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="contact-search"
+            aria-label="Search homeowner contacts"
+          />
+        </div>
         <select
           className="contact-status-filter"
           value={statusFilter}
@@ -699,10 +705,20 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </span>
       </div>
 
-      {pageError && <p className="contact-message contact-error">{pageError}</p>}
-      {notice && <p className="contact-message contact-success">{notice}</p>}
+      {pageError && (
+        <p className="contact-message contact-error" role="alert">
+          {pageError}
+        </p>
+      )}
+      {notice && (
+        <p className="contact-message contact-success" role="status" aria-live="polite">
+          {notice}
+        </p>
+      )}
       {transferError && !pendingTransferContact && (
-        <p className="contact-message contact-error">{transferError}</p>
+        <p className="contact-message contact-error" role="alert">
+          {transferError}
+        </p>
       )}
 
       {loading ? (
@@ -769,33 +785,47 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                   </div>
                 </div>
 
-                <div className="contact-card-actions">
-                  {canManageContacts && isActive && (
-                    <button
-                      type="button"
-                      className="contact-edit-button"
-                      onClick={() => openContactForm(contact)}
-                    >
-                      <Edit size={16} />
-                      {hasContactDetails
-                        ? 'Edit Contact Details'
-                        : 'Add Contact Details'}
-                    </button>
-                  )}
-                  {canManageContacts && isActive && (
-                    <button
-                      type="button"
-                      className="contact-transfer-button"
-                      onClick={() => requestTransferContact(contact)}
-                      disabled={transferringContactId === contact.id}
-                      aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
-                      title="Mark as moved or transferred"
-                    >
-                      <FileArchive size={16} />
-                      Move / Transfer
-                    </button>
-                  )}
-                </div>
+                {isActive ? (
+                  canManageContacts && (
+                    <div className="contact-card-actions">
+                      <button
+                        type="button"
+                        className="contact-edit-button"
+                        onClick={() => openContactForm(contact)}
+                      >
+                        <Edit size={16} />
+                        {hasContactDetails
+                          ? 'Edit Contact Details'
+                          : 'Add Contact Details'}
+                      </button>
+                      <button
+                        type="button"
+                        className="contact-transfer-button"
+                        onClick={() => requestTransferContact(contact)}
+                        disabled={transferringContactId === contact.id}
+                        aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
+                        title="Mark as moved or transferred"
+                      >
+                        <FileArchive size={16} />
+                        Move / Transfer
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <div className="contact-card-history-note">
+                    <span className="contact-card-history-label">
+                      {statusLabel}
+                      {contact.status_effective_date
+                        ? ` since ${contact.status_effective_date}`
+                        : ''}
+                    </span>
+                    {contact.status_reason && (
+                      <span className="contact-card-history-reason">
+                        {contact.status_reason}
+                      </span>
+                    )}
+                  </div>
+                )}
               </article>
             )
           })}
@@ -957,6 +987,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="manage-blocks-title"
+            onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="contact-modal-heading">
               <div>
@@ -1101,6 +1132,12 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               <p className="contact-form-error">{homeownerFormError}</p>
             )}
 
+            {blocks.length === 0 && !homeownerFormError && (
+              <p className="contact-form-note">
+                No blocks exist yet — use "+ Add Block" in the dropdown above to create one.
+              </p>
+            )}
+
             <div className="contact-modal-actions">
               <button
                 type="button"
@@ -1203,6 +1240,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="contact-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="contact-modal-heading">
               <div>

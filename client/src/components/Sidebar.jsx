@@ -50,7 +50,7 @@ export default function Sidebar({ user }) {
       name: 'Document Library',
       path: '/documents',
       icon: FileArchive,
-      roles: ['secretary'],
+      roles: ['admin', 'secretary'],
     },
   ].filter((item) => item.roles.includes(role))
 
