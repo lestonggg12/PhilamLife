@@ -132,6 +132,22 @@
   outline: 3px solid rgba(20, 100, 160, 0.12);
 }
 
+.contact-status-filter {
+  min-width: 168px;
+  padding: 11px 36px 11px 13px;
+  border: 1px solid #c8d5df;
+  border-radius: 9px;
+  background: #fff;
+  color: #2a4659;
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.contact-status-filter:focus {
+  border-color: #1464a0;
+  outline: 3px solid rgba(20, 100, 160, 0.12);
+}
+
 .contact-result-count {
   flex-shrink: 0;
   color: #6b7280;
@@ -203,6 +219,32 @@
   font-size: 0.84rem;
 }
 
+.contact-status-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.contact-status-badge.is-active {
+  background: #e7f7ef;
+  color: #14734b;
+}
+
+.contact-status-badge.is-moved {
+  background: #fff4dc;
+  color: #8b5c0a;
+}
+
+.contact-status-badge.is-transferred {
+  background: #eaf1fb;
+  color: #295c91;
+}
+
 .contact-details {
   display: grid;
   gap: 10px;
@@ -250,6 +292,32 @@
 
 .contact-edit-button:hover {
   background: #10517f;
+}
+
+.contact-transfer-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 1px solid #d6a23e;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #81570b;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.78rem;
+  transition: all 0.2s ease;
+}
+
+.contact-transfer-button:hover:not(:disabled) {
+  border-color: #bd8120;
+  background: #fff2d3;
+}
+
+.contact-transfer-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .contact-delete-button {
@@ -556,6 +624,41 @@
   min-width: 0;
 }
 
+.contact-transfer-modal {
+  width: min(540px, 100%);
+}
+
+.contact-transfer-homeowner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 17px;
+  padding: 12px 14px;
+  border: 1px solid #c7dceb;
+  border-radius: 9px;
+  background: #f3f8fc;
+}
+
+.contact-transfer-homeowner strong {
+  color: #173f5f;
+  font-size: 0.92rem;
+}
+
+.contact-transfer-homeowner span {
+  color: #6b7f8e;
+  font-size: 0.8rem;
+}
+
+.contact-transfer-note {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7e7;
+  color: #73551d;
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+
 .contact-email-modal {
   width: min(580px, 100%);
   max-height: min(760px, calc(100vh - 40px));
@@ -712,6 +815,10 @@
 
   .contact-result-count {
     align-self: flex-end;
+  }
+
+  .contact-status-filter {
+    width: 100%;
   }
 
   .contact-modal-actions {
