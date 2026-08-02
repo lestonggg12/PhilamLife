@@ -1,5 +1,27 @@
 .homeowners-page {
-  padding: 24px;
+  --ho-blue: #1464a0;
+  --ho-blue-dark: #0f3f6a;
+  --ho-blue-tint: #e9f3fb;
+  --ho-border: rgba(120, 162, 210, 0.3);
+  --ho-red: #b43b2d;
+  --ho-red-tint: #fde9e6;
+  --ho-green: #16704e;
+  --ho-green-tint: #e1f5eb;
+  --ho-amber: #95620a;
+  --ho-amber-tint: #fff0d5;
+  --ho-slate: #718597;
+  --ho-ink: #14354c;
+  --ho-space-1: 4px;
+  --ho-space-2: 8px;
+  --ho-space-3: 12px;
+  --ho-space-4: 16px;
+  --ho-space-5: 24px;
+  --ho-space-6: 32px;
+  --ho-radius: 10px;
+  --ho-radius-lg: 14px;
+  --ho-ease: 160ms cubic-bezier(0.2, 0, 0, 1);
+
+  padding: var(--ho-space-5);
   color: var(--text-dark);
 }
 
@@ -8,12 +30,12 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 20px;
+  margin-bottom: var(--ho-space-5);
 }
 
 .homeowners-eyebrow {
   margin: 0 0 4px;
-  color: #1464a0;
+  color: var(--ho-blue);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -23,6 +45,7 @@
 .homeowners-header h1 {
   margin: 0 0 5px;
   font-size: 1.7rem;
+  letter-spacing: -0.01em;
 }
 
 .homeowners-header > div > p:last-child {
@@ -35,20 +58,36 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--ho-space-2);
   min-height: 40px;
-  padding: 9px 14px;
+  padding: 9px var(--ho-space-4);
   border: 1px solid #bfd0df;
   border-radius: 9px;
   background: #fff;
-  color: #1464a0;
+  color: var(--ho-blue);
   font-weight: 700;
+  transition: border-color var(--ho-ease), background var(--ho-ease),
+    box-shadow var(--ho-ease), transform var(--ho-ease);
 }
 
 .homeowners-refresh:hover:not(:disabled),
 .homeowner-profile-actions button:hover {
-  border-color: #1464a0;
-  background: #eef6fc;
+  border-color: var(--ho-blue);
+  background: var(--ho-blue-tint);
+}
+
+.homeowners-refresh:active:not(:disabled),
+.homeowner-profile-actions button:active {
+  transform: translateY(1px);
+}
+
+.homeowners-refresh:focus-visible,
+.homeowner-profile-actions button:focus-visible,
+.homeowner-directory-card:focus-visible,
+.homeowner-tabs button:focus-visible,
+.homeowners-search:focus-visible {
+  outline: 2px solid var(--ho-blue);
+  outline-offset: 2px;
 }
 
 .homeowners-refresh:disabled {
@@ -56,8 +95,16 @@
   opacity: 0.65;
 }
 
+.homeowners-refresh svg {
+  transition: transform var(--ho-ease);
+}
+
+.homeowners-refresh:not(:disabled):active svg {
+  transform: rotate(-30deg);
+}
+
 .homeowners-error {
-  margin: 0 0 16px;
+  margin: 0 0 var(--ho-space-4);
   padding: 11px 14px;
   border-radius: 9px;
   background: rgba(192, 57, 43, 0.09);
@@ -65,43 +112,29 @@
   font-size: 0.88rem;
 }
 
-.homeowners-workspace {
-  display: grid;
-  grid-template-columns: minmax(265px, 310px) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
+/* ---------- Finder (horizontal search bar) ---------- */
 
-.homeowners-directory,
-.homeowner-profile-panel,
-.homeowner-summary-grid article,
-.homeowner-info-card,
-.homeowner-history-card {
-  border: 1px solid rgba(120, 162, 210, 0.3);
-  background: rgba(255, 255, 255, 0.84);
+.homeowners-finder {
+  margin-bottom: var(--ho-space-4);
+  border: 1px solid var(--ho-border);
+  border-radius: var(--ho-radius-lg);
+  background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 8px 28px rgba(53, 98, 139, 0.08);
 }
 
-.homeowners-directory {
-  position: sticky;
-  top: 80px;
-  overflow: hidden;
-  border-radius: 14px;
-}
-
-.homeowners-directory-heading {
+.homeowners-finder-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 18px 14px;
+  padding: 18px 20px 4px;
 }
 
-.homeowners-directory-heading h2 {
+.homeowners-finder-heading h2 {
   margin: 0 0 3px;
   font-size: 1.05rem;
 }
 
-.homeowners-directory-heading span {
+.homeowners-finder-heading span {
   color: #718597;
   font-size: 0.78rem;
 }
@@ -112,8 +145,20 @@
   height: 38px;
   place-items: center;
   border-radius: 10px;
-  background: #e9f3fb;
-  color: #1464a0 !important;
+  background: var(--ho-blue-tint);
+  color: var(--ho-blue) !important;
+}
+
+.homeowners-finder-controls {
+  display: flex;
+  gap: var(--ho-space-3);
+  padding: 14px 20px 20px;
+}
+
+.homeowners-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .homeowners-search-label {
@@ -124,41 +169,85 @@
   clip: rect(0, 0, 0, 0);
 }
 
+.homeowners-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  display: grid;
+  place-items: center;
+  color: var(--ho-slate);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .homeowners-search,
 .homeowners-filter {
   box-sizing: border-box;
-  width: calc(100% - 28px);
-  margin: 0 14px 10px;
-  padding: 10px 12px;
+  padding: 11px var(--ho-space-3);
   border: 1px solid #c9d7e2;
-  border-radius: 8px;
+  border-radius: 9px;
   background: #fff;
   color: #29495f;
+  transition: border-color var(--ho-ease), box-shadow var(--ho-ease);
+}
+
+.homeowners-search {
+  width: 100%;
+  padding-left: 38px;
+}
+
+.homeowners-filter {
+  flex: 0 0 auto;
+  width: 210px;
 }
 
 .homeowners-search:focus,
 .homeowners-filter:focus {
-  border-color: #1464a0;
+  border-color: var(--ho-blue);
   outline: 3px solid rgba(20, 100, 160, 0.11);
 }
 
-.homeowners-directory-list {
-  max-height: calc(100vh - 290px);
+.homeowners-search-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
   overflow-y: auto;
-  padding: 4px 10px 12px;
+  width: 100%;
+  max-height: 360px;
+  padding: var(--ho-space-2);
+  border: 1px solid var(--ho-border);
+  border-radius: var(--ho-radius);
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(20, 60, 100, 0.16);
+  animation: ho-dropdown-in 140ms ease-out;
 }
+
+@keyframes ho-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Result / directory card (shared by dropdown) ---------- */
 
 .homeowner-directory-card {
   display: flex;
   width: 100%;
   align-items: flex-start;
   gap: 11px;
-  padding: 12px;
+  padding: var(--ho-space-3);
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--ho-radius);
   background: transparent;
   color: inherit;
   text-align: left;
+  transition: background var(--ho-ease), border-color var(--ho-ease);
 }
 
 .homeowner-directory-card:hover {
@@ -167,8 +256,12 @@
 
 .homeowner-directory-card.is-selected {
   border-color: #a8cce7;
-  background: #e9f3fb;
-  box-shadow: inset 3px 0 #1464a0;
+  background: var(--ho-blue-tint);
+  box-shadow: inset 3px 0 var(--ho-blue);
+}
+
+.homeowner-directory-card.is-selected .homeowner-directory-avatar {
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.22);
 }
 
 .homeowner-directory-avatar,
@@ -177,10 +270,11 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(145deg, #1464a0, #0f3f6a);
+  background: linear-gradient(145deg, var(--ho-blue), var(--ho-blue-dark));
   color: #fff;
   font-weight: 800;
   letter-spacing: 0.03em;
+  transition: box-shadow var(--ho-ease);
 }
 
 .homeowner-directory-avatar {
@@ -198,7 +292,7 @@
 
 .homeowner-directory-copy strong {
   overflow: hidden;
-  color: #14354c;
+  color: var(--ho-ink);
   font-size: 0.9rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,19 +308,29 @@
   display: inline-flex;
   width: fit-content;
   align-items: center;
-  padding: 4px 8px;
+  gap: 5px;
+  padding: 4px 8px 4px 7px;
   border-radius: 999px;
   font-size: 0.68rem;
   font-weight: 800;
 }
 
+.homeowner-account-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
 .badge-current {
-  background: #e1f5eb;
-  color: #16704e;
+  background: var(--ho-green-tint);
+  color: var(--ho-green);
 }
 
 .badge-balance {
-  background: #fde9e6;
+  background: var(--ho-red-tint);
   color: #a7392b;
 }
 
@@ -235,18 +339,23 @@
   color: #607282;
 }
 
+/* ---------- Profile panel (full width, below the finder) ---------- */
+
 .homeowner-profile-panel {
   min-width: 0;
   overflow: hidden;
-  border-radius: 14px;
+  border: 1px solid var(--ho-border);
+  border-radius: var(--ho-radius-lg);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 28px rgba(53, 98, 139, 0.08);
 }
 
 .homeowner-profile-empty {
   display: grid;
-  min-height: 460px;
+  min-height: 320px;
   place-items: center;
   align-content: center;
-  gap: 8px;
+  gap: var(--ho-space-2);
   color: #738697;
   text-align: center;
 }
@@ -261,7 +370,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
-  padding: 22px;
+  padding: var(--ho-space-5);
   border-bottom: 1px solid #dce8f0;
   background: linear-gradient(120deg, #f8fcff 0%, #eaf4fb 100%);
 }
@@ -278,7 +387,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--ho-space-3);
 }
 
 .homeowner-profile-title-row p {
@@ -293,6 +402,7 @@
   margin: 0;
   color: #071e30;
   font-size: 1.45rem;
+  letter-spacing: -0.01em;
 }
 
 .homeowner-profile-meta {
@@ -312,7 +422,8 @@
 }
 
 .homeowner-profile-meta svg {
-  color: #1464a0;
+  color: var(--ho-blue);
+  flex: 0 0 auto;
 }
 
 .homeowner-profile-actions {
@@ -323,8 +434,8 @@
 }
 
 .homeowner-profile-actions button:nth-child(2) {
-  border-color: #1464a0;
-  background: #1464a0;
+  border-color: var(--ho-blue);
+  background: var(--ho-blue);
   color: #fff;
 }
 
@@ -335,17 +446,44 @@
 .homeowner-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  padding: 18px 20px;
+  gap: var(--ho-space-3);
+  padding: var(--ho-space-5) var(--ho-space-5) 0;
 }
 
 .homeowner-summary-grid article {
+  position: relative;
   display: flex;
   min-height: 105px;
   flex-direction: column;
   justify-content: center;
-  padding: 15px;
+  padding: 15px 15px 15px 18px;
+  border: 1px solid var(--ho-border);
   border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(53, 98, 139, 0.08);
+  transition: box-shadow var(--ho-ease), transform var(--ho-ease);
+}
+
+.homeowner-summary-grid article::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--ho-blue);
+  opacity: 0.55;
+}
+
+.homeowner-summary-grid article.has-balance::before {
+  background: var(--ho-red);
+  opacity: 0.75;
+}
+
+.homeowner-summary-grid article:hover {
+  box-shadow: 0 12px 32px rgba(53, 98, 139, 0.12);
+  transform: translateY(-1px);
 }
 
 .homeowner-summary-grid article > span {
@@ -353,16 +491,18 @@
   font-size: 0.76rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .homeowner-summary-grid strong {
   margin: 7px 0 4px;
-  color: #0f3f6a;
+  color: var(--ho-blue-dark);
   font-size: 1.2rem;
+  letter-spacing: -0.01em;
 }
 
 .homeowner-summary-grid article.has-balance strong {
-  color: #b43b2d;
+  color: var(--ho-red);
 }
 
 .homeowner-summary-grid small {
@@ -377,9 +517,10 @@
 
 .homeowner-tabs {
   display: flex;
-  gap: 4px;
+  gap: var(--ho-space-1);
   overflow-x: auto;
-  padding: 0 20px;
+  padding: 0 var(--ho-space-5);
+  margin-top: var(--ho-space-4);
   border-bottom: 1px solid #dce8f0;
 }
 
@@ -394,15 +535,16 @@
   color: #64788a;
   font-size: 0.82rem;
   font-weight: 750;
+  transition: color var(--ho-ease), border-color var(--ho-ease);
 }
 
 .homeowner-tabs button:hover,
 .homeowner-tabs button.is-active {
-  color: #1464a0;
+  color: var(--ho-blue);
 }
 
 .homeowner-tabs button.is-active {
-  border-bottom-color: #1464a0;
+  border-bottom-color: var(--ho-blue);
 }
 
 .homeowner-tabs button span {
@@ -414,36 +556,46 @@
   border-radius: 999px;
   background: #e8f1f8;
   font-size: 0.68rem;
+  transition: background var(--ho-ease), color var(--ho-ease);
+}
+
+.homeowner-tabs button.is-active span {
+  background: var(--ho-blue);
+  color: #fff;
 }
 
 .homeowner-overview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding: 18px 20px 0;
+  gap: var(--ho-space-4);
+  padding: var(--ho-space-5) var(--ho-space-5) 0;
 }
 
 .homeowner-info-card,
 .homeowner-history-card {
+  border: 1px solid var(--ho-border);
   border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 28px rgba(53, 98, 139, 0.08);
 }
 
 .homeowner-info-card {
-  padding: 17px;
+  padding: var(--ho-space-4);
 }
 
 .homeowner-section-heading {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--ho-space-3);
 }
 
 .homeowner-section-heading > svg {
   box-sizing: content-box;
-  padding: 8px;
+  padding: var(--ho-space-2);
   border-radius: 8px;
-  background: #e9f3fb;
-  color: #1464a0;
+  background: var(--ho-blue-tint);
+  color: var(--ho-blue);
+  flex: 0 0 auto;
 }
 
 .homeowner-section-heading h3,
@@ -465,14 +617,14 @@
 .homeowner-info-card dl {
   display: grid;
   gap: 9px;
-  margin: 16px 0 0;
+  margin: var(--ho-space-4) 0 0;
 }
 
 .homeowner-info-card dl > div {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 8px;
+  gap: var(--ho-space-4);
+  padding-bottom: var(--ho-space-2);
   border-bottom: 1px solid #edf2f5;
 }
 
@@ -495,13 +647,27 @@
 }
 
 .homeowner-history-card {
-  margin: 18px 20px 20px;
-  padding: 17px;
+  margin: var(--ho-space-5) var(--ho-space-5) var(--ho-space-5);
+  padding: var(--ho-space-4);
 }
 
 .homeowner-history-table-wrap {
+  position: relative;
   margin-top: 15px;
   overflow-x: auto;
+}
+
+.homeowner-history-table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+
+.homeowner-history-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.homeowner-history-table-wrap::-webkit-scrollbar-thumb {
+  background: #c9d7e2;
+  border-radius: 999px;
 }
 
 .homeowner-history-table {
@@ -510,7 +676,7 @@
 }
 
 .homeowner-history-table th {
-  padding: 10px 11px;
+  padding: 10px 10px;
   border-bottom: 2px solid #e5edf2;
   color: #718597;
   font-size: 0.68rem;
@@ -521,11 +687,19 @@
 }
 
 .homeowner-history-table td {
-  padding: 11px;
+  padding: 10px;
   border-bottom: 1px solid #edf2f5;
   color: #405e72;
   font-size: 0.78rem;
   vertical-align: middle;
+}
+
+.homeowner-history-table tbody tr {
+  transition: background var(--ho-ease);
+}
+
+.homeowner-history-table tbody tr:hover {
+  background: #f7fafc;
 }
 
 .homeowner-history-table tr:last-child td {
@@ -533,11 +707,35 @@
 }
 
 .homeowner-history-table td:nth-child(1) {
-  min-width: 145px;
+  min-width: 125px;
 }
 
 .homeowner-history-table td:nth-child(4) {
-  min-width: 165px;
+  min-width: 150px;
+}
+
+/* Pin the Status column so it stays visible when the table scrolls
+   horizontally on narrower screens — it's the one field a secretary
+   needs to see at a glance, so it shouldn't require scrolling to find. */
+.homeowner-history-table th:last-child,
+.homeowner-history-table td:last-child {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  box-shadow: -8px 0 12px -8px rgba(20, 60, 100, 0.18);
+}
+
+.homeowner-history-table thead th:last-child {
+  z-index: 2;
+}
+
+.homeowner-history-table tbody tr:hover td:last-child {
+  background: #f7fafc;
+}
+
+.homeowner-history-table ::selection {
+  background: rgba(20, 100, 160, 0.28);
+  color: inherit;
 }
 
 .homeowner-number,
@@ -549,7 +747,7 @@
 }
 
 .homeowner-balance {
-  color: #b43b2d !important;
+  color: var(--ho-red) !important;
 }
 
 .homeowner-category,
@@ -564,7 +762,7 @@
 
 .category-dues {
   background: #e8f2fa;
-  color: #1464a0;
+  color: var(--ho-blue);
 }
 
 .category-services {
@@ -579,17 +777,17 @@
 
 .status-completed,
 .status-paid {
-  background: #e1f5eb;
-  color: #16704e;
+  background: var(--ho-green-tint);
+  color: var(--ho-green);
 }
 
 .status-partial {
-  background: #fff0d5;
-  color: #95620a;
+  background: var(--ho-amber-tint);
+  color: var(--ho-amber);
 }
 
 .status-voided {
-  background: #fde9e6;
+  background: var(--ho-red-tint);
   color: #a7392b;
 }
 
@@ -599,9 +797,13 @@
   text-align: center !important;
 }
 
-@media (max-width: 1180px) {
-  .homeowners-workspace {
-    grid-template-columns: 250px minmax(0, 1fr);
+@media (max-width: 720px) {
+  .homeowners-finder-controls {
+    flex-direction: column;
+  }
+
+  .homeowners-filter {
+    width: 100%;
   }
 
   .homeowner-profile-hero {
@@ -620,28 +822,11 @@
   }
 }
 
-@media (max-width: 860px) {
-  .homeowners-page {
-    padding: 16px;
-  }
-
-  .homeowners-workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .homeowners-directory {
-    position: static;
-  }
-
-  .homeowners-directory-list {
-    display: grid;
-    max-height: 310px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
-  }
-}
-
 @media (max-width: 620px) {
+  .homeowners-page {
+    padding: var(--ho-space-4);
+  }
+
   .homeowners-header,
   .homeowner-profile-title-row {
     align-items: stretch;
@@ -652,7 +837,6 @@
     width: 100%;
   }
 
-  .homeowners-directory-list,
   .homeowner-overview-grid,
   .homeowner-summary-grid {
     grid-template-columns: 1fr;
@@ -679,13 +863,20 @@
 
   .homeowner-overview-grid,
   .homeowner-summary-grid {
-    padding-right: 14px;
-    padding-left: 14px;
+    padding-right: var(--ho-space-4);
+    padding-left: var(--ho-space-4);
   }
 
   .homeowner-history-card {
-    margin-right: 14px;
-    margin-left: 14px;
+    margin-right: var(--ho-space-4);
+    margin-left: var(--ho-space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .homeowners-page * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
 
@@ -693,7 +884,7 @@
   .navbar,
   .sidebar,
   .homeowners-header,
-  .homeowners-directory,
+  .homeowners-finder,
   .homeowner-profile-actions,
   .homeowner-tabs {
     display: none !important;
@@ -704,10 +895,6 @@
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
-  }
-
-  .homeowners-workspace {
-    display: block;
   }
 
   .homeowner-profile-panel,
