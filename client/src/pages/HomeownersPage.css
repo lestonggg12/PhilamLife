@@ -452,6 +452,12 @@
   background: #10517f;
 }
 
+.homeowner-profile-actions button.is-tracker-open {
+  border-color: var(--ho-blue-dark);
+  background: var(--ho-blue-tint);
+  color: var(--ho-blue-dark);
+}
+
 .homeowner-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -522,6 +528,158 @@
 .homeowner-summary-date {
   font-size: 0.95rem !important;
   line-height: 1.35;
+}
+
+.homeowner-payment-tracker {
+  margin: var(--ho-space-4) var(--ho-space-5) 0;
+  padding: var(--ho-space-4);
+  scroll-margin-top: var(--ho-space-4);
+  border: 1px solid var(--ho-border);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 28px rgba(53, 98, 139, 0.08);
+}
+
+.homeowner-tracker-header,
+.homeowner-tracker-controls,
+.homeowner-tracker-switch,
+.homeowner-tracker-year {
+  display: flex;
+  align-items: center;
+}
+
+.homeowner-tracker-header {
+  justify-content: space-between;
+  gap: var(--ho-space-4);
+}
+
+.homeowner-tracker-controls {
+  gap: var(--ho-space-3);
+}
+
+.homeowner-tracker-switch {
+  padding: 3px;
+  border: 1px solid #c9d7e2;
+  border-radius: 9px;
+  background: #f4f8fb;
+}
+
+.homeowner-tracker-switch button {
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #637a8b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.homeowner-tracker-switch button.is-active {
+  background: var(--ho-blue);
+  color: #fff;
+  box-shadow: 0 3px 9px rgba(20, 100, 160, 0.2);
+}
+
+.homeowner-tracker-year {
+  gap: var(--ho-space-2);
+  color: #657b8c;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.homeowner-tracker-year select {
+  min-height: 40px;
+  padding: 7px 28px 7px 10px;
+  border: 1px solid #c9d7e2;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ho-ink);
+  font-weight: 800;
+}
+
+.homeowner-tracker-table-wrap {
+  margin-top: var(--ho-space-4);
+  overflow-x: auto;
+  border: 1px solid #e1eaf0;
+  border-radius: 9px;
+}
+
+.homeowner-tracker-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: collapse;
+}
+
+.homeowner-tracker-table th {
+  padding: 10px 11px;
+  border-bottom: 2px solid #dbe7ef;
+  background: #edf5fb;
+  color: #62798b;
+  font-size: 0.66rem;
+  letter-spacing: 0.025em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.homeowner-tracker-table td {
+  padding: 10px 11px;
+  border-bottom: 1px solid #e8eff4;
+  color: #405e72;
+  font-size: 0.75rem;
+}
+
+.homeowner-tracker-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.homeowner-tracker-table tbody tr:hover {
+  background: #f8fbfd;
+}
+
+.homeowner-tracker-status {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.67rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tracker-paid {
+  background: var(--ho-green-tint);
+  color: var(--ho-green);
+}
+
+.tracker-recorded {
+  background: var(--ho-blue-tint);
+  color: var(--ho-blue);
+}
+
+.tracker-partial {
+  background: var(--ho-amber-tint);
+  color: var(--ho-amber);
+}
+
+.tracker-empty {
+  background: #edf1f4;
+  color: #607282;
+}
+
+.homeowner-tracker-total {
+  color: var(--ho-blue-dark) !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.homeowner-tracker-note {
+  margin: var(--ho-space-3) 0 0;
+  color: #718597;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .homeowner-tabs {
@@ -871,6 +1029,15 @@
   .homeowner-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .homeowner-tracker-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .homeowner-tracker-controls {
+    justify-content: space-between;
+  }
 }
 
 @media (max-width: 620px) {
@@ -921,6 +1088,24 @@
   .homeowner-history-card {
     margin-right: var(--ho-space-4);
     margin-left: var(--ho-space-4);
+  }
+
+  .homeowner-payment-tracker {
+    margin-right: var(--ho-space-4);
+    margin-left: var(--ho-space-4);
+  }
+
+  .homeowner-tracker-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .homeowner-tracker-switch button {
+    flex: 1;
+  }
+
+  .homeowner-tracker-year {
+    justify-content: space-between;
   }
 }
 
