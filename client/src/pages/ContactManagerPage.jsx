@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Edit, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings } from '../components/Icons'
+import { Edit, FileArchive, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import ActionDialog from '../components/ActionDialog'
 import './ContactManagerPage.css'
@@ -11,6 +11,20 @@ const EMPTY_FORM = {
 
 const EMPTY_BLOCK_FORM = {
   name: '',
+}
+
+const manilaDate = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+
+const EMPTY_TRANSFER_FORM = {
+  status: 'moved',
+  effectiveDate: '',
+  reason: '',
 }
 
 const ADD_BLOCK_OPTION = '__add_block__'
@@ -45,9 +59,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [pendingDeleteContact, setPendingDeleteContact] = useState(null)
-  const [deletingContactId, setDeletingContactId] = useState(null)
-  const [deleteContactError, setDeleteContactError] = useState('')
+  const [statusFilter, setStatusFilter] = useState('active')
+  const [pendingTransferContact, setPendingTransferContact] = useState(null)
+  const [transferForm, setTransferForm] = useState(EMPTY_TRANSFER_FORM)
+  const [transferringContactId, setTransferringContactId] = useState(null)
+  const [transferError, setTransferError] = useState('')
   const [showManageBlocks, setShowManageBlocks] = useState(false)
   const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null)
   const [deletingBlockId, setDeletingBlockId] = useState(null)
@@ -102,7 +118,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       supabase
         .from('properties')
         .select(
-          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at',
+          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
         )
         .order('homeowner_name'),
       supabase.from('blocks').select('id, name').order('name'),
@@ -415,47 +431,90 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setNotice(`Contact details for ${data.homeowner_name} were saved.`)
   }
 
-  function requestDeleteContact(contact) {
+  function requestTransferContact(contact) {
     if (!canManageContacts) return
-    setDeleteContactError('')
-    setPendingDeleteContact(contact)
+    setTransferError('')
+    setTransferForm({
+      status: 'moved',
+      effectiveDate: manilaDate(),
+      reason: '',
+    })
+    setPendingTransferContact(contact)
   }
 
-  async function deleteContact(contact) {
-    setPendingDeleteContact(null)
-    setDeletingContactId(contact.id)
-    setDeleteContactError('')
+  function closeTransferForm() {
+    if (transferringContactId) return
+    setPendingTransferContact(null)
+    setTransferForm(EMPTY_TRANSFER_FORM)
+    setTransferError('')
+  }
 
-    const { error } = await supabase.from('properties').delete().eq('id', contact.id)
+  async function markMovedOrTransferred(event) {
+    event.preventDefault()
 
-    setDeletingContactId(null)
+    const contact = pendingTransferContact
+    if (!contact || !canManageContacts) return
 
-    if (error) {
-      // Postgres blocks this delete (NO ACTION) if the homeowner has real
-      // payment history, protecting financial records from being lost.
-      const message =
-        error.code === '23503'
-          ? `${contact.homeowner_name} cannot be deleted because they have payment records on file. This protects the association's financial history.`
-          : `Could not delete homeowner: ${error.message}`
-      setDeleteContactError(message)
+    if (!['moved', 'transferred'].includes(transferForm.status)) {
+      setTransferError('Choose whether the homeowner moved or transferred.')
       return
     }
 
-    setContacts((current) => current.filter((item) => item.id !== contact.id))
+    if (!transferForm.effectiveDate) {
+      setTransferError('Enter the effective date.')
+      return
+    }
+
+    setTransferringContactId(contact.id)
+    setTransferError('')
+
+    const statusUpdatedAt = new Date().toISOString()
+    const { data, error } = await supabase
+      .from('properties')
+      .update({
+        homeowner_status: transferForm.status,
+        status_effective_date: transferForm.effectiveDate,
+        status_reason: transferForm.reason.trim() || null,
+        status_updated_at: statusUpdatedAt,
+      })
+      .eq('id', contact.id)
+      .select(
+        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
+      )
+      .single()
+
+    if (error) {
+      setTransferringContactId(null)
+      setTransferError(`Could not update homeowner status: ${error.message}`)
+      return
+    }
+
+    setContacts((current) =>
+      current.map((item) => (item.id === data.id ? data : item)),
+    )
 
     if (currentUser?.id) {
       const { error: activityError } = await supabase.from('activity_log').insert({
         user_id: currentUser.id,
-        action: 'Homeowner Deleted',
-        target: `${contact.homeowner_name} — ${contact.block}, Lot ${contact.lot_number} (by ${actorName})`,
+        action: `Homeowner ${transferForm.status === 'moved' ? 'Moved' : 'Transferred'}`,
+        target: `${contact.homeowner_name} — ${contact.block}, Lot ${contact.lot_number}; effective ${transferForm.effectiveDate} (by ${actorName})`,
       })
 
       if (activityError) {
-        console.warn('Homeowner deleted, but activity logging failed:', activityError.message)
+        console.warn(
+          'Homeowner status updated, but activity logging failed:',
+          activityError.message,
+        )
       }
     }
 
-    setNotice(`${contact.homeowner_name} was removed from the directory.`)
+    const statusLabel = transferForm.status === 'moved' ? 'Moved' : 'Transferred'
+    setTransferringContactId(null)
+    setPendingTransferContact(null)
+    setTransferForm(EMPTY_TRANSFER_FORM)
+    setNotice(
+      `${contact.homeowner_name} was marked as ${statusLabel}. Their profile and payment history were preserved.`,
+    )
   }
 
   function requestDeleteBlock(block) {
@@ -508,26 +567,32 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const filteredContacts = useMemo(() => {
     const term = normalize(search)
 
-    if (!term) return contacts
-
     return contacts.filter((contact) => {
       const property = `${contact.block} lot ${contact.lot_number}`
+
+      const contactStatus = normalize(contact.homeowner_status || 'active')
+      const matchesStatus = statusFilter === 'all' || contactStatus === statusFilter
+      if (!matchesStatus) return false
+
+      if (!term) return true
 
       return [
         contact.homeowner_name,
         property,
         contact.contact_phone,
         contact.contact_email,
+        contactStatus,
+        contact.status_reason,
       ].some((value) => normalize(value).includes(term))
     })
-  }, [contacts, search])
+  }, [contacts, search, statusFilter])
 
   // Whenever the search term (or the underlying contact list) changes, the
   // previously selected page may no longer exist — jump back to page 1 so
   // search results always start from the top, same as before pagination.
   useEffect(() => {
     setPage(1)
-  }, [search, contacts])
+  }, [search, statusFilter, contacts])
 
   const totalPages = Math.max(1, Math.ceil(filteredContacts.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -543,8 +608,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
   }
 
-  const completedContactCount = contacts.filter(
-    (contact) => contact.contact_phone || contact.contact_email,
+  const activeContactCount = contacts.filter(
+    (contact) => normalize(contact.homeowner_status || 'active') === 'active',
+  ).length
+  const movedContactCount = contacts.filter(
+    (contact) => normalize(contact.homeowner_status) === 'moved',
+  ).length
+  const transferredContactCount = contacts.filter(
+    (contact) => normalize(contact.homeowner_status) === 'transferred',
   ).length
 
   return (
@@ -590,18 +661,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       <div className="contact-summary">
         <div className="contact-summary-item">
-          <span>Total homeowners</span>
-          <strong>{loading ? '—' : contacts.length}</strong>
+          <span>Active homeowners</span>
+          <strong>{loading ? '—' : activeContactCount}</strong>
         </div>
         <div className="contact-summary-item">
-          <span>With contact details</span>
-          <strong>{loading ? '—' : completedContactCount}</strong>
+          <span>Moved homeowners</span>
+          <strong>{loading ? '—' : movedContactCount}</strong>
         </div>
         <div className="contact-summary-item">
-          <span>Missing contact details</span>
-          <strong>
-            {loading ? '—' : contacts.length - completedContactCount}
-          </strong>
+          <span>Transferred homeowners</span>
+          <strong>{loading ? '—' : transferredContactCount}</strong>
         </div>
       </div>
 
@@ -614,6 +683,17 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           className="contact-search"
           aria-label="Search homeowner contacts"
         />
+        <select
+          className="contact-status-filter"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          aria-label="Filter homeowners by residency status"
+        >
+          <option value="active">Active</option>
+          <option value="moved">Moved</option>
+          <option value="transferred">Transferred</option>
+          <option value="all">All statuses</option>
+        </select>
         <span className="contact-result-count">
           Showing {rangeStart}-{rangeEnd} of {filteredContacts.length}
         </span>
@@ -621,7 +701,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       {pageError && <p className="contact-message contact-error">{pageError}</p>}
       {notice && <p className="contact-message contact-success">{notice}</p>}
-      {deleteContactError && <p className="contact-message contact-error">{deleteContactError}</p>}
+      {transferError && !pendingTransferContact && (
+        <p className="contact-message contact-error">{transferError}</p>
+      )}
 
       {loading ? (
         <div className="contact-empty glass-card">Loading contacts...</div>
@@ -636,6 +718,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           {pagedContacts.map((contact) => {
             const hasContactDetails =
               contact.contact_phone || contact.contact_email
+            const homeownerStatus = normalize(contact.homeowner_status || 'active')
+            const isActive = homeownerStatus === 'active'
+            const statusLabel =
+              homeownerStatus === 'transferred'
+                ? 'Transferred'
+                : homeownerStatus === 'moved'
+                  ? 'Moved'
+                  : 'Active'
 
             return (
               <article key={contact.id} className="contact-card glass-card">
@@ -650,6 +740,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                     <p className="contact-property">
                       {contact.block}, Lot {contact.lot_number}
                     </p>
+                    <span className={`contact-status-badge is-${homeownerStatus}`}>
+                      {statusLabel}
+                    </span>
                   </div>
                 </div>
 
@@ -677,7 +770,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 </div>
 
                 <div className="contact-card-actions">
-                  {canManageContacts && (
+                  {canManageContacts && isActive && (
                     <button
                       type="button"
                       className="contact-edit-button"
@@ -689,16 +782,17 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                         : 'Add Contact Details'}
                     </button>
                   )}
-                  {canManageContacts && (
+                  {canManageContacts && isActive && (
                     <button
                       type="button"
-                      className="contact-delete-button"
-                      onClick={() => requestDeleteContact(contact)}
-                      disabled={deletingContactId === contact.id}
-                      aria-label={`Delete ${contact.homeowner_name}`}
-                      title="Delete this homeowner"
+                      className="contact-transfer-button"
+                      onClick={() => requestTransferContact(contact)}
+                      disabled={transferringContactId === contact.id}
+                      aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
+                      title="Mark as moved or transferred"
                     >
-                      <Trash2 size={16} />
+                      <FileArchive size={16} />
+                      Move / Transfer
                     </button>
                   )}
                 </div>
@@ -732,19 +826,123 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
       )}
 
-      <ActionDialog
-        open={!!pendingDeleteContact}
-        title="Delete Homeowner?"
-        message={
-          pendingDeleteContact
-            ? `Delete ${pendingDeleteContact.homeowner_name} — ${pendingDeleteContact.block}, Lot ${pendingDeleteContact.lot_number}? This cannot be undone.`
-            : ''
-        }
-        confirmLabel="Delete"
-        tone="danger"
-        onConfirm={() => deleteContact(pendingDeleteContact)}
-        onCancel={() => setPendingDeleteContact(null)}
-      />
+      {pendingTransferContact && (
+        <div
+          className="contact-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeTransferForm()
+          }}
+        >
+          <form
+            className="contact-modal contact-transfer-modal glass-card"
+            onSubmit={markMovedOrTransferred}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transfer-homeowner-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="contact-modal-heading">
+              <div>
+                <h2 id="transfer-homeowner-title">Move or Transfer Homeowner</h2>
+                <p>
+                  The profile and all payment history will remain in the system.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="contact-modal-close"
+                onClick={closeTransferForm}
+                aria-label="Close move or transfer form"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="contact-transfer-homeowner">
+              <strong>{pendingTransferContact.homeowner_name}</strong>
+              <span>
+                {pendingTransferContact.block}, Lot {pendingTransferContact.lot_number}
+              </span>
+            </div>
+
+            <div className="contact-form-row">
+              <div>
+                <label htmlFor="homeowner-new-status">New status</label>
+                <select
+                  id="homeowner-new-status"
+                  value={transferForm.status}
+                  onChange={(event) =>
+                    setTransferForm((current) => ({
+                      ...current,
+                      status: event.target.value,
+                    }))
+                  }
+                  required
+                >
+                  <option value="moved">Moved</option>
+                  <option value="transferred">Transferred</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="homeowner-status-date">Effective date</label>
+                <input
+                  id="homeowner-status-date"
+                  type="date"
+                  value={transferForm.effectiveDate}
+                  max={manilaDate()}
+                  onChange={(event) =>
+                    setTransferForm((current) => ({
+                      ...current,
+                      effectiveDate: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+            <label htmlFor="homeowner-status-reason">Reason or note (optional)</label>
+            <textarea
+              id="homeowner-status-reason"
+              value={transferForm.reason}
+              maxLength={500}
+              placeholder="Add a short note about the move or property transfer."
+              onChange={(event) =>
+                setTransferForm((current) => ({
+                  ...current,
+                  reason: event.target.value,
+                }))
+              }
+            />
+
+            <p className="contact-transfer-note">
+              This does not delete the homeowner. Previous dues, amenity payments,
+              service records, and receipts stay connected to this profile.
+            </p>
+
+            {transferError && <p className="contact-form-error">{transferError}</p>}
+
+            <div className="contact-modal-actions">
+              <button
+                type="button"
+                className="contact-cancel-button"
+                onClick={closeTransferForm}
+                disabled={Boolean(transferringContactId)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="contact-save-button"
+                disabled={Boolean(transferringContactId)}
+              >
+                {transferringContactId ? 'Saving...' : 'Confirm Status'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showManageBlocks && (
         <div
