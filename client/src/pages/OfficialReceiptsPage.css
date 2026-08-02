@@ -546,7 +546,23 @@
     width: 100%;
   }
 }
-/* FIX: Keep the Official Receipts table inside the page */
+
+/* ============================================================
+   Table layout fix — remove the horizontal scrollbar without
+   truncating or overlapping the "Type" badge text.
+
+   Root cause: the Type column (badge like "REGULAR PAYMENT")
+   didn't have enough allotted width, so the badge visually
+   spilled into the Homeowner column, and that spillover pushed
+   the table past its container, forcing the scrollbar.
+
+   Fix: give Type more room (taken from columns that are
+   naturally short, like Amount/Method/Receipt No.), and let a
+   badge wrap onto a second line as a safety net instead of
+   ever bleeding into the next column. Wrapping keeps every
+   letter fully visible — it just never gets cut off or hidden.
+   ============================================================ */
+
 .official-receipts-page {
   width: 100%;
   min-width: 0;
@@ -570,23 +586,23 @@
 }
 
 .official-receipts-table th:nth-child(1) {
-  width: 13%;
+  width: 11%;
 }
 
 .official-receipts-table th:nth-child(2) {
-  width: 14%;
+  width: 13%;
 }
 
 .official-receipts-table th:nth-child(3) {
-  width: 12%;
+  width: 17%;
 }
 
 .official-receipts-table th:nth-child(4) {
-  width: 16%;
+  width: 15%;
 }
 
 .official-receipts-table th:nth-child(5) {
-  width: 17%;
+  width: 14%;
 }
 
 .official-receipts-table th:nth-child(6) {
@@ -598,7 +614,7 @@
 }
 
 .official-receipts-table th:nth-child(8) {
-  width: 8%;
+  width: 10%;
 }
 
 .official-receipts-table th,
@@ -624,7 +640,25 @@
   text-align: right;
 }
 
+/* The badge itself: sized to fit "REGULAR PAYMENT" on one line
+   in its 17%-wide column at normal desktop widths, but allowed
+   to wrap to two lines rather than overflow if space ever gets
+   tight (e.g. narrower windows) — never truncated. */
 .official-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  font-size: 9.5px;
+  line-height: 1.3;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+
+.official-view-button {
+  padding: 7px 9px;
   white-space: nowrap;
 }
 
