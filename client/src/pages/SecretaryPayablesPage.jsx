@@ -103,7 +103,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name')
+          .select('id, block, lot_number, homeowner_name, homeowner_status')
           .order('homeowner_name'),
         supabase
           .from('payments')
@@ -132,7 +132,13 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     }
 
     setBlocks(blockResult.data || [])
-    setProperties(propertyResult.data || [])
+    setProperties(
+      (propertyResult.data || []).filter(
+        (property) =>
+          !property.homeowner_status ||
+          property.homeowner_status.toLowerCase() === 'active',
+      ),
+    )
     setPayments(paymentResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({

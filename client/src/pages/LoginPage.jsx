@@ -50,6 +50,14 @@ export default function LoginPage({ onAuthenticated }) {
 
     if (profileError || !profile) {
       setError('Account exists but has no profile. Contact an admin.');
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    if (profile.is_active === false) {
+      setError('This account is inactive. Contact an admin.');
+      await supabase.auth.signOut();
       setLoading(false);
       return;
     }
