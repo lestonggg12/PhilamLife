@@ -90,6 +90,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
+  const [serviceTransactions, setServiceTransactions] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
@@ -186,7 +187,13 @@ export default function LedgerPage({ user: suppliedUser }) {
     else setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, settingsResult] =
+    const [
+      blockResult,
+      propertyResult,
+      paymentResult,
+      serviceTransactionResult,
+      settingsResult,
+    ] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         supabase
@@ -194,10 +201,20 @@ export default function LedgerPage({ user: suppliedUser }) {
           .select('id, block, lot_number, homeowner_name, created_at')
           .order('homeowner_name'),
         supabase.from('payments').select('*').order('paid_at', { ascending: false }),
+        supabase
+          .from('service_transactions')
+          .select('*')
+          .order('paid_at', { ascending: false }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
       ])
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error]
+    const errors = [
+      blockResult.error,
+      propertyResult.error,
+      paymentResult.error,
+      serviceTransactionResult.error,
+      settingsResult.error,
+    ]
       .filter(Boolean)
       .map((error) => error.message)
 
@@ -208,6 +225,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setBlocks(blockResult.data || [])
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
+    setServiceTransactions(serviceTransactionResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -220,27 +238,59 @@ export default function LedgerPage({ user: suppliedUser }) {
 
   const ledgerEntries = useMemo(() => {
     return properties.map((property) => {
-      const propertyPayments = payments.filter((payment) => {
-        if (payment.property_id != null) {
-          return Number(payment.property_id) === Number(property.id)
+      const matchesProperty = (record) => {
+        if (record.property_id != null) {
+          return Number(record.property_id) === Number(property.id)
         }
 
         return (
-          normalize(payment.homeowner_name) === normalize(property.homeowner_name) &&
-          normalize(payment.block_name) === normalize(property.block) &&
-          normalize(payment.lot_number).replace(/^lot\s*/, '') ===
-            String(property.lot_number)
+          normalize(record.block_name) === normalize(property.block) &&
+          normalize(record.lot_number).replace(/^lot\s*/, '') ===
+            normalize(property.lot_number).replace(/^lot\s*/, '')
         )
+      }
+
+      const propertyPayments = payments.filter((payment) => {
+        if (!matchesProperty(payment)) return false
+
+        // Keep the homeowner-name check for legacy dues rows that have no
+        // property_id, but do not require it for service transactions because
+        // those rows are linked by block + lot in the current schema.
+        return payment.property_id != null ||
+          normalize(payment.homeowner_name) === normalize(property.homeowner_name)
       })
 
       const activePropertyPayments = propertyPayments.filter(
-        (payment) => payment.status !== 'Voided',
+        (payment) => normalize(payment.status) !== 'voided',
+      )
+      const activeServiceTransactions = serviceTransactions.filter(
+        (transaction) =>
+          matchesProperty(transaction) &&
+          normalize(transaction.status) !== 'voided' &&
+          normalize(transaction.payment_status) !== 'voided',
       )
       const latestPayment = activePropertyPayments[0]
       const dueAmount = latestPayment
         ? Number(latestPayment.previous_balance) || duesAmount
         : duesAmount
-      const paidAmount = latestPayment ? Number(latestPayment.amount_paid) || 0 : 0
+      const duesCollected = activePropertyPayments.reduce(
+        (sum, payment) => sum + (Number(payment.amount_paid) || 0),
+        0,
+      )
+      const serviceCollected = activeServiceTransactions.reduce(
+        (sum, transaction) => sum + (Number(transaction.amount_paid) || 0),
+        0,
+      )
+      const paidAmount = duesCollected + serviceCollected
+      const latestCollection = [
+        ...activePropertyPayments,
+        ...activeServiceTransactions,
+      ]
+        .filter((record) => record.paid_at)
+        .sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at))[0]
+      const currentDuesPaid = latestPayment
+        ? Number(latestPayment.amount_paid) || 0
+        : 0
       const balance = latestPayment
         ? Number(latestPayment.remaining_balance) || 0
         : dueAmount
@@ -252,7 +302,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       })
       const status = balance <= 0
         ? 'Paid'
-        : paidAmount > 0
+        : currentDuesPaid > 0
           ? 'Partial'
           : lateFee.isOverdue
             ? 'Overdue'
@@ -268,21 +318,20 @@ export default function LedgerPage({ user: suppliedUser }) {
         balance,
         penaltyAmount: lateFee.penaltyAmount,
         totalDue: lateFee.totalDue,
-        lastPayment: latestPayment?.paid_at
-          ? date.format(new Date(latestPayment.paid_at))
+        duesCollected,
+        serviceCollected,
+        lastPayment: latestCollection?.paid_at
+          ? date.format(new Date(latestCollection.paid_at))
           : '—',
-        lastPaymentDateKey: latestPayment?.paid_at
-          ? dateKeyFromDate(new Date(latestPayment.paid_at))
-          : null,
         paymentDateKeys: new Set(
-          activePropertyPayments
-            .filter((payment) => payment.paid_at)
-            .map((payment) => dateKeyFromDate(new Date(payment.paid_at))),
+          [...activePropertyPayments, ...activeServiceTransactions]
+            .filter((record) => record.paid_at)
+            .map((record) => dateKeyFromDate(new Date(record.paid_at))),
         ),
         status,
       }
     })
-  }, [properties, payments, duesAmount, penaltySettings])
+  }, [properties, payments, serviceTransactions, duesAmount, penaltySettings])
 
   const calendarDays = useMemo(
     () => getCalendarDays(visibleMonth),
@@ -290,13 +339,19 @@ export default function LedgerPage({ user: suppliedUser }) {
   )
 
   const paymentCountByDay = useMemo(() => {
-    return payments.reduce((counts, payment) => {
-      if (!payment.paid_at) return counts
-      const key = dateKeyFromDate(new Date(payment.paid_at))
+    const activeCollections = [...payments, ...serviceTransactions].filter(
+      (record) =>
+        normalize(record.status) !== 'voided' &&
+        normalize(record.payment_status) !== 'voided',
+    )
+
+    return activeCollections.reduce((counts, record) => {
+      if (!record.paid_at) return counts
+      const key = dateKeyFromDate(new Date(record.paid_at))
       counts[key] = (counts[key] || 0) + 1
       return counts
     }, {})
-  }, [payments])
+  }, [payments, serviceTransactions])
 
   const filtered = useMemo(() => {
     const term = normalize(search)
@@ -311,15 +366,24 @@ export default function LedgerPage({ user: suppliedUser }) {
   }, [ledgerEntries, search, blockFilter, statusFilter, selectedDate])
 
   const totals = useMemo(() => {
-    return ledgerEntries.reduce(
+    return filtered.reduce(
       (result, entry) => ({
         totalDue: result.totalDue + entry.dueAmount,
         totalPaid: result.totalPaid + entry.paidAmount,
+        totalDuesCollected: result.totalDuesCollected + entry.duesCollected,
+        totalServiceCollected:
+          result.totalServiceCollected + entry.serviceCollected,
         totalBalance: result.totalBalance + entry.balance,
       }),
-      { totalDue: 0, totalPaid: 0, totalBalance: 0 },
+      {
+        totalDue: 0,
+        totalPaid: 0,
+        totalDuesCollected: 0,
+        totalServiceCollected: 0,
+        totalBalance: 0,
+      },
     )
-  }, [ledgerEntries])
+  }, [filtered])
 
   const calendarTriggerLabel = selectedDate
     ? triggerDateFormatter.format(dateFromKey(selectedDate))
@@ -356,7 +420,14 @@ export default function LedgerPage({ user: suppliedUser }) {
     <div className="ledger-page">
       <div className="ledger-header-row">
         <div className="ledger-header">
-          <h1>Ledger</h1>
+          <div className="ledger-header-icon" aria-hidden="true">
+            <FileText size={24} />
+          </div>
+          <div className="ledger-header-copy">
+            <span className="ledger-header-eyebrow">Financial Records</span>
+            <h1>Homeowner Ledger</h1>
+            <p>Track dues, amenity collections, balances, and payment activity.</p>
+          </div>
         </div>
 
         <div className="ledger-header-actions">
@@ -472,7 +543,13 @@ export default function LedgerPage({ user: suppliedUser }) {
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={20} /></div>
-          <div><p className="ledger-summary-label">Total Collected</p><p className="ledger-summary-value">{peso.format(totals.totalPaid)}</p></div>
+          <div>
+            <p className="ledger-summary-label">Total Collected</p>
+            <p className="ledger-summary-value">{peso.format(totals.totalPaid)}</p>
+            <p className="ledger-summary-detail">
+              Dues {peso.format(totals.totalDuesCollected)} · Amenities {peso.format(totals.totalServiceCollected)}
+            </p>
+          </div>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={20} /></div>
@@ -522,7 +599,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         {selectedDate && (
           <div className="ledger-filter-chip">
             <span>
-              Showing homeowners whose last payment was on{' '}
+              Showing homeowners with payment activity on{' '}
               <strong>{selectedDateFormatter.format(dateFromKey(selectedDate))}</strong>
             </span>
             <button type="button" onClick={clearDateFilter}>Clear ×</button>
@@ -537,7 +614,7 @@ export default function LedgerPage({ user: suppliedUser }) {
               <th scope="col">Homeowner</th>
               <th scope="col">Block / Lot</th>
               <th scope="col">Due</th>
-              <th scope="col">Paid</th>
+              <th scope="col">Collected</th>
               <th scope="col">Balance</th>
               <th scope="col">Late Penalty</th>
               <th scope="col">Last Payment</th>
@@ -551,7 +628,7 @@ export default function LedgerPage({ user: suppliedUser }) {
               <tr>
                 <td colSpan={TABLE_COLUMN_COUNT} className="ledger-empty">
                   {selectedDate
-                    ? 'No homeowner had this as their last payment date.'
+                    ? 'No homeowner had payment activity on this date.'
                     : 'No homeowner records found.'}
                 </td>
               </tr>
@@ -560,7 +637,14 @@ export default function LedgerPage({ user: suppliedUser }) {
                 <td><strong>{entry.name}</strong></td>
                 <td>{entry.block}, {entry.lot}</td>
                 <td>{peso.format(entry.dueAmount)}</td>
-                <td>{peso.format(entry.paidAmount)}</td>
+                <td>
+                  <strong>{peso.format(entry.paidAmount)}</strong>
+                  {entry.serviceCollected > 0 && (
+                    <span className="ledger-payment-breakdown">
+                      Dues {peso.format(entry.duesCollected)} · Amenities {peso.format(entry.serviceCollected)}
+                    </span>
+                  )}
+                </td>
                 <td className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
                 <td className={entry.penaltyAmount > 0 ? 'ledger-balance-due' : ''}>
                   {entry.penaltyAmount > 0 ? peso.format(entry.penaltyAmount) : '—'}
