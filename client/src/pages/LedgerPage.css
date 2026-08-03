@@ -9,11 +9,37 @@
   padding: 22px 24px;
   border: 1px solid rgba(20, 100, 160, 0.16);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
+  background:
+    radial-gradient(circle at top right, rgba(20, 100, 160, 0.11), transparent 38%),
+    rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 30px rgba(20, 100, 160, 0.08);
 }
+.ledger-header { display: flex; align-items: center; gap: 15px; min-width: 0; }
+.ledger-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #1464a0, #0d4f80);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(20, 100, 160, 0.24);
+}
+.ledger-header-copy { min-width: 0; }
+.ledger-header-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: #1464a0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
 .ledger-header-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
-.ledger-header h1 { font-size: 30px; margin: 0; color: #071e30; }
+.ledger-header h1 { font-size: 28px; line-height: 1.15; margin: 0; color: #071e30; }
+.ledger-header p { max-width: 580px; margin: 5px 0 0; color: #66788a; font-size: 0.88rem; }
 .ledger-add-homeowner-button, .ledger-save-button { border: 0; border-radius: 8px; background: #1464a0; color: white; padding: 10px 16px; font-weight: 600; cursor: pointer; }
 .ledger-add-homeowner-button:hover, .ledger-save-button:hover { background: #10517f; }
 .ledger-secondary-action { border: 1px solid #1464a0; border-radius: 9px; background: white; color: #1464a0; padding: 9px 16px; font-weight: 600; cursor: pointer; }
@@ -59,6 +85,12 @@
 .ledger-summary-icon-balance { background: rgba(192,57,43,0.12); color: #c0392b; }
 .ledger-summary-label { font-size: 0.8rem; color: #6b7280; margin: 0 0 2px; }
 .ledger-summary-value { font-size: 1.25rem; font-weight: 700; margin: 0; color: #172033; }
+.ledger-summary-detail {
+  margin: 4px 0 0;
+  color: #7a8795;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
 
 .ledger-toolbar-card {
   padding: 14px;
@@ -143,6 +175,14 @@
 .ledger-table td { padding: 12px 14px; border-bottom: 1px solid #eee; font-size: 0.92rem; }
 .ledger-table tr:last-child td { border-bottom: none; }
 .ledger-table tbody tr:hover td { background: #f8fafc; }
+.ledger-payment-breakdown {
+  display: block;
+  margin-top: 3px;
+  color: #7a8795;
+  font-size: 0.69rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
 
 /* Light row tint so overdue / partial accounts are easy to spot when
    scanning a long list, not just via the small status badge. */
@@ -298,6 +338,9 @@
 
 @media (max-width: 640px) {
   .ledger-header-row { align-items: stretch; flex-direction: column; margin-bottom: 20px; }
+  .ledger-header { align-items: flex-start; }
+  .ledger-header-icon { width: 44px; height: 44px; flex-basis: 44px; border-radius: 12px; }
+  .ledger-header h1 { font-size: 24px; }
   .ledger-header p { margin-bottom: 0; }
   .ledger-header-actions { justify-content: flex-start; }
   .ledger-calendar-trigger, .ledger-refresh-button { flex: 1; justify-content: center; }
