@@ -4,7 +4,7 @@ import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, 
 import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
-export default function Sidebar({ user }) {
+export default function Sidebar({ user, onLogout }) {
   const { organization } = useOrganization()
   const role = user?.role?.trim().toLowerCase()
   const displayName = user?.full_name?.trim() || user?.email || 'User'
@@ -39,6 +39,12 @@ export default function Sidebar({ user }) {
       path: '/contacts',
       icon: Phone,
       roles: ['admin', 'secretary', 'treasurer'],
+    },
+    {
+      name: 'Homeowners',
+      path: '/homeowners',
+      icon: Users,
+      roles: ['admin', 'secretary'],
     },
     {
       name: 'Document Library',
@@ -93,7 +99,7 @@ export default function Sidebar({ user }) {
       roles: ['admin', 'treasurer'],
     },
     {
-      name: 'Payment Receipts',
+      name: 'Official Receipts',
       path: '/secretary/receipts',
       icon: FileText,
       roles: ['secretary'],
