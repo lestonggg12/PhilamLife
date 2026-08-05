@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronRight, RefreshCw } from '../components/Icons'
+import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -28,10 +27,6 @@ const EMPTY_FORM = {
   note: '',
 }
 
-const MANILA_TIME_ZONE = 'Asia/Manila'
-const MANILA_OFFSET = '+08:00'
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -43,121 +38,13 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
-const selectedDateFormatter = new Intl.DateTimeFormat('en-PH', {
-  weekday: 'long',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-
-const monthFormatter = new Intl.DateTimeFormat('en-PH', {
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-const triggerDateFormatter = new Intl.DateTimeFormat('en-PH', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-function dateKeyFromDate(value = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: MANILA_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(value)
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-
-  return `${values.year}-${values.month}-${values.day}`
-}
-
-function dateFromKey(dateKey) {
-  return new Date(`${dateKey}T00:00:00Z`)
-}
-
-function addDays(dateKey, amount) {
-  const date = dateFromKey(dateKey)
-  date.setUTCDate(date.getUTCDate() + amount)
-  return date.toISOString().slice(0, 10)
-}
-
-function monthKeyFromDateKey(dateKey) {
-  return dateKey.slice(0, 7)
-}
-
-function shiftMonth(monthKey, amount) {
-  const [year, month] = monthKey.split('-').map(Number)
-  const date = new Date(Date.UTC(year, month - 1 + amount, 1))
-  return date.toISOString().slice(0, 7)
-}
-
-function getCalendarDays(monthKey) {
-  const firstDateKey = `${monthKey}-01`
-  const firstDay = dateFromKey(firstDateKey).getUTCDay()
-  const gridStart = addDays(firstDateKey, -firstDay)
-
-  return Array.from({ length: 42 }, (_, index) => addDays(gridStart, index))
-}
-
-// coverage_period is saved as "Purpose — Details". Split it back apart
-// so the table can show the purpose as a "Type" badge and the rest as
-// plain payment-detail text, matching the Official Receipts table.
-function splitCoverage(coverage) {
-  if (!coverage) return { type: '', details: '' }
-  const separatorIndex = coverage.indexOf('—')
-  if (separatorIndex === -1) return { type: coverage, details: '' }
-  return {
-    type: coverage.slice(0, separatorIndex).trim(),
-    details: coverage.slice(separatorIndex + 1).trim(),
-  }
-}
-
-function typeBadgeClass(type) {
-  const key = type.toLowerCase()
-  if (key.includes('dues')) return 'dues'
-  if (key.includes('assessment')) return 'assessment'
-  if (key.includes('penalty') || key.includes('late')) return 'penalty'
-  if (key.includes('sticker') || key.includes('id fee')) return 'sticker'
-  if (key.includes('document') || key.includes('certification')) return 'document'
-  return 'other'
-}
-
-function paymentStatusMeta(status) {
-  const normalized = String(status || '').trim().toLowerCase()
-
-  if (!normalized) {
-    return { label: 'Not recorded', className: 'not-recorded' }
-  }
-
-  const labels = {
-    completed: 'Completed',
-    paid: 'Paid',
-    partial: 'Partial',
-    pending: 'Pending',
-    recorded: 'Recorded',
-    voided: 'Voided',
-  }
-
-  return {
-    label:
-      labels[normalized] ||
-      normalized.replace(/(^|[\s_-])\w/g, (character) => character.toUpperCase()),
-    className: labels[normalized] ? normalized : 'not-recorded',
-  }
-}
-
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
   const [properties, setProperties] = useState([])
+  const [accountSummaries, setAccountSummaries] = useState([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -166,73 +53,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [receipt, setReceipt] = useState(null)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
 
-  const initialToday = dateKeyFromDate()
-  const [todayKey, setTodayKey] = useState(initialToday)
-  const [visibleMonth, setVisibleMonth] = useState(
-    monthKeyFromDateKey(initialToday),
-  )
-  const [selectedDate, setSelectedDate] = useState(initialToday)
-  const [calendarOpen, setCalendarOpen] = useState(false)
-
-  const calendarWrapRef = useRef(null)
-
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
     role === 'admin' || role === 'secretary' || role === 'treasurer'
-  const recorderName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
-
   useEffect(() => {
     loadPage()
     resolveCurrentUser()
   }, [])
-
-  useEffect(() => {
-    let midnightTimer
-
-    function scheduleManilaDayChange() {
-      const currentToday = dateKeyFromDate()
-      const nextMidnight = new Date(
-        `${addDays(currentToday, 1)}T00:00:00${MANILA_OFFSET}`,
-      )
-      const delay = Math.max(nextMidnight.getTime() - Date.now() + 1000, 1000)
-
-      midnightTimer = window.setTimeout(() => {
-        const newToday = dateKeyFromDate()
-        setTodayKey(newToday)
-        setSelectedDate(newToday)
-        setVisibleMonth(monthKeyFromDateKey(newToday))
-        scheduleManilaDayChange()
-      }, delay)
-    }
-
-    scheduleManilaDayChange()
-    return () => window.clearTimeout(midnightTimer)
-  }, [])
-
-  useEffect(() => {
-    if (!calendarOpen) return undefined
-
-    function handleClickOutside(event) {
-      if (
-        calendarWrapRef.current &&
-        !calendarWrapRef.current.contains(event.target)
-      ) {
-        setCalendarOpen(false)
-      }
-    }
-
-    function handleEscape(event) {
-      if (event.key === 'Escape') setCalendarOpen(false)
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [calendarOpen])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -252,21 +79,22 @@ export default function PaymentsPage({ user: suppliedUser }) {
     if (!profileError) setCurrentUser(profile)
   }
 
-  async function loadPage(isRefresh = false) {
-    if (isRefresh) setRefreshing(true)
-    else setLoading(true)
-
+  async function loadPage() {
+    setLoading(true)
     setPageError('')
 
-    const [paymentResult, propertyResult] = await Promise.all([
+    const [paymentResult, propertyResult, summaryResult] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number, homeowner_status')
+        .select('id, homeowner_name, block, lot_number')
         .order('homeowner_name'),
+      supabase
+        .from('homeowner_ledger_summary')
+        .select('property_id, outstanding_balance'),
     ])
 
     if (paymentResult.error) {
@@ -283,8 +111,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
     } else {
       setProperties(propertyResult.data || [])
     }
+    if (!summaryResult.error) setAccountSummaries(summaryResult.data || [])
     setLoading(false)
-    setRefreshing(false)
   }
 
   const remainingBalance = useMemo(() => {
@@ -293,18 +121,17 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return Math.max(previous - paid, 0)
   }, [form.previousBalance, form.amountPaid])
 
+  const unallocatedCredit = useMemo(() => {
+    const previous = Number(form.previousBalance) || 0
+    const paid = Number(form.amountPaid) || 0
+    return Math.max(paid - previous, 0)
+  }, [form.previousBalance, form.amountPaid])
+
   const matchingHomeowners = useMemo(() => {
     const search = form.homeownerName.trim().toLowerCase()
 
     return properties
       .filter((property) => {
-        if (
-          property.homeowner_status &&
-          property.homeowner_status.toLowerCase() !== 'active'
-        ) {
-          return false
-        }
-
         if (!search) return true
 
         const searchableValue = [
@@ -319,63 +146,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
       })
       .slice(0, 8)
   }, [form.homeownerName, properties])
-
-  const calendarDays = useMemo(
-    () => getCalendarDays(visibleMonth),
-    [visibleMonth],
-  )
-
-  const paymentCountByDay = useMemo(() => {
-    return payments.reduce((counts, payment) => {
-      if (!payment.paid_at) return counts
-      const key = dateKeyFromDate(new Date(payment.paid_at))
-      counts[key] = (counts[key] || 0) + 1
-      return counts
-    }, {})
-  }, [payments])
-
-  const selectedDayPayments = useMemo(
-    () =>
-      payments.filter(
-        (payment) =>
-          payment.paid_at && dateKeyFromDate(new Date(payment.paid_at)) === selectedDate,
-      ),
-    [payments, selectedDate],
-  )
-
-  const isTodaySelected = selectedDate === todayKey
-  const isArchiveSelected = selectedDate < todayKey
-
-  const calendarTriggerLabel = useMemo(
-    () => triggerDateFormatter.format(dateFromKey(selectedDate)),
-    [selectedDate],
-  )
-  const selectedDayHasActivity = Boolean(paymentCountByDay[selectedDate])
-
-  function selectDate(dateKey) {
-    if (dateKey > todayKey) return
-    setSelectedDate(dateKey)
-    setVisibleMonth(monthKeyFromDateKey(dateKey))
-    setCalendarOpen(false)
-  }
-
-  function changeMonth(amount) {
-    const nextMonth = shiftMonth(visibleMonth, amount)
-    const todayMonth = monthKeyFromDateKey(todayKey)
-    if (nextMonth > todayMonth) return
-
-    setVisibleMonth(nextMonth)
-    if (nextMonth === todayMonth) setSelectedDate(todayKey)
-    else setSelectedDate(`${nextMonth}-01`)
-  }
-
-  function goToToday() {
-    selectDate(todayKey)
-  }
-
-  function toggleCalendar() {
-    setCalendarOpen((current) => !current)
-  }
 
   function updateField(event) {
     const { name, value } = event.target
@@ -398,12 +168,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }
 
   function selectHomeowner(property) {
+    const summary = accountSummaries.find(
+      (item) => Number(item.property_id) === Number(property.id),
+    )
     setForm((current) => ({
       ...current,
       propertyId: String(property.id),
       homeownerName: property.homeowner_name,
       blockName: property.block,
       lotNumber: String(property.lot_number),
+      previousBalance: String(Number(summary?.outstanding_balance) || 0),
     }))
     setHomeownerMenuOpen(false)
     setFormError('')
@@ -469,11 +243,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
-    if (paid > previous) {
-      setFormError('Amount paid cannot be greater than the previous balance.')
-      return
-    }
-
     if (form.paymentMethod !== 'Cash' && !reference) {
       setFormError('A reference number is required for non-cash payments.')
       return
@@ -482,49 +251,24 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setSaving(true)
     setFormError('')
 
-    const payload = {
-      property_id: Number(form.propertyId),
-      homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
-      block_name: form.blockName,
-      lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
-      coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
-      previous_balance: previous,
-      amount: paid,
-      amount_paid: paid,
-      payment_method: form.paymentMethod,
-      reference_number: reference || null,
-      note: form.note.trim() || null,
-      recorded_by: currentUser.id,
-      recorded_by_name: recorderName,
-    }
-
-    const { data, error } = await supabase
-      .from('payments')
-      .insert(payload)
-      .select('*')
-      .single()
+    const { data, error } = await supabase.rpc('record_hoa_payment', {
+      p_property_id: Number(form.propertyId),
+      p_amount: paid,
+      p_payment_method: form.paymentMethod,
+      p_reference_number: reference || null,
+      p_note: form.note.trim() || null,
+      p_payment_purpose: selectedPurpose,
+      p_coverage_period: form.coveragePeriod.trim(),
+    })
 
     if (error) {
-      setFormError(error.message)
+      setFormError(
+        error.code === 'PGRST202'
+          ? 'The HOA ledger migration must be applied before recording payments.'
+          : error.message,
+      )
       setSaving(false)
       return
-    }
-
-    const { error: activityError } = await supabase
-      .from('activity_log')
-      .insert({
-        user_id: currentUser.id,
-        action: 'Payment Recorded',
-        target: `${data.receipt_number} — ${data.homeowner_name} — ${peso.format(
-          data.amount_paid ?? data.amount,
-        )}`,
-      })
-
-    if (activityError) {
-      console.warn(
-        'Payment saved, but activity logging failed:',
-        activityError.message,
-      )
     }
 
     setPayments((current) => [data, ...current])
@@ -532,261 +276,70 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setForm(EMPTY_FORM)
     setReceipt(data)
     setSaving(false)
-
-    const newDateKey = dateKeyFromDate(new Date(data.paid_at))
-    setSelectedDate(newDateKey)
-    setVisibleMonth(monthKeyFromDateKey(newDateKey))
   }
 
   return (
     <div className="payments-page">
       <header className="payments-header">
         <div>
-          <p className="payments-eyebrow">Secretary workspace</p>
           <h1>Payments</h1>
-          <p>Record homeowner payments and issue official receipts.</p>
+          <p>Record homeowner payments and issue payment receipts.</p>
         </div>
 
-        <div className="payments-header-actions">
-          {canManagePayments && (
-            <button className="payments-primary" type="button" onClick={openForm}>
-              + Record Payment
-            </button>
-          )}
-        </div>
+        {canManagePayments && (
+          <button className="payments-primary" type="button" onClick={openForm}>
+            + Record Payment
+          </button>
+        )}
       </header>
 
       {pageError && <p className="payments-error">{pageError}</p>}
 
-      <section className="payments-day-panel">
-        <div className="payments-day-heading">
-          <div>
-            <div className="payments-day-title-row">
-              <h2>{selectedDateFormatter.format(dateFromKey(selectedDate))}</h2>
-              <span
-                className={`payments-day-badge ${
-                  isTodaySelected ? 'current' : 'archive'
-                }`}
-              >
-                {isTodaySelected ? 'Current day' : 'Archived day'}
-              </span>
-            </div>
-            <p>
-              {selectedDayPayments.length === 0
-                ? isTodaySelected
-                  ? 'No payments recorded yet today.'
-                  : 'No payments were recorded on this day.'
-                : `${selectedDayPayments.length} recorded ${
-                    selectedDayPayments.length === 1 ? 'payment' : 'payments'
-                  } on this day.`}
-            </p>
-          </div>
-
-          <div className="payments-day-actions">
-            <div className="payments-calendar-wrap" ref={calendarWrapRef}>
-              <button
-                type="button"
-                className={`payments-calendar-trigger ${
-                  calendarOpen ? 'is-open' : ''
-                }`}
-                onClick={toggleCalendar}
-                aria-haspopup="dialog"
-                aria-expanded={calendarOpen}
-              >
-                <Calendar size={15} />
-                {calendarTriggerLabel}
-                {selectedDayHasActivity && (
-                  <span className="payments-calendar-dot" aria-hidden="true" />
-                )}
-              </button>
-
-              {calendarOpen && (
-                <div
-                  className="payments-calendar-popover"
-                  role="dialog"
-                  aria-label="Select a date"
-                >
-                  <div className="payments-calendar-heading">
-                    <button
-                      type="button"
-                      className="payments-calendar-arrow previous"
-                      onClick={() => changeMonth(-1)}
-                      aria-label="Previous month"
-                    >
-                      <ChevronRight size={18} />
+      <section className="payments-table-card">
+        <table className="payments-table">
+          <thead>
+            <tr>
+              <th>Receipt No.</th>
+              <th>Date</th>
+              <th>Homeowner</th>
+              <th>Block / Lot</th>
+              <th>Coverage</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th aria-label="Actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan="9" className="payments-empty">Loading payments...</td></tr>
+            ) : payments.length === 0 ? (
+              <tr><td colSpan="9" className="payments-empty">No payments recorded yet.</td></tr>
+            ) : (
+              payments.map((payment) => (
+                <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
+                  <td><strong>{payment.receipt_number}</strong></td>
+                  <td>{dateTime.format(new Date(payment.paid_at))}</td>
+                  <td>{payment.homeowner_name}</td>
+                  <td>{payment.block_name}, {payment.lot_number}</td>
+                  <td>{payment.coverage_period}</td>
+                  <td className={payment.status === 'Voided' ? 'payments-amount-voided' : ''}>{peso.format(payment.amount_paid)}</td>
+                  <td>{payment.payment_method}</td>
+                  <td>
+                    <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
+                      {payment.status === 'Voided' ? 'Voided' : 'Completed'}
+                    </span>
+                  </td>
+                  <td>
+                    <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
+                      View receipt
                     </button>
-                    <strong>
-                      {monthFormatter.format(dateFromKey(`${visibleMonth}-01`))}
-                    </strong>
-                    <button
-                      type="button"
-                      className="payments-calendar-arrow"
-                      onClick={() => changeMonth(1)}
-                      disabled={visibleMonth >= monthKeyFromDateKey(todayKey)}
-                      aria-label="Next month"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </div>
-
-                  <div className="payments-calendar-weekdays" aria-hidden="true">
-                    {WEEKDAYS.map((weekday) => (
-                      <span key={weekday}>{weekday}</span>
-                    ))}
-                  </div>
-
-                  <div className="payments-calendar-grid">
-                    {calendarDays.map((dateKey) => {
-                      const count = paymentCountByDay[dateKey] || 0
-                      const isOutsideMonth =
-                        monthKeyFromDateKey(dateKey) !== visibleMonth
-                      const isFuture = dateKey > todayKey
-                      const isToday = dateKey === todayKey
-                      const isSelected = dateKey === selectedDate
-
-                      return (
-                        <button
-                          key={dateKey}
-                          type="button"
-                          className={[
-                            'payments-calendar-day',
-                            isOutsideMonth ? 'outside-month' : '',
-                            isFuture ? 'future-day' : '',
-                            isToday ? 'today' : '',
-                            isSelected ? 'selected' : '',
-                            count ? 'has-activity' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          disabled={isFuture}
-                          onClick={() => selectDate(dateKey)}
-                          aria-label={`${selectedDateFormatter.format(
-                            dateFromKey(dateKey),
-                          )}${
-                            count ? `, ${count} payments` : ', no payments'
-                          }`}
-                          aria-current={isToday ? 'date' : undefined}
-                        >
-                          <span className="payments-calendar-day-number">
-                            {Number(dateKey.slice(-2))}
-                          </span>
-                          {count > 0 && (
-                            <span className="payments-calendar-count">
-                              {count}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div className="payments-calendar-legend-row">
-                    <div className="payments-calendar-legend">
-                      <span>
-                        <i className="payments-today-key" />
-                        Today
-                      </span>
-                      <span>
-                        Has payments
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="payments-calendar-today-link"
-                      onClick={goToToday}
-                      disabled={isTodaySelected}
-                    >
-                      Jump to today
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              className="payments-refresh-btn"
-              onClick={() => loadPage(true)}
-              disabled={refreshing}
-            >
-              <RefreshCw size={14} className={refreshing ? 'spin-icon' : ''} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
-        </div>
-
-        <div className="payments-table-card">
-          <table className="payments-table">
-            <thead>
-              <tr>
-                <th>Receipt / Date</th>
-                <th>Payment</th>
-                <th>Homeowner</th>
-                <th>Amount</th>
-                <th>Method</th>
-                <th>Status</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="7" className="payments-empty">Loading payments...</td></tr>
-              ) : selectedDayPayments.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="payments-empty">
-                    {isTodaySelected
-                      ? 'No payments recorded yet today.'
-                      : 'No payments were recorded on this day.'}
                   </td>
                 </tr>
-              ) : (
-                selectedDayPayments.map((payment) => {
-                  const { type, details } = splitCoverage(payment.coverage_period)
-                  const status = paymentStatusMeta(payment.status)
-                  const isVoided = status.className === 'voided'
-
-                  return (
-                    <tr key={payment.id} className={isVoided ? 'payments-row-voided' : ''}>
-                      <td className="payments-receipt-info" data-label="Receipt / Date">
-                        <strong>{payment.receipt_number}</strong>
-                        <small>{dateTime.format(new Date(payment.paid_at))}</small>
-                      </td>
-                      <td className="payments-description-cell" data-label="Payment">
-                        {type && (
-                          <span className={`payments-type-badge ${typeBadgeClass(type)}`}>
-                            {type}
-                          </span>
-                        )}
-                        <span
-                          className="payments-detail-text"
-                          title={details || 'No additional payment details'}
-                        >
-                          {details || 'No additional details'}
-                        </span>
-                      </td>
-                      <td className="payments-homeowner-cell" data-label="Homeowner">
-                        <strong>{payment.homeowner_name}</strong>
-                        <small>{payment.block_name}, {payment.lot_number}</small>
-                      </td>
-                      <td className={`payments-amount ${isVoided ? 'payments-amount-voided' : ''}`} data-label="Amount">
-                        {peso.format(payment.amount_paid ?? payment.amount ?? 0)}
-                      </td>
-                      <td data-label="Method">{payment.payment_method || 'Not recorded'}</td>
-                      <td data-label="Status">
-                        <span className={`payments-status-pill payments-status-${status.className}`}>
-                          {status.label}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="payments-day-footer">
-          {selectedDayPayments.length} {selectedDayPayments.length === 1 ? 'payment' : 'payments'} recorded for this day
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </section>
 
       {showForm && canManagePayments && (
@@ -916,8 +469,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 />
               </label>
 
-              <label>Previous balance
-                <input name="previousBalance" type="number" min="0" step="0.01" value={form.previousBalance} onChange={updateField} required />
+              <label>Outstanding balance
+                <input name="previousBalance" type="number" min="0" step="0.01" value={form.previousBalance} readOnly required />
               </label>
 
               <label>Amount paid
@@ -927,6 +480,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <div className="payment-balance-preview payment-span-2">
                 <span>Remaining balance after payment</span>
                 <strong>{peso.format(remainingBalance)}</strong>
+                {unallocatedCredit > 0 && (
+                  <small>{peso.format(unallocatedCredit)} will remain as an unallocated account credit until matched to an approved charge.</small>
+                )}
               </div>
 
               <label>Payment method

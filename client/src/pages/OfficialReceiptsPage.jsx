@@ -123,7 +123,7 @@ function mapPaymentReceipt(payment) {
     sourceId: payment.id,
     type: 'payment',
     typeLabel: 'Regular Payment',
-    title: 'Official Payment Receipt',
+    title: 'HOA Payment Receipt',
     receiptNumber:
       payment.receipt_number ||
       'Receipt number unavailable',
@@ -170,7 +170,7 @@ function mapServiceReceipt(transaction) {
     sourceId: transaction.id,
     type: 'service',
     typeLabel: 'Service Payment',
-    title: 'Official Service Receipt',
+    title: 'HOA Service Receipt',
     receiptNumber:
       transaction.receipt_number ||
       'Receipt number unavailable',
@@ -688,7 +688,7 @@ export default function OfficialReceiptsPage() {
           </p>
 
           <h1>
-            Official Receipts Management
+            Payment Receipts Management
           </h1>
 
           <p>
@@ -843,15 +843,18 @@ export default function OfficialReceiptsPage() {
 
         <div className="official-receipts-filters">
           <label className="official-search-field">
+            <span>Search</span>
+
             <input
               type="search"
               value={search}
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              placeholder="Enter Name of Homeowner"
-              aria-label="Enter name of homeowner"
-              className="official-search-input"
+              placeholder="
+                Receipt no., homeowner,
+                property, or purpose
+              "
             />
           </label>
 
@@ -943,7 +946,7 @@ export default function OfficialReceiptsPage() {
                     colSpan="8"
                     className="official-receipts-empty"
                   >
-                    Loading official receipts...
+                    Loading payment receipts...
                   </td>
                 </tr>
               ) : filteredReceipts.length === 0 ? (
@@ -953,7 +956,7 @@ export default function OfficialReceiptsPage() {
                     className="official-receipts-empty"
                   >
                     {receipts.length === 0
-                      ? 'No official receipts have been recorded yet.'
+                      ? 'No payment receipts have been recorded yet.'
                       : 'No receipts match the selected search and filters.'}
                   </td>
                 </tr>

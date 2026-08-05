@@ -17,7 +17,7 @@ const date = new Intl.DateTimeFormat('en-PH', {
 const MANILA_TIME_ZONE = 'Asia/Manila'
 const MANILA_OFFSET = '+08:00'
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const TABLE_COLUMN_COUNT = 8
+const TABLE_COLUMN_COUNT = 9
 
 const selectedDateFormatter = new Intl.DateTimeFormat('en-PH', {
   weekday: 'long',
@@ -41,6 +41,11 @@ const triggerDateFormatter = new Intl.DateTimeFormat('en-PH', {
 })
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
+
+const isMissingLedgerFoundation = (error) =>
+  error?.code === '42P01' ||
+  error?.code === 'PGRST205' ||
+  normalize(error?.message).includes('homeowner_ledger_summary')
 
 function dateKeyFromDate(value = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -91,6 +96,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
+  const [accountSummaries, setAccountSummaries] = useState(null)
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
@@ -100,6 +106,9 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const [postingAssessments, setPostingAssessments] = useState(false)
+  const [statement, setStatement] = useState(null)
+  const [statementLoading, setStatementLoading] = useState(false)
 
   const initialToday = dateKeyFromDate()
   const [todayKey, setTodayKey] = useState(initialToday)
@@ -112,8 +121,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const calendarWrapRef = useRef(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageHomeowners = role === 'admin' || role === 'secretary'
-  const actorName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+  const canManageLedger = role === 'admin' || role === 'treasurer'
 
   useEffect(() => {
     loadLedger()
@@ -193,6 +201,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       paymentResult,
       serviceTransactionResult,
       settingsResult,
+      summaryResult,
     ] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
@@ -206,6 +215,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           .select('*')
           .order('paid_at', { ascending: false }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
+        supabase.from('homeowner_ledger_summary').select('*').order('homeowner_name'),
       ])
 
     const errors = [
@@ -214,6 +224,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       paymentResult.error,
       serviceTransactionResult.error,
       settingsResult.error,
+      isMissingLedgerFoundation(summaryResult.error) ? null : summaryResult.error,
     ]
       .filter(Boolean)
       .map((error) => error.message)
@@ -226,6 +237,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
     setServiceTransactions(serviceTransactionResult.data || [])
+    setAccountSummaries(summaryResult.error ? null : (summaryResult.data || []))
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -237,6 +249,44 @@ export default function LedgerPage({ user: suppliedUser }) {
   }
 
   const ledgerEntries = useMemo(() => {
+    const paymentDatesForProperty = (propertyId) => new Set(
+      [...payments, ...serviceTransactions]
+        .filter((record) =>
+          Number(record.property_id) === Number(propertyId) &&
+          normalize(record.status) !== 'voided' &&
+          normalize(record.payment_status) !== 'voided' &&
+          record.paid_at,
+        )
+        .map((record) => dateKeyFromDate(new Date(record.paid_at))),
+    )
+
+    if (accountSummaries) {
+      return accountSummaries.map((summary) => ({
+        id: summary.property_id,
+        name: summary.homeowner_name,
+        block: summary.block,
+        lot: `Lot ${summary.lot_number}`,
+        dueAmount: Number(summary.total_assessed) || 0,
+        paidAmount: Number(summary.total_collected) || 0,
+        balance: Number(summary.outstanding_balance) || 0,
+        penaltyAmount: Number(summary.penalty_charges) || 0,
+        totalDue: Number(summary.outstanding_balance) || 0,
+        duesCollected: Number(summary.dues_collected) || 0,
+        serviceCollected: Number(summary.service_collected) || 0,
+        agingCurrent: Number(summary.aging_current) || 0,
+        aging1To30: Number(summary.aging_1_30) || 0,
+        aging31To60: Number(summary.aging_31_60) || 0,
+        aging61To90: Number(summary.aging_61_90) || 0,
+        aging90Plus: Number(summary.aging_90_plus) || 0,
+        lastPayment: summary.last_payment_at
+          ? date.format(new Date(summary.last_payment_at))
+          : '—',
+        paymentDateKeys: paymentDatesForProperty(summary.property_id),
+        status: summary.account_status || 'Pending',
+        foundationMode: true,
+      }))
+    }
+
     return properties.map((property) => {
       const matchesProperty = (record) => {
         if (record.property_id != null) {
@@ -320,6 +370,11 @@ export default function LedgerPage({ user: suppliedUser }) {
         totalDue: lateFee.totalDue,
         duesCollected,
         serviceCollected,
+        agingCurrent: balance,
+        aging1To30: 0,
+        aging31To60: 0,
+        aging61To90: 0,
+        aging90Plus: 0,
         lastPayment: latestCollection?.paid_at
           ? date.format(new Date(latestCollection.paid_at))
           : '—',
@@ -331,7 +386,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         status,
       }
     })
-  }, [properties, payments, serviceTransactions, duesAmount, penaltySettings])
+  }, [accountSummaries, properties, payments, serviceTransactions, duesAmount, penaltySettings])
 
   const calendarDays = useMemo(
     () => getCalendarDays(visibleMonth),
@@ -385,6 +440,50 @@ export default function LedgerPage({ user: suppliedUser }) {
     )
   }, [filtered])
 
+  const agingTotals = useMemo(() => filtered.reduce(
+    (result, entry) => ({
+      current: result.current + entry.agingCurrent,
+      days1To30: result.days1To30 + entry.aging1To30,
+      days31To60: result.days31To60 + entry.aging31To60,
+      days61To90: result.days61To90 + entry.aging61To90,
+      days90Plus: result.days90Plus + entry.aging90Plus,
+    }),
+    { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
+  ), [filtered])
+
+  async function postMonthlyDues() {
+    if (!canManageLedger || postingAssessments) return
+    if (!window.confirm('Post this month’s approved assessments to all current properties?')) return
+
+    setPostingAssessments(true)
+    setPageError('')
+    const { data, error } = await supabase.rpc('post_monthly_assessments')
+    if (error) {
+      setPageError(`Could not post monthly assessments: ${error.message}`)
+    } else {
+      await loadLedger(true)
+      window.alert(`${Number(data) || 0} assessment(s) posted. Existing charges were not duplicated.`)
+    }
+    setPostingAssessments(false)
+  }
+
+  async function openStatement(entry) {
+    setStatement({ entry, lines: [], error: '' })
+    setStatementLoading(true)
+    const { data: lines, error } = await supabase
+      .from('homeowner_statement_lines')
+      .select('*')
+      .eq('property_id', entry.id)
+      .order('occurred_at', { ascending: true })
+
+    setStatement({
+      entry,
+      lines: lines || [],
+      error: error ? error.message : '',
+    })
+    setStatementLoading(false)
+  }
+
   const calendarTriggerLabel = selectedDate
     ? triggerDateFormatter.format(dateFromKey(selectedDate))
     : 'All dates'
@@ -431,6 +530,16 @@ export default function LedgerPage({ user: suppliedUser }) {
         </div>
 
         <div className="ledger-header-actions">
+          {canManageLedger && accountSummaries && (
+            <button
+              type="button"
+              className="ledger-save-button"
+              onClick={postMonthlyDues}
+              disabled={postingAssessments || refreshing}
+            >
+              {postingAssessments ? 'Posting...' : 'Post Monthly Dues'}
+            </button>
+          )}
           <div className="ledger-calendar-wrap" ref={calendarWrapRef}>
             <button
               type="button"
@@ -536,6 +645,13 @@ export default function LedgerPage({ user: suppliedUser }) {
         </p>
       )}
 
+      {!loading && !accountSummaries && (
+        <p className="ledger-foundation-notice" role="status">
+          Legacy summary mode is active. Apply the HOA ledger foundation migration
+          before relying on charge history, aging, allocations, or statements.
+        </p>
+      )}
+
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={20} /></div>
@@ -556,6 +672,22 @@ export default function LedgerPage({ user: suppliedUser }) {
           <div><p className="ledger-summary-label">Outstanding Balance</p><p className="ledger-summary-value">{peso.format(totals.totalBalance)}</p></div>
         </div>
       </div>
+
+      {accountSummaries && (
+        <section className="ledger-aging-card glass-card" aria-labelledby="ledger-aging-title">
+          <div>
+            <span className="ledger-header-eyebrow">Accounts Receivable Aging</span>
+            <h2 id="ledger-aging-title">Outstanding by age</h2>
+          </div>
+          <div className="ledger-aging-grid">
+            <div><span>Current</span><strong>{peso.format(agingTotals.current)}</strong></div>
+            <div><span>1–30 days</span><strong>{peso.format(agingTotals.days1To30)}</strong></div>
+            <div><span>31–60 days</span><strong>{peso.format(agingTotals.days31To60)}</strong></div>
+            <div><span>61–90 days</span><strong>{peso.format(agingTotals.days61To90)}</strong></div>
+            <div><span>90+ days</span><strong>{peso.format(agingTotals.days90Plus)}</strong></div>
+          </div>
+        </section>
+      )}
 
       <div className="ledger-toolbar-card glass-card">
         <div className="ledger-toolbar">
@@ -619,6 +751,7 @@ export default function LedgerPage({ user: suppliedUser }) {
               <th scope="col">Late Penalty</th>
               <th scope="col">Last Payment</th>
               <th scope="col">Status</th>
+              <th scope="col" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -651,11 +784,78 @@ export default function LedgerPage({ user: suppliedUser }) {
                 </td>
                 <td>{entry.lastPayment}</td>
                 <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
+                <td>
+                  <button
+                    type="button"
+                    className="ledger-statement-button"
+                    onClick={() => openStatement(entry)}
+                    disabled={!accountSummaries}
+                  >
+                    Statement
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {statement && (
+        <div className="ledger-modal-backdrop" onMouseDown={() => setStatement(null)}>
+          <section
+            className="ledger-modal ledger-statement-modal glass-card"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ledger-statement-title"
+          >
+            <div className="ledger-modal-heading">
+              <div>
+                <span className="ledger-header-eyebrow">Statement of Account</span>
+                <h2 id="ledger-statement-title">{statement.entry.name}</h2>
+                <p>{statement.entry.block}, {statement.entry.lot}</p>
+              </div>
+              <button type="button" className="ledger-modal-close" onClick={() => setStatement(null)}>×</button>
+            </div>
+
+            {statementLoading ? (
+              <p className="ledger-empty">Loading statement...</p>
+            ) : statement.error ? (
+              <p className="ledger-load-error">{statement.error}</p>
+            ) : statement.lines.length === 0 ? (
+              <p className="ledger-empty">No posted ledger transactions yet.</p>
+            ) : (
+              <div className="ledger-statement-table-wrap">
+                <table className="ledger-table ledger-statement-table">
+                  <thead>
+                    <tr><th>Date</th><th>Description</th><th>Reference</th><th>Debit</th><th>Credit</th></tr>
+                  </thead>
+                  <tbody>
+                    {statement.lines.map((line) => (
+                      <tr key={`${line.entry_type}-${line.source_id}`}>
+                        <td>{date.format(new Date(line.occurred_at))}</td>
+                        <td>{line.description}</td>
+                        <td>{line.reference || '—'}</td>
+                        <td>{Number(line.debit) > 0 ? peso.format(line.debit) : '—'}</td>
+                        <td>{Number(line.credit) > 0 ? peso.format(line.credit) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="ledger-statement-total">
+              <span>Current outstanding balance</span>
+              <strong>{peso.format(statement.entry.balance)}</strong>
+            </div>
+            <div className="ledger-modal-actions">
+              <button type="button" className="ledger-cancel-button" onClick={() => setStatement(null)}>Close</button>
+              <button type="button" className="ledger-save-button" onClick={() => window.print()}>Print / Save PDF</button>
+            </div>
+          </section>
+        </div>
+      )}
 
     </div>
   )
