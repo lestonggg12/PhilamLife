@@ -44,6 +44,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [payments, setPayments] = useState([])
   const [properties, setProperties] = useState([])
   const [accountSummaries, setAccountSummaries] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -56,6 +57,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
     role === 'admin' || role === 'secretary' || role === 'treasurer'
+
   useEffect(() => {
     loadPage()
     resolveCurrentUser()
@@ -114,6 +116,21 @@ export default function PaymentsPage({ user: suppliedUser }) {
     if (!summaryResult.error) setAccountSummaries(summaryResult.data || [])
     setLoading(false)
   }
+
+  // Filter payments by search term dynamically
+  const filteredPayments = useMemo(() => {
+    if (!searchTerm.trim()) return payments
+    const query = searchTerm.toLowerCase()
+    return payments.filter((p) => {
+      return (
+        p.receipt_number?.toLowerCase().includes(query) ||
+        p.homeowner_name?.toLowerCase().includes(query) ||
+        p.coverage_period?.toLowerCase().includes(query) ||
+        p.payment_method?.toLowerCase().includes(query) ||
+        `block ${p.block_name}`.toLowerCase().includes(query)
+      )
+    })
+  }, [payments, searchTerm])
 
   const remainingBalance = useMemo(() => {
     const previous = Number(form.previousBalance) || 0
@@ -296,41 +313,68 @@ export default function PaymentsPage({ user: suppliedUser }) {
       {pageError && <p className="payments-error">{pageError}</p>}
 
       <section className="payments-table-card">
+        {/* Table Search Toolbar */}
+        <div className="payments-table-toolbar">
+          <input
+            className="payments-search-input"
+            type="search"
+            placeholder="Search receipt, homeowner, period..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <span className="payments-count-badge">
+            {filteredPayments.length} {filteredPayments.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
+
         <table className="payments-table">
           <thead>
             <tr>
-              <th>Receipt No.</th>
-              <th>Date</th>
+              <th>Receipt / Date</th>
               <th>Homeowner</th>
-              <th>Block / Lot</th>
               <th>Coverage</th>
               <th>Amount</th>
-              <th>Method</th>
               <th>Status</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="9" className="payments-empty">Loading payments...</td></tr>
-            ) : payments.length === 0 ? (
-              <tr><td colSpan="9" className="payments-empty">No payments recorded yet.</td></tr>
+              <tr><td colSpan="6" className="payments-empty">Loading payments...</td></tr>
+            ) : filteredPayments.length === 0 ? (
+              <tr><td colSpan="6" className="payments-empty">No payments match your filter.</td></tr>
             ) : (
-              payments.map((payment) => (
+              filteredPayments.map((payment) => (
                 <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
-                  <td><strong>{payment.receipt_number}</strong></td>
-                  <td>{dateTime.format(new Date(payment.paid_at))}</td>
-                  <td>{payment.homeowner_name}</td>
-                  <td>{payment.block_name}, {payment.lot_number}</td>
-                  <td>{payment.coverage_period}</td>
-                  <td className={payment.status === 'Voided' ? 'payments-amount-voided' : ''}>{peso.format(payment.amount_paid)}</td>
-                  <td>{payment.payment_method}</td>
+                  <td>
+                    <div className="cell-stacked">
+                      <span className="cell-primary">{payment.receipt_number}</span>
+                      <span className="cell-secondary">{dateTime.format(new Date(payment.paid_at))}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="cell-stacked">
+                      <span className="cell-primary">{payment.homeowner_name}</span>
+                      <span className="cell-secondary">{payment.block_name}, Lot {payment.lot_number}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="cell-truncate" title={payment.coverage_period}>
+                      {payment.coverage_period}
+                    </div>
+                  </td>
+                  <td>
+                    <div className={`cell-stacked ${payment.status === 'Voided' ? 'payments-amount-voided' : ''}`}>
+                      <span className="amount-cell">{peso.format(payment.amount_paid)}</span>
+                      <span className="cell-secondary">{payment.payment_method}</span>
+                    </div>
+                  </td>
                   <td>
                     <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
                       {payment.status === 'Voided' ? 'Voided' : 'Completed'}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'right' }}>
                     <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
                       View receipt
                     </button>
@@ -342,6 +386,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         </table>
       </section>
 
+      {/* Form and Receipt overlays remain unchanged */}
       {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
           <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off">
@@ -478,8 +523,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <div className="payment-balance-preview payment-span-2">
-                <span>Remaining balance after payment</span>
-                <strong>{peso.format(remainingBalance)}</strong>
+                <div>
+                  <span>Remaining balance after payment</span>
+                  <strong>{peso.format(remainingBalance)}</strong>
+                </div>
                 {unallocatedCredit > 0 && (
                   <small>{peso.format(unallocatedCredit)} will remain as an unallocated account credit until matched to an approved charge.</small>
                 )}
