@@ -38,12 +38,24 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
+const paymentDate = new Intl.DateTimeFormat('en-PH', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+})
+
+const paymentTime = new Intl.DateTimeFormat('en-PH', {
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'Asia/Manila',
+})
+
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
   const [properties, setProperties] = useState([])
-  const [accountSummaries, setAccountSummaries] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
@@ -57,6 +69,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
     role === 'admin' || role === 'secretary' || role === 'treasurer'
+  const recorderName =
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
   useEffect(() => {
     loadPage()
@@ -85,7 +99,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, propertyResult, summaryResult] = await Promise.all([
+    const [paymentResult, propertyResult] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
@@ -94,9 +108,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .from('properties')
         .select('id, homeowner_name, block, lot_number')
         .order('homeowner_name'),
-      supabase
-        .from('homeowner_ledger_summary')
-        .select('property_id, outstanding_balance'),
     ])
 
     if (paymentResult.error) {
@@ -113,24 +124,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
     } else {
       setProperties(propertyResult.data || [])
     }
-    if (!summaryResult.error) setAccountSummaries(summaryResult.data || [])
     setLoading(false)
   }
-
-  // Filter payments by search term dynamically
-  const filteredPayments = useMemo(() => {
-    if (!searchTerm.trim()) return payments
-    const query = searchTerm.toLowerCase()
-    return payments.filter((p) => {
-      return (
-        p.receipt_number?.toLowerCase().includes(query) ||
-        p.homeowner_name?.toLowerCase().includes(query) ||
-        p.coverage_period?.toLowerCase().includes(query) ||
-        p.payment_method?.toLowerCase().includes(query) ||
-        `block ${p.block_name}`.toLowerCase().includes(query)
-      )
-    })
-  }, [payments, searchTerm])
 
   const remainingBalance = useMemo(() => {
     const previous = Number(form.previousBalance) || 0
@@ -138,11 +133,42 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return Math.max(previous - paid, 0)
   }, [form.previousBalance, form.amountPaid])
 
-  const unallocatedCredit = useMemo(() => {
-    const previous = Number(form.previousBalance) || 0
-    const paid = Number(form.amountPaid) || 0
-    return Math.max(paid - previous, 0)
-  }, [form.previousBalance, form.amountPaid])
+  const filteredPayments = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return payments
+
+    return payments.filter((payment) =>
+      [
+        payment.receipt_number,
+        payment.homeowner_name,
+        payment.block_name,
+        payment.lot_number,
+        payment.coverage_period,
+        payment.payment_method,
+        payment.status,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query),
+    )
+  }, [payments, searchTerm])
+
+  const paymentSummary = useMemo(() => {
+    const completed = payments.filter((payment) => payment.status !== 'Voided')
+    const homeowners = new Set(
+      completed.map((payment) => payment.property_id || `${payment.block_name}-${payment.lot_number}`),
+    )
+
+    return {
+      collected: completed.reduce(
+        (total, payment) => total + (Number(payment.amount_paid ?? payment.amount) || 0),
+        0,
+      ),
+      completed: completed.length,
+      homeowners: homeowners.size,
+    }
+  }, [payments])
 
   const matchingHomeowners = useMemo(() => {
     const search = form.homeownerName.trim().toLowerCase()
@@ -185,16 +211,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }
 
   function selectHomeowner(property) {
-    const summary = accountSummaries.find(
-      (item) => Number(item.property_id) === Number(property.id),
-    )
     setForm((current) => ({
       ...current,
       propertyId: String(property.id),
       homeownerName: property.homeowner_name,
       blockName: property.block,
       lotNumber: String(property.lot_number),
-      previousBalance: String(Number(summary?.outstanding_balance) || 0),
     }))
     setHomeownerMenuOpen(false)
     setFormError('')
@@ -260,6 +282,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
+    if (paid > previous) {
+      setFormError('Amount paid cannot be greater than the previous balance.')
+      return
+    }
+
     if (form.paymentMethod !== 'Cash' && !reference) {
       setFormError('A reference number is required for non-cash payments.')
       return
@@ -268,24 +295,49 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setSaving(true)
     setFormError('')
 
-    const { data, error } = await supabase.rpc('record_hoa_payment', {
-      p_property_id: Number(form.propertyId),
-      p_amount: paid,
-      p_payment_method: form.paymentMethod,
-      p_reference_number: reference || null,
-      p_note: form.note.trim() || null,
-      p_payment_purpose: selectedPurpose,
-      p_coverage_period: form.coveragePeriod.trim(),
-    })
+    const payload = {
+      property_id: Number(form.propertyId),
+      homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
+      block_name: form.blockName,
+      lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
+      coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
+      previous_balance: previous,
+      amount: paid,
+      amount_paid: paid,
+      payment_method: form.paymentMethod,
+      reference_number: reference || null,
+      note: form.note.trim() || null,
+      recorded_by: currentUser.id,
+      recorded_by_name: recorderName,
+    }
+
+    const { data, error } = await supabase
+      .from('payments')
+      .insert(payload)
+      .select('*')
+      .single()
 
     if (error) {
-      setFormError(
-        error.code === 'PGRST202'
-          ? 'The HOA ledger migration must be applied before recording payments.'
-          : error.message,
-      )
+      setFormError(error.message)
       setSaving(false)
       return
+    }
+
+    const { error: activityError } = await supabase
+      .from('activity_log')
+      .insert({
+        user_id: currentUser.id,
+        action: 'Payment Recorded',
+        target: `${data.receipt_number} — ${data.homeowner_name} — ${peso.format(
+          data.amount_paid ?? data.amount,
+        )}`,
+      })
+
+    if (activityError) {
+      console.warn(
+        'Payment saved, but activity logging failed:',
+        activityError.message,
+      )
     }
 
     setPayments((current) => [data, ...current])
@@ -298,42 +350,88 @@ export default function PaymentsPage({ user: suppliedUser }) {
   return (
     <div className="payments-page">
       <header className="payments-header">
-        <div>
-          <h1>Payments</h1>
-          <p>Record homeowner payments and issue payment receipts.</p>
+        <div className="payments-header-copy">
+          <div className="payments-header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M3 9h18M7 15h3" />
+            </svg>
+          </div>
+          <div>
+            <span className="payments-eyebrow">Finance</span>
+            <h1>Payments</h1>
+            <p>Record homeowner collections and manage payment receipts.</p>
+          </div>
         </div>
 
         {canManagePayments && (
           <button className="payments-primary" type="button" onClick={openForm}>
-            + Record Payment
+            <span aria-hidden="true">+</span>
+            Record Payment
           </button>
         )}
       </header>
 
       {pageError && <p className="payments-error">{pageError}</p>}
 
+      <section className="payments-summary" aria-label="Payment overview">
+        <article className="payments-summary-card payments-summary-collected">
+          <span className="payments-summary-label">Total collected</span>
+          <strong>{peso.format(paymentSummary.collected)}</strong>
+          <small>Excludes voided payments</small>
+        </article>
+        <article className="payments-summary-card payments-summary-records">
+          <span className="payments-summary-label">Completed payments</span>
+          <strong>{paymentSummary.completed}</strong>
+          <small>{payments.length} total record{payments.length === 1 ? '' : 's'}</small>
+        </article>
+        <article className="payments-summary-card payments-summary-homeowners">
+          <span className="payments-summary-label">Homeowners served</span>
+          <strong>{paymentSummary.homeowners}</strong>
+          <small>Unique properties collected</small>
+        </article>
+      </section>
+
       <section className="payments-table-card">
-        {/* Table Search Toolbar */}
-        <div className="payments-table-toolbar">
-          <input
-            className="payments-search-input"
-            type="search"
-            placeholder="Search receipt, homeowner, period..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <span className="payments-count-badge">
+        <div className="payments-table-heading">
+          <div>
+            <h2>Payment history</h2>
+            <p>Search and review recorded transactions.</p>
+          </div>
+          <span className="payments-result-count">
             {filteredPayments.length} {filteredPayments.length === 1 ? 'record' : 'records'}
           </span>
+        </div>
+
+        <div className="payments-table-toolbar">
+          <div className="payments-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              className="payments-search-input"
+              type="search"
+              aria-label="Search payments"
+              placeholder="Search receipt, homeowner, property, or payment details"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            {searchTerm && (
+              <button className="payments-search-clear" type="button" onClick={() => setSearchTerm('')}>
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <table className="payments-table">
           <thead>
             <tr>
               <th>Receipt / Date</th>
-              <th>Homeowner</th>
-              <th>Coverage</th>
-              <th>Amount</th>
+              <th>Homeowner / Property</th>
+              <th>Payment details</th>
+              <th>Amount / Method</th>
               <th>Status</th>
               <th aria-label="Actions" />
             </tr>
@@ -342,41 +440,42 @@ export default function PaymentsPage({ user: suppliedUser }) {
             {loading ? (
               <tr><td colSpan="6" className="payments-empty">Loading payments...</td></tr>
             ) : filteredPayments.length === 0 ? (
-              <tr><td colSpan="6" className="payments-empty">No payments match your filter.</td></tr>
+              <tr>
+                <td colSpan="6" className="payments-empty">
+                  <strong>{searchTerm ? 'No matching payments' : 'No payments recorded yet'}</strong>
+                  <span>{searchTerm ? 'Try a different receipt, homeowner, or payment detail.' : 'Newly recorded payments will appear here.'}</span>
+                </td>
+              </tr>
             ) : (
               filteredPayments.map((payment) => (
                 <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
-                  <td>
-                    <div className="cell-stacked">
-                      <span className="cell-primary">{payment.receipt_number}</span>
-                      <span className="cell-secondary">{dateTime.format(new Date(payment.paid_at))}</span>
-                    </div>
+                  <td data-label="Receipt / Date">
+                    <strong className="payments-receipt-number">{payment.receipt_number}</strong>
+                    <small className="payments-secondary-text">
+                      {paymentDate.format(new Date(payment.paid_at))} · {paymentTime.format(new Date(payment.paid_at))}
+                    </small>
                   </td>
-                  <td>
-                    <div className="cell-stacked">
-                      <span className="cell-primary">{payment.homeowner_name}</span>
-                      <span className="cell-secondary">{payment.block_name}, Lot {payment.lot_number}</span>
-                    </div>
+                  <td data-label="Homeowner / Property">
+                    <span className="payments-primary-text">{payment.homeowner_name}</span>
+                    <small className="payments-secondary-text">{payment.block_name} · Lot {payment.lot_number}</small>
                   </td>
-                  <td>
-                    <div className="cell-truncate" title={payment.coverage_period}>
-                      {payment.coverage_period}
-                    </div>
+                  <td data-label="Payment details">
+                    <span className="payments-coverage" title={payment.coverage_period}>{payment.coverage_period}</span>
                   </td>
-                  <td>
-                    <div className={`cell-stacked ${payment.status === 'Voided' ? 'payments-amount-voided' : ''}`}>
-                      <span className="amount-cell">{peso.format(payment.amount_paid)}</span>
-                      <span className="cell-secondary">{payment.payment_method}</span>
-                    </div>
+                  <td data-label="Amount / Method">
+                    <strong className={`payments-amount ${payment.status === 'Voided' ? 'payments-amount-voided' : ''}`}>
+                      {peso.format(Number(payment.amount_paid ?? payment.amount) || 0)}
+                    </strong>
+                    <small className="payments-secondary-text">{payment.payment_method}</small>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={payment.status === 'Voided' ? 'payments-status-voided' : 'payments-status-completed'}>
                       {payment.status === 'Voided' ? 'Voided' : 'Completed'}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td data-label="Receipt" className="payments-action-cell">
                     <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
-                      View receipt
+                      View <span aria-hidden="true">→</span>
                     </button>
                   </td>
                 </tr>
@@ -386,7 +485,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
         </table>
       </section>
 
-      {/* Form and Receipt overlays remain unchanged */}
       {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
           <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off">
@@ -514,8 +612,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 />
               </label>
 
-              <label>Outstanding balance
-                <input name="previousBalance" type="number" min="0" step="0.01" value={form.previousBalance} readOnly required />
+              <label>Previous balance
+                <input name="previousBalance" type="number" min="0" step="0.01" value={form.previousBalance} onChange={updateField} required />
               </label>
 
               <label>Amount paid
@@ -523,13 +621,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <div className="payment-balance-preview payment-span-2">
-                <div>
-                  <span>Remaining balance after payment</span>
-                  <strong>{peso.format(remainingBalance)}</strong>
-                </div>
-                {unallocatedCredit > 0 && (
-                  <small>{peso.format(unallocatedCredit)} will remain as an unallocated account credit until matched to an approved charge.</small>
-                )}
+                <span>Remaining balance after payment</span>
+                <strong>{peso.format(remainingBalance)}</strong>
               </div>
 
               <label>Payment method
