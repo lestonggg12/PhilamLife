@@ -272,7 +272,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number, homeowner_status')
+        .select('id, homeowner_name, block, lot_number')
         .order('homeowner_name'),
     ])
 
@@ -459,6 +459,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
     const paid = Number(transactionForm.amount_paid)
     const payload = {
+      property_id: Number(property.id),
       service_id: service.id,
       service_name: service.name,
       customer_name: property.homeowner_name,
@@ -631,7 +632,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         <div className="services-section-heading services-transaction-heading">
           <div>
             <h2>Service Transactions</h2>
-            <p>Search payments and open their official receipts.</p>
+            <p>Search payments and open their payment receipts.</p>
           </div>
           <div className="services-filters">
             <input
@@ -823,7 +824,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             <div className="services-modal-header">
               <div>
                 <h2>Record Service Payment</h2>
-                <p>The official receipt is created only after a successful save.</p>
+                <p>The payment receipt is created only after a successful save.</p>
               </div>
               <button type="button" onClick={() => setShowPaymentForm(false)} aria-label="Close">
                 <X size={19} />
@@ -857,17 +858,11 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   }
                 >
                   <option value="">Select homeowner</option>
-                  {properties
-                    .filter(
-                      (property) =>
-                        !property.homeowner_status ||
-                        property.homeowner_status.toLowerCase() === 'active',
-                    )
-                    .map((property) => (
-                      <option value={String(property.id)} key={property.id}>
-                        {property.homeowner_name} — {property.block}, Lot {property.lot_number}
-                      </option>
-                    ))}
+                  {properties.map((property) => (
+                    <option value={String(property.id)} key={property.id}>
+                      {property.homeowner_name} — {property.block}, Lot {property.lot_number}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>

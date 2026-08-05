@@ -41,16 +41,10 @@ export default function Sidebar({ user }) {
       roles: ['admin', 'secretary', 'treasurer'],
     },
     {
-      name: 'Homeowners',
-      path: '/homeowners',
-      icon: Users,
-      roles: ['admin', 'secretary', 'treasurer'],
-    },
-    {
       name: 'Document Library',
       path: '/documents',
       icon: FileArchive,
-      roles: ['admin', 'secretary'],
+      roles: ['secretary'],
     },
   ].filter((item) => item.roles.includes(role))
 
@@ -99,7 +93,7 @@ export default function Sidebar({ user }) {
       roles: ['admin', 'treasurer'],
     },
     {
-      name: 'Official Receipts',
+      name: 'Payment Receipts',
       path: '/secretary/receipts',
       icon: FileText,
       roles: ['secretary'],

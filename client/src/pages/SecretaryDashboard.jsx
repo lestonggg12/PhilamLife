@@ -3,13 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import {
   AlertCircle,
-  Calendar,
   CheckCircle,
-  Clock,
   CreditCard,
   FileText,
   Home,
-  MapPin,
   TrendingUp,
   Users,
 } from '../components/Icons'
@@ -24,30 +21,6 @@ const peso = new Intl.NumberFormat('en-PH', {
 const dateTime = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
   timeStyle: 'short',
-  timeZone: 'Asia/Manila',
-})
-
-const eventDate = new Intl.DateTimeFormat('en-PH', {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'Asia/Manila',
-})
-
-const eventMonth = new Intl.DateTimeFormat('en-PH', {
-  month: 'short',
-  timeZone: 'Asia/Manila',
-})
-
-const eventDay = new Intl.DateTimeFormat('en-PH', {
-  day: '2-digit',
-  timeZone: 'Asia/Manila',
-})
-
-const eventTime = new Intl.DateTimeFormat('en-PH', {
-  hour: 'numeric',
-  minute: '2-digit',
   timeZone: 'Asia/Manila',
 })
 
@@ -89,53 +62,11 @@ function formatActivityTime(value) {
   return Number.isNaN(parsed.getTime()) ? 'Time unavailable' : dateTime.format(parsed)
 }
 
-function manilaDateKey(value = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(value)
-
-  const part = (type) => parts.find((item) => item.type === type)?.value
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-function parseManilaEventDate(value, time = '00:00:00') {
-  if (!value) return null
-  const parsed = new Date(`${value}T${time || '00:00:00'}+08:00`)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-function formatEventDate(value) {
-  const parsed = parseManilaEventDate(value)
-  return parsed ? eventDate.format(parsed) : 'Date to be announced'
-}
-
-function formatEventTime(start, end) {
-  if (!start) return 'Time to be announced'
-  const startDate = parseManilaEventDate('2000-01-01', start)
-  const endDate = end ? parseManilaEventDate('2000-01-01', end) : null
-  if (!startDate) return 'Time to be announced'
-  return endDate
-    ? `${eventTime.format(startDate)} – ${eventTime.format(endDate)}`
-    : eventTime.format(startDate)
-}
-
-function formatFileSize(bytes) {
-  const size = Number(bytes) || 0
-  if (size < 1024) return `${size} B`
-  if (size < 1024 ** 2) return `${(size / 1024).toFixed(1)} KB`
-  return `${(size / 1024 ** 2).toFixed(1)} MB`
-}
-
 export default function SecretaryDashboard() {
   const navigate = useNavigate()
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
   const [activities, setActivities] = useState([])
-  const [upcomingEvent, setUpcomingEvent] = useState(null)
-  const [recentDocument, setRecentDocument] = useState(null)
   const [duesAmount, setDuesAmount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
@@ -148,16 +79,7 @@ export default function SecretaryDashboard() {
     setLoading(true)
     setPageError('')
 
-    const today = manilaDateKey()
-
-    const [
-      propertyResult,
-      paymentResult,
-      activityResult,
-      settingsResult,
-      eventResult,
-      documentResult,
-    ] =
+    const [propertyResult, paymentResult, activityResult, settingsResult] =
       await Promise.all([
         supabase
           .from('properties')
@@ -176,32 +98,12 @@ export default function SecretaryDashboard() {
           .select('dues_amount')
           .eq('id', 1)
           .maybeSingle(),
-        supabase
-          .from('events')
-          .select(
-            'id, title, description, event_date, start_time, end_time, location',
-          )
-          .gte('event_date', today)
-          .order('event_date', { ascending: true })
-          .order('start_time', { ascending: true, nullsFirst: true })
-          .limit(10),
-        supabase
-          .from('documents')
-          .select(
-            'id, title, category, original_file_name, file_size, uploaded_by_name, created_at',
-          )
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
       ])
 
     const errors = [
       propertyResult.error,
       paymentResult.error,
       activityResult.error,
-      settingsResult.error,
-      eventResult.error,
-      documentResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -215,14 +117,6 @@ export default function SecretaryDashboard() {
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
     setActivities(activityResult.data || [])
-    const now = new Date()
-    const nextEvent = (eventResult.data || []).find((item) => {
-      if (item.event_date > today || !item.end_time) return true
-      const eventEnds = parseManilaEventDate(item.event_date, item.end_time)
-      return eventEnds ? eventEnds >= now : true
-    })
-    setUpcomingEvent(nextEvent || null)
-    setRecentDocument(documentResult.data || null)
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setLoading(false)
   }
@@ -272,6 +166,8 @@ export default function SecretaryDashboard() {
       receiptsThisMonth: monthlyPayments.length,
     }
   }, [duesAmount, payments, properties])
+
+  const recentPayments = payments.slice(0, 5)
 
   return (
     <div className="sec-secretary-dashboard">
@@ -354,131 +250,66 @@ export default function SecretaryDashboard() {
       </section>
 
       <section className="sec-content-grid">
-        <article className="sec-panel sec-overview-panel">
+        <article className="sec-panel">
           <div className="sec-panel-heading">
             <div>
-              <h2>Secretary Overview</h2>
-              <p>Your next schedule and newest HOA file</p>
+              <h2>Recent Payments</h2>
+              <p>Latest transactions recorded by staff</p>
             </div>
+            <button type="button" onClick={() => navigate('/payments')}>
+              View all
+            </button>
           </div>
 
-          <div className="sec-overview-grid">
-            <section className="sec-upcoming-card" aria-label="Upcoming scheduled event">
-              <div className="sec-overview-label">
-                <Calendar size={16} />
-                Upcoming scheduled event
-              </div>
-
-              {loading ? (
-                <p className="sec-overview-empty">Loading upcoming event...</p>
-              ) : upcomingEvent ? (
-                <div className="sec-event-content">
-                  <div className="sec-event-date-tile" aria-hidden="true">
-                    <span>
-                      {eventMonth.format(
-                        parseManilaEventDate(upcomingEvent.event_date),
-                      )}
-                    </span>
-                    <strong>
-                      {eventDay.format(
-                        parseManilaEventDate(upcomingEvent.event_date),
-                      )}
-                    </strong>
-                  </div>
-
-                  <div className="sec-event-details">
-                    <span className="sec-event-status">Next event</span>
-                    <h3>{upcomingEvent.title}</h3>
-                    <p className="sec-event-description">
-                      {upcomingEvent.description || 'No event description provided.'}
-                    </p>
-                    <div className="sec-event-meta">
-                      <span>
-                        <Calendar size={14} />
-                        {formatEventDate(upcomingEvent.event_date)}
-                      </span>
-                      <span>
-                        <Clock size={14} />
-                        {formatEventTime(
-                          upcomingEvent.start_time,
-                          upcomingEvent.end_time,
-                        )}
-                      </span>
-                      <span>
-                        <MapPin size={14} />
-                        {upcomingEvent.location || 'Location to be announced'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="sec-overview-empty sec-overview-empty-event">
-                  <Calendar size={29} />
-                  <strong>No upcoming event scheduled</strong>
-                  <span>Add an event to keep the Secretary informed.</span>
-                </div>
-              )}
-
-              <button
-                type="button"
-                className="sec-overview-link"
-                onClick={() => navigate('/calendar')}
-              >
-                Open Event Calendar
-              </button>
-            </section>
-
-            <section className="sec-document-card" aria-label="Recently added document">
-              <div className="sec-overview-label">
-                <FileText size={16} />
-                Recently added document
-              </div>
-
-              {loading ? (
-                <p className="sec-overview-empty">Loading document...</p>
-              ) : recentDocument ? (
-                <div className="sec-document-content">
-                  <span className="sec-document-icon">
-                    <FileText size={24} />
-                  </span>
-                  <div>
-                    <span className="sec-document-category">
-                      {recentDocument.category || 'HOA document'}
-                    </span>
-                    <h3>{recentDocument.title}</h3>
-                    <p>{recentDocument.original_file_name || 'Document file'}</p>
-                    <dl className="sec-document-meta">
-                      <div>
-                        <dt>Added</dt>
-                        <dd>{formatActivityTime(recentDocument.created_at)}</dd>
-                      </div>
-                      <div>
-                        <dt>Size</dt>
-                        <dd>{formatFileSize(recentDocument.file_size)}</dd>
-                      </div>
-                      <div>
-                        <dt>Uploaded by</dt>
-                        <dd>{recentDocument.uploaded_by_name || 'Secretary'}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                </div>
-              ) : (
-                <div className="sec-overview-empty sec-overview-empty-document">
-                  <FileText size={29} />
-                  <strong>No document uploaded yet</strong>
-                  <span>The newest library file will appear here.</span>
-                </div>
-              )}
-
-              <button
-                type="button"
-                className="sec-overview-link sec-document-link"
-                onClick={() => navigate('/documents')}
-              >
-                Open Document Library
-              </button>
-            </section>
+          <div className="sec-table-wrap">
+            <table className="sec-payments-table">
+              <thead>
+                <tr>
+                  <th>Homeowner</th>
+                  <th>Property</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="sec-empty">Loading payments...</td>
+                  </tr>
+                ) : recentPayments.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="sec-empty">No payments recorded yet.</td>
+                  </tr>
+                ) : (
+                  recentPayments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>
+                        <strong>{payment.homeowner_name || 'Unnamed homeowner'}</strong>
+                        <span>{payment.coverage_period || 'No coverage specified'}</span>
+                      </td>
+                      <td>
+                        {payment.block_name || '—'}
+                        {payment.lot_number ? `, ${payment.lot_number}` : ''}
+                      </td>
+                      <td className="sec-amount">
+                        {peso.format(Number(payment.amount_paid) || 0)}
+                      </td>
+                      <td>
+                        {payment.paid_at
+                          ? formatActivityTime(payment.paid_at)
+                          : '—'}
+                      </td>
+                      <td>
+                        <span className={payment.status === 'Voided' ? 'sec-status-voided' : 'sec-status-completed'}>
+                          {payment.status === 'Voided' ? 'Voided' : 'Completed'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </article>
 
@@ -518,7 +349,7 @@ export default function SecretaryDashboard() {
               </span>
 
               <span>
-                <strong>Official Receipts</strong>
+                <strong>Payment Receipts</strong>
 
                 <small>
                   Search, view, and reprint all receipts
