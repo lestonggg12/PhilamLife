@@ -1,47 +1,303 @@
-.reports-page { padding: 24px; color: #172033; }
-.reports-header, .reports-controls, .expense-heading, .expense-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.reports-header h1 { margin: 0 0 4px; font-size: 1.65rem; }
-.reports-header p, .expense-heading p { margin: 0; color: #687386; }
-.reports-primary, .reports-secondary { border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
-.reports-primary { background: #1464a0; color: #fff; }
-.reports-primary:disabled { opacity: .6; cursor: not-allowed; }
-.reports-secondary { background: #e8f1f8; color: #10517f; }
-.reports-tabs { display: flex; gap: 6px; margin: 24px 0 14px; border-bottom: 1px solid #dce2e9; overflow-x: auto; }
-.reports-tabs button { white-space: nowrap; border: 0; border-bottom: 3px solid transparent; background: transparent; padding: 11px 14px; color: #657083; cursor: pointer; font-weight: 600; }
-.reports-tabs button.active { color: #1464a0; border-bottom-color: #1464a0; }
-.reports-controls { min-height: 42px; margin-bottom: 16px; }
-.reports-controls label { display: flex; align-items: center; gap: 9px; font-size: .88rem; font-weight: 600; }
-.reports-controls input, .expense-form input { border: 1px solid #ccd4de; border-radius: 8px; padding: 9px 11px; background: #fff; }
-.report-sheet { background: #fff; border: 1px solid #e0e5eb; border-radius: 12px; padding: 22px; box-shadow: 0 3px 14px rgba(30, 47, 66, .05); }
-.report-print-heading { margin-bottom: 16px; }
-.report-print-heading h2 { margin: 0 0 3px; font-size: 1.25rem; }
-.report-print-heading p { margin: 0; color: #6c7789; }
-.report-summary { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
-.report-summary span { min-width: 180px; background: #f5f8fb; border-radius: 9px; padding: 12px 14px; color: #687386; font-size: .83rem; }
-.report-summary strong { display: block; margin-top: 3px; color: #172033; font-size: 1.15rem; }
-.reports-table-wrap { overflow-x: auto; }
+/* ReportsPage.css — ledger-book identity
+   Fonts: add these to your index.html <head> for best performance:
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+*/
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+.reports-page {
+  --ink: #182449;
+  --ink-soft: #5C6478;
+  --paper: #F1F0EA;
+  --sheet: #FCFBF8;
+  --line: #DEDACD;
+  --brass: #9C7A32;
+  --brass-soft: #EDE3CC;
+  --forest: #2B6B4A;
+  --rust: #A73A2C;
+  --rust-soft: #F5E4E0;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
+
+  padding: 28px 32px 48px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+/* ---------- Header ---------- */
+.reports-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.reports-header h1 {
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2rem;
+  letter-spacing: -0.01em;
+}
+.reports-header h1::before {
+  content: "PHILAM VILLAGE — FINANCIAL LEDGER";
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--brass);
+  margin-bottom: 8px;
+}
+.reports-header p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
+
+.reports-primary {
+  border: 0;
+  border-radius: 3px;
+  padding: 12px 20px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  background: var(--ink);
+  color: #F6F4EC;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.reports-primary:hover:not(:disabled) { background: #24346B; }
+.reports-primary:active:not(:disabled) { transform: translateY(1px); }
+.reports-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.reports-secondary {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--sheet);
+  color: var(--ink);
+}
+
+/* ---------- Tabs: ledger folder dividers ---------- */
+.reports-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 28px 0 0;
+  padding-left: 4px;
+  overflow-x: auto;
+}
+.reports-tabs button {
+  position: relative;
+  white-space: nowrap;
+  border: 0;
+  background: #E4E1D5;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.84rem;
+  letter-spacing: 0.01em;
+  padding: 11px 22px 10px;
+  cursor: pointer;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  margin-right: -6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.reports-tabs button:hover { background: #D8D4C4; color: var(--ink); }
+.reports-tabs button.active {
+  background: var(--sheet);
+  color: var(--ink);
+  z-index: 2;
+}
+
+/* ---------- Controls ---------- */
+.reports-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 42px;
+  margin-bottom: 0;
+  padding: 14px 20px;
+  background: var(--sheet);
+  border-top: 1px solid var(--line);
+}
+.reports-controls label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.reports-controls span { font-size: 0.85rem; color: var(--ink-soft); }
+.reports-controls input, .expense-form input {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 8px 11px;
+  background: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+.reports-controls input:focus, .expense-form input:focus {
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.reports-error { color: var(--rust); font-weight: 600; padding: 0 20px; }
+
+/* ---------- Report sheet: the ledger page itself ---------- */
+.report-sheet {
+  position: relative;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-top: 0;
+  padding: 26px 28px 22px 42px;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 34px,
+    #EDEAE0 35px
+  );
+  background-position: 0 92px;
+}
+/* bound spine with stitching dots */
+.report-sheet::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 18px;
+  width: 1px;
+  background: var(--brass-soft);
+}
+.report-sheet::after {
+  content: "";
+  position: absolute;
+  top: 12px; bottom: 12px; left: 17px;
+  width: 3px;
+  background-image: radial-gradient(circle, var(--brass) 1px, transparent 1.3px);
+  background-size: 3px 14px;
+  opacity: 0.55;
+}
+
+.report-print-heading { margin-bottom: 18px; position: relative; }
+.report-print-heading h2 {
+  margin: 0 0 3px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.35rem;
+}
+.report-print-heading p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--brass);
+  text-transform: uppercase;
+}
+
+/* ---------- Summary stat cards ---------- */
+.report-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin-bottom: 22px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  position: relative;
+}
+.report-summary span {
+  flex: 1 1 180px;
+  background: var(--sheet);
+  padding: 14px 18px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.report-summary strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Table ---------- */
+.reports-table-wrap { overflow-x: auto; position: relative; }
 .reports-table-wrap table { width: 100%; border-collapse: collapse; }
-.reports-table-wrap th { text-align: left; color: #697487; font-size: .75rem; text-transform: uppercase; border-bottom: 2px solid #e4e8ed; padding: 10px 12px; }
-.reports-table-wrap td { padding: 11px 12px; border-bottom: 1px solid #edf0f3; font-size: .88rem; }
-.reports-table-wrap .number { text-align: right; white-space: nowrap; }
-.reports-empty { padding: 34px !important; text-align: center; color: #8a94a4; }
-.reports-due, .reports-error { color: #bd342c; font-weight: 600; }
-.report-footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #e6eaee; color: #7b8594; font-size: .76rem; }
-.reports-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(18, 27, 40, .52); }
-.expense-form { width: min(580px, 100%); box-sizing: border-box; border-radius: 12px; padding: 23px; background: #fff; }
-.expense-heading { align-items: flex-start; }
-.expense-heading h2 { margin: 0 0 4px; }
-.expense-heading button { border: 0; background: transparent; font-size: 1.6rem; cursor: pointer; }
+.reports-table-wrap th {
+  text-align: left;
+  color: var(--brass);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--ink);
+  padding: 10px 14px;
+  background: var(--sheet);
+}
+.reports-table-wrap td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.87rem;
+  color: var(--ink);
+}
+.reports-table-wrap tbody tr:hover td { background: #F3EFE2; }
+.reports-table-wrap .number {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.reports-empty { padding: 40px !important; text-align: center; color: #9A9484; font-style: italic; }
+.reports-due { color: var(--rust); font-weight: 600; }
+
+.report-footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: #948E7E;
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+}
+
+/* ---------- Expense modal (shared styling) ---------- */
+.reports-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(24, 36, 73, 0.55); }
+.expense-form { width: min(580px, 100%); box-sizing: border-box; border-radius: 4px; padding: 26px; background: var(--sheet); border-top: 3px solid var(--brass); }
+.expense-heading { display: flex; justify-content: space-between; align-items: flex-start; }
+.expense-heading h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; }
+.expense-heading p { margin: 0; color: var(--ink-soft); }
+.expense-heading button { border: 0; background: transparent; font-size: 1.6rem; cursor: pointer; color: var(--ink-soft); line-height: 1; }
 .expense-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
-.expense-grid label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 600; }
+.expense-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em; color: var(--ink-soft); text-transform: uppercase; }
 .expense-grid .span-2 { grid-column: span 2; }
-.expense-actions { justify-content: flex-end; margin-top: 20px; }
-.expense-actions > button:not(.reports-primary) { border: 1px solid #ccd4de; background: #fff; border-radius: 8px; padding: 9px 15px; cursor: pointer; }
-@media (max-width: 640px) { .reports-page { padding: 16px; } .reports-header { align-items: flex-start; flex-direction: column; } .reports-controls { align-items: flex-start; flex-direction: column; } .expense-grid { grid-template-columns: 1fr; } .expense-grid .span-2 { grid-column: auto; } }
+.expense-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.expense-actions > button:not(.reports-primary) { border: 1px solid var(--line); background: #fff; border-radius: 3px; padding: 10px 16px; cursor: pointer; font-weight: 600; color: var(--ink-soft); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .reports-page { padding: 18px; }
+  .reports-header { align-items: flex-start; flex-direction: column; }
+  .reports-controls { align-items: flex-start; flex-direction: column; }
+  .report-sheet { padding-left: 24px; }
+  .report-sheet::before, .report-sheet::after { left: 8px; }
+  .expense-grid { grid-template-columns: 1fr; }
+  .expense-grid .span-2 { grid-column: auto; }
+}
+
+/* ---------- Print ---------- */
 @media print {
   body * { visibility: hidden; }
   .report-sheet, .report-sheet * { visibility: visible; }
-  .report-sheet { position: absolute; inset: 0; border: 0; box-shadow: none; padding: 18mm 14mm; }
+  .report-sheet {
+    position: absolute; inset: 0;
+    border: 0; padding: 18mm 14mm;
+    background-image: none;
+  }
+  .report-sheet::before, .report-sheet::after { display: none; }
   .no-print { display: none !important; }
   .reports-table-wrap { overflow: visible; }
   .reports-table-wrap tr { break-inside: avoid; }
