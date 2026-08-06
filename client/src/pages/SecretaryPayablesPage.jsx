@@ -6,7 +6,7 @@ import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
 import ReceiptModal from '../components/ReceiptModal'
 import { supabase } from '../lib/supabaseClient'
-import { computeLateFee } from '../lib/latepenalty'
+import { fetchLedgerAccounts, postLedgerPayment } from '../lib/hoaLedger'
 import './SecretaryPayables.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -47,12 +47,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
-  const [duesAmount, setDuesAmount] = useState(0)
-  const [penaltySettings, setPenaltySettings] = useState({
-    dueDay: 5,
-    gracePeriodDays: 0,
-    latePenalty: 0,
-  })
+  const [ledgerAccounts, setLedgerAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [expandedBlockId, setExpandedBlockId] = useState(null)
@@ -64,9 +59,6 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments = role === 'secretary' || role === 'treasurer'
-  const recorderName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
-
   useEffect(() => {
     loadPage()
     resolveCurrentUser()
@@ -98,29 +90,27 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, settingsResult] =
+    const [blockResult, propertyResult, paymentResult, accountResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name, homeowner_status')
+          .select('id, block, lot_number, homeowner_name')
           .order('homeowner_name'),
         supabase
           .from('payments')
           .select('*')
           .order('paid_at', { ascending: false }),
-        supabase
-          .from('system_settings')
-          .select('dues_amount, due_day, grace_period_days, late_penalty')
-          .eq('id', 1)
-          .maybeSingle(),
+        fetchLedgerAccounts()
+          .then((data) => ({ data, error: null }))
+          .catch((error) => ({ data: [], error })),
       ])
 
     const errors = [
       blockResult.error,
       propertyResult.error,
       paymentResult.error,
-      settingsResult.error,
+      accountResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -132,20 +122,9 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     }
 
     setBlocks(blockResult.data || [])
-    setProperties(
-      (propertyResult.data || []).filter(
-        (property) =>
-          !property.homeowner_status ||
-          property.homeowner_status.toLowerCase() === 'active',
-      ),
-    )
+    setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
-    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
-    setPenaltySettings({
-      dueDay: Number(settingsResult.data?.due_day) || 5,
-      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
-      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
-    })
+    setLedgerAccounts(accountResult.data || [])
     setLoading(false)
   }
 
@@ -160,15 +139,13 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         (payment) => payment.status !== 'Voided',
       )
       const latestPayment = activePayments[0]
-      const amountDue = latestPayment
-        ? Number(latestPayment.remaining_balance) || 0
-        : duesAmount
-      const lateFee = computeLateFee({
-        balance: amountDue,
-        dueDay: penaltySettings.dueDay,
-        gracePeriodDays: penaltySettings.gracePeriodDays,
-        latePenalty: penaltySettings.latePenalty,
-      })
+      const account = ledgerAccounts.find(
+        (item) => Number(item.propertyId) === Number(property.id),
+      )
+      const amountDue = account?.balance || 0
+      const overdue = account
+        ? account.days1To30 + account.days31To60 + account.days61To90 + account.days90Plus
+        : 0
 
       const homeowner = {
         id: property.id,
@@ -178,16 +155,17 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         address: `Lot ${property.lot_number}, ${property.block}`,
         status: amountDue <= 0
           ? 'paid'
-          : lateFee.isOverdue
+          : overdue > 0
             ? 'overdue'
             : 'pending',
         lastPayment: latestPayment?.paid_at
           ? date.format(new Date(latestPayment.paid_at))
           : 'No payment yet',
         amountDue,
-        penaltyAmount: lateFee.penaltyAmount,
-        totalDue: lateFee.totalDue,
-        daysOverdue: lateFee.daysOverdue,
+        penaltyAmount: 0,
+        totalDue: amountDue,
+        daysOverdue: 0,
+        unallocatedCredit: account?.unallocatedCredit || 0,
         avatar: '🏠',
         payments: propertyPayments,
       }
@@ -197,7 +175,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     })
 
     return grouped
-  }, [duesAmount, payments, properties, penaltySettings])
+  }, [ledgerAccounts, payments, properties])
 
   const blockSummaries = useMemo(() => {
     const knownBlocks = [...blocks]
@@ -278,51 +256,39 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
       throw new Error('Your user profile could not be verified. Please sign in again.')
     }
 
-    const payload = {
-      property_id: selectedHomeowner?.id ?? null,
-      homeowner_name: paymentData.homeowner,
-      block_name: paymentData.block,
-      lot_number: paymentData.lot,
-      coverage_period: form.period,
-      previous_balance: paymentData.amount,
+    const postedPayment = await postLedgerPayment({
+      propertyId: selectedHomeowner.id,
       amount: form.amount,
-      amount_paid: form.amount,
-      payment_method: form.method,
-      reference_number: form.referenceNumber || null,
-      note: form.note || null,
-      recorded_by: currentUser.id,
-      recorded_by_name: recorderName,
-    }
+      paymentMethod: form.method,
+      referenceNumber: form.referenceNumber,
+      paymentPurpose: 'Association Dues',
+      coveragePeriod: form.period,
+      note: form.note,
+    })
 
     const { data, error } = await supabase
       .from('payments')
-      .insert(payload)
       .select('*')
-      .single()
+      .eq('property_id', Number(selectedHomeowner.id))
+      .order('paid_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
     if (error) throw error
+    const savedPayment = data || postedPayment
+    if (!savedPayment?.id) throw new Error('Payment posted, but the receipt could not be loaded.')
 
-    setPayments((current) => [data, ...current])
     setShowPaymentModal(false)
     setReceiptData({
-      orNumber: data.receipt_number,
-      date: date.format(new Date(data.paid_at)),
-      homeowner: data.homeowner_name,
-      lot: `${data.block_name}, ${data.lot_number}`,
-      amount: Number(data.amount_paid) || 0,
-      method: data.payment_method,
-      period: data.coverage_period,
+      orNumber: savedPayment.receipt_number,
+      date: date.format(new Date(savedPayment.paid_at)),
+      homeowner: savedPayment.homeowner_name,
+      lot: `${savedPayment.block_name}, ${savedPayment.lot_number}`,
+      amount: Number(savedPayment.amount_paid) || 0,
+      method: savedPayment.payment_method,
+      period: savedPayment.coverage_period,
     })
-
-    const { error: activityError } = await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: 'Payment Recorded',
-      target: `${data.receipt_number} — ${data.homeowner_name} (${recorderName})`,
-    })
-
-    if (activityError) {
-      console.warn('Payment saved, but activity logging failed:', activityError.message)
-    }
+    await loadPage()
   }
 
   function closeLedger() {

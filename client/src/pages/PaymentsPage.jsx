@@ -268,7 +268,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
 
     if (!form.coveragePeriod.trim()) {
-      setFormError('Enter the coverage period or Payment details.')
+      setFormError('Enter the coverage period or payment details.')
       return
     }
 
