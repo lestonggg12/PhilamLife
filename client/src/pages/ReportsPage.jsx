@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchLedgerAccounts } from '../lib/hoaLedger'
 import './ReportsPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -42,10 +43,6 @@ function monthBounds(month) {
   }
 }
 
-function paymentKey(payment) {
-  return `${String(payment.block_name || '').trim().toLowerCase()}|${String(payment.lot_number || '').trim().toLowerCase()}`
-}
-
 export default function ReportsPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [activeReport, setActiveReport] = useState('collections')
@@ -54,6 +51,7 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [payments, setPayments] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [ledgerAccounts, setLedgerAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -87,7 +85,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(true)
     setError('')
 
-    const [paymentResult, serviceResult, expenseResult] = await Promise.all([
+    const [paymentResult, serviceResult, expenseResult, accountResult] = await Promise.all([
       supabase
         .from('payments')
         .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
@@ -100,15 +98,19 @@ export default function ReportsPage({ user: suppliedUser }) {
         .from('expenses')
         .select('id, expense_date, category, description, amount, reference_number, recorded_by_name, status, created_at')
         .order('expense_date', { ascending: false }),
+      fetchLedgerAccounts()
+        .then((data) => ({ data, error: null }))
+        .catch((loadError) => ({ data: [], error: loadError })),
     ])
 
-    const loadError = paymentResult.error || serviceResult.error || expenseResult.error
+    const loadError = paymentResult.error || serviceResult.error || expenseResult.error || accountResult.error
     if (loadError) {
       setError(loadError.message)
     }
     if (!paymentResult.error) setPayments(paymentResult.data || [])
     if (!serviceResult.error) setServiceTransactions(serviceResult.data || [])
     if (!expenseResult.error) setExpenses(expenseResult.data || [])
+    if (!accountResult.error) setLedgerAccounts(accountResult.data || [])
     setLoading(false)
   }
 
@@ -157,15 +159,10 @@ export default function ReportsPage({ user: suppliedUser }) {
   )
 
   const unpaidAccounts = useMemo(() => {
-    const latestByProperty = new Map()
-    validPayments.forEach((payment) => {
-      const key = paymentKey(payment)
-      if (!latestByProperty.has(key)) latestByProperty.set(key, payment)
-    })
-    return [...latestByProperty.values()]
-      .filter((payment) => Number(payment.remaining_balance) > 0)
-      .sort((a, b) => Number(b.remaining_balance) - Number(a.remaining_balance))
-  }, [validPayments])
+    return ledgerAccounts
+      .filter((account) => account.balance > 0)
+      .sort((a, b) => b.balance - a.balance)
+  }, [ledgerAccounts])
 
   const annualRows = useMemo(() => {
     return Array.from({ length: 12 }, (_, index) => {
@@ -188,7 +185,7 @@ export default function ReportsPage({ user: suppliedUser }) {
 
   const monthlyCollected = monthlyCollections.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0)
   const monthlySpent = monthlyExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-  const totalUnpaid = unpaidAccounts.reduce((sum, item) => sum + Number(item.remaining_balance || 0), 0)
+  const totalUnpaid = unpaidAccounts.reduce((sum, item) => sum + item.balance, 0)
   const annualCollected = annualRows.reduce((sum, item) => sum + item.collection, 0)
   const annualSpent = annualRows.reduce((sum, item) => sum + item.expense, 0)
 
@@ -225,7 +222,7 @@ export default function ReportsPage({ user: suppliedUser }) {
           <label>Report year <input type="number" min="2000" max="2100" value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value))} /></label>
         ) : activeReport !== 'unpaid' ? (
           <label>Report month <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} /></label>
-        ) : <span>Shows the latest saved balance for every property.</span>}
+        ) : <span>Shows charge-based balances from the HOA ledger.</span>}
       </div>
 
       {error && <p className="reports-error">Could not load reports: {error}</p>}
@@ -250,8 +247,8 @@ export default function ReportsPage({ user: suppliedUser }) {
             {activeReport === 'unpaid' && (
               <>
                 <div className="report-summary"><span>Total outstanding <strong>{peso.format(totalUnpaid)}</strong></span><span>Unpaid accounts <strong>{unpaidAccounts.length}</strong></span></div>
-                <div className="reports-table-wrap"><table><thead><tr><th>Homeowner</th><th>Block / Lot</th><th>Last payment</th><th>Coverage</th><th className="number">Remaining Balance</th></tr></thead><tbody>
-                  {unpaidAccounts.length ? unpaidAccounts.map((payment) => <tr key={payment.id}><td>{payment.homeowner_name}</td><td>{payment.block_name}, {payment.lot_number}</td><td>{dateLabel.format(new Date(payment.paid_at))}</td><td>{payment.coverage_period}</td><td className="number reports-due">{peso.format(payment.remaining_balance)}</td></tr>) : <tr><td colSpan="5" className="reports-empty">No unpaid accounts found.</td></tr>}
+                <div className="reports-table-wrap"><table><thead><tr><th>Homeowner</th><th>Block / Lot</th><th>Last payment</th><th>Status</th><th className="number">Outstanding Balance</th></tr></thead><tbody>
+                  {unpaidAccounts.length ? unpaidAccounts.map((account) => <tr key={account.propertyId}><td>{account.homeownerName}</td><td>{account.blockName}, Lot {account.lotNumber}</td><td>{account.lastPaymentAt ? dateLabel.format(new Date(account.lastPaymentAt)) : 'No payment yet'}</td><td>{account.accountStatus}</td><td className="number reports-due">{peso.format(account.balance)}</td></tr>) : <tr><td colSpan="5" className="reports-empty">No unpaid accounts found.</td></tr>}
                 </tbody></table></div>
               </>
             )}
