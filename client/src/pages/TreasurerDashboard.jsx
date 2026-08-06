@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import './TreasurerDashboard.css'
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle, Zap } from '../components/Icons'
+import {
+  AlertCircle,
+  Bank,
+  CheckCircle,
+  CreditCard,
+  DollarSign,
+  FileText,
+  RefreshCw,
+  TrendingUp,
+} from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchLedgerAccounts } from '../lib/hoaLedger'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -23,10 +34,34 @@ function manilaMonthKey(value = new Date()) {
   return `${values.year}-${values.month}`
 }
 
+const amount = (row, keys) => {
+  for (const key of keys) {
+    const value = Number(row?.[key])
+    if (Number.isFinite(value)) return value
+  }
+  return 0
+}
+
+const isVoided = (row) => String(row?.status || '').toLowerCase() === 'voided'
+
+async function optionalRows(table, orderColumn) {
+  let query = supabase.from(table).select('*')
+  if (orderColumn) query = query.order(orderColumn, { ascending: false })
+  const { data, error } = await query
+  return { table, data: data || [], error }
+}
+
 export default function TreasurerDashboard() {
-  const [payments, setPayments] = useState([])
-  const [expenses, setExpenses] = useState([])
-  const [serviceTransactions, setServiceTransactions] = useState([])
+  const [finance, setFinance] = useState({
+    payments: [],
+    expenses: [],
+    services: [],
+    accounts: [],
+    adjustments: [],
+    deposits: [],
+    reconciliations: [],
+    periods: [],
+  })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
 
@@ -38,213 +73,231 @@ export default function TreasurerDashboard() {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, expenseResult, serviceResult] = await Promise.all([
-      supabase.from('payments').select('*').order('paid_at', { ascending: false }),
-      supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
-      supabase.from('service_transactions').select('*').order('paid_at', { ascending: false }),
+    const results = await Promise.all([
+      optionalRows('payments', 'paid_at'),
+      optionalRows('expenses', 'expense_date'),
+      optionalRows('service_transactions', 'paid_at'),
+      fetchLedgerAccounts()
+        .then((data) => ({ table: 'homeowner_ledger_summary', data, error: null }))
+        .catch((error) => ({ table: 'homeowner_ledger_summary', data: [], error })),
+      optionalRows('account_adjustments', 'created_at'),
+      optionalRows('bank_deposits', 'created_at'),
+      optionalRows('bank_reconciliations', 'created_at'),
+      optionalRows('accounting_periods', 'period_start'),
     ])
 
-    const errors = [paymentResult.error, expenseResult.error, serviceResult.error].filter(Boolean)
-    if (errors.length > 0) {
-      setPageError(`Some financial records could not be loaded: ${errors.map((e) => e.message).join(' ')}`)
+    const byTable = Object.fromEntries(results.map((result) => [result.table, result.data]))
+    const criticalError = results.find(
+      (result) =>
+        result.error &&
+        ['payments', 'expenses', 'homeowner_ledger_summary'].includes(result.table),
+    )
+
+    if (criticalError) {
+      setPageError(`Finance data could not be fully loaded: ${criticalError.error.message}`)
     }
 
-    setPayments(paymentResult.data || [])
-    setExpenses(expenseResult.data || [])
-    setServiceTransactions(serviceResult.data || [])
+    setFinance({
+      payments: byTable.payments || [],
+      expenses: byTable.expenses || [],
+      services: byTable.service_transactions || [],
+      accounts: byTable.homeowner_ledger_summary || [],
+      adjustments: byTable.account_adjustments || [],
+      deposits: byTable.bank_deposits || [],
+      reconciliations: byTable.bank_reconciliations || [],
+      periods: byTable.accounting_periods || [],
+    })
     setLoading(false)
   }
 
   const summary = useMemo(() => {
     const currentMonth = manilaMonthKey()
+    const activePayments = finance.payments.filter((row) => !isVoided(row))
+    const activeExpenses = finance.expenses.filter((row) => !isVoided(row))
 
-    const activePayments = payments.filter((p) => p.status !== 'Voided')
-    const activeExpenses = expenses.filter((e) => e.status !== 'Voided')
+    const collectedThisMonth = activePayments
+      .filter((row) => row.paid_at && manilaMonthKey(row.paid_at) === currentMonth)
+      .reduce((sum, row) => sum + amount(row, ['amount_paid', 'amount']), 0)
 
-    const totalDuesCollected = activePayments.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
-    const totalAmenityRevenue = serviceTransactions.reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
-    const totalExpenses = activeExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
-    const netPosition = totalDuesCollected + totalAmenityRevenue - totalExpenses
-
-    const duesThisMonth = activePayments
-      .filter((p) => p.paid_at && manilaMonthKey(p.paid_at) === currentMonth)
-      .reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
-
-    const amenityThisMonth = serviceTransactions
-      .filter((t) => t.paid_at && manilaMonthKey(t.paid_at) === currentMonth)
-      .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
+    const servicesThisMonth = finance.services
+      .filter((row) => row.paid_at && manilaMonthKey(row.paid_at) === currentMonth)
+      .reduce((sum, row) => sum + amount(row, ['amount_paid', 'amount']), 0)
 
     const expensesThisMonth = activeExpenses
-      .filter((e) => String(e.expense_date || '').slice(0, 7) === currentMonth)
-      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+      .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
+      .reduce((sum, row) => sum + amount(row, ['amount']), 0)
 
-    const netThisMonth = duesThisMonth + amenityThisMonth - expensesThisMonth
+    const outstanding = finance.accounts.reduce((sum, row) => sum + row.balance, 0)
+    const credits = finance.accounts.reduce((sum, row) => sum + row.unallocatedCredit, 0)
+    const aging = finance.accounts.reduce(
+      (result, row) => ({
+        current: result.current + row.current,
+        days1To30: result.days1To30 + row.days1To30,
+        days31To60: result.days31To60 + row.days31To60,
+        days61To90: result.days61To90 + row.days61To90,
+        days90Plus: result.days90Plus + row.days90Plus,
+      }),
+      { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
+    )
 
     return {
-      totalDuesCollected,
-      totalAmenityRevenue,
-      totalExpenses,
-      netPosition,
-      duesThisMonth,
-      amenityThisMonth,
+      collectedThisMonth,
+      servicesThisMonth,
       expensesThisMonth,
-      netThisMonth,
+      netThisMonth: collectedThisMonth + servicesThisMonth - expensesThisMonth,
+      outstanding,
+      credits,
+      overdue: aging.days1To30 + aging.days31To60 + aging.days61To90 + aging.days90Plus,
+      aging,
+      overdueAccounts: finance.accounts.filter(
+        (row) => row.days1To30 + row.days31To60 + row.days61To90 + row.days90Plus > 0,
+      ).length,
     }
-  }, [payments, expenses, serviceTransactions])
+  }, [finance])
+
+  const exceptions = useMemo(() => {
+    const unreconciledDeposits = finance.deposits.filter((row) => {
+      const status = String(row.status || row.reconciliation_status || '').toLowerCase()
+      return !['reconciled', 'cleared', 'completed'].includes(status)
+    }).length
+
+    const pendingAdjustments = finance.adjustments.filter((row) => {
+      const status = String(row.status || 'posted').toLowerCase()
+      return ['pending', 'draft', 'awaiting approval'].includes(status)
+    }).length
+
+    const currentPeriod = finance.periods.find((row) => {
+      const status = String(row.status || '').toLowerCase()
+      return !['closed', 'locked'].includes(status)
+    })
+
+    return { unreconciledDeposits, pendingAdjustments, currentPeriod }
+  }, [finance.adjustments, finance.deposits, finance.periods])
 
   const recentActivity = useMemo(() => {
-    const items = []
-
-    payments.forEach((p) => {
-      if (p.status === 'Voided') return
-      items.push({
-        id: `payment-${p.id}`,
-        date: p.paid_at,
-        title: 'Dues Payment',
-        detail: `${p.homeowner_name} — ${p.block_name}, Lot ${p.lot_number}`,
-        amount: Number(p.amount_paid) || 0,
+    const rows = []
+    finance.payments.forEach((row) => {
+      if (isVoided(row)) return
+      rows.push({
+        id: `payment-${row.id}`,
+        date: row.paid_at || row.created_at,
+        title: 'Homeowner payment',
+        detail: `${row.homeowner_name || 'Homeowner'} · ${row.receipt_number || 'Payment receipt'}`,
+        amount: amount(row, ['amount_paid', 'amount']),
         direction: 'in',
       })
     })
-
-    serviceTransactions.forEach((t) => {
-      items.push({
-        id: `service-${t.id}`,
-        date: t.paid_at,
-        title: `Amenity — ${t.service_name}`,
-        detail: `${t.customer_name} — ${t.block_name}, Lot ${t.lot_number}`,
-        amount: Number(t.amount_paid) || 0,
-        direction: 'in',
-      })
-    })
-
-    expenses.forEach((e) => {
-      if (e.status === 'Voided') return
-      items.push({
-        id: `expense-${e.id}`,
-        date: e.created_at || e.expense_date,
-        title: `Expense — ${e.category}`,
-        detail: e.description,
-        amount: Number(e.amount) || 0,
+    finance.services.forEach((row) => rows.push({
+      id: `service-${row.id}`,
+      date: row.paid_at || row.created_at,
+      title: row.service_name || 'Amenity payment',
+      detail: row.customer_name || 'Amenity revenue',
+      amount: amount(row, ['amount_paid', 'amount']),
+      direction: 'in',
+    }))
+    finance.expenses.forEach((row) => {
+      if (isVoided(row)) return
+      rows.push({
+        id: `expense-${row.id}`,
+        date: row.created_at || row.expense_date,
+        title: row.category || 'Expense',
+        detail: row.description || row.payee || 'Operating expense',
+        amount: amount(row, ['amount']),
         direction: 'out',
       })
     })
+    return rows
+      .filter((row) => row.date)
+      .sort((left, right) => new Date(right.date) - new Date(left.date))
+      .slice(0, 7)
+  }, [finance.expenses, finance.payments, finance.services])
 
-    return items
-      .filter((item) => item.date)
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 8)
-  }, [payments, serviceTransactions, expenses])
+  const statCards = [
+    { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Allocated homeowner payments', icon: TrendingUp, tone: 'green' },
+    { label: 'Outstanding receivables', value: summary.outstanding, note: `${summary.overdueAccounts} overdue account${summary.overdueAccounts === 1 ? '' : 's'}`, icon: FileText, tone: 'blue' },
+    { label: 'Overdue balance', value: summary.overdue, note: 'Across all aging buckets', icon: AlertCircle, tone: 'red' },
+    { label: 'Net cash activity', value: summary.netThisMonth, note: 'Dues + amenities − expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
+  ]
 
   return (
-    <div className="treas-treasurer-dashboard">
-      <div className="treas-page-header">
-        <h1 className="treas-page-title">Treasurer Dashboard</h1>
-        <p className="treas-page-subtitle">Overview of dues, amenity revenue, and expenses.</p>
-      </div>
-
-      {pageError && (
-        <p className="treas-error">
-          <AlertCircle size={14} /> {pageError}
-        </p>
-      )}
-
-      {/* Stats Grid */}
-      <div className="treas-stats-grid">
-        <div className="treas-stat-card">
-          <div className="treas-stat-top">
-            <span className="treas-stat-label">Dues Collected</span>
-            <div className="treas-stat-icon-box">
-              <DollarSign size={18} />
-            </div>
-          </div>
-          <h3 className="treas-stat-value">{loading ? '—' : peso.format(summary.totalDuesCollected)}</h3>
-          <div className="treas-stat-footer">
-            <TrendingUp size={12} />
-            <span>{loading ? '—' : `${peso.format(summary.duesThisMonth)} this month`}</span>
-          </div>
+    <main className="treasurer-dashboard">
+      <header className="treasurer-hero">
+        <div>
+          <span className="treasurer-eyebrow">Finance control center</span>
+          <h1>Treasurer Dashboard</h1>
+          <p>Receivables, collections, aging, exceptions, and cash activity in one view.</p>
         </div>
+        <button type="button" className="treasurer-refresh" onClick={loadDashboard} disabled={loading}>
+          <RefreshCw size={16} /> {loading ? 'Refreshing…' : 'Refresh data'}
+        </button>
+      </header>
 
-        <div className="treas-stat-card">
-          <div className="treas-stat-top">
-            <span className="treas-stat-label">Amenity Revenue</span>
-            <div className="treas-stat-icon-box" style={{ background: 'rgba(20, 100, 160, 0.12)', color: '#1464a0' }}>
-              <Zap size={18} />
-            </div>
-          </div>
-          <h3 className="treas-stat-value">{loading ? '—' : peso.format(summary.totalAmenityRevenue)}</h3>
-          <div className="treas-stat-footer">
-            <TrendingUp size={12} />
-            <span>{loading ? '—' : `${peso.format(summary.amenityThisMonth)} this month`}</span>
-          </div>
-        </div>
+      {pageError && <div className="treasurer-error"><AlertCircle size={17} />{pageError}</div>}
 
-        <div className="treas-stat-card">
-          <div className="treas-stat-top">
-            <span className="treas-stat-label">Total Expenses</span>
-            <div className="treas-stat-icon-box" style={{ background: 'rgba(192, 57, 43, 0.12)', color: '#c0392b' }}>
-              <AlertCircle size={18} />
-            </div>
-          </div>
-          <h3 className="treas-stat-value">{loading ? '—' : peso.format(summary.totalExpenses)}</h3>
-          <div className="treas-stat-footer">
-            <span>{loading ? '—' : `${peso.format(summary.expensesThisMonth)} this month`}</span>
-          </div>
-        </div>
+      <section className="treasurer-actions" aria-label="Treasurer actions">
+        <Link to="/payments"><CreditCard size={18} /><span><strong>Record payment</strong><small>Post and allocate FIFO</small></span></Link>
+        <Link to="/ledger"><FileText size={18} /><span><strong>Open ledger</strong><small>Balances and statements</small></span></Link>
+        <Link to="/treasurer/expenses"><DollarSign size={18} /><span><strong>Record expense</strong><small>Maintain audit details</small></span></Link>
+        <Link to="/reports"><Bank size={18} /><span><strong>Financial reports</strong><small>Collections and cash review</small></span></Link>
+      </section>
 
-        <div className="treas-stat-card">
-          <div className="treas-stat-top">
-            <span className="treas-stat-label">Net Position</span>
-            <div className="treas-stat-icon-box" style={{ background: 'rgba(26, 138, 96, 0.12)', color: '#1a8a60' }}>
-              <CheckCircle size={18} />
-            </div>
-          </div>
-          <h3 className={`treas-stat-value ${summary.netPosition < 0 ? 'treas-negative' : ''}`}>
-            {loading ? '—' : peso.format(summary.netPosition)}
-          </h3>
-          <div className="treas-stat-footer">
-            <span>{loading ? '—' : `${peso.format(summary.netThisMonth)} this month`}</span>
-          </div>
-        </div>
-      </div>
+      <section className="treasurer-stat-grid">
+        {statCards.map(({ label, value, note, icon: Icon, tone }) => (
+          <article className={`treasurer-stat-card tone-${tone}`} key={label}>
+            <div className="treasurer-stat-heading"><span>{label}</span><Icon size={18} /></div>
+            <strong>{loading ? '—' : peso.format(value)}</strong>
+            <small>{loading ? 'Loading finance data…' : note}</small>
+          </article>
+        ))}
+      </section>
 
-      {/* Bottom Grid - Recent Activity */}
-      <div className="treas-bottom-grid">
-        <div className="treas-transactions-panel treas-full-width">
-          <h3 className="treas-section-title">Recent Activity</h3>
-
-          {loading ? (
-            <p className="treas-empty-state">Loading activity...</p>
-          ) : recentActivity.length === 0 ? (
-            <p className="treas-empty-state">No financial activity recorded yet.</p>
-          ) : (
-            recentActivity.map((item) => (
-              <div className="treas-transaction-row" key={item.id}>
-                <div
-                  className="treas-transaction-icon"
-                  style={
-                    item.direction === 'in'
-                      ? { background: 'rgba(26, 138, 96, 0.12)', color: '#1a8a60' }
-                      : { background: 'rgba(192, 57, 43, 0.12)', color: '#c0392b' }
-                  }
-                >
-                  {item.direction === 'in' ? '↓' : '↑'}
-                </div>
-                <div className="treas-transaction-content">
-                  <p className="treas-transaction-title">{item.title}</p>
-                  <p className="treas-transaction-detail">
-                    {item.detail} · {dateFormatter.format(new Date(item.date))}
-                  </p>
-                </div>
-                <div className={`treas-transaction-amount ${item.direction === 'out' ? 'negative' : ''}`}>
-                  {item.direction === 'in' ? '+ ' : '- '}
-                  {peso.format(item.amount)}
-                </div>
+      <section className="treasurer-content-grid">
+        <article className="treasurer-panel aging-panel">
+          <div className="treasurer-panel-heading">
+            <div><span className="treasurer-kicker">Receivables</span><h2>Aging overview</h2></div>
+            <strong>{peso.format(summary.outstanding)}</strong>
+          </div>
+          <div className="treasurer-aging-grid">
+            {[
+              ['Current', summary.aging.current, 'current'],
+              ['1–30 days', summary.aging.days1To30, 'watch'],
+              ['31–60 days', summary.aging.days31To60, 'warning'],
+              ['61–90 days', summary.aging.days61To90, 'danger'],
+              ['90+ days', summary.aging.days90Plus, 'critical'],
+            ].map(([label, value, tone]) => (
+              <div className={`treasurer-aging-item ${tone}`} key={label}>
+                <span>{label}</span><strong>{loading ? '—' : peso.format(value)}</strong>
               </div>
-            ))
+            ))}
+          </div>
+          <Link className="treasurer-panel-link" to="/ledger">Review homeowner accounts →</Link>
+        </article>
+
+        <article className="treasurer-panel exception-panel">
+          <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Attention</span><h2>Finance checks</h2></div></div>
+          <div className="treasurer-check-list">
+            <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{summary.overdueAccounts} overdue accounts</strong><small>{peso.format(summary.overdue)} needs collection follow-up</small></p></div>
+            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{exceptions.unreconciledDeposits} unreconciled deposits</strong><small>Match deposits with bank records</small></p></div>
+            <div><span className="check-icon green"><CheckCircle size={16} /></span><p><strong>{peso.format(summary.credits)} unallocated credit</strong><small>Preserved for future charges or refund review</small></p></div>
+            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{exceptions.pendingAdjustments} pending adjustments</strong><small>{exceptions.currentPeriod ? 'Accounting period is open' : 'No open accounting period found'}</small></p></div>
+          </div>
+        </article>
+
+        <article className="treasurer-panel activity-panel">
+          <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent cash activity</h2></div></div>
+          {loading ? <p className="treasurer-empty">Loading activity…</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
+            <div className="treasurer-activity-list">
+              {recentActivity.map((row) => (
+                <div className="treasurer-activity-row" key={row.id}>
+                  <span className={`activity-direction ${row.direction}`}>{row.direction === 'in' ? '↓' : '↑'}</span>
+                  <div><strong>{row.title}</strong><small>{row.detail} · {dateFormatter.format(new Date(row.date))}</small></div>
+                  <b className={row.direction === 'out' ? 'expense' : ''}>{row.direction === 'out' ? '−' : '+'}{peso.format(row.amount)}</b>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-      </div>
-    </div>
+        </article>
+      </section>
+    </main>
   )
 }
