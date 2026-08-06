@@ -803,7 +803,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       {statement && (
         <div className="ledger-modal-backdrop" onMouseDown={() => setStatement(null)}>
           <section
-            className="ledger-modal ledger-statement-modal glass-card"
+            className="ledger-modal ledger-statement-modal"
             onMouseDown={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
