@@ -11,6 +11,22 @@ const EMPTY_HOMEOWNER = {
   lotNumber: '',
 }
 
+const SORT_COLUMNS = [
+  { key: 'name', label: 'Homeowner' },
+  { key: 'block', label: 'Block / Lot' },
+  { key: 'dueAmount', label: 'Charges' },
+  { key: 'paidAmount', label: 'Allocated' },
+  { key: 'balance', label: 'Balance' },
+  { key: 'lastPaymentSort', label: 'Last Payment' },
+]
+
+// The table only renders once the user has narrowed things down — with a
+// search term or a non-default filter — so we never dump the full
+// homeowner list into the DOM at once. MAX_VISIBLE_ROWS is a second
+// safety net in case a broad search or filter still matches a lot of rows.
+const MIN_SEARCH_LENGTH = 2
+const MAX_VISIBLE_ROWS = 100
+
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -29,11 +45,26 @@ const statementValue = (row, keys, fallback = '—') => {
   return fallback
 }
 
+function compareEntries(a, b, key, direction) {
+  let result = 0
+
+  if (key === 'block') {
+    result = a.block.localeCompare(b.block) || a.lotNumberRaw - b.lotNumberRaw
+  } else if (typeof a[key] === 'number') {
+    result = a[key] - b[key]
+  } else {
+    result = String(a[key]).localeCompare(String(b[key]))
+  }
+
+  return direction === 'desc' ? -result : result
+}
+
 export default function LedgerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' })
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
@@ -47,14 +78,23 @@ export default function LedgerPage({ user: suppliedUser }) {
   })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [logNotice, setLogNotice] = useState('')
+
   const [showAddHomeowner, setShowAddHomeowner] = useState(false)
   const [homeownerForm, setHomeownerForm] = useState(EMPTY_HOMEOWNER)
+  const [editingHomeownerId, setEditingHomeownerId] = useState(null)
   const [formError, setFormError] = useState('')
   const [savingHomeowner, setSavingHomeowner] = useState(false)
-  const [showAddBlock, setShowAddBlock] = useState(false)
+
+  const [showManageBlocks, setShowManageBlocks] = useState(false)
   const [newBlockName, setNewBlockName] = useState('')
   const [blockError, setBlockError] = useState('')
   const [savingBlock, setSavingBlock] = useState(false)
+  const [editingBlockId, setEditingBlockId] = useState(null)
+  const [editingBlockName, setEditingBlockName] = useState('')
+  const [blockActionError, setBlockActionError] = useState('')
+  const [blockActionBusyId, setBlockActionBusyId] = useState(null)
+
   const [statementAccount, setStatementAccount] = useState(null)
   const [statementLines, setStatementLines] = useState([])
   const [statementLoading, setStatementLoading] = useState(false)
@@ -127,6 +167,18 @@ export default function LedgerPage({ user: suppliedUser }) {
     setLoading(false)
   }
 
+  async function logActivity(action, target, fallbackNotice) {
+    const { error } = await supabase.from('activity_log').insert({
+      user_id: currentUser?.id || null,
+      action,
+      target,
+    })
+    if (error) {
+      console.warn(`${action} succeeded, but activity logging failed:`, error.message)
+      setLogNotice(fallbackNotice)
+    }
+  }
+
   async function openStatement(entry) {
     setStatementAccount(entry)
     setStatementLines([])
@@ -145,6 +197,18 @@ export default function LedgerPage({ user: suppliedUser }) {
 
   function openHomeownerForm() {
     setHomeownerForm(EMPTY_HOMEOWNER)
+    setEditingHomeownerId(null)
+    setFormError('')
+    setShowAddHomeowner(true)
+  }
+
+  function openEditHomeowner(entry) {
+    setHomeownerForm({
+      homeownerName: entry.name,
+      blockName: entry.block,
+      lotNumber: String(entry.lotNumberRaw),
+    })
+    setEditingHomeownerId(entry.id)
     setFormError('')
     setShowAddHomeowner(true)
   }
@@ -152,6 +216,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   function closeHomeownerForm() {
     if (savingHomeowner) return
     setShowAddHomeowner(false)
+    setEditingHomeownerId(null)
     setFormError('')
   }
 
@@ -159,6 +224,111 @@ export default function LedgerPage({ user: suppliedUser }) {
     const { name, value } = event.target
     setHomeownerForm((current) => ({ ...current, [name]: value }))
     setFormError('')
+  }
+
+  async function handleSaveHomeowner(event) {
+    event.preventDefault()
+
+    if (!canManageHomeowners) {
+      setFormError('Only an Admin or Secretary can manage homeowners.')
+      return
+    }
+
+    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
+    const blockName = homeownerForm.blockName
+    const lotNumber = Number(homeownerForm.lotNumber)
+
+    if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
+      setFormError('Homeowner name, block, and lot number are required.')
+      return
+    }
+
+    if (!Number.isInteger(lotNumber) || lotNumber <= 0) {
+      setFormError('Lot number must be a whole number greater than zero.')
+      return
+    }
+
+    const lotIsOccupied = properties.some(
+      (property) =>
+        property.id !== editingHomeownerId &&
+        normalize(property.block) === normalize(blockName) &&
+        Number(property.lot_number) === lotNumber,
+    )
+
+    if (lotIsOccupied) {
+      setFormError('That block and lot already has a homeowner.')
+      return
+    }
+
+    setSavingHomeowner(true)
+    setFormError('')
+
+    const payload = {
+      homeowner_name: homeownerName,
+      block: blockName,
+      lot_number: lotNumber,
+    }
+
+    const { error } = editingHomeownerId
+      ? await supabase.from('properties').update(payload).eq('id', editingHomeownerId)
+      : await supabase.from('properties').insert(payload)
+
+    if (error) {
+      setFormError(error.code === '23505'
+        ? 'That block and lot already has a homeowner.'
+        : error.message)
+      setSavingHomeowner(false)
+      return
+    }
+
+    await loadLedger()
+    setBlockFilter(blockName)
+    setShowAddHomeowner(false)
+    setHomeownerForm(EMPTY_HOMEOWNER)
+    setSavingHomeowner(false)
+
+    const wasEditing = Boolean(editingHomeownerId)
+    setEditingHomeownerId(null)
+
+    await logActivity(
+      wasEditing ? 'Homeowner Updated' : 'Homeowner Added',
+      `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
+      wasEditing
+        ? 'Homeowner updated, but the activity log entry failed to record.'
+        : 'Homeowner saved, but the activity log entry failed to record.',
+    )
+  }
+
+  async function handleDeleteHomeowner(entry) {
+    if (!canManageHomeowners) return
+
+    const confirmed = window.confirm(
+      `Remove ${entry.name} (${entry.block}, ${entry.lot})? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setPageError('')
+    const { error } = await supabase.from('properties').delete().eq('id', entry.id)
+
+    if (error) {
+      setPageError(`Could not remove homeowner: ${error.message}`)
+      return
+    }
+
+    await loadLedger()
+    await logActivity(
+      'Homeowner Removed',
+      `${entry.name} — ${entry.block}, ${entry.lot} (by ${actorName})`,
+      'Homeowner removed, but the activity log entry failed to record.',
+    )
+  }
+
+  function openManageBlocks() {
+    setBlockError('')
+    setBlockActionError('')
+    setNewBlockName('')
+    setEditingBlockId(null)
+    setShowManageBlocks(true)
   }
 
   async function handleAddBlock(event) {
@@ -184,11 +354,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setSavingBlock(true)
     setBlockError('')
 
-    const { data, error } = await supabase
-      .from('blocks')
-      .insert({ name })
-      .select('id, name')
-      .single()
+    const { error } = await supabase.from('blocks').insert({ name })
 
     if (error) {
       setBlockError(error.code === '23505' ? 'That block already exists.' : error.message)
@@ -196,97 +362,117 @@ export default function LedgerPage({ user: suppliedUser }) {
       return
     }
 
-    setBlocks((current) =>
-      [...current, data].sort((a, b) => a.name.localeCompare(b.name)),
-    )
+    await loadLedger()
     setNewBlockName('')
-    setShowAddBlock(false)
     setSavingBlock(false)
 
-    const { error: activityError } = await supabase.from('activity_log').insert({
-      user_id: currentUser?.id || null,
-      action: 'Block Added',
-      target: `${data.name} (by ${actorName})`,
-    })
-
-    if (activityError) {
-      console.warn('Block saved, but activity logging failed:', activityError.message)
-    }
+    await logActivity(
+      'Block Added',
+      `${name} (by ${actorName})`,
+      'Block saved, but the activity log entry failed to record.',
+    )
   }
 
-  async function handleAddHomeowner(event) {
-    event.preventDefault()
+  function startEditBlock(block) {
+    setEditingBlockId(block.id)
+    setEditingBlockName(block.name)
+    setBlockActionError('')
+  }
 
-    if (!canManageHomeowners) {
-      setFormError('Only an Admin or Secretary can add homeowners.')
+  function cancelEditBlock() {
+    setEditingBlockId(null)
+    setEditingBlockName('')
+  }
+
+  async function handleRenameBlock(block) {
+    const newName = editingBlockName.trim().replace(/\s+/g, ' ')
+
+    if (!newName) {
+      setBlockActionError('Enter a block name.')
       return
     }
 
-    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
-    const blockName = homeownerForm.blockName
-    const lotNumber = Number(homeownerForm.lotNumber)
-
-    if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
-      setFormError('Homeowner name, block, and lot number are required.')
+    if (
+      normalize(newName) !== normalize(block.name) &&
+      blocks.some((existing) => normalize(existing.name) === normalize(newName))
+    ) {
+      setBlockActionError('That block name is already in use.')
       return
     }
 
-    if (!Number.isInteger(lotNumber) || lotNumber <= 0) {
-      setFormError('Lot number must be a whole number greater than zero.')
+    if (normalize(newName) === normalize(block.name)) {
+      cancelEditBlock()
       return
     }
 
-    const lotIsOccupied = properties.some(
-      (property) =>
-        normalize(property.block) === normalize(blockName) &&
-        Number(property.lot_number) === lotNumber,
+    setBlockActionBusyId(block.id)
+    setBlockActionError('')
+
+    const { error: renameError } = await supabase
+      .from('blocks')
+      .update({ name: newName })
+      .eq('id', block.id)
+
+    if (renameError) {
+      setBlockActionError(renameError.message)
+      setBlockActionBusyId(null)
+      return
+    }
+
+    const { error: cascadeError } = await supabase
+      .from('properties')
+      .update({ block: newName })
+      .eq('block', block.name)
+
+    if (cascadeError) {
+      setBlockActionError(
+        `Block renamed, but existing homeowner records could not be updated: ${cascadeError.message}`,
+      )
+    }
+
+    await loadLedger()
+    setBlockActionBusyId(null)
+    cancelEditBlock()
+
+    await logActivity(
+      'Block Renamed',
+      `${block.name} → ${newName} (by ${actorName})`,
+      'Block renamed, but the activity log entry failed to record.',
+    )
+  }
+
+  async function handleDeleteBlock(block) {
+    const hasHomeowners = properties.some(
+      (property) => normalize(property.block) === normalize(block.name),
     )
 
-    if (lotIsOccupied) {
-      setFormError('That block and lot already has a homeowner.')
+    if (hasHomeowners) {
+      setBlockActionError('Reassign or remove the homeowners in this block first.')
       return
     }
 
-    setSavingHomeowner(true)
-    setFormError('')
+    const confirmed = window.confirm(`Delete block "${block.name}"? This cannot be undone.`)
+    if (!confirmed) return
 
-    const { data, error } = await supabase
-      .from('properties')
-      .insert({
-        homeowner_name: homeownerName,
-        block: blockName,
-        lot_number: lotNumber,
-      })
-      .select('id, block, lot_number, homeowner_name, created_at')
-      .single()
+    setBlockActionBusyId(block.id)
+    setBlockActionError('')
+
+    const { error } = await supabase.from('blocks').delete().eq('id', block.id)
 
     if (error) {
-      setFormError(error.code === '23505'
-        ? 'That block and lot already has a homeowner.'
-        : error.message)
-      setSavingHomeowner(false)
+      setBlockActionError(error.message)
+      setBlockActionBusyId(null)
       return
     }
 
-    setProperties((current) =>
-      [...current, data].sort((a, b) =>
-        a.homeowner_name.localeCompare(b.homeowner_name),
-      ),
+    await loadLedger()
+    setBlockActionBusyId(null)
+
+    await logActivity(
+      'Block Removed',
+      `${block.name} (by ${actorName})`,
+      'Block removed, but the activity log entry failed to record.',
     )
-    setBlockFilter(data.block)
-    setShowAddHomeowner(false)
-    setHomeownerForm(EMPTY_HOMEOWNER)
-    setSavingHomeowner(false)
-
-    const { error: activityError } = await supabase.from('activity_log').insert({
-      user_id: currentUser?.id || null,
-      action: 'Homeowner Added',
-      target: `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
-    })
-
-    if (activityError) {
-      console.warn('Homeowner saved, but activity logging failed:', activityError.message)
-    }
   }
 
   const ledgerEntries = useMemo(() => {
@@ -298,6 +484,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           name: account.homeownerName,
           block: account.blockName,
           lot: `Lot ${account.lotNumber}`,
+          lotNumberRaw: account.lotNumber,
           dueAmount: account.totalCharges,
           paidAmount: account.totalPaid,
           balance: account.balance,
@@ -305,6 +492,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           totalDue: account.balance,
           unallocatedCredit: account.unallocatedCredit,
           lastPayment: account.lastPaymentAt ? date.format(new Date(account.lastPaymentAt)) : '—',
+          lastPaymentSort: account.lastPaymentAt ? new Date(account.lastPaymentAt).getTime() : 0,
           status: account.balance <= 0 ? 'Paid' : overdue > 0 ? 'Overdue' : account.totalPaid > 0 ? 'Partial' : 'Pending',
         }
       })
@@ -354,6 +542,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         name: property.homeowner_name,
         block: property.block,
         lot: `Lot ${property.lot_number}`,
+        lotNumberRaw: property.lot_number,
         dueAmount,
         paidAmount,
         balance,
@@ -362,6 +551,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         lastPayment: latestPayment?.paid_at
           ? date.format(new Date(latestPayment.paid_at))
           : '—',
+        lastPaymentSort: latestPayment?.paid_at ? new Date(latestPayment.paid_at).getTime() : 0,
         status,
       }
     })
@@ -371,12 +561,25 @@ export default function LedgerPage({ user: suppliedUser }) {
     const term = normalize(search)
     return ledgerEntries.filter((entry) => {
       const matchesSearch =
-        normalize(entry.name).includes(term) || normalize(entry.lot).includes(term)
+        normalize(entry.name).includes(term) ||
+        normalize(entry.lot).includes(term) ||
+        normalize(entry.block).includes(term)
       const matchesBlock = blockFilter === 'all' || entry.block === blockFilter
       const matchesStatus = statusFilter === 'all' || entry.status === statusFilter
       return matchesSearch && matchesBlock && matchesStatus
     })
   }, [ledgerEntries, search, blockFilter, statusFilter])
+
+  const sorted = useMemo(() => {
+    const list = [...filtered]
+    list.sort((a, b) => compareEntries(a, b, sortConfig.key, sortConfig.direction))
+    return list
+  }, [filtered, sortConfig])
+
+  const hasActiveQuery =
+    normalize(search).length >= MIN_SEARCH_LENGTH || blockFilter !== 'all' || statusFilter !== 'all'
+  const visibleRows = hasActiveQuery ? sorted.slice(0, MAX_VISIBLE_ROWS) : []
+  const isTruncated = hasActiveQuery && sorted.length > MAX_VISIBLE_ROWS
 
   const totals = useMemo(() => {
     return ledgerEntries.reduce(
@@ -389,39 +592,80 @@ export default function LedgerPage({ user: suppliedUser }) {
     )
   }, [ledgerEntries])
 
+  function toggleSort(key) {
+    setSortConfig((current) => {
+      if (current.key === key) {
+        return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+      }
+      return { key, direction: 'asc' }
+    })
+  }
+
+  function sortIndicator(key) {
+    if (sortConfig.key !== key) return null
+    return <span className="ledger-sort-arrow">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+  }
+
   return (
     <div className="ledger-page">
-      <div className="ledger-header-row">
+      <div className="ledger-header-row glass-card">
         <div className="ledger-header">
-          <h1>Ledger</h1>
-          <p>Track homeowner dues, payments, and outstanding balances.</p>
+          <div className="ledger-header-copy">
+            <span className="ledger-header-eyebrow">{(role || 'staff').toUpperCase()} WORKSPACE</span>
+            <h1>Ledger</h1>
+            <p>Track homeowner dues, payments, and outstanding balances.</p>
+          </div>
         </div>
 
-        {canManageHomeowners && (
-          <div className="ledger-header-actions">
-            <button
-              className="ledger-secondary-action"
-              type="button"
-              onClick={() => {
-                setBlockError('')
-                setNewBlockName('')
-                setShowAddBlock(true)
-              }}
-            >
-              + Add Block
-            </button>
-            <button
-              className="ledger-add-homeowner-button"
-              type="button"
-              onClick={openHomeownerForm}
-            >
-              + Add New Homeowner
-            </button>
-          </div>
-        )}
+        <div className="ledger-header-actions">
+          {canManageHomeowners && (
+            <>
+              <button
+                className="ledger-secondary-action"
+                type="button"
+                onClick={openManageBlocks}
+              >
+                Manage Blocks
+              </button>
+              <button
+                className="ledger-add-homeowner-button"
+                type="button"
+                onClick={openHomeownerForm}
+              >
+                + Add New Homeowner
+              </button>
+            </>
+          )}
+          <button
+            className="ledger-refresh-button"
+            type="button"
+            onClick={loadLedger}
+            disabled={loading}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className={loading ? 'ledger-spin' : ''} aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <path d="M21 3v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {pageError && <p className="ledger-load-error">{pageError}</p>}
+
+      {logNotice && (
+        <div className="ledger-log-notice">
+          <span>{logNotice}</span>
+          <button type="button" onClick={() => setLogNotice('')}>Dismiss</button>
+        </div>
+      )}
+
+      {!loading && !ledgerAvailable && (
+        <p className="ledger-foundation-notice">
+          The ledger service is unavailable right now — balances below are computed from
+          legacy payment records, and Statements are temporarily disabled.
+        </p>
+      )}
 
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
@@ -438,14 +682,20 @@ export default function LedgerPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      <div className="ledger-toolbar">
-        <input
-          type="search"
-          placeholder="Search by name or lot..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="ledger-search"
-        />
+      <div className="ledger-toolbar glass-card">
+        <div className="ledger-search-wrap">
+          <svg className="ledger-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+            <line x1="16.65" y1="16.65" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search by name, block, or lot..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="ledger-search"
+          />
+        </div>
         <select value={blockFilter} onChange={(event) => setBlockFilter(event.target.value)} className="ledger-select" disabled={loading}>
           <option value="all">{loading ? 'Loading blocks...' : 'All Blocks'}</option>
           {blocks.map((block) => <option key={block.id} value={block.name}>{block.name}</option>)}
@@ -457,34 +707,80 @@ export default function LedgerPage({ user: suppliedUser }) {
           <option value="Pending">Pending</option>
           <option value="Overdue">Overdue</option>
         </select>
+        {hasActiveQuery && (
+          <span className="ledger-result-count">{Math.min(sorted.length, MAX_VISIBLE_ROWS)} of {sorted.length} match{sorted.length === 1 ? '' : 'es'}</span>
+        )}
       </div>
 
-      <div className="ledger-table-wrap glass-card">
-        <table className="ledger-table">
-          <thead>
-            <tr><th>Homeowner</th><th>Block / Lot</th><th>Charges</th><th>Allocated</th><th>Balance</th><th>Credit</th><th>Last Payment</th><th>Status</th><th aria-label="Actions" /></tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="9" className="ledger-empty">Loading ledger...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan="9" className="ledger-empty">No homeowner records found.</td></tr>
-            ) : filtered.map((entry) => (
-              <tr key={entry.id}>
-                <td><strong>{entry.name}</strong></td>
-                <td>{entry.block}, {entry.lot}</td>
-                <td>{peso.format(entry.dueAmount)}</td>
-                <td>{peso.format(entry.paidAmount)}</td>
-                <td className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
-                <td className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
-                <td>{entry.lastPayment}</td>
-                <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
-                <td><button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)} disabled={!ledgerAvailable}>Statement</button></td>
+      {loading ? (
+        <div className="ledger-table-wrap glass-card">
+          <div className="ledger-empty">Loading ledger...</div>
+        </div>
+      ) : !hasActiveQuery ? (
+        <div className="ledger-search-prompt glass-card">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6" />
+            <line x1="16.65" y1="16.65" x2="21" y2="21" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+          <h3>Search for a homeowner</h3>
+          <p>
+            Type at least {MIN_SEARCH_LENGTH} characters of a name, block, or lot — or pick a
+            block or status filter above — to view their ledger. Homeowners aren't listed by
+            default so the page stays fast as the roster grows.
+          </p>
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="ledger-search-prompt glass-card">
+          <AlertCircle size={30} aria-hidden="true" />
+          <h3>No matches</h3>
+          <p>No homeowner matches "{search}" with the current filters. Try a different name, block, or lot.</p>
+        </div>
+      ) : (
+        <div className="ledger-table-wrap glass-card">
+          {isTruncated && (
+            <p className="ledger-truncated-note">
+              Showing the first {MAX_VISIBLE_ROWS} of {sorted.length} matches — refine your search to narrow this down.
+            </p>
+          )}
+          <table className="ledger-table">
+            <thead>
+              <tr>
+                {SORT_COLUMNS.map((column) => (
+                  <th key={column.key} className="ledger-th-sortable" onClick={() => toggleSort(column.key)}>
+                    {column.label}{sortIndicator(column.key)}
+                  </th>
+                ))}
+                <th>Credit</th>
+                <th>Status</th>
+                <th aria-label="Actions">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {visibleRows.map((entry) => (
+                <tr key={entry.id}>
+                  <td><strong>{entry.name}</strong></td>
+                  <td>{entry.block}, {entry.lot}</td>
+                  <td>{peso.format(entry.dueAmount)}</td>
+                  <td>{peso.format(entry.paidAmount)}</td>
+                  <td className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
+                  <td>{entry.lastPayment}</td>
+                  <td className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
+                  <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
+                  <td className="ledger-row-actions">
+                    <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)} disabled={!ledgerAvailable}>Statement</button>
+                    {canManageHomeowners && (
+                      <>
+                        <button className="ledger-icon-button" type="button" onClick={() => openEditHomeowner(entry)}>Edit</button>
+                        <button className="ledger-icon-button ledger-icon-button-danger" type="button" onClick={() => handleDeleteHomeowner(entry)}>Delete</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {statementAccount && (
         <div className="ledger-modal-backdrop" onMouseDown={() => setStatementAccount(null)}>
@@ -525,11 +821,11 @@ export default function LedgerPage({ user: suppliedUser }) {
 
       {showAddHomeowner && canManageHomeowners && (
         <div className="ledger-modal-backdrop" onMouseDown={closeHomeownerForm}>
-          <form className="ledger-modal glass-card" onSubmit={handleAddHomeowner} onMouseDown={(event) => event.stopPropagation()}>
+          <form className="ledger-modal glass-card" onSubmit={handleSaveHomeowner} onMouseDown={(event) => event.stopPropagation()}>
             <div className="ledger-modal-heading">
               <div>
-                <h2>Add New Homeowner</h2>
-                <p>Add the homeowner and assign an available block and lot.</p>
+                <h2>{editingHomeownerId ? 'Edit Homeowner' : 'Add New Homeowner'}</h2>
+                <p>{editingHomeownerId ? 'Update the homeowner or their block and lot.' : 'Add the homeowner and assign an available block and lot.'}</p>
               </div>
               <button type="button" className="ledger-modal-close" onClick={closeHomeownerForm} aria-label="Close">×</button>
             </div>
@@ -557,61 +853,100 @@ export default function LedgerPage({ user: suppliedUser }) {
             <div className="ledger-modal-actions">
               <button type="button" className="ledger-cancel-button" onClick={closeHomeownerForm} disabled={savingHomeowner}>Cancel</button>
               <button type="submit" className="ledger-save-button" disabled={savingHomeowner || blocks.length === 0}>
-                {savingHomeowner ? 'Saving...' : 'Save Homeowner'}
+                {savingHomeowner ? 'Saving...' : editingHomeownerId ? 'Save Changes' : 'Save Homeowner'}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {showAddBlock && canManageHomeowners && (
+      {showManageBlocks && canManageHomeowners && (
         <div
           className="ledger-modal-backdrop"
-          onMouseDown={() => !savingBlock && setShowAddBlock(false)}
+          onMouseDown={() => !savingBlock && !blockActionBusyId && setShowManageBlocks(false)}
         >
-          <form
-            className="ledger-modal glass-card"
-            onSubmit={handleAddBlock}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
+          <div className="ledger-modal glass-card" onMouseDown={(event) => event.stopPropagation()}>
             <div className="ledger-modal-heading">
               <div>
-                <h2>Add New Block</h2>
-                <p>Create a block before assigning homeowners to it.</p>
+                <h2>Manage Blocks</h2>
+                <p>Rename or remove existing blocks, or add a new one.</p>
               </div>
               <button
                 type="button"
                 className="ledger-modal-close"
-                onClick={() => setShowAddBlock(false)}
+                onClick={() => setShowManageBlocks(false)}
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <label htmlFor="block-name">Block name</label>
-            <input
-              id="block-name"
-              value={newBlockName}
-              onChange={(event) => {
-                setNewBlockName(event.target.value)
-                setBlockError('')
-              }}
-              placeholder="e.g., Block F"
-              maxLength="50"
-              autoFocus
-              required
-            />
+            {blockActionError && <p className="ledger-form-error">{blockActionError}</p>}
 
-            {blockError && <p className="ledger-form-error">{blockError}</p>}
+            <ul className="ledger-manage-blocks-list">
+              {blocks.length === 0 && <li className="ledger-form-note">No blocks yet.</li>}
+              {blocks.map((block) => (
+                <li key={block.id} className="ledger-manage-block-row">
+                  {editingBlockId === block.id ? (
+                    <>
+                      <input
+                        value={editingBlockName}
+                        onChange={(event) => setEditingBlockName(event.target.value)}
+                        maxLength="50"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="ledger-icon-button"
+                        onClick={() => handleRenameBlock(block)}
+                        disabled={blockActionBusyId === block.id}
+                      >
+                        {blockActionBusyId === block.id ? 'Saving...' : 'Save'}
+                      </button>
+                      <button type="button" className="ledger-icon-button" onClick={cancelEditBlock}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span>{block.name}</span>
+                      <button type="button" className="ledger-icon-button" onClick={() => startEditBlock(block)}>Edit</button>
+                      <button
+                        type="button"
+                        className="ledger-icon-button ledger-icon-button-danger"
+                        onClick={() => handleDeleteBlock(block)}
+                        disabled={blockActionBusyId === block.id}
+                      >
+                        {blockActionBusyId === block.id ? 'Removing...' : 'Delete'}
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            <form className="ledger-add-block-form" onSubmit={handleAddBlock}>
+              <label htmlFor="block-name">Add a block</label>
+              <div className="ledger-form-row">
+                <input
+                  id="block-name"
+                  value={newBlockName}
+                  onChange={(event) => {
+                    setNewBlockName(event.target.value)
+                    setBlockError('')
+                  }}
+                  placeholder="e.g., Block F"
+                  maxLength="50"
+                />
+                <button type="submit" className="ledger-save-button" disabled={savingBlock}>
+                  {savingBlock ? 'Saving...' : 'Add Block'}
+                </button>
+              </div>
+              {blockError && <p className="ledger-form-error">{blockError}</p>}
+            </form>
 
             <div className="ledger-modal-actions">
-              <button type="button" className="ledger-cancel-button" onClick={() => setShowAddBlock(false)} disabled={savingBlock}>Cancel</button>
-              <button type="submit" className="ledger-save-button" disabled={savingBlock}>
-                {savingBlock ? 'Saving...' : 'Save Block'}
-              </button>
+              <button type="button" className="ledger-cancel-button" onClick={() => setShowManageBlocks(false)}>Close</button>
             </div>
-          </form>
+          </div>
         </div>
       )}
     </div>
