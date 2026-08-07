@@ -575,11 +575,13 @@ export default function AdminDashboard() {
   return (
     <div className="dash-admin-dashboard">
       <div className="dash-page-header">
-        <p className="dash-page-eyebrow">Admin workspace</p>
-        <h1 className="dash-page-title">Admin Dashboard</h1>
-        <p className="dash-page-subtitle">
-          Live overview of users, properties, collections, and system activity.
-        </p>
+        <div className="dash-page-header-copy">
+          <p className="dash-page-eyebrow">Admin workspace</p>
+          <h1 className="dash-page-title">Admin Dashboard</h1>
+          <p className="dash-page-subtitle">
+            Live overview of users, properties, collections, and system activity.
+          </p>
+        </div>
       </div>
 
       {pageError && <p className="dash-page-error">{pageError}</p>}
