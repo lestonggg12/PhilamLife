@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
-import { FileText, TrendingUp, AlertCircle } from '../components/Icons'
+import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { computeLateFee } from '../lib/latepenalty'
 import { fetchLedgerAccounts, fetchStatementLines } from '../lib/hoaLedger'
@@ -610,6 +610,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     <div className="ledger-page">
       <div className="ledger-header-row glass-card">
         <div className="ledger-header">
+          <div className="ledger-header-icon"><CreditCard size={22} /></div>
           <div className="ledger-header-copy">
             <span className="ledger-header-eyebrow">{(role || 'staff').toUpperCase()} WORKSPACE</span>
             <h1>Ledger</h1>
