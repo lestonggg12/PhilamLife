@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, DollarSign } from '../components/Icons'
-import BlockOverviewCard from '../components/BlockOverviewCard'
-import ExpandedBlockView from '../components/ExpandedBlockView'
+import BlockPayablesSection from '../components/BlockPayablesSection'
 import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
 import ReceiptModal from '../components/ReceiptModal'
@@ -224,7 +223,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     [blockSummaries],
   )
 
-  function handleBlockExpand(blockId) {
+  function handleBlockToggle(blockId) {
     setExpandedBlockId((current) => (current === blockId ? null : blockId))
   }
 
@@ -323,27 +322,20 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         ) : blockSummaries.length === 0 ? (
           <div className="payables-state">No blocks or homeowner records found.</div>
         ) : (
-          <div className="blocks-grid">
-            {blockSummaries.map((block) => (
-              <div key={block.id} className="block-section">
-                <BlockOverviewCard
-                  block={block}
-                  isExpanded={expandedBlockId === block.id}
-                  onExpand={() => handleBlockExpand(block.id)}
-                />
-
-                {expandedBlockId === block.id && (
-                  <ExpandedBlockView
-                    block={block}
-                    homeowners={block.homeowners}
-                    canRecordPayment={canManagePayments}
-                    onViewLedger={handleViewLedger}
-                    onPayDues={handlePayDues}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+         <div className="blocks-stack">
+  {blockSummaries.map((block) => (
+    <BlockPayablesSection
+      key={block.id}
+      block={block}
+      homeowners={block.homeowners}
+      canRecordPayment={canManagePayments}
+      isExpanded={expandedBlockId === block.id}
+      onToggle={() => handleBlockToggle(block.id)}
+      onViewLedger={handleViewLedger}
+      onPayDues={handlePayDues}
+    />
+  ))}
+</div>
         )}
       </div>
 

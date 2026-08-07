@@ -1,28 +1,28 @@
-/* ReportsPage.css — ledger-book identity
-   Fonts: add these to your index.html <head> for best performance:
-   <link rel="preconnect" href="https://fonts.googleapis.com">
-   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-*/
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+/* ReportsPage.css — matches the app's core design system (see LedgerPage) */
 
 .reports-page {
-  --ink: #182449;
-  --ink-soft: #5C6478;
-  --paper: #F1F0EA;
-  --sheet: #FCFBF8;
-  --line: #DEDACD;
-  --brass: #9C7A32;
-  --brass-soft: #EDE3CC;
-  --forest: #2B6B4A;
-  --rust: #A73A2C;
-  --rust-soft: #F5E4E0;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
+  --ink: #0F172A;
+  --ink-soft: #64748B;
+  --ink-faint: #94A3B8;
+  --bg: #EAF1FB;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --blue: #2563EB;
+  --blue-hover: #1D4ED8;
+  --blue-soft: #DBEAFE;
+  --green: #16A34A;
+  --green-soft: #DCFCE7;
+  --red: #DC2626;
+  --red-soft: #FEE2E2;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SFMono-Regular', Menlo, Consolas, monospace;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 8px rgba(15, 23, 42, 0.04);
 
   padding: 28px 32px 48px;
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
 }
@@ -30,80 +30,72 @@
 /* ---------- Header ---------- */
 .reports-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
 .reports-header h1 {
-  margin: 0 0 2px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 2rem;
+  margin: 0 0 4px;
+  font-weight: 700;
+  font-size: 1.6rem;
   letter-spacing: -0.01em;
-}
-.reports-header h1::before {
-  content: "PHILAM VILLAGE — FINANCIAL LEDGER";
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--brass);
-  margin-bottom: 8px;
+  color: var(--ink);
 }
 .reports-header p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
 
 .reports-primary {
   border: 0;
-  border-radius: 3px;
-  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  padding: 11px 20px;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.03em;
+  font-size: 0.88rem;
   cursor: pointer;
-  background: var(--ink);
-  color: #F6F4EC;
+  background: var(--blue);
+  color: #FFFFFF;
+  box-shadow: var(--shadow-card);
   transition: background 0.15s ease, transform 0.1s ease;
 }
-.reports-primary:hover:not(:disabled) { background: #24346B; }
+.reports-primary:hover:not(:disabled) { background: var(--blue-hover); }
 .reports-primary:active:not(:disabled) { transform: translateY(1px); }
 .reports-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .reports-secondary {
-  border: 1px solid var(--line);
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 10px 16px;
   font-weight: 600;
+  font-size: 0.88rem;
   cursor: pointer;
-  background: var(--sheet);
+  background: var(--surface);
   color: var(--ink);
 }
+.reports-secondary:hover { background: #F8FAFC; }
 
-/* ---------- Tabs: ledger folder dividers ---------- */
+/* ---------- Tabs ---------- */
 .reports-tabs {
   display: flex;
   gap: 4px;
-  margin: 28px 0 0;
-  padding-left: 4px;
+  margin: 22px 0 0;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: 0;
   overflow-x: auto;
 }
 .reports-tabs button {
-  position: relative;
   white-space: nowrap;
   border: 0;
-  background: #E4E1D5;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--ink-soft);
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 0.84rem;
-  letter-spacing: 0.01em;
-  padding: 11px 22px 10px;
+  font-size: 0.85rem;
+  padding: 10px 18px;
   cursor: pointer;
-  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
-  margin-right: -6px;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.reports-tabs button:hover { background: #D8D4C4; color: var(--ink); }
+.reports-tabs button:hover { background: #F1F5F9; color: var(--ink); }
 .reports-tabs button.active {
-  background: var(--sheet);
-  color: var(--ink);
-  z-index: 2;
+  background: var(--blue-soft);
+  color: var(--blue-hover);
 }
 
 /* ---------- Controls ---------- */
@@ -113,10 +105,10 @@
   align-items: center;
   gap: 16px;
   min-height: 42px;
-  margin-bottom: 0;
   padding: 14px 20px;
-  background: var(--sheet);
-  border-top: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 .reports-controls label {
   display: flex;
@@ -124,166 +116,163 @@
   gap: 10px;
   font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--ink-soft);
 }
 .reports-controls span { font-size: 0.85rem; color: var(--ink-soft); }
 .reports-controls input, .expense-form input {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 8px 11px;
-  background: #fff;
-  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  background: var(--surface);
+  font-family: var(--font-body);
   font-size: 0.88rem;
   color: var(--ink);
 }
 .reports-controls input:focus, .expense-form input:focus {
-  outline: 2px solid var(--brass);
+  outline: 2px solid var(--blue);
   outline-offset: 1px;
+  border-color: var(--blue);
 }
 
-.reports-error { color: var(--rust); font-weight: 600; padding: 0 20px; }
+.reports-error {
+  color: var(--red);
+  font-weight: 600;
+  padding: 12px 20px;
+  margin: 16px 0 0;
+  background: var(--red-soft);
+  border-radius: var(--radius-md);
+}
 
-/* ---------- Report sheet: the ledger page itself ---------- */
+/* ---------- Report sheet ---------- */
 .report-sheet {
   position: relative;
-  background: var(--sheet);
-  border: 1px solid var(--line);
-  border-top: 0;
-  padding: 26px 28px 22px 42px;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 34px,
-    #EDEAE0 35px
-  );
-  background-position: 0 92px;
-}
-/* bound spine with stitching dots */
-.report-sheet::before {
-  content: "";
-  position: absolute;
-  top: 0; bottom: 0; left: 18px;
-  width: 1px;
-  background: var(--brass-soft);
-}
-.report-sheet::after {
-  content: "";
-  position: absolute;
-  top: 12px; bottom: 12px; left: 17px;
-  width: 3px;
-  background-image: radial-gradient(circle, var(--brass) 1px, transparent 1.3px);
-  background-size: 3px 14px;
-  opacity: 0.55;
+  background: transparent;
+  padding: 20px 0 0;
 }
 
-.report-print-heading { margin-bottom: 18px; position: relative; }
+.report-print-heading { margin-bottom: 18px; }
 .report-print-heading h2 {
   margin: 0 0 3px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.35rem;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--ink);
 }
 .report-print-heading p {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
-  color: var(--brass);
-  text-transform: uppercase;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
 }
 
 /* ---------- Summary stat cards ---------- */
 .report-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 1px;
+  gap: 14px;
   margin-bottom: 22px;
-  background: var(--line);
-  border: 1px solid var(--line);
-  position: relative;
 }
 .report-summary span {
-  flex: 1 1 180px;
-  background: var(--sheet);
-  padding: 14px 18px;
+  flex: 1 1 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
   color: var(--ink-soft);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
+.report-summary span:nth-child(1) { border-top: 3px solid var(--blue); }
+.report-summary span:nth-child(2) { border-top: 3px solid var(--green); }
+.report-summary span:nth-child(3) { border-top: 3px solid var(--red); }
 .report-summary strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
   color: var(--ink);
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 1.3rem;
+  font-weight: 700;
+  font-size: 1.4rem;
   letter-spacing: -0.01em;
 }
 
 /* ---------- Table ---------- */
-.reports-table-wrap { overflow-x: auto; position: relative; }
-.reports-table-wrap table { width: 100%; border-collapse: collapse; }
+.reports-table-wrap {
+  overflow: hidden;
+  border: 1.5px solid #BFDBFE;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.reports-table-wrap table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.reports-table-wrap th,
+.reports-table-wrap td {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 .reports-table-wrap th {
   text-align: left;
-  color: var(--brass);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  border-bottom: 2px solid var(--ink);
-  padding: 10px 14px;
-  background: var(--sheet);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px 12px;
+  background: transparent;
 }
 .reports-table-wrap td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
   font-size: 0.87rem;
   color: var(--ink);
 }
-.reports-table-wrap tbody tr:hover td { background: #F3EFE2; }
+.reports-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.reports-table-wrap tbody tr:hover td { background: #F8FAFC; }
 .reports-table-wrap .number {
   text-align: right;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  overflow-wrap: normal;
+  word-break: normal;
   font-variant-numeric: tabular-nums;
 }
-.reports-empty { padding: 40px !important; text-align: center; color: #9A9484; font-style: italic; }
-.reports-due { color: var(--rust); font-weight: 600; }
+.reports-empty { padding: 44px !important; text-align: center; color: var(--ink-faint); }
+.reports-due {
+  color: var(--red);
+  font-weight: 700;
+}
 
 .report-footer {
   margin-top: 20px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  color: #948E7E;
-  font-size: 0.74rem;
-  font-family: var(--font-mono);
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--ink-faint);
+  font-size: 0.76rem;
 }
 
-/* ---------- Expense modal (shared styling) ---------- */
-.reports-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(24, 36, 73, 0.55); }
-.expense-form { width: min(580px, 100%); box-sizing: border-box; border-radius: 4px; padding: 26px; background: var(--sheet); border-top: 3px solid var(--brass); }
+/* ---------- Expense modal ---------- */
+.reports-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, 0.45); }
+.expense-form { width: min(580px, 100%); box-sizing: border-box; border-radius: var(--radius-lg); padding: 26px; background: var(--surface); box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18); }
 .expense-heading { display: flex; justify-content: space-between; align-items: flex-start; }
-.expense-heading h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; }
+.expense-heading h2 { margin: 0 0 4px; font-weight: 700; color: var(--ink); }
 .expense-heading p { margin: 0; color: var(--ink-soft); }
 .expense-heading button { border: 0; background: transparent; font-size: 1.6rem; cursor: pointer; color: var(--ink-soft); line-height: 1; }
 .expense-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
-.expense-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em; color: var(--ink-soft); text-transform: uppercase; }
+.expense-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); }
 .expense-grid .span-2 { grid-column: span 2; }
 .expense-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
-.expense-actions > button:not(.reports-primary) { border: 1px solid var(--line); background: #fff; border-radius: 3px; padding: 10px 16px; cursor: pointer; font-weight: 600; color: var(--ink-soft); }
+.expense-actions > button:not(.reports-primary) {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.expense-actions > button:not(.reports-primary):hover { background: #F8FAFC; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 640px) {
   .reports-page { padding: 18px; }
   .reports-header { align-items: flex-start; flex-direction: column; }
   .reports-controls { align-items: flex-start; flex-direction: column; }
-  .report-sheet { padding-left: 24px; }
-  .report-sheet::before, .report-sheet::after { left: 8px; }
   .expense-grid { grid-template-columns: 1fr; }
   .expense-grid .span-2 { grid-column: auto; }
 }
@@ -294,10 +283,9 @@
   .report-sheet, .report-sheet * { visibility: visible; }
   .report-sheet {
     position: absolute; inset: 0;
-    border: 0; padding: 18mm 14mm;
-    background-image: none;
+    border: 0; box-shadow: none; border-radius: 0;
+    padding: 18mm 14mm;
   }
-  .report-sheet::before, .report-sheet::after { display: none; }
   .no-print { display: none !important; }
   .reports-table-wrap { overflow: visible; }
   .reports-table-wrap tr { break-inside: avoid; }
