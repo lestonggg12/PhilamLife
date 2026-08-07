@@ -8,6 +8,35 @@ import {
   RefreshCw,
   X,
 } from '../components/Icons'
+
+// Small inline icons so this page doesn't depend on extra exports from
+// components/Icons.jsx (Calendar / ChevronLeft / ChevronRight aren't there).
+function CalendarIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  )
+}
+
+function ChevronLeftIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  )
+}
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
@@ -24,6 +53,22 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
   timeStyle: 'short',
   timeZone: 'Asia/Manila',
 })
+
+const dayHeaderFormat = new Intl.DateTimeFormat('en-PH', {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+})
+
+const monthTitleFormat = new Intl.DateTimeFormat('en-PH', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+})
+
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 const escapePrintText = (value) =>
   String(value ?? '')
@@ -189,6 +234,33 @@ function isCurrentManilaMonth(value) {
   return parts(new Date(value)) === parts(new Date())
 }
 
+// A YYYY-MM-DD string, treated as a fixed calendar day (no timezone drift).
+function dayLabel(dateKey) {
+  return dayHeaderFormat.format(new Date(`${dateKey}T12:00:00+08:00`))
+}
+
+// Builds a Sun-start month grid of YYYY-MM-DD keys for the given year/month
+// (month is 0-11), padded with the surrounding month's days.
+function buildMonthGrid(year, month) {
+  const firstOfMonth = new Date(Date.UTC(year, month, 1))
+  const startWeekday = firstOfMonth.getUTCDay()
+  const gridStart = new Date(firstOfMonth)
+  gridStart.setUTCDate(gridStart.getUTCDate() - startWeekday)
+
+  const cells = []
+  for (let i = 0; i < 42; i += 1) {
+    const cellDate = new Date(gridStart)
+    cellDate.setUTCDate(gridStart.getUTCDate() + i)
+    const key = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(cellDate)
+    cells.push({
+      key,
+      day: cellDate.getUTCDate(),
+      inMonth: cellDate.getUTCMonth() === month,
+    })
+  }
+  return cells
+}
+
 const emptyService = {
   name: '',
   description: '',
@@ -219,14 +291,21 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [pageError, setPageError] = useState('')
-  const [search, setSearch] = useState('')
-  const [serviceFilter, setServiceFilter] = useState('all')
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [editingServiceId, setEditingServiceId] = useState(null)
   const [serviceForm, setServiceForm] = useState(emptyService)
   const [transactionForm, setTransactionForm] = useState(emptyTransaction)
   const [receipt, setReceipt] = useState(null)
+
+  // --- Calendar day-modal state (calendar lives beside "Record Payment";
+  // picking an exact date opens a floating statement-style modal) ---
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const [year, month] = today().split('-').map(Number)
+    return { year, month: month - 1 }
+  })
+  const [dayModalDate, setDayModalDate] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageServices = role === 'secretary'
@@ -237,6 +316,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     loadPage()
     resolveCurrentUser()
   }, [])
+
+  useEffect(() => {
+    if (!calendarOpen) return undefined
+    function handleClickAway(event) {
+      if (!event.target.closest('.services-calendar-wrap')) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickAway)
+    return () => document.removeEventListener('mousedown', handleClickAway)
+  }, [calendarOpen])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -317,25 +407,58 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     }
   }, [activeServices, transactions])
 
-  const filteredTransactions = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    return transactions.filter((item) => {
-      const matchesService =
-        serviceFilter === 'all' || item.service_id === serviceFilter
-      const matchesSearch =
-        !query ||
-        [
-          item.receipt_number,
-          item.service_name,
-          item.customer_name,
-          item.block_name,
-          item.lot_number,
-        ].some((value) => String(value || '').toLowerCase().includes(query))
-
-      return matchesService && matchesSearch
+  // Every calendar day that has at least one transaction, keyed by
+  // service_date (YYYY-MM-DD) — drives the "has activity" dots.
+  const activityDates = useMemo(() => {
+    const set = new Set()
+    transactions.forEach((item) => {
+      if (item.service_date) set.add(item.service_date)
     })
-  }, [search, serviceFilter, transactions])
+    return set
+  }, [transactions])
+
+  // Transactions shown inside the floating day modal, once a specific date
+  // has been picked from the calendar.
+  const dayModalTransactions = useMemo(() => {
+    if (!dayModalDate) return []
+    return transactions
+      .filter((item) => item.service_date === dayModalDate)
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+  }, [transactions, dayModalDate])
+
+  const dayModalTotal = useMemo(
+    () => dayModalTransactions.reduce((sum, item) => sum + (Number(item.amount_paid) || 0), 0),
+    [dayModalTransactions],
+  )
+
+  const monthGrid = useMemo(
+    () => buildMonthGrid(calendarCursor.year, calendarCursor.month),
+    [calendarCursor],
+  )
+
+  function openCalendar() {
+    const [year, month] = today().split('-').map(Number)
+    setCalendarCursor({ year, month: month - 1 })
+    setCalendarOpen((open) => !open)
+  }
+
+  function changeCalendarMonth(delta) {
+    setCalendarCursor((current) => {
+      const next = new Date(Date.UTC(current.year, current.month + delta, 1))
+      return { year: next.getUTCFullYear(), month: next.getUTCMonth() }
+    })
+  }
+
+  function pickDay(dateKey) {
+    setCalendarOpen(false)
+    setDayModalDate(dateKey)
+  }
+
+  function jumpToToday() {
+    const now = today()
+    const [year, month] = now.split('-').map(Number)
+    setCalendarCursor({ year, month: month - 1 })
+  }
 
   const selectedService = services.find(
     (service) => service.id === transactionForm.service_id,
@@ -495,6 +618,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setShowPaymentForm(false)
     setReceipt(data)
     setSaving(false)
+    // Jump the calendar view to the day the new payment was recorded for,
+    // so the freshly-created receipt is visible in the day's list.
+    setSelectedDate(data.service_date)
 
     const { error: activityError } = await supabase.from('activity_log').insert({
       user_id: currentUser.id,
@@ -535,6 +661,66 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               >
                 <Plus size={17} /> Add Service
               </button>
+
+              <div className="services-calendar-wrap">
+                <button
+                  type="button"
+                  className="services-button services-button-secondary day-picker-trigger"
+                  onClick={openCalendar}
+                  aria-haspopup="dialog"
+                  aria-expanded={calendarOpen}
+                >
+                  <CalendarIcon size={17} /> View by Date
+                </button>
+
+                {calendarOpen && (
+                  <div className="services-calendar-popover" role="dialog" aria-label="Choose a day">
+                    <div className="services-calendar-nav">
+                      <button type="button" onClick={() => changeCalendarMonth(-1)} aria-label="Previous month">
+                        <ChevronLeftIcon size={16} />
+                      </button>
+                      <strong>{monthTitleFormat.format(new Date(Date.UTC(calendarCursor.year, calendarCursor.month, 1)))}</strong>
+                      <button type="button" onClick={() => changeCalendarMonth(1)} aria-label="Next month">
+                        <ChevronRightIcon size={16} />
+                      </button>
+                    </div>
+
+                    <div className="services-calendar-weekdays">
+                      {WEEKDAY_LABELS.map((label) => (
+                        <span key={label}>{label}</span>
+                      ))}
+                    </div>
+
+                    <div className="services-calendar-grid">
+                      {monthGrid.map((cell) => (
+                        <button
+                          type="button"
+                          key={cell.key}
+                          className={[
+                            'calendar-cell',
+                            !cell.inMonth && 'outside-month',
+                            cell.key === dayModalDate && 'selected',
+                            cell.key === today() && 'is-today',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          onClick={() => pickDay(cell.key)}
+                        >
+                          {cell.day}
+                          {activityDates.has(cell.key) && <span className="activity-dot" />}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="services-calendar-footer">
+                      <span><span className="legend-dot today-dot" /> Today</span>
+                      <span><span className="legend-dot activity-legend-dot" /> Has activity</span>
+                      <button type="button" onClick={jumpToToday}>Jump to today</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 className="services-button services-button-primary"
@@ -626,87 +812,6 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             ))}
           </div>
         )}
-      </section>
-
-      <section className="services-transactions">
-        <div className="services-section-heading services-transaction-heading">
-          <div>
-            <h2>Service Transactions</h2>
-            <p>Search payments and open their payment receipts.</p>
-          </div>
-          <div className="services-filters">
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search receipt, service, or homeowner..."
-            />
-            <select
-              value={serviceFilter}
-              onChange={(event) => setServiceFilter(event.target.value)}
-            >
-              <option value="all">All services</option>
-              {services.map((service) => (
-                <option value={service.id} key={service.id}>
-                  {service.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="services-table-wrap">
-          <table className="services-table">
-            <thead>
-              <tr>
-                <th>Receipt No.</th>
-                <th>Service</th>
-                <th>Homeowner</th>
-                <th>Schedule</th>
-                <th>Amount Paid</th>
-                <th>Status</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="7" className="services-empty">Loading transactions...</td></tr>
-              ) : filteredTransactions.length === 0 ? (
-                <tr><td colSpan="7" className="services-empty">No service transactions found.</td></tr>
-              ) : (
-                filteredTransactions.map((item) => (
-                  <tr key={item.id}>
-                    <td><strong>{item.receipt_number}</strong></td>
-                    <td>{item.service_name}</td>
-                    <td>
-                      <strong>{item.customer_name}</strong>
-                      <span>{item.block_name}, Lot {item.lot_number}</span>
-                    </td>
-                    <td>
-                      {item.service_date}
-                      {item.start_time ? ` • ${item.start_time.slice(0, 5)}` : ''}
-                    </td>
-                    <td>{peso.format(Number(item.amount_paid) || 0)}</td>
-                    <td>
-                      <span className={`payment-status ${item.payment_status}`}>
-                        {item.payment_status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="receipt-link"
-                        onClick={() => setReceipt(item)}
-                      >
-                        <Eye size={16} /> Receipt
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </section>
 
       {showServiceForm && (
@@ -1017,6 +1122,73 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               <button type="button" onClick={() => printServiceReceipt(receipt, organization.associationName, setPopupNotice)}>
                 Print Receipt
               </button>
+            </div>
+          </article>
+        </div>
+      )}
+
+      {dayModalDate && (
+        <div className="services-modal-backdrop" role="presentation">
+          <article className="day-modal">
+            <div className="day-modal-header">
+              <div>
+                <p className="services-eyebrow">Service transactions</p>
+                <h2>{dayLabel(dayModalDate)}</h2>
+                <span className={`day-badge ${dayModalDate === today() ? 'current' : 'archived'}`}>
+                  {dayModalDate === today() ? 'CURRENT DAY' : 'ARCHIVED DAY'}
+                </span>
+              </div>
+              <button type="button" onClick={() => setDayModalDate(null)} aria-label="Close">
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="day-modal-stats">
+              <div>
+                <span>Transactions</span>
+                <strong>{dayModalTransactions.length}</strong>
+              </div>
+              <div>
+                <span>Amount collected</span>
+                <strong>{peso.format(dayModalTotal)}</strong>
+              </div>
+            </div>
+
+            <div className="day-modal-list">
+              {dayModalTransactions.length === 0 ? (
+                <p className="services-day-empty">No service transactions recorded on this day.</p>
+              ) : (
+                dayModalTransactions.map((item) => (
+                  <div className="day-modal-row" key={item.id}>
+                    <div className="day-modal-row-main">
+                      <strong>{item.receipt_number}</strong>
+                      <span>{item.service_name}</span>
+                    </div>
+                    <div className="day-modal-row-meta">
+                      <span>{item.customer_name} — {item.block_name}, Lot {item.lot_number}</span>
+                      {item.start_time && <span>{item.start_time.slice(0, 5)}</span>}
+                    </div>
+                    <div className="day-modal-row-end">
+                      <strong>{peso.format(Number(item.amount_paid) || 0)}</strong>
+                      <span className={`payment-status ${item.payment_status}`}>{item.payment_status}</span>
+                      <button
+                        type="button"
+                        className="receipt-link"
+                        onClick={() => {
+                          setReceipt(item)
+                          setDayModalDate(null)
+                        }}
+                      >
+                        <Eye size={16} /> Receipt
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="services-modal-actions">
+              <button type="button" onClick={() => setDayModalDate(null)}>Close</button>
             </div>
           </article>
         </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CreditCard,
   Eye,
@@ -27,6 +27,14 @@ const dateTime = new Intl.DateTimeFormat('en-PH', {
 
 const calendarDate = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
+  timeZone: 'Asia/Manila',
+})
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const CALENDAR_MONTH_LABEL = new Intl.DateTimeFormat('en-PH', {
+  month: 'long',
+  year: 'numeric',
   timeZone: 'Asia/Manila',
 })
 
@@ -80,6 +88,39 @@ function formatDateOnly(value) {
     : calendarDate.format(parsed)
 }
 
+function pad2(value) {
+  return String(value).padStart(2, '0')
+}
+
+function dateKeyOf(year, month, day) {
+  return `${year}-${pad2(month + 1)}-${pad2(day)}`
+}
+
+// Single source of truth for "what Manila calendar date is this
+// JS Date on". toManilaDateKey (used for saved receipt timestamps)
+// and manilaToday (used by the calendar's "today"/"jump to today")
+// both read through here, so they can never disagree.
+function manilaDateParts(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const lookup = {}
+
+  parts.forEach(({ type, value }) => {
+    lookup[type] = value
+  })
+
+  return {
+    year: Number(lookup.year),
+    month: Number(lookup.month) - 1,
+    day: Number(lookup.day),
+  }
+}
+
 function toManilaDateKey(value) {
   if (!value) return ''
 
@@ -87,12 +128,61 @@ function toManilaDateKey(value) {
 
   if (Number.isNaN(parsed.getTime())) return ''
 
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(parsed)
+  const { year, month, day } = manilaDateParts(parsed)
+
+  return dateKeyOf(year, month, day)
+}
+
+function manilaToday() {
+  return manilaDateParts(new Date())
+}
+
+function buildCalendarWeeks(viewYear, viewMonth) {
+  const firstOfMonth = new Date(viewYear, viewMonth, 1)
+  const startWeekday = firstOfMonth.getDay()
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate()
+
+  const cells = []
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    const day = daysInPrevMonth - startWeekday + 1 + i
+    const date = new Date(viewYear, viewMonth - 1, day)
+
+    cells.push({
+      day,
+      outside: true,
+      dateKey: dateKeyOf(date.getFullYear(), date.getMonth(), day),
+    })
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({
+      day,
+      outside: false,
+      dateKey: dateKeyOf(viewYear, viewMonth, day),
+    })
+  }
+
+  const trailingCount = (7 - (cells.length % 7)) % 7
+
+  for (let day = 1; day <= trailingCount; day += 1) {
+    const date = new Date(viewYear, viewMonth + 1, day)
+
+    cells.push({
+      day,
+      outside: true,
+      dateKey: dateKeyOf(date.getFullYear(), date.getMonth(), day),
+    })
+  }
+
+  const weeks = []
+
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7))
+  }
+
+  return weeks
 }
 
 function paymentProperty(payment) {
@@ -509,6 +599,171 @@ function printOfficialReceipt(receipt, associationName, onPopupBlocked) {
   printWindow.document.close()
 }
 
+function ReceiptCalendar({
+  selectedDateKey,
+  activeDateKeys,
+  onSelectDate,
+  onClose,
+}) {
+  const manilaAnchor = manilaToday()
+
+  const [viewYear, setViewYear] = useState(
+    selectedDateKey
+      ? Number(selectedDateKey.slice(0, 4))
+      : manilaAnchor.year,
+  )
+  const [viewMonth, setViewMonth] = useState(
+    selectedDateKey
+      ? Number(selectedDateKey.slice(5, 7)) - 1
+      : manilaAnchor.month,
+  )
+
+  const todayKey = dateKeyOf(
+    manilaAnchor.year,
+    manilaAnchor.month,
+    manilaAnchor.day,
+  )
+
+  const weeks = useMemo(
+    () => buildCalendarWeeks(viewYear, viewMonth),
+    [viewYear, viewMonth],
+  )
+
+  function goToPrevMonth() {
+    setViewMonth((month) => {
+      if (month === 0) {
+        setViewYear((year) => year - 1)
+        return 11
+      }
+
+      return month - 1
+    })
+  }
+
+  function goToNextMonth() {
+    setViewMonth((month) => {
+      if (month === 11) {
+        setViewYear((year) => year + 1)
+        return 0
+      }
+
+      return month + 1
+    })
+  }
+
+  function jumpToToday() {
+    const { year, month, day } = manilaToday()
+
+    setViewYear(year)
+    setViewMonth(month)
+    onSelectDate(dateKeyOf(year, month, day))
+  }
+
+  return (
+    <div
+      className="official-calendar-popover"
+      role="dialog"
+      aria-label="View receipts by date"
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div className="official-calendar-nav">
+        <button
+          type="button"
+          className="official-calendar-nav-button"
+          onClick={goToPrevMonth}
+          aria-label="Previous month"
+        >
+          ‹
+        </button>
+
+        <span className="official-calendar-title">
+          {CALENDAR_MONTH_LABEL.format(
+            new Date(viewYear, viewMonth, 1),
+          )}
+        </span>
+
+        <button
+          type="button"
+          className="official-calendar-nav-button"
+          onClick={goToNextMonth}
+          aria-label="Next month"
+        >
+          ›
+        </button>
+      </div>
+
+      <div className="official-calendar-weekdays">
+        {WEEKDAY_LABELS.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
+
+      {weeks.map((week, weekIndex) => (
+        <div
+          className="official-calendar-grid"
+          key={`week-${weekIndex}`}
+        >
+          {week.map((cell) => {
+            const isSelected =
+              cell.dateKey === selectedDateKey
+            const isToday = cell.dateKey === todayKey
+            const hasReceipts = activeDateKeys.has(
+              cell.dateKey,
+            )
+
+            const classNames = [
+              'official-calendar-day',
+              cell.outside
+                ? 'official-calendar-day-outside'
+                : '',
+              isToday ? 'official-calendar-day-today' : '',
+              isSelected
+                ? 'official-calendar-day-selected'
+                : '',
+              hasReceipts && !cell.outside
+                ? 'official-calendar-day-dot'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+
+            return (
+              <button
+                type="button"
+                key={cell.dateKey}
+                className={classNames}
+                onClick={() => onSelectDate(cell.dateKey)}
+              >
+                {cell.day}
+              </button>
+            )
+          })}
+        </div>
+      ))}
+
+      <div className="official-calendar-legend">
+        <span>
+          <span className="official-calendar-legend-today" />
+          Today
+        </span>
+
+        <span>
+          <span className="official-calendar-legend-dot" />
+          Has activity
+        </span>
+      </div>
+
+      <button
+        type="button"
+        className="official-calendar-jump"
+        onClick={jumpToToday}
+      >
+        Jump to Today
+      </button>
+    </div>
+  )
+}
+
 export default function OfficialReceiptsPage() {
   const { organization } = useOrganization()
   const [receipts, setReceipts] = useState([])
@@ -522,10 +777,49 @@ export default function OfficialReceiptsPage() {
   const [toDate, setToDate] = useState('')
   const [selectedReceipt, setSelectedReceipt] =
     useState(null)
+  const [calendarOpen, setCalendarOpen] =
+    useState(false)
+  const calendarAnchorRef = useRef(null)
 
   useEffect(() => {
     loadReceipts()
   }, [])
+
+  useEffect(() => {
+    if (!calendarOpen) return undefined
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setCalendarOpen(false)
+      }
+    }
+
+    function handleOutsideClick(event) {
+      if (
+        calendarAnchorRef.current &&
+        !calendarAnchorRef.current.contains(event.target)
+      ) {
+        setCalendarOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener(
+      'mousedown',
+      handleOutsideClick,
+    )
+
+    return () => {
+      document.removeEventListener(
+        'keydown',
+        handleKeyDown,
+      )
+      document.removeEventListener(
+        'mousedown',
+        handleOutsideClick,
+      )
+    }
+  }, [calendarOpen])
 
   async function loadReceipts() {
     setLoading(true)
@@ -644,6 +938,18 @@ export default function OfficialReceiptsPage() {
     typeFilter,
   ])
 
+  const activeDateKeys = useMemo(() => {
+    const keys = new Set()
+
+    receipts.forEach((receipt) => {
+      if (receipt.issuedDateKey) {
+        keys.add(receipt.issuedDateKey)
+      }
+    })
+
+    return keys
+  }, [receipts])
+
   const summary = useMemo(() => {
     const paymentReceipts = receipts.filter(
       (receipt) => receipt.type === 'payment',
@@ -672,12 +978,21 @@ export default function OfficialReceiptsPage() {
     setToDate('')
   }
 
+  function handleSelectCalendarDate(dateKey) {
+    setFromDate(dateKey)
+    setToDate(dateKey)
+    setCalendarOpen(false)
+  }
+
   const filtersActive = Boolean(
     search ||
       typeFilter !== 'all' ||
       fromDate ||
       toDate,
   )
+
+  const selectedSingleDateKey =
+    fromDate && fromDate === toDate ? fromDate : ''
 
   return (
     <div className="official-receipts-page">
@@ -698,21 +1013,50 @@ export default function OfficialReceiptsPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="
-            official-receipts-button
-            official-receipts-refresh
-          "
-          onClick={loadReceipts}
-          disabled={loading}
+        <div
+          className="official-receipts-header-actions"
+          ref={calendarAnchorRef}
         >
-          <RefreshCw size={17} />
+          <button
+            type="button"
+            className="
+              official-receipts-button
+              official-receipts-secondary
+            "
+            onClick={() =>
+              setCalendarOpen((open) => !open)
+            }
+            aria-expanded={calendarOpen}
+          >
+            <FileText size={17} />
+            View by Date
+          </button>
 
-          {loading
-            ? 'Refreshing...'
-            : 'Refresh Receipts'}
-        </button>
+          <button
+            type="button"
+            className="
+              official-receipts-button
+              official-receipts-refresh
+            "
+            onClick={loadReceipts}
+            disabled={loading}
+          >
+            <RefreshCw size={17} />
+
+            {loading
+              ? 'Refreshing...'
+              : 'Refresh Receipts'}
+          </button>
+
+          {calendarOpen && (
+            <ReceiptCalendar
+              selectedDateKey={selectedSingleDateKey}
+              activeDateKeys={activeDateKeys}
+              onSelectDate={handleSelectCalendarDate}
+              onClose={() => setCalendarOpen(false)}
+            />
+          )}
+        </div>
       </header>
 
       {pageError && (

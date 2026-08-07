@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -51,6 +51,269 @@ const paymentTime = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
+const chipDate = new Intl.DateTimeFormat('en-PH', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+})
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const CALENDAR_MONTH_LABEL = new Intl.DateTimeFormat('en-PH', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+})
+
+function pad2(value) {
+  return String(value).padStart(2, '0')
+}
+
+function dateKeyOf(year, month, day) {
+  return `${year}-${pad2(month + 1)}-${pad2(day)}`
+}
+
+// Single source of truth for "what Manila calendar date is this JS
+// Date on" — toManilaDateKey (payment timestamps) and manilaToday
+// (the calendar's "today") both read through here.
+function manilaDateParts(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const lookup = {}
+
+  parts.forEach(({ type, value }) => {
+    lookup[type] = value
+  })
+
+  return {
+    year: Number(lookup.year),
+    month: Number(lookup.month) - 1,
+    day: Number(lookup.day),
+  }
+}
+
+function toManilaDateKey(value) {
+  if (!value) return ''
+
+  const parsed = new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) return ''
+
+  const { year, month, day } = manilaDateParts(parsed)
+
+  return dateKeyOf(year, month, day)
+}
+
+function manilaToday() {
+  return manilaDateParts(new Date())
+}
+
+function buildCalendarWeeks(viewYear, viewMonth) {
+  const firstOfMonth = new Date(viewYear, viewMonth, 1)
+  const startWeekday = firstOfMonth.getDay()
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate()
+
+  const cells = []
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    const day = daysInPrevMonth - startWeekday + 1 + i
+    const date = new Date(viewYear, viewMonth - 1, day)
+
+    cells.push({
+      day,
+      outside: true,
+      dateKey: dateKeyOf(date.getFullYear(), date.getMonth(), day),
+    })
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({
+      day,
+      outside: false,
+      dateKey: dateKeyOf(viewYear, viewMonth, day),
+    })
+  }
+
+  const trailingCount = (7 - (cells.length % 7)) % 7
+
+  for (let day = 1; day <= trailingCount; day += 1) {
+    const date = new Date(viewYear, viewMonth + 1, day)
+
+    cells.push({
+      day,
+      outside: true,
+      dateKey: dateKeyOf(date.getFullYear(), date.getMonth(), day),
+    })
+  }
+
+  const weeks = []
+
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7))
+  }
+
+  return weeks
+}
+
+function PaymentCalendar({
+  selectedDateKey,
+  activeDateKeys,
+  onSelectDate,
+}) {
+  const manilaAnchor = manilaToday()
+
+  const [viewYear, setViewYear] = useState(
+    selectedDateKey
+      ? Number(selectedDateKey.slice(0, 4))
+      : manilaAnchor.year,
+  )
+  const [viewMonth, setViewMonth] = useState(
+    selectedDateKey
+      ? Number(selectedDateKey.slice(5, 7)) - 1
+      : manilaAnchor.month,
+  )
+
+  const todayKey = dateKeyOf(
+    manilaAnchor.year,
+    manilaAnchor.month,
+    manilaAnchor.day,
+  )
+
+  const weeks = useMemo(
+    () => buildCalendarWeeks(viewYear, viewMonth),
+    [viewYear, viewMonth],
+  )
+
+  function goToPrevMonth() {
+    setViewMonth((month) => {
+      if (month === 0) {
+        setViewYear((year) => year - 1)
+        return 11
+      }
+
+      return month - 1
+    })
+  }
+
+  function goToNextMonth() {
+    setViewMonth((month) => {
+      if (month === 11) {
+        setViewYear((year) => year + 1)
+        return 0
+      }
+
+      return month + 1
+    })
+  }
+
+  function jumpToToday() {
+    const { year, month, day } = manilaToday()
+
+    setViewYear(year)
+    setViewMonth(month)
+    onSelectDate(dateKeyOf(year, month, day))
+  }
+
+  return (
+    <div
+      className="payments-calendar-popover"
+      role="dialog"
+      aria-label="View payments by date"
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div className="payments-calendar-nav">
+        <button
+          type="button"
+          className="payments-calendar-nav-button"
+          onClick={goToPrevMonth}
+          aria-label="Previous month"
+        >
+          ‹
+        </button>
+
+        <span className="payments-calendar-title">
+          {CALENDAR_MONTH_LABEL.format(new Date(viewYear, viewMonth, 1))}
+        </span>
+
+        <button
+          type="button"
+          className="payments-calendar-nav-button"
+          onClick={goToNextMonth}
+          aria-label="Next month"
+        >
+          ›
+        </button>
+      </div>
+
+      <div className="payments-calendar-weekdays">
+        {WEEKDAY_LABELS.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
+
+      {weeks.map((week, weekIndex) => (
+        <div className="payments-calendar-grid" key={`week-${weekIndex}`}>
+          {week.map((cell) => {
+            const isSelected = cell.dateKey === selectedDateKey
+            const isToday = cell.dateKey === todayKey
+            const hasPayments = activeDateKeys.has(cell.dateKey)
+
+            const classNames = [
+              'payments-calendar-day',
+              cell.outside ? 'payments-calendar-day-outside' : '',
+              isToday ? 'payments-calendar-day-today' : '',
+              isSelected ? 'payments-calendar-day-selected' : '',
+              hasPayments && !cell.outside
+                ? 'payments-calendar-day-dot'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+
+            return (
+              <button
+                type="button"
+                key={cell.dateKey}
+                className={classNames}
+                onClick={() => onSelectDate(cell.dateKey)}
+              >
+                {cell.day}
+              </button>
+            )
+          })}
+        </div>
+      ))}
+
+      <div className="payments-calendar-legend">
+        <span>
+          <span className="payments-calendar-legend-today" />
+          Today
+        </span>
+
+        <span>
+          <span className="payments-calendar-legend-dot" />
+          Has payments
+        </span>
+      </div>
+
+      <button
+        type="button"
+        className="payments-calendar-jump"
+        onClick={jumpToToday}
+      >
+        Jump to Today
+      </button>
+    </div>
+  )
+}
+
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
@@ -65,6 +328,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
+  const [selectedDateKey, setSelectedDateKey] = useState('')
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const calendarAnchorRef = useRef(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
@@ -76,6 +342,33 @@ export default function PaymentsPage({ user: suppliedUser }) {
     loadPage()
     resolveCurrentUser()
   }, [])
+
+  useEffect(() => {
+    if (!calendarOpen) return undefined
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setCalendarOpen(false)
+      }
+    }
+
+    function handleOutsideClick(event) {
+      if (
+        calendarAnchorRef.current &&
+        !calendarAnchorRef.current.contains(event.target)
+      ) {
+        setCalendarOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('mousedown', handleOutsideClick)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [calendarOpen])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -135,24 +428,42 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
   const filteredPayments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
-    if (!query) return payments
 
-    return payments.filter((payment) =>
-      [
-        payment.receipt_number,
-        payment.homeowner_name,
-        payment.block_name,
-        payment.lot_number,
-        payment.coverage_period,
-        payment.payment_method,
-        payment.status,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [payments, searchTerm])
+    return payments.filter((payment) => {
+      const matchesSearch =
+        !query ||
+        [
+          payment.receipt_number,
+          payment.homeowner_name,
+          payment.block_name,
+          payment.lot_number,
+          payment.coverage_period,
+          payment.payment_method,
+          payment.status,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+
+      const matchesDate =
+        !selectedDateKey ||
+        toManilaDateKey(payment.paid_at) === selectedDateKey
+
+      return matchesSearch && matchesDate
+    })
+  }, [payments, searchTerm, selectedDateKey])
+
+  const activeDateKeys = useMemo(() => {
+    const keys = new Set()
+
+    payments.forEach((payment) => {
+      const key = toManilaDateKey(payment.paid_at)
+      if (key) keys.add(key)
+    })
+
+    return keys
+  }, [payments])
 
   const paymentSummary = useMemo(() => {
     const completed = payments.filter((payment) => payment.status !== 'Voided')
@@ -234,6 +545,15 @@ export default function PaymentsPage({ user: suppliedUser }) {
     if (saving) return
     setShowForm(false)
     setFormError('')
+  }
+
+  function handleSelectCalendarDate(dateKey) {
+    setSelectedDateKey(dateKey)
+    setCalendarOpen(false)
+  }
+
+  function clearDateFilter() {
+    setSelectedDateKey('')
   }
 
   async function recordPayment(event) {
@@ -364,12 +684,35 @@ export default function PaymentsPage({ user: suppliedUser }) {
           </div>
         </div>
 
-        {canManagePayments && (
-          <button className="payments-primary" type="button" onClick={openForm}>
-            <span aria-hidden="true">+</span>
-            Record Payment
+        <div className="payments-header-actions" ref={calendarAnchorRef}>
+          <button
+            type="button"
+            className={`payments-date-toggle ${selectedDateKey ? 'is-active' : ''}`}
+            onClick={() => setCalendarOpen((open) => !open)}
+            aria-expanded={calendarOpen}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="16" rx="2" />
+              <path d="M3 10h18M8 3v4M16 3v4" />
+            </svg>
+            View by Date
           </button>
-        )}
+
+          {canManagePayments && (
+            <button className="payments-primary" type="button" onClick={openForm}>
+              <span aria-hidden="true">+</span>
+              Record Payment
+            </button>
+          )}
+
+          {calendarOpen && (
+            <PaymentCalendar
+              selectedDateKey={selectedDateKey}
+              activeDateKeys={activeDateKeys}
+              onSelectDate={handleSelectCalendarDate}
+            />
+          )}
+        </div>
       </header>
 
       {pageError && <p className="payments-error">{pageError}</p>}
@@ -423,6 +766,15 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </button>
             )}
           </div>
+
+          {selectedDateKey && (
+            <span className="payments-date-chip">
+              {chipDate.format(new Date(`${selectedDateKey}T12:00:00`))}
+              <button type="button" onClick={clearDateFilter} aria-label="Clear date filter">
+                ×
+              </button>
+            </span>
+          )}
         </div>
 
         <table className="payments-table">
@@ -442,8 +794,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
             ) : filteredPayments.length === 0 ? (
               <tr>
                 <td colSpan="6" className="payments-empty">
-                  <strong>{searchTerm ? 'No matching payments' : 'No payments recorded yet'}</strong>
-                  <span>{searchTerm ? 'Try a different receipt, homeowner, or payment detail.' : 'Newly recorded payments will appear here.'}</span>
+                  <strong>
+                    {searchTerm || selectedDateKey ? 'No matching payments' : 'No payments recorded yet'}
+                  </strong>
+                  <span>
+                    {searchTerm || selectedDateKey
+                      ? 'Try a different receipt, homeowner, payment detail, or date.'
+                      : 'Newly recorded payments will appear here.'}
+                  </span>
                 </td>
               </tr>
             ) : (
@@ -570,7 +928,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <label className="payment-purpose-field payment-span-2">
-                Payment purpose
+                Payment Purpose
                 <div className="payment-purpose-select-wrap">
                   <select
                     name="paymentPurpose"
@@ -601,7 +959,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 </label>
               )}
 
-              <label className="payment-span-2">Coverage period / payment details
+              <label className="payment-span-2">Coverage Period / Payment Details
                 <input
                   name="coveragePeriod"
                   value={form.coveragePeriod}
@@ -625,7 +983,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 <strong>{peso.format(remainingBalance)}</strong>
               </div>
 
-              <label>Payment method
+              <label>Payment Method
                 <select name="paymentMethod" value={form.paymentMethod} onChange={updateField}>
                   <option>Cash</option>
                   <option>GCash</option>
@@ -634,11 +992,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 </select>
               </label>
 
-              <label>Reference number {form.paymentMethod !== 'Cash' && '*'}
+              <label>Reference Number {form.paymentMethod !== 'Cash' && '*'}
                 <input name="referenceNumber" value={form.referenceNumber} onChange={updateField} maxLength="100" required={form.paymentMethod !== 'Cash'} />
               </label>
 
-              <label className="payment-span-2">Note (optional)
+              <label className="payment-span-2">Note (Optional)
                 <textarea name="note" value={form.note} onChange={updateField} maxLength="250" rows="3" />
               </label>
             </div>
