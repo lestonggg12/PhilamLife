@@ -126,3 +126,12 @@ export async function postLedgerPayment(input) {
 
   return Array.isArray(data) ? data[0] : data
 }
+
+
+// A simple test function with a clear bug
+function calculateTotal(price) {
+  // Bug: price is treated as an object property but passed as a value
+  const total = price.amount * 1.12; 
+  console.log("Total is: " + total);
+  // Bug: missing a return statement, returns undefined
+}
