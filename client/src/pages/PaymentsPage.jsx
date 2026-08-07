@@ -426,7 +426,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return Math.max(previous - paid, 0)
   }, [form.previousBalance, form.amountPaid])
 
+  // Like Official Receipts, the payment history table stays empty
+  // until the user actively searches or picks a date — no default
+  // dump of every historical payment on page load.
+  const filtersActive = Boolean(searchTerm || selectedDateKey)
+
   const filteredPayments = useMemo(() => {
+    if (!filtersActive) return []
+
     const query = searchTerm.trim().toLowerCase()
 
     return payments.filter((payment) => {
@@ -452,7 +459,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
       return matchesSearch && matchesDate
     })
-  }, [payments, searchTerm, selectedDateKey])
+  }, [filtersActive, payments, searchTerm, selectedDateKey])
 
   const activeDateKeys = useMemo(() => {
     const keys = new Set()
@@ -739,10 +746,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
         <div className="payments-table-heading">
           <div>
             <h2>Payment history</h2>
-            <p>Search and review recorded transactions.</p>
+            <p>
+              {filtersActive
+                ? 'Search and review recorded transactions.'
+                : 'Search a name/receipt or pick a date to view transactions.'}
+            </p>
           </div>
           <span className="payments-result-count">
-            {filteredPayments.length} {filteredPayments.length === 1 ? 'record' : 'records'}
+            {filtersActive
+              ? `${filteredPayments.length} ${filteredPayments.length === 1 ? 'record' : 'records'}`
+              : `${payments.length} on file`}
           </span>
         </div>
 
@@ -791,17 +804,18 @@ export default function PaymentsPage({ user: suppliedUser }) {
           <tbody>
             {loading ? (
               <tr><td colSpan="6" className="payments-empty">Loading payments...</td></tr>
+            ) : !filtersActive ? (
+              <tr>
+                <td colSpan="6" className="payments-empty">
+                  <strong>Pick a date or search to view payments</strong>
+                  <span>Use View by Date, or search by receipt, homeowner, or property above.</span>
+                </td>
+              </tr>
             ) : filteredPayments.length === 0 ? (
               <tr>
                 <td colSpan="6" className="payments-empty">
-                  <strong>
-                    {searchTerm || selectedDateKey ? 'No matching payments' : 'No payments recorded yet'}
-                  </strong>
-                  <span>
-                    {searchTerm || selectedDateKey
-                      ? 'Try a different receipt, homeowner, payment detail, or date.'
-                      : 'Newly recorded payments will appear here.'}
-                  </span>
+                  <strong>No matching payments</strong>
+                  <span>Try a different receipt, homeowner, payment detail, or date.</span>
                 </td>
               </tr>
             ) : (

@@ -900,8 +900,20 @@ export default function OfficialReceiptsPage() {
       fromDate > toDate,
   )
 
+  // The receipt list is intentionally not shown until the user has
+  // actively searched, filtered by type, or picked a date — walking
+  // in and dumping every historical receipt on screen isn't useful,
+  // and it's easy to mistake an old receipt for a new one at a
+  // glance. Once any of these are set, the table takes over.
+  const filtersActive = Boolean(
+    search ||
+      typeFilter !== 'all' ||
+      fromDate ||
+      toDate,
+  )
+
   const filteredReceipts = useMemo(() => {
-    if (invalidDateRange) return []
+    if (!filtersActive || invalidDateRange) return []
 
     const query = normalize(search)
 
@@ -930,6 +942,7 @@ export default function OfficialReceiptsPage() {
       )
     })
   }, [
+    filtersActive,
     fromDate,
     invalidDateRange,
     receipts,
@@ -983,13 +996,6 @@ export default function OfficialReceiptsPage() {
     setToDate(dateKey)
     setCalendarOpen(false)
   }
-
-  const filtersActive = Boolean(
-    search ||
-      typeFilter !== 'all' ||
-      fromDate ||
-      toDate,
-  )
 
   const selectedSingleDateKey =
     fromDate && fromDate === toDate ? fromDate : ''
@@ -1176,11 +1182,15 @@ export default function OfficialReceiptsPage() {
             <p>
               {loading
                 ? 'Loading saved transactions...'
-                : `${filteredReceipts.length.toLocaleString(
-                    'en-PH',
-                  )} of ${receipts.length.toLocaleString(
-                    'en-PH',
-                  )} receipts shown`}
+                : !filtersActive
+                  ? `${receipts.length.toLocaleString(
+                      'en-PH',
+                    )} receipts on file — search, filter, or pick a date to view them`
+                  : `${filteredReceipts.length.toLocaleString(
+                      'en-PH',
+                    )} of ${receipts.length.toLocaleString(
+                      'en-PH',
+                    )} receipts shown`}
             </p>
           </div>
         </div>
@@ -1293,15 +1303,33 @@ export default function OfficialReceiptsPage() {
                     Loading payment receipts...
                   </td>
                 </tr>
+              ) : !filtersActive ? (
+                <tr>
+                  <td
+                    colSpan="8"
+                    className="official-receipts-empty"
+                  >
+                    Pick a date from the calendar, or search
+                    by receipt no., homeowner, or property to
+                    view receipts.
+                  </td>
+                </tr>
+              ) : invalidDateRange ? (
+                <tr>
+                  <td
+                    colSpan="8"
+                    className="official-receipts-empty"
+                  >
+                    Fix the date range above to view receipts.
+                  </td>
+                </tr>
               ) : filteredReceipts.length === 0 ? (
                 <tr>
                   <td
                     colSpan="8"
                     className="official-receipts-empty"
                   >
-                    {receipts.length === 0
-                      ? 'No payment receipts have been recorded yet.'
-                      : 'No receipts match the selected search and filters.'}
+                    No receipts match the selected search and filters.
                   </td>
                 </tr>
               ) : (

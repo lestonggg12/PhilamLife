@@ -40,6 +40,16 @@ const monthNames = Array.from({ length: 12 }, (_, month) =>
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 const normalizeLot = (value) => normalize(value).replace(/^lot\s*/, '')
 
+// Homeowners marked Moved or Transferred (in Contact Manager) are excluded
+// from this page entirely — they should not appear in the directory, in
+// search results, or be reachable by direct link. Their records and
+// payment history remain intact in the database; they're just not shown
+// here anymore.
+function isActiveHomeowner(property) {
+  const status = normalize(property.homeowner_status || 'active')
+  return status !== 'moved' && status !== 'transferred'
+}
+
 function storedStatusLabel(value, fallback = 'Not recorded') {
   const normalized = normalize(value)
   if (!normalized) return fallback
@@ -207,7 +217,7 @@ export default function HomeownersPage() {
       supabase
         .from('properties')
         .select(
-          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at',
+          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status',
         )
         .order('homeowner_name'),
       supabase
@@ -226,7 +236,10 @@ export default function HomeownersPage() {
       serviceResult.error,
     ].filter(Boolean)
 
-    setProperties(propertyResult.data || [])
+    // Moved/transferred homeowners are dropped here, before anything else
+    // in the component ever sees them — they cannot appear in the
+    // directory, search results, or be selected via a stale URL.
+    setProperties((propertyResult.data || []).filter(isActiveHomeowner))
     setPayments(paymentResult.data || [])
     setServiceTransactions(serviceResult.data || [])
 
@@ -625,8 +638,12 @@ export default function HomeownersPage() {
         ) : !selectedProperty ? (
           <div className="homeowner-profile-empty">
             <Users size={34} />
-            <h2>Search for a homeowner</h2>
-            <p>Use the search bar above to find someone by name, block, lot, phone, or email.</p>
+            <h2>{homeownerId ? 'Homeowner not found' : 'Search for a homeowner'}</h2>
+            <p>
+              {homeownerId
+                ? 'This homeowner is no longer active in the directory.'
+                : 'Use the search bar above to find someone by name, block, lot, phone, or email.'}
+            </p>
           </div>
         ) : (
           <>

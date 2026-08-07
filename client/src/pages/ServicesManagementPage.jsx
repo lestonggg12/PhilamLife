@@ -620,7 +620,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setSaving(false)
     // Jump the calendar view to the day the new payment was recorded for,
     // so the freshly-created receipt is visible in the day's list.
-    setSelectedDate(data.service_date)
+    setDayModalDate(data.service_date)
 
     const { error: activityError } = await supabase.from('activity_log').insert({
       user_id: currentUser.id,
