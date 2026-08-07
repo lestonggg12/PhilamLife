@@ -43,6 +43,30 @@ function monthBounds(month) {
   }
 }
 
+// Small helper icon for the header — keeps this file self-contained
+// instead of pulling in an icon library just for one glyph.
+function ReportsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="12" y1="20" x2="12" y2="10" />
+      <line x1="18" y1="20" x2="18" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="16" />
+    </svg>
+  )
+}
+
+// Renders long free-text fields (payment notes, expense descriptions) as a
+// truncated cell with the full text available on hover, so a single long
+// entry can't stretch the whole table row.
+function TruncatedCell({ text }) {
+  const value = text || '—'
+  return (
+    <span className="reports-cell-truncate" title={value}>
+      {value}
+    </span>
+  )
+}
+
 export default function ReportsPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [activeReport, setActiveReport] = useState('collections')
@@ -199,9 +223,15 @@ export default function ReportsPage({ user: suppliedUser }) {
   return (
     <div className="reports-page">
       <header className="reports-header no-print">
-        <div>
-          <h1>Financial Reports</h1>
-          <p>Review collections, unpaid balances, annual totals, and expenses.</p>
+        <div className="reports-header-main">
+          <div className="reports-header-icon">
+            <ReportsIcon />
+          </div>
+          <div className="reports-header-text">
+            <span className="reports-header-eyebrow">Finance Workspace</span>
+            <h1>Financial Reports</h1>
+            <p>Review collections, unpaid balances, annual totals, and expenses.</p>
+          </div>
         </div>
         {canGenerateReports && (
           <button type="button" className="reports-primary" onClick={generateReport} disabled={loading}>
@@ -239,7 +269,7 @@ export default function ReportsPage({ user: suppliedUser }) {
               <>
                 <div className="report-summary"><span>Total collected <strong>{peso.format(monthlyCollected)}</strong></span><span>Receipts issued <strong>{monthlyCollections.length}</strong></span></div>
                 <div className="reports-table-wrap"><table><thead><tr><th>Date</th><th>Receipt No.</th><th>Type</th><th>Homeowner / Customer</th><th>Block / Lot</th><th>Payment Details</th><th>Method</th><th className="number">Amount</th></tr></thead><tbody>
-                  {monthlyCollections.length ? monthlyCollections.map((record) => <tr key={record.recordKey}><td>{dateLabel.format(new Date(record.paid_at))}</td><td>{record.receipt_number}</td><td>{record.typeLabel}</td><td>{record.payerName}</td><td>{record.block_name}, {record.lot_number}</td><td>{record.details}</td><td>{record.payment_method}</td><td className="number">{peso.format(record.amount_paid)}</td></tr>) : <tr><td colSpan="8" className="reports-empty">No collections for this month.</td></tr>}
+                  {monthlyCollections.length ? monthlyCollections.map((record) => <tr key={record.recordKey}><td>{dateLabel.format(new Date(record.paid_at))}</td><td>{record.receipt_number}</td><td>{record.typeLabel}</td><td>{record.payerName}</td><td>{record.block_name}, {record.lot_number}</td><td><TruncatedCell text={record.details} /></td><td>{record.payment_method}</td><td className="number">{peso.format(record.amount_paid)}</td></tr>) : <tr><td colSpan="8" className="reports-empty">No collections for this month.</td></tr>}
                 </tbody></table></div>
               </>
             )}
@@ -266,7 +296,7 @@ export default function ReportsPage({ user: suppliedUser }) {
               <>
                 <div className="report-summary"><span>Total expenses <strong>{peso.format(monthlySpent)}</strong></span><span>Entries <strong>{monthlyExpenses.length}</strong></span></div>
                 <div className="reports-table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Reference No.</th><th>Recorded by</th><th className="number">Amount</th></tr></thead><tbody>
-                  {monthlyExpenses.length ? monthlyExpenses.map((expense) => <tr key={expense.id}><td>{dateLabel.format(new Date(`${expense.expense_date}T12:00:00+08:00`))}</td><td>{expense.category}</td><td>{expense.description}</td><td>{expense.reference_number || '—'}</td><td>{expense.recorded_by_name}</td><td className="number">{peso.format(expense.amount)}</td></tr>) : <tr><td colSpan="6" className="reports-empty">No expenses for this month.</td></tr>}
+                  {monthlyExpenses.length ? monthlyExpenses.map((expense) => <tr key={expense.id}><td>{dateLabel.format(new Date(`${expense.expense_date}T12:00:00+08:00`))}</td><td>{expense.category}</td><td><TruncatedCell text={expense.description} /></td><td>{expense.reference_number || '—'}</td><td>{expense.recorded_by_name}</td><td className="number">{peso.format(expense.amount)}</td></tr>) : <tr><td colSpan="6" className="reports-empty">No expenses for this month.</td></tr>}
                 </tbody></table></div>
               </>
             )}

@@ -14,7 +14,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
-    "chart.js": "^4.5.1"
+    "chart.js": "^4.5.1",
+    "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pdfmake": "^0.3.11",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "supabase": "^2.109.1"

@@ -5,6 +5,17 @@
 
 .ledger-header-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 22px; }
 .ledger-header { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ledger-header-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #0f6f6d;
+  color: #fff;
+}
 .ledger-header-copy { min-width: 0; }
 .ledger-header-eyebrow {
   display: block;

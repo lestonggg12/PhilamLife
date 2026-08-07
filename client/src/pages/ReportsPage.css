@@ -28,15 +28,54 @@
 }
 
 /* ---------- Header ---------- */
-.reports-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
-.reports-header h1 {
+.reports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-card);
+}
+
+.reports-header-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.reports-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--blue-soft);
+  color: var(--blue-hover);
+}
+
+.reports-header-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue-hover);
+}
+
+.reports-header-text h1 {
   margin: 0 0 4px;
   font-weight: 700;
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
-.reports-header p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
+.reports-header-text p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
 
 .reports-primary {
   border: 0;
@@ -50,6 +89,7 @@
   color: #FFFFFF;
   box-shadow: var(--shadow-card);
   transition: background 0.15s ease, transform 0.1s ease;
+  flex-shrink: 0;
 }
 .reports-primary:hover:not(:disabled) { background: var(--blue-hover); }
 .reports-primary:active:not(:disabled) { transform: translateY(1px); }
@@ -194,18 +234,35 @@
 }
 
 /* ---------- Table ---------- */
+/* FIX: was `overflow: hidden`, which silently clipped columns that didn't
+   fit (the AMOUNT column was getting cut off to "AI..."). Now the wrapper
+   scrolls horizontally instead of losing data, and the table gets a floor
+   width so table-layout:auto can't crush any column down to nothing. */
 .reports-table-wrap {
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1.5px solid #BFDBFE;
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
-.reports-table-wrap table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.reports-table-wrap table {
+  width: 100%;
+  min-width: 980px; /* floor width so columns get real breathing room */
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+/* FIX: removed the blanket `overflow-wrap: break-word; word-break: break-word;`
+   that used to apply to every th/td. That's what forced short, fixed-vocabulary
+   values like "Amenity / Service" to fracture letter-by-letter ("Ame nity /
+   Servi ce") once the column got squeezed. Only genuinely long free-text
+   cells (.reports-cell-truncate) need word-breaking now, and those are
+   already handled by ellipsis truncation below. */
 .reports-table-wrap th,
 .reports-table-wrap td {
-  overflow-wrap: break-word;
-  word-break: break-word;
+  white-space: nowrap;
 }
+
 .reports-table-wrap th {
   text-align: left;
   color: var(--ink-soft);
@@ -228,14 +285,47 @@
 .reports-table-wrap .number {
   text-align: right;
   white-space: nowrap;
-  overflow-wrap: normal;
-  word-break: normal;
   font-variant-numeric: tabular-nums;
 }
 .reports-empty { padding: 44px !important; text-align: center; color: var(--ink-faint); }
 .reports-due {
   color: var(--red);
   font-weight: 700;
+}
+
+/* ---------- TYPE column pill ---------- */
+/* FIX: turn the type value into a compact, colored pill instead of raw
+   wrapping text. This is what actually fixes "Amenity / Service" — it now
+   reads as a short badge instead of eating a huge vertical slot. */
+.reports-type-badge {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: var(--blue-soft);
+  color: var(--blue-hover);
+}
+.reports-type-badge.due {
+  background: var(--green-soft);
+  color: #15803D;
+}
+
+/* Free-text cells (payment details, expense description) are clamped to a
+   single line with an ellipsis so one long/garbage entry can't stretch the
+   whole row; the full text is still available via the native title tooltip
+   on hover or long-press. */
+.reports-cell-truncate {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  vertical-align: bottom;
+  cursor: help;
 }
 
 .report-footer {
@@ -275,6 +365,7 @@
   .reports-controls { align-items: flex-start; flex-direction: column; }
   .expense-grid { grid-template-columns: 1fr; }
   .expense-grid .span-2 { grid-column: auto; }
+  .reports-cell-truncate { max-width: 160px; }
 }
 
 /* ---------- Print ---------- */
@@ -288,6 +379,12 @@
   }
   .no-print { display: none !important; }
   .reports-table-wrap { overflow: visible; }
+  .reports-table-wrap table { min-width: 0; }
   .reports-table-wrap tr { break-inside: avoid; }
+  .reports-cell-truncate {
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+  }
   @page { size: A4 landscape; margin: 0; }
 }
