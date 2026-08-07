@@ -1,0 +1,342 @@
+/* ================================
+   BLOCK PAYABLES SECTION
+   ================================ */
+
+.block-payables-section {
+  background: var(--glass-bg);
+  border: 2px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+.block-section-header {
+  padding: 26px;
+  background: rgba(120, 162, 210, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.block-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.block-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.block-title h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.block-icon {
+  font-size: 24px;
+}
+
+.view-block-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 2px solid var(--primary);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.view-block-btn:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.view-block-btn .rotated {
+  transform: rotate(180deg);
+}
+
+.block-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.summary-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(120, 162, 210, 0.2);
+  border-radius: 8px;
+  min-width: 95px;
+}
+
+.summary-chip.wide {
+  min-width: 135px;
+}
+
+.chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.chip-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.chip-value.paid {
+  color: var(--success);
+}
+
+.chip-value.unpaid {
+  color: var(--danger);
+}
+
+.summary-chip.outstanding .chip-value {
+  color: var(--danger);
+}
+
+/* ---- Homeowner list ---- */
+
+.homeowner-list {
+  list-style: none;
+  margin: 0;
+  padding: 20px 26px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.block-empty-state {
+  padding: 24px 26px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.homeowner-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(120, 162, 210, 0.2);
+  border-radius: 10px;
+}
+
+.homeowner-row:hover {
+  border-color: rgba(120, 162, 210, 0.4);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.homeowner-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.avatar {
+  font-size: 30px;
+  flex-shrink: 0;
+}
+
+.identity-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.homeowner-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-light);
+  overflow-wrap: break-word;
+}
+
+.homeowner-lot {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.status-pill.paid {
+  background: rgba(26, 138, 96, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(26, 138, 96, 0.3);
+}
+
+.status-pill.overdue {
+  background: rgba(192, 57, 43, 0.15);
+  color: var(--danger);
+  border: 1px solid rgba(192, 57, 43, 0.3);
+}
+
+.status-pill.pending {
+  background: rgba(212, 146, 6, 0.15);
+  color: var(--warning);
+  border: 1px solid rgba(212, 146, 6, 0.3);
+}
+
+.homeowner-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  flex: 1 1 220px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.detail-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+.detail-value.amount-due {
+  color: var(--danger);
+}
+
+.detail-value.amount-paid {
+  color: var(--success);
+}
+
+.homeowner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1 1 100%;
+  padding-top: 4px;
+}
+
+.row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  min-height: 42px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 162, 210, 0.3);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-light);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.row-action-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.row-action-btn.view {
+  color: var(--primary);
+}
+
+.row-action-btn.pay {
+  color: var(--success);
+  border-color: rgba(26, 138, 96, 0.35);
+}
+
+.row-action-btn.pay:hover {
+  background: rgba(26, 138, 96, 0.1);
+  border-color: var(--success);
+}
+
+.row-action-btn.reminder {
+  color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .block-section-header {
+    padding: 20px;
+  }
+
+  .homeowner-list {
+    padding: 16px 20px 20px;
+    gap: 14px;
+  }
+
+  .homeowner-row {
+    padding: 18px;
+  }
+
+  .homeowner-identity,
+  .homeowner-details {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .block-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .view-block-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .block-summary-strip {
+    gap: 10px;
+  }
+
+  .summary-chip,
+  .summary-chip.wide {
+    min-width: 0;
+    flex: 1 1 calc(50% - 10px);
+  }
+
+  .row-action-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
