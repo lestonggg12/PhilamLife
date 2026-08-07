@@ -47,15 +47,16 @@ export function normalizeLedgerAccount(row) {
 }
 
 export async function fetchLedgerAccounts() {
-  const [summaryResult, paymentResult, allocationResult] = await Promise.all([
-    supabase.from('homeowner_ledger_summary').select('*'),
-    supabase
-      .from('payments')
-      .select('id, property_id, amount, amount_paid, status'),
-    supabase
-      .from('payment_allocations')
-      .select('payment_id, amount, reversed_at'),
-  ])
+  const [summaryResult, paymentResult, allocationResult] =
+    await Promise.all([
+      supabase.from('homeowner_ledger_summary').select('*'),
+      supabase
+        .from('payments')
+        .select('id, property_id, amount, amount_paid, status'),
+      supabase
+        .from('payment_allocations')
+        .select('payment_id, amount, reversed_at'),
+    ])
 
   const error =
     summaryResult.error ||
@@ -90,9 +91,9 @@ export async function fetchStatementLines(propertyId) {
 }
 
 /**
- * Posts a payment through the deployed ledger transaction.
- * The database RPC creates the receipt and performs FIFO
- * allocation atomically.
+ * Records a payment through the HOA ledger database function.
+ * The database creates the receipt and performs FIFO allocation
+ * as one transaction.
  */
 export async function postLedgerPayment(input) {
   const { data, error } = await supabase.rpc(
@@ -112,10 +113,11 @@ export async function postLedgerPayment(input) {
   if (error) {
     if (
       error.code === 'PGRST202' ||
-      error.code === '42883'
+      error.code === '42883' ||
+      error.status === 404
     ) {
       throw new Error(
-        'The HOA ledger migration must be applied before recording payments.',
+        'The record_hoa_payment database function is unavailable. Apply the HOA ledger RPC repair in the PhilamLife Supabase project, then refresh the schema cache.',
       )
     }
 
