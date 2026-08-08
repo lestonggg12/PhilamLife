@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar, FileArchive, Phone } from './Icons'
+import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar, FileArchive, Phone, AlertCircle } from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
@@ -45,6 +45,12 @@ export default function Sidebar({ user, onLogout }) {
       path: '/homeowners',
       icon: Users,
       roles: ['admin', 'secretary'],
+    },
+    {
+      name: 'Overdue Accounts',
+      path: '/overdue-accounts',
+      icon: AlertCircle,
+      roles: ['admin', 'secretary', 'treasurer'],
     },
     {
       name: 'Document Library',

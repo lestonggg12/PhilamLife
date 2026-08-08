@@ -96,21 +96,26 @@ export function OrganizationProvider({ enabled, children }) {
     document.title = `${organization.hoaName} - HOA Management System`
   }, [organization.hoaName])
 
-  const value = useMemo(
-    () => ({
-      organization,
+  const value = useMemo(() => {
+    const formatMoney = (value) => formatCurrency(value, organization.currency)
+    const formatDate = (value, opts) =>
+      formatDateValue(value, {
+        dateFormat: organization.dateFormat,
+        timezone: organization.timezone,
+        ...opts,
+      })
+
+    return {
+      // formatMoney/formatDate are exposed both here (top level) and
+      // nested inside `organization` itself, since call sites across the
+      // app use both `const { formatDate } = useOrganization()` and
+      // `const { organization } = useOrganization(); organization.formatDate(...)`.
+      organization: { ...organization, formatMoney, formatDate },
       refreshOrganization,
-      formatMoney: (value) =>
-        formatCurrency(value, organization.currency),
-      formatDate: (value, opts) =>
-        formatDateValue(value, {
-          dateFormat: organization.dateFormat,
-          timezone: organization.timezone,
-          ...opts,
-        }),
-    }),
-    [organization, refreshOrganization],
-  )
+      formatMoney,
+      formatDate,
+    }
+  }, [organization, refreshOrganization])
 
   return (
     <OrganizationContext.Provider value={value}>
