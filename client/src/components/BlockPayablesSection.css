@@ -183,6 +183,31 @@
   flex-shrink: 0;
 }
 
+.block-modal-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: rgba(120, 162, 210, 0.08);
+  border: 1px solid rgba(120, 162, 210, 0.25);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+.block-modal-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.block-modal-search input::placeholder {
+  color: var(--text-muted);
+}
+
 /* ---- Homeowner list ---- */
 
 .homeowner-list {
