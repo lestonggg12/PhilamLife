@@ -10,6 +10,8 @@ export const DEFAULT_ORGANIZATION = {
   locale: 'en-PH',
   timezone: 'Asia/Manila',
   sessionTimeoutMinutes: 30,
+  dateFormat: 'MM/DD/YYYY',
+  requireStrongPassword: true,
 }
 
 const CURRENCY_SYMBOLS = {
@@ -54,4 +56,51 @@ export function formatCurrency(value, currency) {
     // Unknown/unsupported currency code — fall back to symbol + fixed decimals.
     return `${getCurrencySymbol(code)}${amount.toFixed(2)}`
   }
+}
+
+/**
+ * Formats a date/time value according to the org's date_format setting
+ * (from System Settings -> General -> Date Format). This is the single
+ * place that setting actually takes effect — every page should call this
+ * (via useOrganization().formatDate) instead of building its own
+ * Intl.DateTimeFormat, or the setting has no real effect.
+ *
+ * @param {Date|string|number} value - date to format
+ * @param {object} [options]
+ * @param {string} [options.dateFormat] - 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD'
+ * @param {string} [options.timezone] - IANA timezone, defaults to org timezone
+ * @param {boolean} [options.withTime] - append localized time (h:mm AM/PM)
+ */
+export function formatDate(value, { dateFormat, timezone, withTime = false } = {}) {
+  if (!value) return '—'
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  const tz = timezone || DEFAULT_ORGANIZATION.timezone
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const lookup = Object.fromEntries(parts.map((p) => [p.type, p.value]))
+  const { year, month, day } = lookup
+
+  const format = dateFormat || DEFAULT_ORGANIZATION.dateFormat
+  let datePart
+  if (format === 'DD/MM/YYYY') datePart = `${day}/${month}/${year}`
+  else if (format === 'YYYY-MM-DD') datePart = `${year}-${month}-${day}`
+  else datePart = `${month}/${day}/${year}` // MM/DD/YYYY default
+
+  if (!withTime) return datePart
+
+  const timePart = new Intl.DateTimeFormat('en-PH', {
+    timeZone: tz,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date)
+
+  return `${datePart}, ${timePart}`
 }

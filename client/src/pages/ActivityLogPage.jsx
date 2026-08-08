@@ -6,6 +6,7 @@ import {
   RefreshCw,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import './ActivityLogPage.css'
 
 const MANILA_TIME_ZONE = 'Asia/Manila'
@@ -124,6 +125,7 @@ const STATUS_LABELS = {
 }
 
 export default function ActivityLogPage() {
+  const { organization } = useOrganization()
   const initialToday = dateKeyFromDate()
   const [todayKey, setTodayKey] = useState(initialToday)
   const [visibleMonth, setVisibleMonth] = useState(
@@ -601,7 +603,7 @@ export default function ActivityLogPage() {
                     </td>
                     <td className="timestamp-cell">
                       {log.created_at
-                        ? timestampFormatter.format(new Date(log.created_at))
+                        ? organization.formatDate(log.created_at, { withTime: true })
                         : '—'}
                     </td>
                   </tr>

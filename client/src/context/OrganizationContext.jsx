@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabaseClient'
 import {
   DEFAULT_ORGANIZATION,
   formatCurrency,
+  formatDate as formatDateValue,
   getAssociationName,
   getCurrencySymbol,
 } from '../config/organization'
@@ -39,6 +40,13 @@ function mapSettings(settings) {
     timezone:
       String(settings?.timezone || '').trim() ||
       DEFAULT_ORGANIZATION.timezone,
+    dateFormat:
+      String(settings?.date_format || '').trim() ||
+      DEFAULT_ORGANIZATION.dateFormat,
+    requireStrongPassword:
+      settings?.require_strong_password !== undefined
+        ? Boolean(settings.require_strong_password)
+        : DEFAULT_ORGANIZATION.requireStrongPassword,
     sessionTimeoutMinutes:
       Number(settings?.session_timeout) > 0
         ? Number(settings.session_timeout)
@@ -68,7 +76,7 @@ export function OrganizationProvider({ enabled, children }) {
     const { data, error } = await supabase
       .from('system_settings')
       .select(
-        'hoa_name, address, contact_email, contact_phone, currency, timezone, session_timeout',
+        'hoa_name, address, contact_email, contact_phone, currency, timezone, session_timeout, date_format, require_strong_password',
       )
       .eq('id', 1)
       .maybeSingle()
@@ -94,6 +102,12 @@ export function OrganizationProvider({ enabled, children }) {
       refreshOrganization,
       formatMoney: (value) =>
         formatCurrency(value, organization.currency),
+      formatDate: (value, opts) =>
+        formatDateValue(value, {
+          dateFormat: organization.dateFormat,
+          timezone: organization.timezone,
+          ...opts,
+        }),
     }),
     [organization, refreshOrganization],
   )

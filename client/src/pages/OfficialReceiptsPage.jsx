@@ -9,6 +9,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
+import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
 import './OfficialReceiptsPage.css'
 
@@ -17,12 +18,6 @@ const peso = new Intl.NumberFormat('en-PH', {
   currency: 'PHP',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
-})
-
-const dateTime = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Manila',
 })
 
 const calendarDate = new Intl.DateTimeFormat('en-PH', {
@@ -49,14 +44,14 @@ const escapePrintText = (value) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 
-function formatDateTime(value) {
+function formatDateTime(value, dateFormat) {
   if (!value) return 'Date unavailable'
 
   const parsed = new Date(value)
 
   return Number.isNaN(parsed.getTime())
     ? 'Date unavailable'
-    : dateTime.format(parsed)
+    : formatDateValue(parsed, { dateFormat, withTime: true })
 }
 
 function formatDateOnly(value) {
@@ -305,7 +300,7 @@ function mapServiceReceipt(transaction) {
   return receipt
 }
 
-function receiptRows(receipt) {
+function receiptRows(receipt, dateFormat) {
   if (receipt.type === 'service') {
     const transaction = receipt.raw
 
@@ -354,7 +349,7 @@ function receiptRows(receipt) {
     rows.push(
       [
         'Date issued',
-        formatDateTime(receipt.issuedAt),
+        formatDateTime(receipt.issuedAt, dateFormat),
       ],
       ['Processed by', receipt.recordedBy],
     )
@@ -398,7 +393,7 @@ function receiptRows(receipt) {
   rows.push(
     [
       'Date issued',
-      formatDateTime(receipt.issuedAt),
+      formatDateTime(receipt.issuedAt, dateFormat),
     ],
     ['Recorded by', receipt.recordedBy],
   )
@@ -410,7 +405,7 @@ function receiptRows(receipt) {
   return rows
 }
 
-function printOfficialReceipt(receipt, associationName, onPopupBlocked) {
+function printOfficialReceipt(receipt, associationName, onPopupBlocked, dateFormat) {
   const printWindow = window.open(
     '',
     '_blank',
@@ -422,7 +417,7 @@ function printOfficialReceipt(receipt, associationName, onPopupBlocked) {
     return
   }
 
-  const rows = receiptRows(receipt)
+  const rows = receiptRows(receipt, dateFormat)
     .map(
       ([label, value]) => `
         <div class="receipt-row${
@@ -1345,6 +1340,7 @@ export default function OfficialReceiptsPage() {
                       <td>
                         {formatDateTime(
                           receipt.issuedAt,
+                          organization.dateFormat,
                         )}
                       </td>
 
@@ -1450,7 +1446,7 @@ export default function OfficialReceiptsPage() {
             </strong>
 
             <dl className="official-receipt-details">
-              {receiptRows(selectedReceipt).map(
+              {receiptRows(selectedReceipt, organization.dateFormat).map(
                 ([label, value]) => (
                   <div
                     key={label}
@@ -1498,6 +1494,7 @@ export default function OfficialReceiptsPage() {
                     selectedReceipt,
                     organization.associationName,
                     setPopupNotice,
+                    organization.dateFormat,
                   )
                 }
               >

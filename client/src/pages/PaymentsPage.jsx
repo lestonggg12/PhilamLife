@@ -799,7 +799,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
           {selectedDateKey && (
             <span className="payments-date-chip">
-              {chipDate.format(new Date(`${selectedDateKey}T12:00:00`))}
+              {organization.formatDate(`${selectedDateKey}T12:00:00`)}
               <button type="button" onClick={clearDateFilter} aria-label="Clear date filter">
                 ×
               </button>
@@ -841,7 +841,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
                   <td data-label="Receipt / Date">
                     <strong className="payments-receipt-number">{payment.receipt_number}</strong>
                     <small className="payments-secondary-text">
-                      {paymentDate.format(new Date(payment.paid_at))} · {paymentTime.format(new Date(payment.paid_at))}
+                      {organization.formatDate(payment.paid_at, { withTime: true })}
                     </small>
                   </td>
                   <td data-label="Homeowner / Property">
@@ -1055,7 +1055,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </header>
 
               <dl className="receipt-details">
-                <div><dt>Date and time</dt><dd>{dateTime.format(new Date(receipt.paid_at))}</dd></div>
+                <div><dt>Date and time</dt><dd>{organization.formatDate(receipt.paid_at, { withTime: true })}</dd></div>
                 <div><dt>Received from</dt><dd>{receipt.homeowner_name}</dd></div>
                 <div><dt>Property</dt><dd>{receipt.block_name}, {receipt.lot_number}</dd></div>
                 <div><dt>Payment for</dt><dd>{receipt.coverage_period}</dd></div>

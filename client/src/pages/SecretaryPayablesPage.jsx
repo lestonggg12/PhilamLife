@@ -5,16 +5,12 @@ import BlockPayablesSection from '../components/BlockPayablesSection'
 import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import { supabase } from '../lib/supabaseClient'
 import { fetchLedgerAccounts } from '../lib/hoaLedger'
+import { useOrganization } from '../context/OrganizationContext'
 import './SecretaryPayables.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
-})
-
-const date = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeZone: 'Asia/Manila',
 })
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
@@ -33,6 +29,7 @@ function paymentMatchesProperty(payment, property) {
 }
 
 export default function SecretaryPayablesPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [blocks, setBlocks] = useState([])
@@ -147,7 +144,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
             ? 'overdue'
             : 'pending',
         lastPayment: latestPayment?.paid_at
-          ? date.format(new Date(latestPayment.paid_at))
+          ? organization.formatDate(latestPayment.paid_at)
           : 'No payment yet',
         amountDue,
         penaltyAmount: 0,
@@ -292,7 +289,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
           homeowner={selectedHomeowner}
           ledger={selectedHomeowner.payments.map((payment) => ({
             id: payment.id,
-            date: date.format(new Date(payment.paid_at)),
+            date: organization.formatDate(payment.paid_at),
             type: 'Payment',
             description: payment.coverage_period,
             amount: -(Number(payment.amount_paid) || 0),

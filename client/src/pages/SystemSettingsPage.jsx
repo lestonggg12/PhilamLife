@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 
 const TABLES = [
@@ -93,6 +94,7 @@ function stamp() {
 }
 
 export default function SystemSettingsPage({ user }) {
+  const { organization } = useOrganization()
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
@@ -112,7 +114,18 @@ export default function SystemSettingsPage({ user }) {
     async function load() {
       const { data, error } = await supabase.from('system_settings').select('*').eq('id', 1).single()
       if (error) setMessage({ type: 'error', text: `Unable to load settings: ${error.message}` })
-      else setSettings({ ...DEFAULT_SETTINGS, ...data, dues_amount: String(data.dues_amount), due_day: String(data.due_day), grace_period_days: String(data.grace_period_days), late_penalty: String(data.late_penalty), reminder_days_before: String(data.reminder_days_before), session_timeout: String(data.session_timeout) })
+      else setSettings({
+        ...DEFAULT_SETTINGS,
+        ...data,
+        contact_email: data.contact_email || '',
+        contact_phone: data.contact_phone || '',
+        dues_amount: String(data.dues_amount),
+        due_day: String(data.due_day),
+        grace_period_days: String(data.grace_period_days),
+        late_penalty: String(data.late_penalty),
+        reminder_days_before: String(data.reminder_days_before),
+        session_timeout: String(data.session_timeout),
+      })
       setLoading(false)
     }
     load()
@@ -141,8 +154,8 @@ export default function SystemSettingsPage({ user }) {
     setMessage(null)
     const payload = {
       ...settings,
-      contact_email: settings.contact_email.trim() || null,
-      contact_phone: settings.contact_phone.trim() || null,
+      contact_email: (settings.contact_email || '').trim() || null,
+      contact_phone: (settings.contact_phone || '').trim() || null,
       dues_amount: Number(settings.dues_amount),
       due_day: Number(settings.due_day),
       grace_period_days: Number(settings.grace_period_days),
@@ -302,7 +315,7 @@ export default function SystemSettingsPage({ user }) {
           <p className="ss-info">These downloads are application-data exports, not complete Supabase server backups. Exported rows follow your Row Level Security permissions.</p>
         </SettingsCard>
         <SettingsCard title="Download history" subtitle="Recent exports made in this browser." full>
-          {history.length ? <div className="ss-history">{history.map((item, index) => <div key={`${item.at}-${index}`}><span className="ss-history-icon"><Icon name="check" /></span><div><strong>{item.label}</strong><p>{new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' }).format(new Date(item.at))} · {item.by}</p></div><span>{item.filename}</span></div>)}</div> : <div className="ss-empty">No exports downloaded from this browser yet.</div>}
+          {history.length ? <div className="ss-history">{history.map((item, index) => <div key={`${item.at}-${index}`}><span className="ss-history-icon"><Icon name="check" /></span><div><strong>{item.label}</strong><p>{organization.formatDate(item.at, { withTime: true })} · {item.by}</p></div><span>{item.filename}</span></div>)}</div> : <div className="ss-empty">No exports downloaded from this browser yet.</div>}
         </SettingsCard>
       </div>}
 

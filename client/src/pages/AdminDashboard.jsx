@@ -16,6 +16,8 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import Chart from 'chart.js/auto'
+import { useOrganization } from '../context/OrganizationContext'
+import { formatDate } from '../config/organization'
 
 const MANILA_TIME_ZONE = 'Asia/Manila'
 
@@ -27,12 +29,6 @@ const peso = new Intl.NumberFormat('en-PH', {
 
 const dashboardDateFormatter = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'full',
-  timeZone: MANILA_TIME_ZONE,
-})
-
-const activityDateFormatter = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
   timeZone: MANILA_TIME_ZONE,
 })
 
@@ -133,15 +129,16 @@ function getInitials(name) {
   )
 }
 
-function formatActivityTime(value) {
+function formatActivityTime(value, dateFormat) {
   if (!value) return 'Time unavailable'
   const date = new Date(value)
   return Number.isNaN(date.getTime())
     ? 'Time unavailable'
-    : activityDateFormatter.format(date)
+    : formatDate(date, { dateFormat, withTime: true })
 }
 
 export default function AdminDashboard() {
+  const { organization } = useOrganization()
   const navigate = useNavigate()
   const barChartRef = useRef(null)
   const donutChartRef = useRef(null)
@@ -316,7 +313,7 @@ export default function AdminDashboard() {
         name,
         action: activity.action || 'Performed an action',
         target: activity.target || 'No additional details',
-        time: formatActivityTime(activity.created_at),
+        time: formatActivityTime(activity.created_at, organization.dateFormat),
       }
     })
   }, [activities, profiles])

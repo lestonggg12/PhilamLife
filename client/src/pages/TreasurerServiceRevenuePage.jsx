@@ -1,17 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import './TreasurerServiceRevenue.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
-})
-
-const dateTimeFormatter = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Manila',
 })
 
 function statusLabel(status) {
@@ -53,6 +48,7 @@ function transactionPaymentStatus(transaction) {
 }
 
 export default function TreasurerServiceRevenuePage() {
+  const { organization } = useOrganization()
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
@@ -336,7 +332,7 @@ export default function TreasurerServiceRevenuePage() {
                   {filteredTransactions.map((t) => (
                     <tr key={t.id}>
                       <td><strong>{t.receipt_number}</strong></td>
-                      <td>{t.paid_at ? dateTimeFormatter.format(new Date(t.paid_at)) : '—'}</td>
+                      <td>{t.paid_at ? organization.formatDate(t.paid_at, { withTime: true }) : '—'}</td>
                       <td>{t.service_name}</td>
                       <td>{t.customer_name}</td>
                       <td>{t.block_name}, Lot {t.lot_number}</td>
