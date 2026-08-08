@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -316,6 +317,8 @@ function PaymentCalendar({
 
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
   const [properties, setProperties] = useState([])
@@ -342,6 +345,20 @@ export default function PaymentsPage({ user: suppliedUser }) {
     loadPage()
     resolveCurrentUser()
   }, [])
+  useEffect(() => {
+   const prefill = location.state?.prefill
+    if (!prefill) return
+
+    setForm((current) => ({
+    ...current,
+     ...prefill,
+   }))
+   setShowForm(true)
+
+   // Clear the navigation state so refresh/back doesn't re-trigger the prefill.
+   navigate(location.pathname, { replace: true, state: {} })
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [location.state])
 
   useEffect(() => {
     if (!calendarOpen) return undefined

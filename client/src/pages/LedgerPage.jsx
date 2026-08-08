@@ -4,6 +4,7 @@ import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Ico
 import { supabase } from '../lib/supabaseClient'
 import { computeLateFee } from '../lib/latepenalty'
 import { fetchLedgerAccounts, fetchStatementLines } from '../lib/hoaLedger'
+import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 
 const EMPTY_HOMEOWNER = {
   homeownerName: '',
@@ -34,6 +35,11 @@ const peso = new Intl.NumberFormat('en-PH', {
 
 const date = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
+  timeZone: 'Asia/Manila',
+})
+
+const timeOfDay = new Intl.DateTimeFormat('en-PH', {
+  timeStyle: 'short',
   timeZone: 'Asia/Manila',
 })
 
@@ -79,6 +85,8 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [logNotice, setLogNotice] = useState('')
+  const [orgSettings, setOrgSettings] = useState(null)
+  const [statementPdfGenerating, setStatementPdfGenerating] = useState(false)
 
   const [showAddHomeowner, setShowAddHomeowner] = useState(false)
   const [homeownerForm, setHomeownerForm] = useState(EMPTY_HOMEOWNER)
@@ -139,7 +147,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           .select('id, block, lot_number, homeowner_name, created_at')
           .order('homeowner_name'),
         supabase.from('payments').select('*').order('paid_at', { ascending: false }),
-        supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
+        supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         fetchLedgerAccounts()
           .then((data) => ({ data, error: null }))
           .catch((error) => ({ data: [], error })),
@@ -158,6 +166,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setPayments(paymentResult.data || [])
     setAccountSummaries(accountResult.data || [])
     setLedgerAvailable(!accountResult.error)
+    setOrgSettings(settingsResult.data || null)
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -192,6 +201,45 @@ export default function LedgerPage({ user: suppliedUser }) {
       setStatementError(error.message)
     } finally {
       setStatementLoading(false)
+    }
+  }
+
+  function downloadStatementPdf() {
+    if (!statementAccount) return
+    setStatementPdfGenerating(true)
+
+    try {
+      const now = new Date()
+      const rows = statementLines.map((line) => {
+        const lineDate = statementValue(line, ['transaction_date', 'line_date', 'entry_date', 'posted_at', 'created_at'], null)
+        return {
+          date: lineDate ? date.format(new Date(lineDate)) : '—',
+          entry: statementValue(line, ['description', 'entry_type', 'transaction_type', 'type']),
+          reference: statementValue(line, ['reference_number', 'reference', 'receipt_number']),
+          debit: Number(statementValue(line, ['debit', 'charge_amount'], 0)) || 0,
+          credit: Number(statementValue(line, ['credit', 'payment_amount'], 0)) || 0,
+          balance: Number(statementValue(line, ['running_balance', 'balance'], 0)) || 0,
+        }
+      })
+
+      const doc = buildHomeownerStatementPdf({
+        hoaName: orgSettings?.hoa_name || 'Homeowners Association',
+        hoaAddress: orgSettings?.address || '',
+        homeownerName: statementAccount.name,
+        blockLotLabel: `${statementAccount.block}, ${statementAccount.lot}`,
+        totalCharges: statementAccount.dueAmount,
+        paymentsAllocated: statementAccount.paidAmount,
+        outstandingBalance: statementAccount.balance,
+        availableCredit: statementAccount.unallocatedCredit || 0,
+        statementLines: rows,
+        preparedBy: actorName,
+        datePrepared: date.format(now),
+        timePrepared: timeOfDay.format(now),
+      })
+
+      doc.save(`Statement-${statementAccount.name.replace(/\s+/g, '-')}-${date.format(now).replace(/[,\s]/g, '-')}.pdf`)
+    } finally {
+      setStatementPdfGenerating(false)
     }
   }
 
@@ -815,7 +863,7 @@ export default function LedgerPage({ user: suppliedUser }) {
                 </tbody>
               </table>
             </div>
-            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={() => setStatementAccount(null)}>Close</button><button type="button" className="ledger-save-button" onClick={() => window.print()}>Print / Save PDF</button></div>
+            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={() => setStatementAccount(null)}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || statementPdfGenerating}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
           </article>
         </div>
       )}

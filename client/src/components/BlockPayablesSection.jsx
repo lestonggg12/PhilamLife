@@ -1,5 +1,5 @@
-import React from 'react'
-import { AlertCircle, CheckCircle, Clock, Eye, DollarSign, Send, ChevronDown, X } from './Icons'
+import React, { useMemo, useState } from 'react'
+import { AlertCircle, CheckCircle, Clock, Eye, DollarSign, ChevronDown, X, Search } from './Icons'
 import './BlockPayablesSection.css'
 
 const STATUS_META = {
@@ -17,6 +17,21 @@ export default function BlockPayablesSection({
   onViewLedger,
   onPayDues,
 }) {
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const filteredHomeowners = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return homeowners
+    return homeowners.filter((homeowner) =>
+      `${homeowner.name} ${homeowner.lot}`.toLowerCase().includes(query),
+    )
+  }, [homeowners, searchTerm])
+
+  function handleToggle() {
+    setSearchTerm('')
+    onToggle()
+  }
+
   return (
     <section className="block-payables-section">
       <header className="block-section-header">
@@ -29,7 +44,7 @@ export default function BlockPayablesSection({
           <button
             type="button"
             className="view-block-btn"
-            onClick={onToggle}
+            onClick={handleToggle}
             aria-expanded={isExpanded}
           >
             <span>View {block.name}</span>
@@ -64,7 +79,7 @@ export default function BlockPayablesSection({
       </header>
 
       {isExpanded && (
-        <div className="block-modal-backdrop" onMouseDown={onToggle}>
+        <div className="block-modal-backdrop" onMouseDown={handleToggle}>
           <article className="block-modal" onMouseDown={(event) => event.stopPropagation()}>
             <div className="block-modal-heading">
               <div>
@@ -74,16 +89,30 @@ export default function BlockPayablesSection({
                   {block.totalUnits} unit{block.totalUnits === 1 ? '' : 's'} · {block.collectionRate}% collected
                 </p>
               </div>
-              <button type="button" className="block-modal-close" onClick={onToggle} aria-label="Close">
+              <button type="button" className="block-modal-close" onClick={handleToggle} aria-label="Close">
                 <X size={22} />
               </button>
             </div>
 
-            {homeowners.length === 0 ? (
-              <p className="block-empty-state">No homeowners recorded in this block.</p>
+            <div className="block-modal-search">
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder="Search by homeowner or lot..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+
+            {filteredHomeowners.length === 0 ? (
+              <p className="block-empty-state">
+                {homeowners.length === 0
+                  ? 'No homeowners recorded in this block.'
+                  : 'No homeowners match your search.'}
+              </p>
             ) : (
               <ul className="homeowner-list">
-                {homeowners.map((homeowner) => {
+                {filteredHomeowners.map((homeowner) => {
                   const meta = STATUS_META[homeowner.status] || {}
                   const StatusIcon = meta.icon
 
@@ -142,11 +171,6 @@ export default function BlockPayablesSection({
                             <span>Pay Dues</span>
                           </button>
                         )}
-
-                        <button type="button" className="row-action-btn reminder">
-                          <Send size={18} />
-                          <span>Remind</span>
-                        </button>
                       </div>
                     </li>
                   )

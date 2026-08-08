@@ -347,4 +347,4 @@ export default function ReportsPage({ user: suppliedUser }) {
       )}
     </div>
   )
-}s
+}

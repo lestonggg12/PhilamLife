@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AlertCircle, DollarSign } from '../components/Icons'
 import BlockPayablesSection from '../components/BlockPayablesSection'
 import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
-import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
-import ReceiptModal from '../components/ReceiptModal'
 import { supabase } from '../lib/supabaseClient'
-import { fetchLedgerAccounts, postLedgerPayment } from '../lib/hoaLedger'
+import { fetchLedgerAccounts } from '../lib/hoaLedger'
 import './SecretaryPayables.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -19,14 +18,6 @@ const date = new Intl.DateTimeFormat('en-PH', {
 })
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
-
-function currentManilaPeriod() {
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Manila',
-  }).format(new Date())
-}
 
 function paymentMatchesProperty(payment, property) {
   if (payment.property_id != null) {
@@ -42,6 +33,7 @@ function paymentMatchesProperty(payment, property) {
 }
 
 export default function SecretaryPayablesPage({ user: suppliedUser }) {
+  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
@@ -52,9 +44,6 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
   const [expandedBlockId, setExpandedBlockId] = useState(null)
   const [selectedHomeowner, setSelectedHomeowner] = useState(null)
   const [showLedgerModal, setShowLedgerModal] = useState(false)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentData, setPaymentData] = useState(null)
-  const [receiptData, setReceiptData] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments = role === 'secretary' || role === 'treasurer'
@@ -235,59 +224,18 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
   function handlePayDues(homeowner) {
     if (!canManagePayments) return
 
-    setSelectedHomeowner(homeowner)
-    setPaymentData({
-      homeowner: homeowner.name,
-      block: homeowner.block,
-      lot: homeowner.lot,
-      amount: homeowner.amountDue,
-      period: currentManilaPeriod(),
+    navigate('/payments', {
+      state: {
+        prefill: {
+          propertyId: String(homeowner.id),
+          homeownerName: homeowner.name,
+          blockName: homeowner.block,
+          lotNumber: String(homeowner.lot).replace(/^lot\s*/i, ''),
+          paymentPurpose: 'Association Dues',
+          previousBalance: String(homeowner.amountDue || 0),
+        },
+      },
     })
-    setShowPaymentModal(true)
-  }
-
-  async function handlePaymentConfirmed(form) {
-    if (!canManagePayments) {
-      throw new Error('Only a Secretary or Treasurer can record payments.')
-    }
-
-    if (!currentUser?.id) {
-      throw new Error('Your user profile could not be verified. Please sign in again.')
-    }
-
-    const postedPayment = await postLedgerPayment({
-      propertyId: selectedHomeowner.id,
-      amount: form.amount,
-      paymentMethod: form.method,
-      referenceNumber: form.referenceNumber,
-      paymentPurpose: 'Association Dues',
-      coveragePeriod: form.period,
-      note: form.note,
-    })
-
-    const { data, error } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('property_id', Number(selectedHomeowner.id))
-      .order('paid_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) throw error
-    const savedPayment = data || postedPayment
-    if (!savedPayment?.id) throw new Error('Payment posted, but the receipt could not be loaded.')
-
-    setShowPaymentModal(false)
-    setReceiptData({
-      orNumber: savedPayment.receipt_number,
-      date: date.format(new Date(savedPayment.paid_at)),
-      homeowner: savedPayment.homeowner_name,
-      lot: `${savedPayment.block_name}, ${savedPayment.lot_number}`,
-      amount: Number(savedPayment.amount_paid) || 0,
-      method: savedPayment.payment_method,
-      period: savedPayment.coverage_period,
-    })
-    await loadPage()
   }
 
   function closeLedger() {
@@ -356,21 +304,6 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
             closeLedger()
             handlePayDues(selectedHomeowner)
           }}
-        />
-      )}
-
-      {showPaymentModal && paymentData && (
-        <PaymentCheckoutModal
-          paymentData={paymentData}
-          onConfirm={handlePaymentConfirmed}
-          onCancel={() => setShowPaymentModal(false)}
-        />
-      )}
-
-      {receiptData && (
-        <ReceiptModal
-          receiptData={receiptData}
-          onClose={() => setReceiptData(null)}
         />
       )}
     </div>
