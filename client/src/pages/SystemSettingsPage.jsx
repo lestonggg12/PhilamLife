@@ -36,11 +36,6 @@ const DEFAULT_SETTINGS = {
   due_day: '5',
   grace_period_days: '0',
   late_penalty: '0',
-  email_on_payment: true,
-  email_on_overdue: true,
-  sms_reminders: false,
-  weekly_digest: true,
-  reminder_days_before: '3',
   require_strong_password: true,
   session_timeout: '30',
   currency: 'PHP',
@@ -53,7 +48,6 @@ const HISTORY_KEY = 'philam_settings_export_history'
 function Icon({ name, size = 18 }) {
   const paths = {
     general: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></>,
-    notifications: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
     security: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
     backup: <><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></>,
     download: <><path d="M12 3v12m-4-4 4 4 4-4" /><path d="M5 19h14" /></>,
@@ -105,7 +99,6 @@ export default function SystemSettingsPage({ user }) {
 
   const tabs = useMemo(() => [
     ['general', 'General'],
-    ['notifications', 'Notifications'],
     ['security', 'Security'],
     ['backup', 'Backup & Data'],
   ], [])
@@ -123,7 +116,6 @@ export default function SystemSettingsPage({ user }) {
         due_day: String(data.due_day),
         grace_period_days: String(data.grace_period_days),
         late_penalty: String(data.late_penalty),
-        reminder_days_before: String(data.reminder_days_before),
         session_timeout: String(data.session_timeout),
       })
       setLoading(false)
@@ -142,7 +134,7 @@ export default function SystemSettingsPage({ user }) {
     if (settings.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.contact_email)) return 'Enter a valid contact email.'
     if (Number(settings.dues_amount) < 0) return 'Monthly dues cannot be negative.'
     if (!Number.isInteger(Number(settings.due_day)) || Number(settings.due_day) < 1 || Number(settings.due_day) > 31) return 'Due day must be from 1 to 31.'
-    if (Number(settings.grace_period_days) < 0 || Number(settings.late_penalty) < 0 || Number(settings.reminder_days_before) < 0) return 'Days and penalty values cannot be negative.'
+    if (Number(settings.grace_period_days) < 0 || Number(settings.late_penalty) < 0) return 'Days and penalty values cannot be negative.'
     if (Number(settings.session_timeout) < 5 || Number(settings.session_timeout) > 1440) return 'Session timeout must be from 5 to 1,440 minutes.'
     return ''
   }
@@ -160,7 +152,6 @@ export default function SystemSettingsPage({ user }) {
       due_day: Number(settings.due_day),
       grace_period_days: Number(settings.grace_period_days),
       late_penalty: Number(settings.late_penalty),
-      reminder_days_before: Number(settings.reminder_days_before),
       session_timeout: Number(settings.session_timeout),
     }
     delete payload.id
@@ -279,17 +270,6 @@ export default function SystemSettingsPage({ user }) {
           <SelectField label="Date Format" value={settings.date_format} onChange={(v) => update('date_format', v)} options={['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'].map((v) => [v, v])} />
         </SettingsCard>
       </div>}
-
-      {activeTab === 'notifications' && <SettingsCard title="Notification preferences" subtitle="Choose which system notifications should be enabled." full>
-        <div className="ss-toggle-list">
-          <Toggle label="Payment confirmations" description="Email homeowners after a payment is recorded." checked={settings.email_on_payment} onChange={(v) => update('email_on_payment', v)} />
-          <Toggle label="Overdue alerts" description="Email homeowners when their dues become overdue." checked={settings.email_on_overdue} onChange={(v) => update('email_on_overdue', v)} />
-          <Toggle label="SMS reminders" description="Enable payment reminders through SMS." checked={settings.sms_reminders} onChange={(v) => update('sms_reminders', v)} />
-          <Toggle label="Weekly admin digest" description="Send administrators a weekly collections and activity summary." checked={settings.weekly_digest} onChange={(v) => update('weekly_digest', v)} />
-        </div>
-        <Field label="Reminder Days Before Due Date" type="number" min="0" value={settings.reminder_days_before} onChange={(v) => update('reminder_days_before', v)} />
-        <p className="ss-info">These preferences are saved now. Actual email and SMS delivery requires a notification service.</p>
-      </SettingsCard>}
 
       {activeTab === 'security' && <SettingsCard title="Security preferences" subtitle="Configure account and session policies." full>
         <div className="ss-toggle-list">
