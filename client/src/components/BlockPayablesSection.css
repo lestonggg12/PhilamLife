@@ -13,6 +13,7 @@
 .block-section-header {
   padding: 26px;
   background: rgba(120, 162, 210, 0.08);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -23,13 +24,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .block-title {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .block-title h3 {
@@ -37,6 +41,10 @@
   font-size: 20px;
   font-weight: 700;
   color: var(--text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .block-icon {
@@ -58,6 +66,7 @@
   transition: all 0.2s ease;
   white-space: nowrap;
   flex-shrink: 0;
+  align-self: flex-start;
 }
 
 .view-block-btn:hover {
@@ -116,19 +125,77 @@
   color: var(--danger);
 }
 
+/* ---- Block modal (matches the Ledger statement modal pattern) ---- */
+
+.block-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.5);
+}
+
+.block-modal {
+  width: min(860px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e7edf2;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+}
+
+.block-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.block-modal-kicker {
+  margin: 0 0 4px !important;
+  color: #1464a0 !important;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.block-modal-heading h2 {
+  margin: 0 0 6px;
+}
+
+.block-modal-subtext {
+  margin: 0;
+  color: #6b7280;
+}
+
+.block-modal-close {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* ---- Homeowner list ---- */
 
 .homeowner-list {
   list-style: none;
   margin: 0;
-  padding: 20px 26px 26px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
 .block-empty-state {
-  padding: 24px 26px;
+  padding: 24px 0 0;
   color: var(--text-muted);
   font-size: 14px;
 }
@@ -151,6 +218,7 @@
 
 .homeowner-identity {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 14px;
   flex: 1 1 240px;
@@ -165,19 +233,26 @@
 .identity-text {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .homeowner-name {
   font-weight: 700;
   font-size: 16px;
   color: var(--text-light);
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .homeowner-lot {
   font-size: 13px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-pill {
@@ -191,6 +266,7 @@
   text-transform: uppercase;
   letter-spacing: 0.4px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-pill.paid {
@@ -299,11 +375,6 @@
     padding: 20px;
   }
 
-  .homeowner-list {
-    padding: 16px 20px 20px;
-    gap: 14px;
-  }
-
   .homeowner-row {
     padding: 18px;
   }
@@ -311,6 +382,10 @@
   .homeowner-identity,
   .homeowner-details {
     flex: 1 1 100%;
+  }
+
+  .homeowner-identity {
+    flex-wrap: nowrap;
   }
 }
 
