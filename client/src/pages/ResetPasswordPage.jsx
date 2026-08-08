@@ -44,8 +44,10 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
+    const minLength = organization.requireStrongPassword ? 8 : 6;
+
+    if (newPassword.length < minLength) {
+      setError(`Password must be at least ${minLength} characters long.`);
       return;
     }
 
@@ -54,13 +56,18 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    const hasUpperCase = /[A-Z]/.test(newPassword);
-    const hasLowerCase = /[a-z]/.test(newPassword);
-    const hasNumbers = /\d/.test(newPassword);
+    // "Require strong passwords" in Admin > System Settings > Security
+    // controls whether this stricter rule applies. Off just means the
+    // minimum-length check above still applies — never no rule at all.
+    if (organization.requireStrongPassword) {
+      const hasUpperCase = /[A-Z]/.test(newPassword);
+      const hasNumber = /\d/.test(newPassword);
+      const hasSymbol = /[^A-Za-z0-9]/.test(newPassword);
 
-    if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-      setError('Password must contain uppercase, lowercase, and numbers.');
-      return;
+      if (!hasUpperCase || !hasNumber || !hasSymbol) {
+        setError('Password must contain an uppercase letter, a number, and a symbol.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -120,7 +127,7 @@ export default function ResetPasswordPage() {
                     className="forgot-input"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="At least 8 characters"
+                    placeholder={organization.requireStrongPassword ? 'At least 8 characters' : 'At least 6 characters'}
                     disabled={loading}
                   />
                 </div>
@@ -139,7 +146,9 @@ export default function ResetPasswordPage() {
                 </div>
               </div>
               <p className="forgot-password-requirements">
-                Password must contain: uppercase, lowercase, numbers, and be at least 8 characters
+                {organization.requireStrongPassword
+                  ? 'Password must contain: an uppercase letter, a number, a symbol, and be at least 8 characters'
+                  : 'Password must be at least 6 characters'}
               </p>
 
               {error && <div className="forgot-error-message">{error}</div>}
