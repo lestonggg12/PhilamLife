@@ -77,6 +77,13 @@
 }
 .reports-header-text p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
 
+.reports-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .reports-primary {
   border: 0;
   border-radius: var(--radius-md);

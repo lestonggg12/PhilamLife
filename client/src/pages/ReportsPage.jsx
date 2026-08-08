@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchLedgerAccounts } from '../lib/hoaLedger'
+import { buildMonthlyReportPdf } from '../lib/monthlyReportPdf'
 import './ReportsPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -76,12 +77,18 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
   const [ledgerAccounts, setLedgerAccounts] = useState([])
+  const [documents, setDocuments] = useState([])
+  const [events, setEvents] = useState([])
   const [orgSettings, setOrgSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [pendingMonth, setPendingMonth] = useState(currentMonthInManila())
   const [pendingYear, setPendingYear] = useState(Number(currentMonthInManila().slice(0, 4)))
+  const [showMonthlyPdfModal, setShowMonthlyPdfModal] = useState(false)
+  const [pdfMonth, setPdfMonth] = useState(currentMonthInManila())
+  const [pdfGenerating, setPdfGenerating] = useState(false)
+  const [pdfError, setPdfError] = useState('')
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canGenerateReports = role === 'admin' || role === 'treasurer'
@@ -113,7 +120,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(true)
     setError('')
 
-    const [paymentResult, serviceResult, expenseResult, accountResult, settingsResult] = await Promise.all([
+    const [paymentResult, serviceResult, expenseResult, accountResult, settingsResult, documentResult, eventResult] = await Promise.all([
       supabase
         .from('payments')
         .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
@@ -134,6 +141,14 @@ export default function ReportsPage({ user: suppliedUser }) {
         .select('hoa_name, address, contact_email, contact_phone, currency')
         .eq('id', 1)
         .maybeSingle(),
+      supabase
+        .from('documents')
+        .select('id, title, category, created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('events')
+        .select('id, title, description, event_date, location')
+        .order('event_date', { ascending: true }),
     ])
 
     const loadError = paymentResult.error || serviceResult.error || expenseResult.error || accountResult.error
@@ -145,6 +160,8 @@ export default function ReportsPage({ user: suppliedUser }) {
     if (!expenseResult.error) setExpenses(expenseResult.data || [])
     if (!accountResult.error) setLedgerAccounts(accountResult.data || [])
     if (!settingsResult.error) setOrgSettings(settingsResult.data || null)
+    if (!documentResult.error) setDocuments(documentResult.data || [])
+    if (!eventResult.error) setEvents(eventResult.data || [])
     setLoading(false)
   }
 
@@ -281,8 +298,49 @@ export default function ReportsPage({ user: suppliedUser }) {
     printAfterRender()
   }
 
+  function openMonthlyPdfModal() {
+    if (!canGenerateReports || loading) return
+    setPdfMonth(selectedMonth)
+    setPdfError('')
+    setShowMonthlyPdfModal(true)
+  }
+
+  async function confirmGenerateMonthlyPdf() {
+    setPdfError('')
+    setPdfGenerating(true)
+    try {
+      const { start, end } = monthBounds(pdfMonth)
+      const monthRange = { startMs: new Date(start).getTime(), endMs: new Date(end).getTime() }
+      const label = monthLabel.format(new Date(`${pdfMonth}-15T12:00:00+08:00`))
+
+      const doc = buildMonthlyReportPdf({
+        monthLabel: label,
+        hoaName: orgSettings?.hoa_name || 'Homeowners Association',
+        hoaAddress: orgSettings?.address || '',
+        preparedBy: currentUser?.full_name || 'HOA Management',
+        datePrepared: dateLabel.format(new Date()),
+        payments: validPayments,
+        serviceTransactions,
+        expenses: activeExpenses,
+        ledgerAccounts,
+        documents,
+        events,
+        monthRange,
+      })
+
+      const filename = `HOA-Monthly-Report-${pdfMonth}.pdf`
+      doc.save(filename)
+      setShowMonthlyPdfModal(false)
+    } catch (pdfBuildError) {
+      setPdfError(pdfBuildError?.message || 'Could not generate the PDF report.')
+    } finally {
+      setPdfGenerating(false)
+    }
+  }
+
   const selectedMonthName = monthLabel.format(new Date(`${selectedMonth}-15T12:00:00+08:00`))
   const pendingMonthName = monthLabel.format(new Date(`${pendingMonth}-15T12:00:00+08:00`))
+  const pdfMonthName = monthLabel.format(new Date(`${pdfMonth}-15T12:00:00+08:00`))
 
   return (
     <div className="reports-page">
@@ -298,9 +356,14 @@ export default function ReportsPage({ user: suppliedUser }) {
           </div>
         </div>
         {canGenerateReports && (
-          <button type="button" className="reports-primary" onClick={generateReport} disabled={loading}>
-            Generate Report
-          </button>
+          <div className="reports-header-actions">
+            <button type="button" className="reports-secondary" onClick={openMonthlyPdfModal} disabled={loading}>
+              Monthly Report (PDF)
+            </button>
+            <button type="button" className="reports-primary" onClick={generateReport} disabled={loading}>
+              Generate Report
+            </button>
+          </div>
         )}
       </header>
 
@@ -481,6 +544,65 @@ export default function ReportsPage({ user: suppliedUser }) {
               </button>
               <button type="button" className="reports-primary" onClick={confirmGenerateReport}>
                 Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMonthlyPdfModal && (
+        <div
+          className="reports-overlay no-print"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !pdfGenerating) setShowMonthlyPdfModal(false)
+          }}
+        >
+          <div
+            className="expense-form"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-monthly-pdf-title"
+          >
+            <div className="expense-heading">
+              <div>
+                <h2 id="generate-monthly-pdf-title">Monthly Report (PDF)</h2>
+                <p>Generate the full HOA Monthly Report as a downloadable PDF.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !pdfGenerating && setShowMonthlyPdfModal(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="expense-grid">
+              <label className="span-2">
+                Report month
+                <input
+                  type="month"
+                  value={pdfMonth}
+                  onChange={(event) => setPdfMonth(event.target.value)}
+                  autoFocus
+                />
+              </label>
+            </div>
+
+            <p className="reports-generate-preview">
+              This will generate the Monthly Report PDF for <strong>{pdfMonthName}</strong>. Sections without
+              data in the system will be marked N/A rather than estimated.
+            </p>
+
+            {pdfError && <p className="reports-error">{pdfError}</p>}
+
+            <div className="expense-actions">
+              <button type="button" onClick={() => setShowMonthlyPdfModal(false)} disabled={pdfGenerating}>
+                Cancel
+              </button>
+              <button type="button" className="reports-primary" onClick={confirmGenerateMonthlyPdf} disabled={pdfGenerating}>
+                {pdfGenerating ? 'Generating…' : 'Generate PDF'}
               </button>
             </div>
           </div>
