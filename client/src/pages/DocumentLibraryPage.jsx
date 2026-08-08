@@ -104,6 +104,10 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [deletingId, setDeletingId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
+  // Admin, Secretary, and Treasurer can all view and download documents.
+  // Only the Secretary can add new ones — that's enforced here in the UI
+  // and again at the database level via RLS on public.documents /
+  // storage.objects, so this stays true even if the UI is bypassed.
   const canUploadDocuments = role === 'secretary'
   const canDeleteDocuments = ['admin', 'secretary'].includes(role)
   const actorName =
@@ -168,6 +172,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   }
 
   function openUploadForm() {
+    if (!canUploadDocuments) return
     setForm(EMPTY_FORM)
     setSelectedFile(null)
     setFormError('')
@@ -457,9 +462,15 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     <div className="doc-library">
       <div className="doc-header">
         <div>
-          <p className="doc-eyebrow">Secretary workspace</p>
+          <p className="doc-eyebrow">
+            {canUploadDocuments ? 'Secretary workspace' : 'Document access'}
+          </p>
           <h1>Document Library</h1>
-          <p>Store and download official HOA documents securely.</p>
+          <p>
+            {canUploadDocuments
+              ? 'Store and download official HOA documents securely.'
+              : 'View and download official HOA documents securely.'}
+          </p>
         </div>
 
         <div className="doc-header-actions">
@@ -494,13 +505,15 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      {!loading && storageIsFull && (
+      {/* Storage alerts are only actionable by whoever can upload — no
+          point warning Admin/Treasurer about a limit they can't affect. */}
+      {!loading && storageIsFull && canUploadDocuments && (
         <p className="doc-storage-alert doc-storage-alert-full">
           <AlertCircle size={16} />
           Storage is full. Delete some documents to free up space before uploading more.
         </p>
       )}
-      {!loading && !storageIsFull && storageIsNearlyFull && (
+      {!loading && !storageIsFull && storageIsNearlyFull && canUploadDocuments && (
         <p className="doc-storage-alert doc-storage-alert-warning">
           <AlertCircle size={16} />
           Storage is {Math.round(storageUsedRatio * 100)}% full. Consider removing unneeded files soon.
@@ -531,16 +544,20 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           ))}
         </select>
 
-        <button
-          type="button"
-          className="doc-upload-button"
-          onClick={openUploadForm}
-          disabled={!canUploadDocuments || storageIsFull}
-          title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
-        >
-          <Plus size={18} />
-          Upload Document
-        </button>
+        {/* Upload is Secretary-only — hidden entirely (not just disabled)
+            for Admin/Treasurer, who are view & download only. */}
+        {canUploadDocuments && (
+          <button
+            type="button"
+            className="doc-upload-button"
+            onClick={openUploadForm}
+            disabled={storageIsFull}
+            title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
+          >
+            <Plus size={18} />
+            Upload Document
+          </button>
+        )}
       </div>
 
       <div className="doc-result-row">
@@ -622,7 +639,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         onCancel={() => setPendingDelete(null)}
       />
 
-      {showUpload && (
+      {showUpload && canUploadDocuments && (
         <div
           className="doc-modal-backdrop"
           role="presentation"
