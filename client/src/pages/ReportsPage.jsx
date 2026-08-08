@@ -76,8 +76,12 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
   const [ledgerAccounts, setLedgerAccounts] = useState([])
+  const [orgSettings, setOrgSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showGenerateModal, setShowGenerateModal] = useState(false)
+  const [pendingMonth, setPendingMonth] = useState(currentMonthInManila())
+  const [pendingYear, setPendingYear] = useState(Number(currentMonthInManila().slice(0, 4)))
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canGenerateReports = role === 'admin' || role === 'treasurer'
@@ -109,7 +113,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(true)
     setError('')
 
-    const [paymentResult, serviceResult, expenseResult, accountResult] = await Promise.all([
+    const [paymentResult, serviceResult, expenseResult, accountResult, settingsResult] = await Promise.all([
       supabase
         .from('payments')
         .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
@@ -125,6 +129,11 @@ export default function ReportsPage({ user: suppliedUser }) {
       fetchLedgerAccounts()
         .then((data) => ({ data, error: null }))
         .catch((loadError) => ({ data: [], error: loadError })),
+      supabase
+        .from('system_settings')
+        .select('hoa_name, address, contact_email, contact_phone, currency')
+        .eq('id', 1)
+        .maybeSingle(),
     ])
 
     const loadError = paymentResult.error || serviceResult.error || expenseResult.error || accountResult.error
@@ -135,6 +144,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     if (!serviceResult.error) setServiceTransactions(serviceResult.data || [])
     if (!expenseResult.error) setExpenses(expenseResult.data || [])
     if (!accountResult.error) setLedgerAccounts(accountResult.data || [])
+    if (!settingsResult.error) setOrgSettings(settingsResult.data || null)
     setLoading(false)
   }
 
@@ -207,18 +217,72 @@ export default function ReportsPage({ user: suppliedUser }) {
     })
   }, [collectionRecords, activeExpenses, selectedYear])
 
+  const collectionsByMethod = useMemo(() => {
+    const totals = new Map()
+    monthlyCollections.forEach((record) => {
+      const method = record.payment_method || 'Unspecified'
+      const current = totals.get(method) || { method, count: 0, amount: 0 }
+      current.count += 1
+      current.amount += Number(record.amount_paid || 0)
+      totals.set(method, current)
+    })
+    return Array.from(totals.values()).sort((a, b) => b.amount - a.amount)
+  }, [monthlyCollections])
+
+  const expensesByCategory = useMemo(() => {
+    const totals = new Map()
+    monthlyExpenses.forEach((expense) => {
+      const category = expense.category || 'Uncategorized'
+      const current = totals.get(category) || { category, count: 0, amount: 0 }
+      current.count += 1
+      current.amount += Number(expense.amount || 0)
+      totals.set(category, current)
+    })
+    return Array.from(totals.values()).sort((a, b) => b.amount - a.amount)
+  }, [monthlyExpenses])
+
   const monthlyCollected = monthlyCollections.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0)
   const monthlySpent = monthlyExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0)
   const totalUnpaid = unpaidAccounts.reduce((sum, item) => sum + item.balance, 0)
   const annualCollected = annualRows.reduce((sum, item) => sum + item.collection, 0)
   const annualSpent = annualRows.reduce((sum, item) => sum + item.expense, 0)
 
+  function printAfterRender() {
+    // Two rAFs ensure the browser has painted the updated selectedMonth /
+    // selectedYear state before print() captures the sheet — a single
+    // setTimeout(0) is not reliably enough to guarantee a commit + paint.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.print())
+    })
+  }
+
   function generateReport() {
-    if (!canGenerateReports) return
-    window.print()
+    if (!canGenerateReports || loading) return
+
+    // "Unpaid Accounts" is always a live, as-of-now snapshot — there's no
+    // month/year to choose, so skip straight to printing.
+    if (activeReport === 'unpaid') {
+      window.print()
+      return
+    }
+
+    setPendingMonth(selectedMonth)
+    setPendingYear(selectedYear)
+    setShowGenerateModal(true)
+  }
+
+  function confirmGenerateReport() {
+    if (activeReport === 'annual') {
+      setSelectedYear(pendingYear)
+    } else {
+      setSelectedMonth(pendingMonth)
+    }
+    setShowGenerateModal(false)
+    printAfterRender()
   }
 
   const selectedMonthName = monthLabel.format(new Date(`${selectedMonth}-15T12:00:00+08:00`))
+  const pendingMonthName = monthLabel.format(new Date(`${pendingMonth}-15T12:00:00+08:00`))
 
   return (
     <div className="reports-page">
@@ -258,6 +322,19 @@ export default function ReportsPage({ user: suppliedUser }) {
       {error && <p className="reports-error">Could not load reports: {error}</p>}
 
       <main className="report-sheet">
+        <div className="report-letterhead">
+          <div>
+            <p className="report-letterhead-org">{orgSettings?.hoa_name || 'Homeowners Association'}</p>
+            {orgSettings?.address && <p className="report-letterhead-address">{orgSettings.address}</p>}
+            {(orgSettings?.contact_email || orgSettings?.contact_phone) && (
+              <p className="report-letterhead-contact">
+                {[orgSettings?.contact_email, orgSettings?.contact_phone].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+          <p className="report-letterhead-generated">Generated {dateLabel.format(new Date())}</p>
+        </div>
+
         <div className="report-print-heading">
           <h2>{activeReport === 'collections' ? 'Monthly Collections' : activeReport === 'unpaid' ? 'Unpaid Accounts' : activeReport === 'annual' ? 'Annual Financial Summary' : 'Expense Report'}</h2>
           <p>{activeReport === 'annual' ? selectedYear : activeReport === 'unpaid' ? `As of ${dateLabel.format(new Date())}` : selectedMonthName}</p>
@@ -271,6 +348,15 @@ export default function ReportsPage({ user: suppliedUser }) {
                 <div className="reports-table-wrap"><table><thead><tr><th>Date</th><th>Receipt No.</th><th>Type</th><th>Homeowner / Customer</th><th>Block / Lot</th><th>Payment Details</th><th>Method</th><th className="number">Amount</th></tr></thead><tbody>
                   {monthlyCollections.length ? monthlyCollections.map((record) => <tr key={record.recordKey}><td>{dateLabel.format(new Date(record.paid_at))}</td><td>{record.receipt_number}</td><td>{record.typeLabel}</td><td>{record.payerName}</td><td>{record.block_name}, {record.lot_number}</td><td><TruncatedCell text={record.details} /></td><td>{record.payment_method}</td><td className="number">{peso.format(record.amount_paid)}</td></tr>) : <tr><td colSpan="8" className="reports-empty">No collections for this month.</td></tr>}
                 </tbody></table></div>
+
+                {collectionsByMethod.length > 0 && (
+                  <div className="report-breakdown">
+                    <h3>Collections by payment method</h3>
+                    <div className="reports-table-wrap"><table><thead><tr><th>Method</th><th className="number">Receipts</th><th className="number">Amount</th></tr></thead><tbody>
+                      {collectionsByMethod.map((row) => <tr key={row.method}><td>{row.method}</td><td className="number">{row.count}</td><td className="number">{peso.format(row.amount)}</td></tr>)}
+                    </tbody></table></div>
+                  </div>
+                )}
               </>
             )}
 
@@ -298,12 +384,108 @@ export default function ReportsPage({ user: suppliedUser }) {
                 <div className="reports-table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Reference No.</th><th>Recorded by</th><th className="number">Amount</th></tr></thead><tbody>
                   {monthlyExpenses.length ? monthlyExpenses.map((expense) => <tr key={expense.id}><td>{dateLabel.format(new Date(`${expense.expense_date}T12:00:00+08:00`))}</td><td>{expense.category}</td><td><TruncatedCell text={expense.description} /></td><td>{expense.reference_number || '—'}</td><td>{expense.recorded_by_name}</td><td className="number">{peso.format(expense.amount)}</td></tr>) : <tr><td colSpan="6" className="reports-empty">No expenses for this month.</td></tr>}
                 </tbody></table></div>
+
+                {expensesByCategory.length > 0 && (
+                  <div className="report-breakdown">
+                    <h3>Expenses by category</h3>
+                    <div className="reports-table-wrap"><table><thead><tr><th>Category</th><th className="number">Entries</th><th className="number">Amount</th></tr></thead><tbody>
+                      {expensesByCategory.map((row) => <tr key={row.category}><td>{row.category}</td><td className="number">{row.count}</td><td className="number">{peso.format(row.amount)}</td></tr>)}
+                    </tbody></table></div>
+                  </div>
+                )}
               </>
             )}
           </>
         )}
-        <footer className="report-footer">Generated on {dateLabel.format(new Date())}. Collection totals include dues and amenity/service receipts by payment date, excluding voided payments. Expense totals exclude voided records.</footer>
+
+        <footer className="report-footer">Collection totals include dues and amenity/service receipts by payment date, excluding voided payments. Expense totals exclude voided records.</footer>
+
+        <div className="report-signatures">
+          <div className="report-signature-line">
+            <span className="report-signature-blank" />
+            <span className="report-signature-label">Prepared by{currentUser?.full_name ? ` — ${currentUser.full_name}` : ''}</span>
+          </div>
+          <div className="report-signature-line">
+            <span className="report-signature-blank" />
+            <span className="report-signature-label">Reviewed / Approved by</span>
+          </div>
+        </div>
       </main>
+
+      {showGenerateModal && (
+        <div
+          className="reports-overlay no-print"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowGenerateModal(false)
+          }}
+        >
+          <div
+            className="expense-form"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-report-title"
+          >
+            <div className="expense-heading">
+              <div>
+                <h2 id="generate-report-title">Generate Report</h2>
+                <p>
+                  {activeReport === 'annual'
+                    ? 'Which year would you like to generate a report for?'
+                    : `Which ${activeReport === 'expenses' ? 'monthly expense' : 'monthly collections'} report would you like to generate?`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGenerateModal(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="expense-grid">
+              {activeReport === 'annual' ? (
+                <label className="span-2">
+                  Report year
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    value={pendingYear}
+                    onChange={(event) => setPendingYear(Number(event.target.value))}
+                    autoFocus
+                  />
+                </label>
+              ) : (
+                <label className="span-2">
+                  Report month
+                  <input
+                    type="month"
+                    value={pendingMonth}
+                    onChange={(event) => setPendingMonth(event.target.value)}
+                    autoFocus
+                  />
+                </label>
+              )}
+            </div>
+
+            <p className="reports-generate-preview">
+              This will generate the {activeReport === 'expenses' ? 'expense report' : 'collections report'} for{' '}
+              <strong>{activeReport === 'annual' ? pendingYear : pendingMonthName}</strong>.
+            </p>
+
+            <div className="expense-actions">
+              <button type="button" onClick={() => setShowGenerateModal(false)}>
+                Cancel
+              </button>
+              <button type="button" className="reports-primary" onClick={confirmGenerateReport}>
+                Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

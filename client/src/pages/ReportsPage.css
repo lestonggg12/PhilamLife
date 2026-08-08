@@ -358,6 +358,18 @@
 }
 .expense-actions > button:not(.reports-primary):hover { background: #F8FAFC; }
 
+/* Preview line shown in the "Generate Report" month/year picker dialog,
+   confirming exactly which period is about to be printed. */
+.reports-generate-preview {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--blue-soft);
+  color: var(--blue-hover);
+  font-size: 0.85rem;
+}
+.reports-generate-preview strong { font-weight: 700; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 640px) {
   .reports-page { padding: 18px; }
