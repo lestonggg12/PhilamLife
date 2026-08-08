@@ -60,6 +60,8 @@
   color: #2a5470;
   margin: 0 0 22px 0;
   white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .action-dialog-actions {

@@ -78,6 +78,9 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [ledgerAccounts, setLedgerAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showGenerateModal, setShowGenerateModal] = useState(false)
+  const [pendingMonth, setPendingMonth] = useState(currentMonthInManila())
+  const [pendingYear, setPendingYear] = useState(Number(currentMonthInManila().slice(0, 4)))
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canGenerateReports = role === 'admin' || role === 'treasurer'
@@ -213,12 +216,42 @@ export default function ReportsPage({ user: suppliedUser }) {
   const annualCollected = annualRows.reduce((sum, item) => sum + item.collection, 0)
   const annualSpent = annualRows.reduce((sum, item) => sum + item.expense, 0)
 
+  function printAfterRender() {
+    // Two rAFs ensure the browser has painted the updated selectedMonth /
+    // selectedYear state before print() captures the sheet — a single
+    // setTimeout(0) is not reliably enough to guarantee a commit + paint.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.print())
+    })
+  }
+
   function generateReport() {
-    if (!canGenerateReports) return
-    window.print()
+    if (!canGenerateReports || loading) return
+
+    // "Unpaid Accounts" is always a live, as-of-now snapshot — there's no
+    // month/year to choose, so skip straight to printing.
+    if (activeReport === 'unpaid') {
+      window.print()
+      return
+    }
+
+    setPendingMonth(selectedMonth)
+    setPendingYear(selectedYear)
+    setShowGenerateModal(true)
+  }
+
+  function confirmGenerateReport() {
+    if (activeReport === 'annual') {
+      setSelectedYear(pendingYear)
+    } else {
+      setSelectedMonth(pendingMonth)
+    }
+    setShowGenerateModal(false)
+    printAfterRender()
   }
 
   const selectedMonthName = monthLabel.format(new Date(`${selectedMonth}-15T12:00:00+08:00`))
+  const pendingMonthName = monthLabel.format(new Date(`${pendingMonth}-15T12:00:00+08:00`))
 
   return (
     <div className="reports-page">
@@ -304,6 +337,81 @@ export default function ReportsPage({ user: suppliedUser }) {
         )}
         <footer className="report-footer">Generated on {dateLabel.format(new Date())}. Collection totals include dues and amenity/service receipts by payment date, excluding voided payments. Expense totals exclude voided records.</footer>
       </main>
+
+      {showGenerateModal && (
+        <div
+          className="reports-overlay no-print"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowGenerateModal(false)
+          }}
+        >
+          <div
+            className="expense-form"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-report-title"
+          >
+            <div className="expense-heading">
+              <div>
+                <h2 id="generate-report-title">Generate Report</h2>
+                <p>
+                  {activeReport === 'annual'
+                    ? 'Which year would you like to generate a report for?'
+                    : `Which ${activeReport === 'expenses' ? 'monthly expense' : 'monthly collections'} report would you like to generate?`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGenerateModal(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="expense-grid">
+              {activeReport === 'annual' ? (
+                <label className="span-2">
+                  Report year
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    value={pendingYear}
+                    onChange={(event) => setPendingYear(Number(event.target.value))}
+                    autoFocus
+                  />
+                </label>
+              ) : (
+                <label className="span-2">
+                  Report month
+                  <input
+                    type="month"
+                    value={pendingMonth}
+                    onChange={(event) => setPendingMonth(event.target.value)}
+                    autoFocus
+                  />
+                </label>
+              )}
+            </div>
+
+            <p className="reports-generate-preview">
+              This will generate the {activeReport === 'expenses' ? 'expense report' : 'collections report'} for{' '}
+              <strong>{activeReport === 'annual' ? pendingYear : pendingMonthName}</strong>.
+            </p>
+
+            <div className="expense-actions">
+              <button type="button" onClick={() => setShowGenerateModal(false)}>
+                Cancel
+              </button>
+              <button type="button" className="reports-primary" onClick={confirmGenerateReport}>
+                Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
