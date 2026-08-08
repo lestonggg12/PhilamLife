@@ -29,6 +29,7 @@ import EventCalendarPage from './pages/EventCalendarPage'
 import ContactManagerPage from './pages/ContactManagerPage'
 import HomeownersPage from './pages/HomeownersPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
+import OverdueAccountsPage from './pages/OverdueAccountsPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { OrganizationProvider } from './context/OrganizationContext'
 import {
@@ -327,7 +328,7 @@ function AppContent() {
             <ProtectedRoute
               isAuthenticated={isAuthenticated}
               user={user}
-              allowedRoles={['admin', 'secretary']}
+              allowedRoles={['admin', 'secretary', 'treasurer']}
             >
               <DocumentLibraryPage />
             </ProtectedRoute>
@@ -369,6 +370,19 @@ function AppContent() {
               allowedRoles={['admin', 'secretary', 'treasurer']}
             >
               <HomeownersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/overdue-accounts"
+          element={
+            <ProtectedRoute
+              isAuthenticated={isAuthenticated}
+              user={user}
+              allowedRoles={['admin', 'secretary', 'treasurer']}
+            >
+              <OverdueAccountsPage />
             </ProtectedRoute>
           }
         />
