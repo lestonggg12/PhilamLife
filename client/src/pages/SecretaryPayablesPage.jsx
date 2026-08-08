@@ -20,6 +20,8 @@ const date = new Intl.DateTimeFormat('en-PH', {
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
+const EXCLUDED_HOMEOWNER_STATUSES = ['moved', 'transferred']
+
 function currentManilaPeriod() {
   return new Intl.DateTimeFormat('en-PH', {
     month: 'long',
@@ -94,7 +96,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name')
+          .select('id, block, lot_number, homeowner_name, homeowner_status')
           .order('homeowner_name'),
         supabase
           .from('payments')
@@ -121,7 +123,12 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     }
 
     setBlocks(blockResult.data || [])
-    setProperties(propertyResult.data || [])
+    setProperties(
+      (propertyResult.data || []).filter((property) => {
+        const status = normalize(property.homeowner_status)
+        return !EXCLUDED_HOMEOWNER_STATUSES.includes(status)
+      }),
+    )
     setPayments(paymentResult.data || [])
     setLedgerAccounts(accountResult.data || [])
     setLoading(false)

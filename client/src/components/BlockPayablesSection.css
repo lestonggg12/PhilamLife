@@ -65,10 +65,6 @@
   color: white;
 }
 
-.view-block-btn .rotated {
-  transform: rotate(180deg);
-}
-
 .block-summary-strip {
   display: flex;
   flex-wrap: wrap;
@@ -116,19 +112,157 @@
   color: var(--danger);
 }
 
+/* ================================
+   FLOATING BLOCK MODAL
+   ================================ */
+
+.block-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+  animation: block-modal-fade-in 0.15s ease-out;
+}
+
+@keyframes block-modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.block-modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: min(80vh, 720px);
+  background: var(--bg-dark, #fff);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: block-modal-slide-in 0.18s ease-out;
+}
+
+@keyframes block-modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.block-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(120, 162, 210, 0.2);
+  flex-shrink: 0;
+}
+
+.block-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(120, 162, 210, 0.12);
+  color: var(--text-light);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.block-modal-close:hover {
+  background: rgba(120, 162, 210, 0.25);
+}
+
+.block-modal-body {
+  padding: 20px 24px 26px;
+  overflow-y: auto;
+}
+
+/* ---- Search bar ---- */
+
+.block-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(120, 162, 210, 0.3);
+  background: rgba(255, 255, 255, 0.75);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.block-search-bar:focus-within {
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.block-search-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.block-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  font-size: 14px;
+  outline: none;
+}
+
+.block-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.block-search-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(120, 162, 210, 0.15);
+  color: var(--text-light);
+  cursor: pointer;
+}
+
+.block-search-clear:hover {
+  background: rgba(120, 162, 210, 0.28);
+}
+
 /* ---- Homeowner list ---- */
 
 .homeowner-list {
   list-style: none;
   margin: 0;
-  padding: 20px 26px 26px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
 .block-empty-state {
-  padding: 24px 26px;
+  padding: 24px 0;
   color: var(--text-muted);
   font-size: 14px;
 }
@@ -280,16 +414,6 @@
   color: var(--primary);
 }
 
-.row-action-btn.pay {
-  color: var(--success);
-  border-color: rgba(26, 138, 96, 0.35);
-}
-
-.row-action-btn.pay:hover {
-  background: rgba(26, 138, 96, 0.1);
-  border-color: var(--success);
-}
-
 .row-action-btn.reminder {
   color: var(--accent);
 }
@@ -299,9 +423,12 @@
     padding: 20px;
   }
 
-  .homeowner-list {
+  .block-modal-body {
     padding: 16px 20px 20px;
-    gap: 14px;
+  }
+
+  .block-modal-header {
+    padding: 16px 20px;
   }
 
   .homeowner-row {
@@ -311,6 +438,19 @@
   .homeowner-identity,
   .homeowner-details {
     flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .block-modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .block-modal {
+    max-width: 100%;
+    max-height: 88vh;
+    border-radius: 16px 16px 0 0;
   }
 }
 
