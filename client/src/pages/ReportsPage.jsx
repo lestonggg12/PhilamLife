@@ -10,6 +10,14 @@ const peso = new Intl.NumberFormat('en-PH', {
   minimumFractionDigits: 2,
 })
 
+const pesoOrNA = (value) =>
+  value === null || value === undefined || Number.isNaN(Number(value)) ? 'N/A' : peso.format(Number(value))
+
+const pctOrNA = (value) =>
+  value === null || value === undefined || Number.isNaN(Number(value)) ? 'N/A' : `${Number(value).toFixed(1)}%`
+
+const NA = 'N/A'
+
 const monthLabel = new Intl.DateTimeFormat('en-PH', {
   month: 'long',
   year: 'numeric',
@@ -18,6 +26,13 @@ const monthLabel = new Intl.DateTimeFormat('en-PH', {
 
 const dateLabel = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
+  timeZone: 'Asia/Manila',
+})
+
+const shortDateLabel = new Intl.DateTimeFormat('en-PH', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
   timeZone: 'Asia/Manila',
 })
 
@@ -41,11 +56,11 @@ function monthBounds(month) {
   return {
     start: `${month}-01T00:00:00+08:00`,
     end: `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00+08:00`,
+    startMs: new Date(`${month}-01T00:00:00+08:00`).getTime(),
+    endMs: new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00+08:00`).getTime(),
   }
 }
 
-// Small helper icon for the header — keeps this file self-contained
-// instead of pulling in an icon library just for one glyph.
 function ReportsIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -56,23 +71,51 @@ function ReportsIcon() {
   )
 }
 
-// Renders long free-text fields (payment notes, expense descriptions) as a
-// truncated cell with the full text available on hover, so a single long
-// entry can't stretch the whole table row.
-function TruncatedCell({ text }) {
-  const value = text || '—'
+function SectionHeading({ number, title }) {
   return (
-    <span className="reports-cell-truncate" title={value}>
-      {value}
-    </span>
+    <div className="mreport-section-heading">
+      <h2>{number}. {title}</h2>
+    </div>
+  )
+}
+
+function KpiCard({ label, value, tone = 'default' }) {
+  return (
+    <div className={`mreport-kpi mreport-kpi-${tone}`}>
+      <span className="mreport-kpi-label">{label}</span>
+      <strong className="mreport-kpi-value">{value}</strong>
+    </div>
+  )
+}
+
+function DataTable({ head, rows, boldLastRow = false, emptyLabel = 'No records for this period.' }) {
+  return (
+    <div className="mreport-table-wrap">
+      <table>
+        <thead>
+          <tr>{head.map((h) => <th key={h} className={h.numeric ? 'number' : ''}>{h.label || h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.length ? rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className={boldLastRow && rowIndex === rows.length - 1 ? 'mreport-row-bold' : ''}>
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex} className={typeof cell === 'string' && (cell.startsWith('₱') || cell === 'N/A') && cellIndex > 0 ? 'number' : ''}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          )) : (
+            <tr><td colSpan={head.length} className="mreport-empty">{emptyLabel}</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
 export default function ReportsPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
-  const [activeReport, setActiveReport] = useState('collections')
   const [selectedMonth, setSelectedMonth] = useState(currentMonthInManila())
-  const [selectedYear, setSelectedYear] = useState(Number(currentMonthInManila().slice(0, 4)))
   const [payments, setPayments] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -82,11 +125,6 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [orgSettings, setOrgSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showGenerateModal, setShowGenerateModal] = useState(false)
-  const [pendingMonth, setPendingMonth] = useState(currentMonthInManila())
-  const [pendingYear, setPendingYear] = useState(Number(currentMonthInManila().slice(0, 4)))
-  const [showMonthlyPdfModal, setShowMonthlyPdfModal] = useState(false)
-  const [pdfMonth, setPdfMonth] = useState(currentMonthInManila())
   const [pdfGenerating, setPdfGenerating] = useState(false)
   const [pdfError, setPdfError] = useState('')
 
@@ -165,156 +203,104 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(false)
   }
 
-  const validPayments = useMemo(
-    () => payments.filter((payment) => payment.status !== 'Voided'),
-    [payments]
-  )
-  const activeExpenses = useMemo(
-    () => expenses.filter((expense) => expense.status !== 'Voided'),
-    [expenses]
-  )
+  const validPayments = useMemo(() => payments.filter((p) => p.status !== 'Voided'), [payments])
+  const activeExpenses = useMemo(() => expenses.filter((e) => e.status !== 'Voided'), [expenses])
 
-  const collectionRecords = useMemo(
-    () => [
-      ...validPayments.map((payment) => ({
-        ...payment,
-        recordKey: `payment-${payment.id}`,
-        typeLabel: 'Dues',
-        payerName: payment.homeowner_name,
-        details: payment.coverage_period,
-      })),
-      ...serviceTransactions.map((transaction) => ({
-        ...transaction,
-        recordKey: `service-${transaction.id}`,
-        typeLabel: 'Amenity / Service',
-        payerName: transaction.customer_name,
-        details: transaction.service_name,
-      })),
-    ].sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at)),
-    [validPayments, serviceTransactions]
-  )
+  const bounds = useMemo(() => monthBounds(selectedMonth), [selectedMonth])
+  const inRange = (iso) => {
+    if (!iso) return false
+    const ms = new Date(iso).getTime()
+    return ms >= bounds.startMs && ms < bounds.endMs
+  }
 
-  const monthlyCollections = useMemo(() => {
-    const { start, end } = monthBounds(selectedMonth)
-    const startMs = new Date(start).getTime()
-    const endMs = new Date(end).getTime()
-    return collectionRecords.filter((record) => {
-      const paidMs = new Date(record.paid_at).getTime()
-      return paidMs >= startMs && paidMs < endMs
-    })
-  }, [collectionRecords, selectedMonth])
-
+  const monthlyDues = useMemo(() => validPayments.filter((p) => inRange(p.paid_at)), [validPayments, bounds])
+  const monthlyServices = useMemo(() => serviceTransactions.filter((t) => inRange(t.paid_at)), [serviceTransactions, bounds])
   const monthlyExpenses = useMemo(
-    () => activeExpenses.filter((expense) => String(expense.expense_date).slice(0, 7) === selectedMonth),
-    [activeExpenses, selectedMonth]
+    () => activeExpenses.filter((e) => inRange(`${e.expense_date}T12:00:00+08:00`)),
+    [activeExpenses, bounds]
   )
 
-  const unpaidAccounts = useMemo(() => {
-    return ledgerAccounts
-      .filter((account) => account.balance > 0)
-      .sort((a, b) => b.balance - a.balance)
-  }, [ledgerAccounts])
+  const duesIncome = monthlyDues.reduce((s, p) => s + Number(p.amount_paid || 0), 0)
+  const serviceIncome = monthlyServices.reduce((s, t) => s + Number(t.amount_paid || 0), 0)
+  const totalIncome = duesIncome + serviceIncome
+  const totalExpenses = monthlyExpenses.reduce((s, e) => s + Number(e.amount || 0), 0)
+  const netIncome = totalIncome - totalExpenses
 
-  const annualRows = useMemo(() => {
-    return Array.from({ length: 12 }, (_, index) => {
-      const month = `${selectedYear}-${String(index + 1).padStart(2, '0')}`
-      const { start, end } = monthBounds(month)
-      const startMs = new Date(start).getTime()
-      const endMs = new Date(end).getTime()
-      const collection = collectionRecords
-        .filter((record) => {
-          const paidMs = new Date(record.paid_at).getTime()
-          return paidMs >= startMs && paidMs < endMs
-        })
-        .reduce((sum, record) => sum + Number(record.amount_paid || 0), 0)
-      const expense = activeExpenses
-        .filter((item) => String(item.expense_date).slice(0, 7) === month)
-        .reduce((sum, item) => sum + Number(item.amount || 0), 0)
-      return { month, collection, expense, net: collection - expense }
-    })
-  }, [collectionRecords, activeExpenses, selectedYear])
+  const outstandingAccounts = useMemo(() => ledgerAccounts.filter((a) => Number(a.balance) > 0).sort((a, b) => b.balance - a.balance), [ledgerAccounts])
+  const totalOutstanding = outstandingAccounts.reduce((s, a) => s + Number(a.balance || 0), 0)
 
-  const collectionsByMethod = useMemo(() => {
+  const allTimeCharged = ledgerAccounts.reduce((s, a) => s + Number(a.totalCharges || 0), 0)
+  const allTimeCollected = ledgerAccounts.reduce((s, a) => s + Number(a.totalPaid || 0), 0)
+  // Collection rate is only meaningful once assessed charges are tracked
+  // per-property (homeowner_charges). While that ledger is empty/incomplete,
+  // total_assessed under-reports real charges and the ratio can exceed
+  // 100% — that's a data-completeness gap, not a real rate, so it's
+  // reported as N/A instead of a misleading number.
+  const rawCollectionRate = allTimeCharged > 0 ? (allTimeCollected / allTimeCharged) * 100 : null
+  const overallCollectionRate = rawCollectionRate !== null && rawCollectionRate <= 100 ? rawCollectionRate : null
+
+  const expenseByCategory = useMemo(() => {
     const totals = new Map()
-    monthlyCollections.forEach((record) => {
-      const method = record.payment_method || 'Unspecified'
-      const current = totals.get(method) || { method, count: 0, amount: 0 }
-      current.count += 1
-      current.amount += Number(record.amount_paid || 0)
-      totals.set(method, current)
+    monthlyExpenses.forEach((e) => {
+      const cat = e.category || 'Uncategorized'
+      totals.set(cat, (totals.get(cat) || 0) + Number(e.amount || 0))
     })
-    return Array.from(totals.values()).sort((a, b) => b.amount - a.amount)
-  }, [monthlyCollections])
-
-  const expensesByCategory = useMemo(() => {
-    const totals = new Map()
-    monthlyExpenses.forEach((expense) => {
-      const category = expense.category || 'Uncategorized'
-      const current = totals.get(category) || { category, count: 0, amount: 0 }
-      current.count += 1
-      current.amount += Number(expense.amount || 0)
-      totals.set(category, current)
-    })
-    return Array.from(totals.values()).sort((a, b) => b.amount - a.amount)
+    return totals
   }, [monthlyExpenses])
 
-  const monthlyCollected = monthlyCollections.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0)
-  const monthlySpent = monthlyExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-  const totalUnpaid = unpaidAccounts.reduce((sum, item) => sum + item.balance, 0)
-  const annualCollected = annualRows.reduce((sum, item) => sum + item.collection, 0)
-  const annualSpent = annualRows.reduce((sum, item) => sum + item.expense, 0)
-
-  function printAfterRender() {
-    // Two rAFs ensure the browser has painted the updated selectedMonth /
-    // selectedYear state before print() captures the sheet — a single
-    // setTimeout(0) is not reliably enough to guarantee a commit + paint.
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => window.print())
+  const serviceByName = useMemo(() => {
+    const totals = new Map()
+    monthlyServices.forEach((t) => {
+      const name = t.service_name || 'Other'
+      totals.set(name, (totals.get(name) || 0) + Number(t.amount_paid || 0))
     })
-  }
+    return totals
+  }, [monthlyServices])
 
-  function generateReport() {
-    if (!canGenerateReports || loading) return
+  const monthEvents = useMemo(() => events.filter((e) => inRange(`${e.event_date}T12:00:00+08:00`)), [events, bounds])
+  const upcomingEvents = useMemo(
+    () =>
+      events
+        .filter((e) => new Date(`${e.event_date}T00:00:00+08:00`).getTime() > bounds.endMs - 1)
+        .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
+        .slice(0, 6),
+    [events, bounds]
+  )
+  const monthDocuments = useMemo(() => documents.filter((d) => inRange(d.created_at)), [documents, bounds])
 
-    // "Unpaid Accounts" is always a live, as-of-now snapshot — there's no
-    // month/year to choose, so skip straight to printing.
-    if (activeReport === 'unpaid') {
-      window.print()
-      return
+  const selectedMonthName = monthLabel.format(new Date(`${selectedMonth}-15T12:00:00+08:00`))
+
+  // ---------- Section 2 table rows ----------
+  const incomeRows = [
+    ['Homeowner Assessments (Dues)', NA, pesoOrNA(duesIncome), NA],
+    ...Array.from(serviceByName.entries()).map(([name, amt]) => [`Amenity / Service — ${name}`, NA, pesoOrNA(amt), NA]),
+    ['Late Fees', NA, NA, NA],
+    ['Fines / Penalties', NA, NA, NA],
+    ['Other Income', NA, NA, NA],
+    ['Total Income', NA, pesoOrNA(totalIncome), NA],
+  ]
+
+  const expenseCategoryOrder = ['Landscaping', 'Security', 'Utilities', 'Repairs & Maintenance', 'Administrative', 'Insurance', 'Staff / Payroll']
+  const seenCategories = new Set()
+  const expenseRows = []
+  expenseCategoryOrder.forEach((cat) => {
+    if (expenseByCategory.has(cat)) {
+      expenseRows.push([cat, NA, pesoOrNA(expenseByCategory.get(cat)), NA])
+      seenCategories.add(cat)
     }
+  })
+  expenseByCategory.forEach((amt, cat) => {
+    if (!seenCategories.has(cat)) expenseRows.push([cat, NA, pesoOrNA(amt), NA])
+  })
+  if (expenseRows.length === 0) expenseRows.push(['No expense records for this period', NA, pesoOrNA(0), NA])
+  expenseRows.push(['Total Expenses', NA, pesoOrNA(totalExpenses), NA])
 
-    setPendingMonth(selectedMonth)
-    setPendingYear(selectedYear)
-    setShowGenerateModal(true)
-  }
-
-  function confirmGenerateReport() {
-    if (activeReport === 'annual') {
-      setSelectedYear(pendingYear)
-    } else {
-      setSelectedMonth(pendingMonth)
-    }
-    setShowGenerateModal(false)
-    printAfterRender()
-  }
-
-  function openMonthlyPdfModal() {
-    if (!canGenerateReports || loading) return
-    setPdfMonth(selectedMonth)
-    setPdfError('')
-    setShowMonthlyPdfModal(true)
-  }
-
-  async function confirmGenerateMonthlyPdf() {
+  async function handleDownloadPdf() {
     setPdfError('')
     setPdfGenerating(true)
     try {
-      const { start, end } = monthBounds(pdfMonth)
-      const monthRange = { startMs: new Date(start).getTime(), endMs: new Date(end).getTime() }
-      const label = monthLabel.format(new Date(`${pdfMonth}-15T12:00:00+08:00`))
-
       const doc = buildMonthlyReportPdf({
-        monthLabel: label,
+        monthLabel: selectedMonthName,
         hoaName: orgSettings?.hoa_name || 'Homeowners Association',
         hoaAddress: orgSettings?.address || '',
         preparedBy: currentUser?.full_name || 'HOA Management',
@@ -325,22 +311,15 @@ export default function ReportsPage({ user: suppliedUser }) {
         ledgerAccounts,
         documents,
         events,
-        monthRange,
+        monthRange: { startMs: bounds.startMs, endMs: bounds.endMs },
       })
-
-      const filename = `HOA-Monthly-Report-${pdfMonth}.pdf`
-      doc.save(filename)
-      setShowMonthlyPdfModal(false)
+      doc.save(`HOA-Monthly-Report-${selectedMonth}.pdf`)
     } catch (pdfBuildError) {
       setPdfError(pdfBuildError?.message || 'Could not generate the PDF report.')
     } finally {
       setPdfGenerating(false)
     }
   }
-
-  const selectedMonthName = monthLabel.format(new Date(`${selectedMonth}-15T12:00:00+08:00`))
-  const pendingMonthName = monthLabel.format(new Date(`${pendingMonth}-15T12:00:00+08:00`))
-  const pdfMonthName = monthLabel.format(new Date(`${pdfMonth}-15T12:00:00+08:00`))
 
   return (
     <div className="reports-page">
@@ -351,262 +330,312 @@ export default function ReportsPage({ user: suppliedUser }) {
           </div>
           <div className="reports-header-text">
             <span className="reports-header-eyebrow">Finance Workspace</span>
-            <h1>Financial Reports</h1>
-            <p>Review collections, unpaid balances, annual totals, and expenses.</p>
+            <h1>Monthly Report</h1>
+            <p>A digital, per-month view of the same HOA Monthly Report generated as a PDF.</p>
           </div>
         </div>
-        {canGenerateReports && (
-          <div className="reports-header-actions">
-            <button type="button" className="reports-secondary" onClick={openMonthlyPdfModal} disabled={loading}>
-              Monthly Report (PDF)
+        <div className="reports-header-actions">
+          <label className="mreport-month-picker">
+            Month
+            <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
+          </label>
+          {canGenerateReports && (
+            <button type="button" className="reports-primary" onClick={handleDownloadPdf} disabled={loading || pdfGenerating}>
+              {pdfGenerating ? 'Generating…' : 'Download PDF'}
             </button>
-            <button type="button" className="reports-primary" onClick={generateReport} disabled={loading}>
-              Generate Report
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
-      <nav className="reports-tabs no-print" aria-label="Report type">
-        <button className={activeReport === 'collections' ? 'active' : ''} onClick={() => setActiveReport('collections')}>Monthly Collections</button>
-        <button className={activeReport === 'unpaid' ? 'active' : ''} onClick={() => setActiveReport('unpaid')}>Unpaid Accounts</button>
-        <button className={activeReport === 'annual' ? 'active' : ''} onClick={() => setActiveReport('annual')}>Annual Summary</button>
-        <button className={activeReport === 'expenses' ? 'active' : ''} onClick={() => setActiveReport('expenses')}>Expenses</button>
-      </nav>
-
-      <div className="reports-controls no-print">
-        {activeReport === 'annual' ? (
-          <label>Report year <input type="number" min="2000" max="2100" value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value))} /></label>
-        ) : activeReport !== 'unpaid' ? (
-          <label>Report month <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} /></label>
-        ) : <span>Shows charge-based balances from the HOA ledger.</span>}
-      </div>
-
       {error && <p className="reports-error">Could not load reports: {error}</p>}
+      {pdfError && <p className="reports-error">{pdfError}</p>}
 
-      <main className="report-sheet">
-        <div className="report-letterhead">
-          <div>
-            <p className="report-letterhead-org">{orgSettings?.hoa_name || 'Homeowners Association'}</p>
-            {orgSettings?.address && <p className="report-letterhead-address">{orgSettings.address}</p>}
-            {(orgSettings?.contact_email || orgSettings?.contact_phone) && (
-              <p className="report-letterhead-contact">
-                {[orgSettings?.contact_email, orgSettings?.contact_phone].filter(Boolean).join(' · ')}
-              </p>
-            )}
-          </div>
-          <p className="report-letterhead-generated">Generated {dateLabel.format(new Date())}</p>
-        </div>
-
-        <div className="report-print-heading">
-          <h2>{activeReport === 'collections' ? 'Monthly Collections' : activeReport === 'unpaid' ? 'Unpaid Accounts' : activeReport === 'annual' ? 'Annual Financial Summary' : 'Expense Report'}</h2>
-          <p>{activeReport === 'annual' ? selectedYear : activeReport === 'unpaid' ? `As of ${dateLabel.format(new Date())}` : selectedMonthName}</p>
-        </div>
-
-        {loading ? <p className="reports-empty">Loading financial records...</p> : (
-          <>
-            {activeReport === 'collections' && (
-              <>
-                <div className="report-summary"><span>Total collected <strong>{peso.format(monthlyCollected)}</strong></span><span>Receipts issued <strong>{monthlyCollections.length}</strong></span></div>
-                <div className="reports-table-wrap"><table><thead><tr><th>Date</th><th>Receipt No.</th><th>Type</th><th>Homeowner / Customer</th><th>Block / Lot</th><th>Payment Details</th><th>Method</th><th className="number">Amount</th></tr></thead><tbody>
-                  {monthlyCollections.length ? monthlyCollections.map((record) => <tr key={record.recordKey}><td>{dateLabel.format(new Date(record.paid_at))}</td><td>{record.receipt_number}</td><td>{record.typeLabel}</td><td>{record.payerName}</td><td>{record.block_name}, {record.lot_number}</td><td><TruncatedCell text={record.details} /></td><td>{record.payment_method}</td><td className="number">{peso.format(record.amount_paid)}</td></tr>) : <tr><td colSpan="8" className="reports-empty">No collections for this month.</td></tr>}
-                </tbody></table></div>
-
-                {collectionsByMethod.length > 0 && (
-                  <div className="report-breakdown">
-                    <h3>Collections by payment method</h3>
-                    <div className="reports-table-wrap"><table><thead><tr><th>Method</th><th className="number">Receipts</th><th className="number">Amount</th></tr></thead><tbody>
-                      {collectionsByMethod.map((row) => <tr key={row.method}><td>{row.method}</td><td className="number">{row.count}</td><td className="number">{peso.format(row.amount)}</td></tr>)}
-                    </tbody></table></div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {activeReport === 'unpaid' && (
-              <>
-                <div className="report-summary"><span>Total outstanding <strong>{peso.format(totalUnpaid)}</strong></span><span>Unpaid accounts <strong>{unpaidAccounts.length}</strong></span></div>
-                <div className="reports-table-wrap"><table><thead><tr><th>Homeowner</th><th>Block / Lot</th><th>Last payment</th><th>Status</th><th className="number">Outstanding Balance</th></tr></thead><tbody>
-                  {unpaidAccounts.length ? unpaidAccounts.map((account) => <tr key={account.propertyId}><td>{account.homeownerName}</td><td>{account.blockName}, Lot {account.lotNumber}</td><td>{account.lastPaymentAt ? dateLabel.format(new Date(account.lastPaymentAt)) : 'No payment yet'}</td><td>{account.accountStatus}</td><td className="number reports-due">{peso.format(account.balance)}</td></tr>) : <tr><td colSpan="5" className="reports-empty">No unpaid accounts found.</td></tr>}
-                </tbody></table></div>
-              </>
-            )}
-
-            {activeReport === 'annual' && (
-              <>
-                <div className="report-summary"><span>Total collections <strong>{peso.format(annualCollected)}</strong></span><span>Total expenses <strong>{peso.format(annualSpent)}</strong></span><span>Net balance <strong>{peso.format(annualCollected - annualSpent)}</strong></span></div>
-                <div className="reports-table-wrap"><table><thead><tr><th>Month</th><th className="number">Collections</th><th className="number">Expenses</th><th className="number">Net</th></tr></thead><tbody>
-                  {annualRows.map((row) => <tr key={row.month}><td>{monthLabel.format(new Date(`${row.month}-15T12:00:00+08:00`))}</td><td className="number">{peso.format(row.collection)}</td><td className="number">{peso.format(row.expense)}</td><td className={`number ${row.net < 0 ? 'reports-due' : ''}`}>{peso.format(row.net)}</td></tr>)}
-                </tbody></table></div>
-              </>
-            )}
-
-            {activeReport === 'expenses' && (
-              <>
-                <div className="report-summary"><span>Total expenses <strong>{peso.format(monthlySpent)}</strong></span><span>Entries <strong>{monthlyExpenses.length}</strong></span></div>
-                <div className="reports-table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Reference No.</th><th>Recorded by</th><th className="number">Amount</th></tr></thead><tbody>
-                  {monthlyExpenses.length ? monthlyExpenses.map((expense) => <tr key={expense.id}><td>{dateLabel.format(new Date(`${expense.expense_date}T12:00:00+08:00`))}</td><td>{expense.category}</td><td><TruncatedCell text={expense.description} /></td><td>{expense.reference_number || '—'}</td><td>{expense.recorded_by_name}</td><td className="number">{peso.format(expense.amount)}</td></tr>) : <tr><td colSpan="6" className="reports-empty">No expenses for this month.</td></tr>}
-                </tbody></table></div>
-
-                {expensesByCategory.length > 0 && (
-                  <div className="report-breakdown">
-                    <h3>Expenses by category</h3>
-                    <div className="reports-table-wrap"><table><thead><tr><th>Category</th><th className="number">Entries</th><th className="number">Amount</th></tr></thead><tbody>
-                      {expensesByCategory.map((row) => <tr key={row.category}><td>{row.category}</td><td className="number">{row.count}</td><td className="number">{peso.format(row.amount)}</td></tr>)}
-                    </tbody></table></div>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-
-        <footer className="report-footer">Collection totals include dues and amenity/service receipts by payment date, excluding voided payments. Expense totals exclude voided records.</footer>
-
-        <div className="report-signatures">
-          <div className="report-signature-line">
-            <span className="report-signature-blank" />
-            <span className="report-signature-label">Prepared by{currentUser?.full_name ? ` — ${currentUser.full_name}` : ''}</span>
-          </div>
-          <div className="report-signature-line">
-            <span className="report-signature-blank" />
-            <span className="report-signature-label">Reviewed / Approved by</span>
-          </div>
-        </div>
-      </main>
-
-      {showGenerateModal && (
-        <div
-          className="reports-overlay no-print"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowGenerateModal(false)
-          }}
-        >
-          <div
-            className="expense-form"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="generate-report-title"
-          >
-            <div className="expense-heading">
-              <div>
-                <h2 id="generate-report-title">Generate Report</h2>
-                <p>
-                  {activeReport === 'annual'
-                    ? 'Which year would you like to generate a report for?'
-                    : `Which ${activeReport === 'expenses' ? 'monthly expense' : 'monthly collections'} report would you like to generate?`}
+      {loading ? (
+        <p className="reports-empty">Loading financial records...</p>
+      ) : (
+        <main className="mreport">
+          <div className="mreport-letterhead">
+            <div>
+              <p className="mreport-letterhead-org">{orgSettings?.hoa_name || 'Homeowners Association'}</p>
+              {orgSettings?.address && <p className="mreport-letterhead-address">{orgSettings.address}</p>}
+              {(orgSettings?.contact_email || orgSettings?.contact_phone) && (
+                <p className="mreport-letterhead-contact">
+                  {[orgSettings?.contact_email, orgSettings?.contact_phone].filter(Boolean).join(' · ')}
                 </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGenerateModal(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="expense-grid">
-              {activeReport === 'annual' ? (
-                <label className="span-2">
-                  Report year
-                  <input
-                    type="number"
-                    min="2000"
-                    max="2100"
-                    value={pendingYear}
-                    onChange={(event) => setPendingYear(Number(event.target.value))}
-                    autoFocus
-                  />
-                </label>
-              ) : (
-                <label className="span-2">
-                  Report month
-                  <input
-                    type="month"
-                    value={pendingMonth}
-                    onChange={(event) => setPendingMonth(event.target.value)}
-                    autoFocus
-                  />
-                </label>
               )}
             </div>
-
-            <p className="reports-generate-preview">
-              This will generate the {activeReport === 'expenses' ? 'expense report' : 'collections report'} for{' '}
-              <strong>{activeReport === 'annual' ? pendingYear : pendingMonthName}</strong>.
-            </p>
-
-            <div className="expense-actions">
-              <button type="button" onClick={() => setShowGenerateModal(false)}>
-                Cancel
-              </button>
-              <button type="button" className="reports-primary" onClick={confirmGenerateReport}>
-                Generate Report
-              </button>
+            <div className="mreport-letterhead-meta">
+              <p className="mreport-letterhead-title">Monthly Report — {selectedMonthName}</p>
+              <p>Prepared by: {currentUser?.full_name || 'HOA Management'}</p>
+              <p>Date prepared: {dateLabel.format(new Date())}</p>
             </div>
           </div>
-        </div>
-      )}
 
-      {showMonthlyPdfModal && (
-        <div
-          className="reports-overlay no-print"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !pdfGenerating) setShowMonthlyPdfModal(false)
-          }}
-        >
-          <div
-            className="expense-form"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="generate-monthly-pdf-title"
-          >
-            <div className="expense-heading">
-              <div>
-                <h2 id="generate-monthly-pdf-title">Monthly Report (PDF)</h2>
-                <p>Generate the full HOA Monthly Report as a downloadable PDF.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => !pdfGenerating && setShowMonthlyPdfModal(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
+          {/* 1. Executive Summary */}
+          <section className="mreport-section">
+            <SectionHeading number={1} title="Executive Summary" />
+            <div className="mreport-kpi-grid">
+              <KpiCard label="Total Monthly Income" value={pesoOrNA(totalIncome)} tone={totalIncome > 0 ? 'good' : 'default'} />
+              <KpiCard label="Total Monthly Expenses" value={pesoOrNA(totalExpenses)} />
+              <KpiCard label="Net Income / (Loss)" value={pesoOrNA(netIncome)} tone={netIncome >= 0 ? 'good' : 'bad'} />
+              <KpiCard label="Current Cash Balance" value={NA} />
+              <KpiCard label="Reserve Fund Balance" value={NA} />
+              <KpiCard label="Assessment Collection Rate (to date)" value={pctOrNA(overallCollectionRate)} />
+              <KpiCard label="Outstanding Homeowner Balances" value={pesoOrNA(totalOutstanding)} tone={totalOutstanding > 0 ? 'warn' : 'good'} />
+              <KpiCard label="Open Maintenance Requests" value={NA} />
+              <KpiCard label="Open Violations" value={NA} />
             </div>
-
-            <div className="expense-grid">
-              <label className="span-2">
-                Report month
-                <input
-                  type="month"
-                  value={pdfMonth}
-                  onChange={(event) => setPdfMonth(event.target.value)}
-                  autoFocus
-                />
-              </label>
+            <h3 className="mreport-subheading">Narrative Summary</h3>
+            <p className="mreport-paragraph">
+              Overall financial condition: total income of {pesoOrNA(totalIncome)} was recorded against total expenses of{' '}
+              {pesoOrNA(totalExpenses)}, resulting in a net {netIncome >= 0 ? 'surplus' : 'deficit'} of {pesoOrNA(Math.abs(netIncome))} for
+              the period. Outstanding homeowner balances across the community total {pesoOrNA(totalOutstanding)} as of report date. Major
+              operational activities, maintenance work, incidents, capital projects, and board decisions for the period are Not Available
+              in the system and are marked accordingly throughout this report. Community events on record for the period: {monthEvents.length}.
+            </p>
+            <div className="mreport-legend">
+              <p>Legend: <span className="mreport-legend-good">Green</span> = favorable / completed &nbsp; <span className="mreport-legend-warn">Amber</span> = attention required &nbsp; <span className="mreport-legend-bad">Red</span> = issue / overdue</p>
+              <p>Sections without a corresponding data source in the system are marked &quot;N/A — Not Available&quot; rather than estimated.</p>
             </div>
+          </section>
 
-            <p className="reports-generate-preview">
-              This will generate the Monthly Report PDF for <strong>{pdfMonthName}</strong>. Sections without
-              data in the system will be marked N/A rather than estimated.
+          {/* 2. Financial Report */}
+          <section className="mreport-section">
+            <SectionHeading number={2} title="Financial Report" />
+
+            <h3 className="mreport-subheading">2.1 Income / Revenue</h3>
+            <DataTable head={['Revenue Category', 'Budget', 'Actual', 'Variance']} rows={incomeRows} boldLastRow />
+
+            <h3 className="mreport-subheading">2.2 Expenses</h3>
+            <DataTable head={['Expense Category', 'Budget', 'Actual', 'Variance']} rows={expenseRows} boldLastRow />
+
+            <h3 className="mreport-subheading">2.3 Budget vs. Actual</h3>
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              No budget module is configured in the system, so budget figures and variances are shown as N/A. Actual income and expense
+              totals above are drawn directly from posted transactions for the period.
             </p>
 
-            {pdfError && <p className="reports-error">{pdfError}</p>}
+            <h3 className="mreport-subheading">2.4 Balance Sheet / Financial Position</h3>
+            <DataTable head={['Assets', 'Amount']} rows={[
+              ['Operating Cash', NA],
+              ['Reserve Cash', NA],
+              ['Accounts Receivable', pesoOrNA(totalOutstanding)],
+              ['Other Assets', NA],
+            ]} />
+            <DataTable head={['Liabilities', 'Amount']} rows={[
+              ['Accounts Payable', NA],
+              ['Accrued Expenses', NA],
+              ['Other Liabilities', NA],
+            ]} />
+            <DataTable head={['Fund Balances', 'Amount']} rows={[
+              ['Operating Fund', NA],
+              ['Reserve Fund', NA],
+              ['Other Funds', NA],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              A full balance sheet requires opening bank balances and a general ledger close, which are not tracked in the current system.
+            </p>
 
-            <div className="expense-actions">
-              <button type="button" onClick={() => setShowMonthlyPdfModal(false)} disabled={pdfGenerating}>
-                Cancel
-              </button>
-              <button type="button" className="reports-primary" onClick={confirmGenerateMonthlyPdf} disabled={pdfGenerating}>
-                {pdfGenerating ? 'Generating…' : 'Generate PDF'}
-              </button>
-            </div>
-          </div>
-        </div>
+            <h3 className="mreport-subheading">2.5 Accounts Receivable / Collections</h3>
+            <DataTable head={['Metric', 'Value']} rows={[
+              ['Total assessments billed (all time)', pesoOrNA(allTimeCharged || null)],
+              ['Total assessments collected (all time)', pesoOrNA(allTimeCollected || null)],
+              ['Overall collection rate', pctOrNA(overallCollectionRate)],
+              ['Outstanding homeowner balances (aggregate)', pesoOrNA(totalOutstanding)],
+              ['Number of delinquent accounts', String(outstandingAccounts.length)],
+              ['Amount collected this period (dues)', pesoOrNA(duesIncome)],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              Aggregate figures only — individual homeowner names and balances are withheld from this general report.
+            </p>
+
+            <h3 className="mreport-subheading">2.6 Reserve Fund</h3>
+            <DataTable head={['Reserve Fund Activity', 'Amount']} rows={[
+              ['Beginning Balance', NA],
+              ['Monthly Contributions', NA],
+              ['Interest / Other Income', NA],
+              ['Withdrawals', NA],
+              ['Ending Balance', NA],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              Reserve fund balances are not yet tracked separately in the system; a dedicated reserve ledger is needed to populate this
+              section.
+            </p>
+          </section>
+
+          {/* 3. Maintenance */}
+          <section className="mreport-section">
+            <SectionHeading number={3} title="Maintenance &amp; Facilities Report" />
+            <DataTable head={['Metric', 'Value']} rows={[
+              ['Total maintenance requests received', NA],
+              ['Requests completed', NA],
+              ['Requests still open', NA],
+              ['Average resolution time', NA],
+              ['Emergency repairs', NA],
+              ['Routine maintenance', NA],
+            ]} />
+            <DataTable head={['Maintenance Item', 'Status', 'Cost', 'Date', 'Notes']} rows={[
+              ['Not Available', 'Not Available', NA, NA, 'No maintenance-request module is currently connected to this report.'],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              This section will populate once a maintenance-request tracking module is added to the system.
+            </p>
+          </section>
+
+          {/* 4. Administrative */}
+          <section className="mreport-section">
+            <SectionHeading number={4} title="Administrative &amp; Management Report" />
+            <DataTable head={['Metric', 'Value']} rows={[
+              ['Board meetings held', NA],
+              ['Homeowner requests received', NA],
+              ['Homeowner requests resolved', NA],
+              ['Notices issued', NA],
+              ['Contracts renewed', NA],
+              ['Vendor changes', NA],
+              ['Policies reviewed or updated', NA],
+              ['Documents added to library this period', String(monthDocuments.length)],
+              ['Community/board events on calendar this period', String(monthEvents.length)],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              Board-meeting and homeowner-request tracking are not yet captured as structured data in the system.
+            </p>
+          </section>
+
+          {/* 5. Violations */}
+          <section className="mreport-section">
+            <SectionHeading number={5} title="Violations &amp; Compliance" />
+            <DataTable head={['Category', 'New', 'Resolved', 'Outstanding']} rows={[
+              ['Property Maintenance', NA, NA, NA],
+              ['Parking', NA, NA, NA],
+              ['Noise', NA, NA, NA],
+              ['Architectural', NA, NA, NA],
+              ['Other', NA, NA, NA],
+            ]} />
+            <DataTable head={['Metric', 'Value']} rows={[
+              ['Fines assessed', NA],
+              ['Fines collected', NA],
+              ['Architectural applications approved', NA],
+              ['Architectural applications pending', NA],
+              ['Architectural applications rejected', NA],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              No violations/compliance module is currently connected to this report.
+            </p>
+          </section>
+
+          {/* 6. Security */}
+          <section className="mreport-section">
+            <SectionHeading number={6} title="Security &amp; Incident Report" />
+            <DataTable head={['Date', 'Incident Type', 'Location', 'Status', 'Action Taken']} rows={[
+              [NA, 'Not Available', NA, NA, 'No security/incident tracking module is currently connected to this report.'],
+            ]} />
+          </section>
+
+          {/* 7. Community Activities */}
+          <section className="mreport-section">
+            <SectionHeading number={7} title="Community Activities" />
+            <DataTable
+              head={['Date', 'Event', 'Location', 'Attendance']}
+              rows={monthEvents.length
+                ? monthEvents.map((e) => [shortDateLabel.format(new Date(`${e.event_date}T12:00:00+08:00`)), e.title, e.location || NA, NA])
+                : []}
+              emptyLabel="No community events on record for this period."
+            />
+            <h3 className="mreport-subheading">Upcoming Events</h3>
+            <DataTable
+              head={['Date', 'Event', 'Location']}
+              rows={upcomingEvents.length
+                ? upcomingEvents.map((e) => [shortDateLabel.format(new Date(`${e.event_date}T12:00:00+08:00`)), e.title, e.location || NA])
+                : []}
+              emptyLabel="No upcoming events on record."
+            />
+          </section>
+
+          {/* 8. Capital Projects */}
+          <section className="mreport-section">
+            <SectionHeading number={8} title="Capital Projects" />
+            <DataTable head={['Project', 'Budget', 'Spent', 'Progress', 'Status', 'Expected Completion']} rows={[
+              ['Not Available', NA, NA, NA, NA, NA],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              No capital-projects module is currently connected to this report. Add project tracking to populate budgets, spend, and
+              completion status here.
+            </p>
+          </section>
+
+          {/* 9. KPIs */}
+          <section className="mreport-section">
+            <SectionHeading number={9} title="Key Performance Indicators" />
+            <DataTable head={['KPI', 'Current Month', 'Previous Month', 'Change']} rows={[
+              ['Assessment Collection Rate (to date)', pctOrNA(overallCollectionRate), NA, NA],
+              ['Budget Utilization', NA, NA, NA],
+              ['Maintenance Completion Rate', NA, NA, NA],
+              ['Avg. Maintenance Resolution Time', NA, NA, NA],
+              ['Open Violations', NA, NA, NA],
+              ['Open Maintenance Requests', NA, NA, NA],
+              ['Reserve Fund Balance', NA, NA, NA],
+              ['Community Events Held', String(monthEvents.length), NA, NA],
+              ['Homeowner Requests', NA, NA, NA],
+            ]} />
+            <p className="mreport-paragraph mreport-paragraph-muted">
+              Month-over-month comparisons require the prior month's report data; only current-period figures available in the system
+              are shown.
+            </p>
+          </section>
+
+          {/* 10 & 11 */}
+          <section className="mreport-section">
+            <SectionHeading number={10} title="Board Action Items" />
+            <DataTable head={['Action Item', 'Priority', 'Responsible Party', 'Due Date', 'Status']} rows={[
+              ['Not Available', NA, NA, NA, NA],
+            ]} />
+          </section>
+
+          <section className="mreport-section">
+            <SectionHeading number={11} title="Upcoming Activities & Deadlines" />
+            <DataTable
+              head={['Date', 'Item', 'Type']}
+              rows={upcomingEvents.length
+                ? upcomingEvents.map((e) => [shortDateLabel.format(new Date(`${e.event_date}T12:00:00+08:00`)), e.title, 'Community Event'])
+                : []}
+              emptyLabel="No upcoming items on record."
+            />
+          </section>
+
+          {/* 12. Documents */}
+          <section className="mreport-section">
+            <SectionHeading number={12} title="Documents & Supporting Information" />
+            <DataTable
+              head={['Document', 'Category', 'Date Added']}
+              rows={monthDocuments.length
+                ? monthDocuments.map((d) => [d.title, d.category, shortDateLabel.format(new Date(d.created_at))])
+                : [
+                    ['Monthly Financial Statement', 'Not Attached', ''],
+                    ['Income & Expense Statement', 'Not Attached', ''],
+                    ['Balance Sheet', 'Not Attached', ''],
+                    ['Board Meeting Minutes', 'Not Attached', ''],
+                  ]}
+            />
+          </section>
+
+          {/* 13. Final Commentary */}
+          <section className="mreport-section">
+            <SectionHeading number={13} title="Final Management Commentary" />
+            <p className="mreport-paragraph">
+              Financial condition: the association recorded {pesoOrNA(totalIncome)} in income against {pesoOrNA(totalExpenses)} in
+              expenses this period, a net {netIncome >= 0 ? 'surplus' : 'deficit'} of {pesoOrNA(Math.abs(netIncome))}. Outstanding
+              homeowner balances stand at {pesoOrNA(totalOutstanding)}. Operational performance, maintenance condition, compliance
+              situation, and major risks cannot be assessed from currently tracked data and are marked N/A above. Community activity on
+              record for the period totals {monthEvents.length} event(s). Priorities for next month should include closing the data gaps
+              noted throughout this report (maintenance, violations, incidents, capital projects, and reserve-fund tracking) so future
+              reports can be generated with complete figures.
+            </p>
+            <p className="mreport-paragraph mreport-paragraph-footnote">
+              This report is prepared for informational purposes only, based solely on records available in the PhilamLife system as of
+              the date prepared. No figures have been estimated or fabricated; unavailable data is disclosed as such.
+            </p>
+          </section>
+        </main>
       )}
     </div>
   )

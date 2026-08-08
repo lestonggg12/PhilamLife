@@ -387,23 +387,209 @@
   .reports-cell-truncate { max-width: 160px; }
 }
 
+/* ---------- Month picker (header) ---------- */
+.mreport-month-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft, #64748B);
+}
+.mreport-month-picker input {
+  border: 1px solid var(--border, #E2E8F0);
+  border-radius: var(--radius-sm, 7px);
+  padding: 9px 12px;
+  font-family: var(--font-body, 'Inter', system-ui, sans-serif);
+  font-size: 0.88rem;
+  color: var(--ink, #0F172A);
+  background: var(--surface, #FFFFFF);
+}
+.mreport-month-picker input:focus {
+  outline: 2px solid var(--blue, #2563EB);
+  outline-offset: 1px;
+  border-color: var(--blue, #2563EB);
+}
+
+/* ---------- Full digital monthly report ---------- */
+.mreport {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mreport-letterhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  background: #112A52;
+  color: #FFFFFF;
+  border-radius: var(--radius-lg, 14px);
+  padding: 22px 26px;
+}
+.mreport-letterhead-org { margin: 0 0 4px; font-weight: 700; font-size: 1.05rem; }
+.mreport-letterhead-address, .mreport-letterhead-contact {
+  margin: 0 0 2px;
+  font-size: 0.82rem;
+  color: #C7D3E8;
+}
+.mreport-letterhead-meta { text-align: right; font-size: 0.8rem; color: #C7D3E8; }
+.mreport-letterhead-meta p { margin: 0 0 3px; }
+.mreport-letterhead-title { font-weight: 700; font-size: 0.95rem; color: #FFFFFF; margin-bottom: 6px !important; }
+
+.mreport-section {
+  background: var(--surface, #FFFFFF);
+  border: 1px solid var(--border, #E2E8F0);
+  border-radius: var(--radius-lg, 14px);
+  padding: 22px 24px 26px;
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04), 0 1px 8px rgba(15,23,42,0.04));
+}
+
+.mreport-section-heading h2 {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #112A52;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #112A52;
+}
+
+.mreport-subheading {
+  margin: 20px 0 10px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #112A52;
+}
+.mreport-section > .mreport-subheading:first-of-type { margin-top: 16px; }
+
+.mreport-paragraph {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--ink, #0F172A);
+}
+.mreport-paragraph-muted { color: var(--ink-soft, #64748B); font-size: 0.82rem; }
+.mreport-paragraph-footnote {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #E2E8F0);
+  font-style: italic;
+  color: var(--ink-faint, #94A3B8);
+  font-size: 0.78rem;
+}
+
+/* KPI grid */
+.mreport-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.mreport-kpi {
+  position: relative;
+  border: 1px solid var(--border, #E2E8F0);
+  border-radius: var(--radius-md, 10px);
+  padding: 14px 16px 12px;
+  overflow: hidden;
+}
+.mreport-kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--blue, #2563EB);
+}
+.mreport-kpi-good::before { background: var(--green, #16A34A); }
+.mreport-kpi-bad::before { background: var(--red, #DC2626); }
+.mreport-kpi-warn::before { background: #D97706; }
+.mreport-kpi-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft, #64748B);
+}
+.mreport-kpi-value {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink, #0F172A);
+}
+.mreport-kpi-good .mreport-kpi-value { color: var(--green, #16A34A); }
+.mreport-kpi-bad .mreport-kpi-value { color: var(--red, #DC2626); }
+.mreport-kpi-warn .mreport-kpi-value { color: #D97706; }
+
+.mreport-legend {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 7px);
+  background: #F1F5F9;
+  color: var(--ink-soft, #64748B);
+  font-size: 0.78rem;
+}
+.mreport-legend p { margin: 0 0 4px; }
+.mreport-legend p:last-child { margin-bottom: 0; }
+.mreport-legend-good { color: var(--green, #16A34A); font-weight: 700; }
+.mreport-legend-warn { color: #D97706; font-weight: 700; }
+.mreport-legend-bad { color: var(--red, #DC2626); font-weight: 700; }
+
+/* Report tables (reuses the same look as the ledger tables) */
+.mreport-table-wrap {
+  margin-top: 8px;
+  overflow-x: auto;
+  border: 1.5px solid #BFDBFE;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface, #FFFFFF);
+}
+.mreport-table-wrap table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+}
+.mreport-table-wrap th {
+  text-align: left;
+  white-space: nowrap;
+  color: var(--ink-soft, #64748B);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border, #E2E8F0);
+  padding: 10px 14px;
+  background: #F8FAFC;
+}
+.mreport-table-wrap td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border, #E2E8F0);
+  font-size: 0.84rem;
+  color: var(--ink, #0F172A);
+}
+.mreport-table-wrap th.number, .mreport-table-wrap td.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mreport-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.mreport-table-wrap tbody tr:hover td { background: #F8FAFC; }
+.mreport-row-bold td { font-weight: 700; background: #F1F5F9; }
+.mreport-empty { padding: 26px !important; text-align: center; color: var(--ink-faint, #94A3B8); font-size: 0.82rem; }
+
 /* ---------- Print ---------- */
 @media print {
   body * { visibility: hidden; }
-  .report-sheet, .report-sheet * { visibility: visible; }
-  .report-sheet {
+  .mreport, .mreport * { visibility: visible; }
+  .mreport {
     position: absolute; inset: 0;
-    border: 0; box-shadow: none; border-radius: 0;
-    padding: 18mm 14mm;
+    padding: 12mm;
+    gap: 14px;
   }
   .no-print { display: none !important; }
-  .reports-table-wrap { overflow: visible; }
-  .reports-table-wrap table { min-width: 0; }
-  .reports-table-wrap tr { break-inside: avoid; }
-  .reports-cell-truncate {
-    max-width: none;
-    white-space: normal;
-    overflow: visible;
-  }
-  @page { size: A4 landscape; margin: 0; }
+  .mreport-section { break-inside: avoid; box-shadow: none; }
+  .mreport-table-wrap { overflow: visible; border-color: var(--border, #E2E8F0); }
+  .mreport-table-wrap table { min-width: 0; }
+  .mreport-table-wrap tr { break-inside: avoid; }
+  @page { size: A4 portrait; margin: 10mm; }
 }
