@@ -12,17 +12,13 @@ import {
   Users,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
+import { formatDate as formatDateValue } from '../config/organization'
 import './HomeownersPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
-})
-
-const dateTime = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Manila',
 })
 
 const manilaYearMonth = new Intl.DateTimeFormat('en-CA', {
@@ -79,10 +75,10 @@ function initials(name) {
     .toUpperCase()
 }
 
-function formatDate(value) {
+function formatDate(value, dateFormat) {
   if (!value) return '—'
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : dateTime.format(parsed)
+  return Number.isNaN(parsed.getTime()) ? '—' : formatDateValue(parsed, { dateFormat, withTime: true })
 }
 
 function getManilaYearMonth(value) {
@@ -163,6 +159,7 @@ function homeownerStatus(propertyPayments) {
 }
 
 export default function HomeownersPage() {
+  const { organization } = useOrganization()
   const navigate = useNavigate()
   const { homeownerId } = useParams()
   const [properties, setProperties] = useState([])
@@ -423,7 +420,7 @@ export default function HomeownersPage() {
     return {
       totalPaid: regularTotal + serviceTotal,
       outstanding,
-      lastPayment: latestRecord ? formatDate(latestRecord.paidAt) : 'No payments yet',
+      lastPayment: latestRecord ? formatDate(latestRecord.paidAt, organization.dateFormat) : 'No payments yet',
       receipts: history.length,
     }
   }, [activePayments, history, selectedServices])
@@ -869,7 +866,7 @@ export default function HomeownersPage() {
                     <div><dt>Homeowner</dt><dd>{selectedProperty.homeowner_name}</dd></div>
                     <div><dt>Block</dt><dd>{selectedProperty.block}</dd></div>
                     <div><dt>Lot</dt><dd>Lot {selectedProperty.lot_number}</dd></div>
-                    <div><dt>Registered</dt><dd>{formatDate(selectedProperty.created_at)}</dd></div>
+                    <div><dt>Registered</dt><dd>{formatDate(selectedProperty.created_at, organization.dateFormat)}</dd></div>
                   </dl>
                 </article>
                 <article className="homeowner-info-card">
@@ -880,7 +877,7 @@ export default function HomeownersPage() {
                   <dl>
                     <div><dt>Phone</dt><dd>{selectedProperty.contact_phone || 'Not provided'}</dd></div>
                     <div><dt>Email</dt><dd>{selectedProperty.contact_email || 'Not provided'}</dd></div>
-                    <div><dt>Last updated</dt><dd>{formatDate(selectedProperty.contact_updated_at)}</dd></div>
+                    <div><dt>Last updated</dt><dd>{formatDate(selectedProperty.contact_updated_at, organization.dateFormat)}</dd></div>
                   </dl>
                 </article>
               </section>
@@ -914,7 +911,7 @@ export default function HomeownersPage() {
                     ) : (
                       (activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).map((item) => (
                         <tr key={item.id}>
-                          <td>{formatDate(item.paidAt)}</td>
+                          <td>{formatDate(item.paidAt, organization.dateFormat)}</td>
                           <td><strong>{item.receipt}</strong></td>
                           <td><span className={`homeowner-category category-${item.kind}`}>{item.category}</span></td>
                           <td>{item.description}</td>

@@ -13,16 +13,13 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchLedgerAccounts } from '../lib/hoaLedger'
+import { useOrganization } from '../context/OrganizationContext'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
 })
 
-const dateFormatter = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeZone: 'Asia/Manila',
-})
 
 function manilaMonthKey(value = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -52,6 +49,7 @@ async function optionalRows(table, orderColumn) {
 }
 
 export default function TreasurerDashboard() {
+  const { organization } = useOrganization()
   const [finance, setFinance] = useState({
     payments: [],
     expenses: [],
@@ -287,7 +285,7 @@ export default function TreasurerDashboard() {
               {recentActivity.map((row) => (
                 <div className="treasurer-activity-row" key={row.id}>
                   <span className={`activity-direction ${row.direction}`}>{row.direction === 'in' ? '↓' : '↑'}</span>
-                  <div><strong>{row.title}</strong><small>{row.detail} · {dateFormatter.format(new Date(row.date))}</small></div>
+                  <div><strong>{row.title}</strong><small>{row.detail} · {organization.formatDate(row.date)}</small></div>
                   <b className={row.direction === 'out' ? 'expense' : ''}>{row.direction === 'out' ? '−' : '+'}{peso.format(row.amount)}</b>
                 </div>
               ))}

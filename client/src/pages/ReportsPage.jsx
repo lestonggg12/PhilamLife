@@ -3,13 +3,15 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchLedgerAccounts } from '../lib/hoaLedger'
 import { computeMonthlyReportData } from '../lib/monthlyReportData'
 import { buildMonthlyReportPdf } from '../lib/monthlyReportPdf'
+import { useOrganization } from '../context/OrganizationContext'
+import { formatDate as formatDateValue } from '../config/organization'
 import './ReportsPage.css'
 
 const pesoNumber = new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const money = (value) => `PHP ${pesoNumber.format(Number(value || 0))}`
 
 const monthLabelFormat = new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric', timeZone: 'Asia/Manila' })
-const dateLabel = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })
+
 
 const todayInManila = () => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
@@ -18,7 +20,7 @@ const todayInManila = () => {
 }
 const currentMonthInManila = () => todayInManila().slice(0, 7)
 const monthName = (month) => monthLabelFormat.format(new Date(`${month}-15T12:00:00+08:00`))
-const shortDate = (iso) => dateLabel.format(new Date(iso))
+const shortDate = (iso, dateFormat) => formatDateValue(iso, { dateFormat })
 
 function ReportsIcon() {
   return (
@@ -66,6 +68,7 @@ function Section({ num, title, children }) {
 }
 
 export default function ReportsPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [month, setMonth] = useState(currentMonthInManila())
   const [payments, setPayments] = useState([])
@@ -148,7 +151,7 @@ export default function ReportsPage({ user: suppliedUser }) {
         hoaName: orgSettings?.hoa_name || 'Homeowners Association',
         hoaAddress: orgSettings?.address || '',
         preparedBy: currentUser?.full_name || 'HOA Management',
-        datePrepared: dateLabel.format(new Date()),
+        datePrepared: organization.formatDate(new Date()),
         payments,
         serviceTransactions,
         expenses,
@@ -201,7 +204,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             <p className="monthly-cover-period">{monthName(month)}</p>
             <p className="monthly-cover-org">{orgSettings?.hoa_name || 'Homeowners Association'}</p>
             {orgSettings?.address && <p className="monthly-cover-address">{orgSettings.address}</p>}
-            <p className="monthly-cover-meta">Prepared by: {currentUser?.full_name || 'HOA Management'} · Date prepared: {dateLabel.format(new Date())}</p>
+            <p className="monthly-cover-meta">Prepared by: {currentUser?.full_name || 'HOA Management'} · Date prepared: {organization.formatDate(new Date())}</p>
           </div>
 
           <Section num="1" title="Executive Summary">
@@ -257,7 +260,7 @@ export default function ReportsPage({ user: suppliedUser }) {
                 <SimpleTable
                   head={['Date', 'Category', 'Description', 'Reference No.', 'Recorded By', 'Amount']}
                   rows={report.expenses.entries.map((e) => [
-                    shortDate(`${e.expense_date}T12:00:00+08:00`),
+                    shortDate(`${e.expense_date}T12:00:00+08:00`, organization.dateFormat),
                     e.category,
                     e.description || '—',
                     e.reference_number || '—',
@@ -284,7 +287,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             {report.events.thisMonth.length > 0 ? (
               <SimpleTable
                 head={['Date', 'Event', 'Location']}
-                rows={report.events.thisMonth.map((e) => [shortDate(`${e.event_date}T12:00:00+08:00`), e.title, e.location || '—'])}
+                rows={report.events.thisMonth.map((e) => [shortDate(`${e.event_date}T12:00:00+08:00`, organization.dateFormat), e.title, e.location || '—'])}
               />
             ) : (
               <p className="monthly-paragraph monthly-note">No community events were held during this period.</p>
@@ -295,7 +298,7 @@ export default function ReportsPage({ user: suppliedUser }) {
                 <h3 className="monthly-subheading">Upcoming Events</h3>
                 <SimpleTable
                   head={['Date', 'Event', 'Location']}
-                  rows={report.events.upcoming.map((e) => [shortDate(`${e.event_date}T12:00:00+08:00`), e.title, e.location || '—'])}
+                  rows={report.events.upcoming.map((e) => [shortDate(`${e.event_date}T12:00:00+08:00`, organization.dateFormat), e.title, e.location || '—'])}
                 />
               </>
             )}
@@ -305,7 +308,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             {report.documents.thisMonth.length > 0 ? (
               <SimpleTable
                 head={['Document', 'Category', 'Date Added']}
-                rows={report.documents.thisMonth.map((d) => [d.title, d.category, shortDate(d.created_at)])}
+                rows={report.documents.thisMonth.map((d) => [d.title, d.category, shortDate(d.created_at, organization.dateFormat)])}
               />
             ) : (
               <p className="monthly-paragraph monthly-note">No documents were added to the library during this period.</p>

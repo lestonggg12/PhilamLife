@@ -10,6 +10,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 
 const BUCKET = 'hoa-documents'
@@ -46,11 +47,6 @@ const ACCEPTED_MIME_TYPES = new Set([
   'image/png',
 ])
 
-const dateTime = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Manila',
-})
 
 const EMPTY_FORM = {
   title: '',
@@ -86,6 +82,7 @@ function titleFromFileName(fileName) {
 }
 
 export default function DocumentLibraryPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [documents, setDocuments] = useState([])
   const [search, setSearch] = useState('')
@@ -104,10 +101,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [deletingId, setDeletingId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  // Admin, Secretary, and Treasurer can all view and download documents.
-  // Only the Secretary can add new ones — that's enforced here in the UI
-  // and again at the database level via RLS on public.documents /
-  // storage.objects, so this stays true even if the UI is bypassed.
   const canUploadDocuments = role === 'secretary'
   const canDeleteDocuments = ['admin', 'secretary'].includes(role)
   const actorName =
@@ -172,7 +165,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   }
 
   function openUploadForm() {
-    if (!canUploadDocuments) return
     setForm(EMPTY_FORM)
     setSelectedFile(null)
     setFormError('')
@@ -466,11 +458,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
             {canUploadDocuments ? 'Secretary workspace' : 'Document access'}
           </p>
           <h1>Document Library</h1>
-          <p>
-            {canUploadDocuments
-              ? 'Store and download official HOA documents securely.'
-              : 'View and download official HOA documents securely.'}
-          </p>
+          <p>Store and download official HOA documents securely.</p>
         </div>
 
         <div className="doc-header-actions">
@@ -505,8 +493,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      {/* Storage alerts are only actionable by whoever can upload — no
-          point warning Admin/Treasurer about a limit they can't affect. */}
       {!loading && storageIsFull && canUploadDocuments && (
         <p className="doc-storage-alert doc-storage-alert-full">
           <AlertCircle size={16} />
@@ -544,8 +530,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           ))}
         </select>
 
-        {/* Upload is Secretary-only — hidden entirely (not just disabled)
-            for Admin/Treasurer, who are view & download only. */}
         {canUploadDocuments && (
           <button
             type="button"
@@ -590,7 +574,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                 <p className="doc-meta">
                   <span className="doc-category">{document.category}</span>
                   <span>{formatFileSize(document.file_size)}</span>
-                  <span>{dateTime.format(new Date(document.created_at))}</span>
+                  <span>{organization.formatDate(document.created_at, { withTime: true })}</span>
                   <span>Uploaded by {document.uploaded_by_name}</span>
                 </p>
               </div>
@@ -639,7 +623,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         onCancel={() => setPendingDelete(null)}
       />
 
-      {showUpload && canUploadDocuments && (
+      {showUpload && (
         <div
           className="doc-modal-backdrop"
           role="presentation"

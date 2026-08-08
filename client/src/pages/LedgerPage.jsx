@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient'
 import { computeLateFee } from '../lib/latepenalty'
 import { fetchLedgerAccounts, fetchStatementLines } from '../lib/hoaLedger'
 import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
+import { useOrganization } from '../context/OrganizationContext'
 
 const EMPTY_HOMEOWNER = {
   homeownerName: '',
@@ -31,11 +32,6 @@ const MAX_VISIBLE_ROWS = 100
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
-})
-
-const date = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeZone: 'Asia/Manila',
 })
 
 const timeOfDay = new Intl.DateTimeFormat('en-PH', {
@@ -66,6 +62,7 @@ function compareEntries(a, b, key, direction) {
 }
 
 export default function LedgerPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('all')
@@ -213,7 +210,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       const rows = statementLines.map((line) => {
         const lineDate = statementValue(line, ['transaction_date', 'line_date', 'entry_date', 'posted_at', 'created_at'], null)
         return {
-          date: lineDate ? date.format(new Date(lineDate)) : '—',
+          date: lineDate ? organization.formatDate(lineDate) : '—',
           entry: statementValue(line, ['description', 'entry_type', 'transaction_type', 'type']),
           reference: statementValue(line, ['reference_number', 'reference', 'receipt_number']),
           debit: Number(statementValue(line, ['debit', 'charge_amount'], 0)) || 0,
@@ -233,11 +230,11 @@ export default function LedgerPage({ user: suppliedUser }) {
         availableCredit: statementAccount.unallocatedCredit || 0,
         statementLines: rows,
         preparedBy: actorName,
-        datePrepared: date.format(now),
+        datePrepared: organization.formatDate(now),
         timePrepared: timeOfDay.format(now),
       })
 
-      doc.save(`Statement-${statementAccount.name.replace(/\s+/g, '-')}-${date.format(now).replace(/[,\s]/g, '-')}.pdf`)
+      doc.save(`Statement-${statementAccount.name.replace(/\s+/g, '-')}-${organization.formatDate(now).replace(/[,\s\/]/g, '-')}.pdf`)
     } finally {
       setStatementPdfGenerating(false)
     }
@@ -539,7 +536,7 @@ export default function LedgerPage({ user: suppliedUser }) {
           penaltyAmount: 0,
           totalDue: account.balance,
           unallocatedCredit: account.unallocatedCredit,
-          lastPayment: account.lastPaymentAt ? date.format(new Date(account.lastPaymentAt)) : '—',
+          lastPayment: account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt) : '—',
           lastPaymentSort: account.lastPaymentAt ? new Date(account.lastPaymentAt).getTime() : 0,
           status: account.balance <= 0 ? 'Paid' : overdue > 0 ? 'Overdue' : account.totalPaid > 0 ? 'Partial' : 'Pending',
         }
@@ -597,7 +594,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         penaltyAmount: lateFee.penaltyAmount,
         totalDue: lateFee.totalDue,
         lastPayment: latestPayment?.paid_at
-          ? date.format(new Date(latestPayment.paid_at))
+          ? organization.formatDate(latestPayment.paid_at)
           : '—',
         lastPaymentSort: latestPayment?.paid_at ? new Date(latestPayment.paid_at).getTime() : 0,
         status,
@@ -852,7 +849,7 @@ export default function LedgerPage({ user: suppliedUser }) {
                   {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No statement entries found.</td></tr> : statementLines.map((line, index) => {
                     const lineDate = statementValue(line, ['transaction_date', 'line_date', 'entry_date', 'posted_at', 'created_at'], null)
                     return <tr key={line.id || `${lineDate}-${index}`}>
-                      <td>{lineDate ? date.format(new Date(lineDate)) : '—'}</td>
+                      <td>{lineDate ? organization.formatDate(lineDate) : '—'}</td>
                       <td>{statementValue(line, ['description', 'entry_type', 'transaction_type', 'type'])}</td>
                       <td>{statementValue(line, ['reference_number', 'reference', 'receipt_number'])}</td>
                       <td>{peso.format(Number(statementValue(line, ['debit', 'charge_amount'], 0)) || 0)}</td>

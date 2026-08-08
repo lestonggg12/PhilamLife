@@ -10,18 +10,14 @@ import {
   TrendingUp,
   Users,
 } from '../components/Icons'
+import { useOrganization } from '../context/OrganizationContext'
+import { formatDate as formatDateValue } from '../config/organization'
 import './SecretaryDashboard.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
   maximumFractionDigits: 2,
-})
-
-const dateTime = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Manila',
 })
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
@@ -56,13 +52,14 @@ function sameManilaYear(value, comparison = new Date()) {
   return manilaDateParts(date).year === manilaDateParts(comparison).year
 }
 
-function formatActivityTime(value) {
+function formatActivityTime(value, dateFormat) {
   if (!value) return 'Time unavailable'
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? 'Time unavailable' : dateTime.format(parsed)
+  return Number.isNaN(parsed.getTime()) ? 'Time unavailable' : formatDateValue(parsed, { dateFormat, withTime: true })
 }
 
 export default function SecretaryDashboard() {
+  const { organization } = useOrganization()
   const navigate = useNavigate()
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
@@ -297,7 +294,7 @@ export default function SecretaryDashboard() {
                       </td>
                       <td>
                         {payment.paid_at
-                          ? formatActivityTime(payment.paid_at)
+                          ? formatActivityTime(payment.paid_at, organization.dateFormat)
                           : '—'}
                       </td>
                       <td>
@@ -421,6 +418,7 @@ export default function SecretaryDashboard() {
                 <time>
                   {formatActivityTime(
                     activity.created_at || activity.timestamp || activity.occurred_at,
+                    organization.dateFormat,
                   )}
                 </time>
               </div>

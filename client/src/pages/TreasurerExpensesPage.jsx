@@ -2,16 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import ActionDialog from '../components/ActionDialog'
+import { useOrganization } from '../context/OrganizationContext'
 import './TreasurerExpenses.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
-})
-
-const dateFormatter = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeZone: 'Asia/Manila',
 })
 
 const CATEGORIES = [
@@ -42,6 +38,7 @@ function emptyForm() {
 }
 
 export default function TreasurerExpensesPage({ user: suppliedUser }) {
+  const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -305,7 +302,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                   const isVoided = expense.status === 'Voided'
                   return (
                     <tr key={expense.id} className={isVoided ? 'tex-row-voided' : ''}>
-                      <td>{expense.expense_date ? dateFormatter.format(new Date(expense.expense_date)) : '—'}</td>
+                      <td>{expense.expense_date ? organization.formatDate(expense.expense_date) : '—'}</td>
                       <td><span className="tex-category-pill">{expense.category}</span></td>
                       <td>{expense.description}</td>
                       <td>{expense.reference_number || '—'}</td>
