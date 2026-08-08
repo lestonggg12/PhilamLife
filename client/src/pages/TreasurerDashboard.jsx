@@ -59,7 +59,6 @@ export default function TreasurerDashboard() {
     accounts: [],
     adjustments: [],
     deposits: [],
-    reconciliations: [],
     periods: [],
   })
   const [loading, setLoading] = useState(true)
@@ -81,9 +80,8 @@ export default function TreasurerDashboard() {
         .then((data) => ({ table: 'homeowner_ledger_summary', data, error: null }))
         .catch((error) => ({ table: 'homeowner_ledger_summary', data: [], error })),
       optionalRows('account_adjustments', 'created_at'),
-      optionalRows('bank_deposits', 'created_at'),
-      optionalRows('bank_reconciliations', 'created_at'),
-      optionalRows('accounting_periods', 'period_start'),
+      optionalRows('bank_deposits', 'recorded_at'),
+      optionalRows('accounting_periods', 'starts_on'),
     ])
 
     const byTable = Object.fromEntries(results.map((result) => [result.table, result.data]))
@@ -104,7 +102,6 @@ export default function TreasurerDashboard() {
       accounts: byTable.homeowner_ledger_summary || [],
       adjustments: byTable.account_adjustments || [],
       deposits: byTable.bank_deposits || [],
-      reconciliations: byTable.bank_reconciliations || [],
       periods: byTable.accounting_periods || [],
     })
     setLoading(false)
