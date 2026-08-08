@@ -1,4 +1,4 @@
-/* ReportsPage.css — matches the app's core design system (see LedgerPage) */
+/* ReportsPage.css — on-screen Monthly Report (mirrors the PDF export) */
 
 .reports-page {
   --ink: #0F172A;
@@ -7,6 +7,8 @@
   --bg: #EAF1FB;
   --surface: #FFFFFF;
   --border: #E2E8F0;
+  --navy: #112A52;
+  --navy-soft: #E6ECF5;
   --blue: #2563EB;
   --blue-hover: #1D4ED8;
   --blue-soft: #DBEAFE;
@@ -14,8 +16,9 @@
   --green-soft: #DCFCE7;
   --red: #DC2626;
   --red-soft: #FEE2E2;
+  --amber: #D97706;
+  --amber-soft: #FEF3C7;
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'SFMono-Regular', Menlo, Consolas, monospace;
   --radius-lg: 14px;
   --radius-md: 10px;
   --radius-sm: 7px;
@@ -33,6 +36,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -40,556 +44,183 @@
   box-shadow: var(--shadow-card);
 }
 
-.reports-header-main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
+.reports-header-main { display: flex; align-items: center; gap: 14px; }
 .reports-header-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-md);
-  background: var(--blue-soft);
-  color: var(--blue-hover);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 42px; height: 42px; border-radius: var(--radius-md);
+  background: var(--blue-soft); color: var(--blue-hover);
 }
-
 .reports-header-eyebrow {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--blue-hover);
+  display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue-hover);
 }
-
-.reports-header-text h1 {
-  margin: 0 0 4px;
-  font-weight: 700;
-  font-size: 1.4rem;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-}
+.reports-header-text h1 { margin: 0 0 4px; font-weight: 700; font-size: 1.4rem; letter-spacing: -0.01em; color: var(--ink); }
 .reports-header-text p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
 
-.reports-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+.reports-header-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+
+.monthly-month-picker {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.78rem; font-weight: 600; color: var(--ink-soft);
 }
+.monthly-month-picker input {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 10px; font-family: var(--font-body); font-size: 0.85rem; color: var(--ink);
+}
+.monthly-month-picker input:focus { outline: 2px solid var(--blue); outline-offset: 1px; border-color: var(--blue); }
 
 .reports-primary {
-  border: 0;
-  border-radius: var(--radius-md);
-  padding: 11px 20px;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.88rem;
-  cursor: pointer;
-  background: var(--blue);
-  color: #FFFFFF;
-  box-shadow: var(--shadow-card);
-  transition: background 0.15s ease, transform 0.1s ease;
-  flex-shrink: 0;
+  border: 0; border-radius: var(--radius-md); padding: 11px 20px;
+  font-family: var(--font-body); font-weight: 600; font-size: 0.88rem; cursor: pointer;
+  background: var(--blue); color: #FFFFFF; box-shadow: var(--shadow-card);
+  transition: background 0.15s ease, transform 0.1s ease; flex-shrink: 0;
 }
 .reports-primary:hover:not(:disabled) { background: var(--blue-hover); }
 .reports-primary:active:not(:disabled) { transform: translateY(1px); }
 .reports-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.reports-secondary {
+.reports-error { color: var(--red); font-weight: 600; padding: 12px 20px; margin: 16px 0 0; background: var(--red-soft); border-radius: var(--radius-md); }
+.reports-empty { padding: 44px !important; text-align: center; color: var(--ink-faint); }
+
+/* ---------- Report document ---------- */
+.monthly-report-doc {
+  margin-top: 22px;
+  background: var(--surface);
   border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 40px 44px 48px;
+}
+
+.monthly-cover {
+  text-align: center;
+  padding: 32px 20px 36px;
+  margin-bottom: 32px;
   border-radius: var(--radius-md);
+  background: var(--navy);
+  color: #FFFFFF;
+}
+.monthly-cover-logo {
+  width: 56px; height: 56px; margin: 0 auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  background: #FFFFFF; color: var(--navy); font-weight: 700; font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+}
+.monthly-cover h1 { margin: 0 0 6px; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.01em; }
+.monthly-cover-period { margin: 0 0 16px; font-size: 1.05rem; opacity: 0.95; }
+.monthly-cover-org { margin: 0; font-size: 0.95rem; font-weight: 600; }
+.monthly-cover-address { margin: 2px 0 0; font-size: 0.82rem; opacity: 0.85; }
+.monthly-cover-meta { margin: 16px 0 0; font-size: 0.8rem; opacity: 0.8; }
+
+/* ---------- Sections ---------- */
+.monthly-section { margin-bottom: 34px; }
+.monthly-section-title {
+  display: flex; align-items: baseline; gap: 6px;
+  margin: 0 0 16px; padding-bottom: 8px;
+  border-bottom: 2px solid var(--navy);
+  font-size: 1.15rem; font-weight: 700; color: var(--navy);
+}
+.monthly-section-title span { color: var(--navy); }
+
+.monthly-subheading { margin: 22px 0 10px; font-size: 0.95rem; font-weight: 700; color: var(--navy); }
+.monthly-subheading-sm { margin: 14px 0 8px; font-size: 0.82rem; }
+.monthly-section > .monthly-subheading:first-child { margin-top: 0; }
+
+.monthly-paragraph { margin: 0 0 4px; font-size: 0.88rem; line-height: 1.55; color: #1E293B; }
+.monthly-note { color: var(--ink-soft); font-size: 0.8rem; margin-top: 8px; }
+
+.monthly-total-line {
+  margin: 4px 0 22px;
   padding: 10px 16px;
-  font-weight: 600;
-  font-size: 0.88rem;
-  cursor: pointer;
-  background: var(--surface);
-  color: var(--ink);
-}
-.reports-secondary:hover { background: #F8FAFC; }
-
-/* ---------- Tabs ---------- */
-.reports-tabs {
-  display: flex;
-  gap: 4px;
-  margin: 22px 0 0;
-  padding: 5px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  border-bottom: 0;
-  overflow-x: auto;
-}
-.reports-tabs button {
-  white-space: nowrap;
-  border: 0;
+  background: var(--navy-soft);
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-soft);
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.85rem;
-  padding: 10px 18px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 0.9rem;
+  color: var(--navy);
 }
-.reports-tabs button:hover { background: #F1F5F9; color: var(--ink); }
-.reports-tabs button.active {
-  background: var(--blue-soft);
-  color: var(--blue-hover);
-}
+.monthly-total-line strong { font-size: 1rem; }
 
-/* ---------- Controls ---------- */
-.reports-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  min-height: 42px;
-  padding: 14px 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+/* ---------- KPI cards ---------- */
+.monthly-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
 }
-.reports-controls label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-.reports-controls span { font-size: 0.85rem; color: var(--ink-soft); }
-.reports-controls input, .expense-form input {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 9px 12px;
-  background: var(--surface);
-  font-family: var(--font-body);
-  font-size: 0.88rem;
-  color: var(--ink);
-}
-.reports-controls input:focus, .expense-form input:focus {
-  outline: 2px solid var(--blue);
-  outline-offset: 1px;
-  border-color: var(--blue);
-}
-
-.reports-error {
-  color: var(--red);
-  font-weight: 600;
-  padding: 12px 20px;
-  margin: 16px 0 0;
-  background: var(--red-soft);
-  border-radius: var(--radius-md);
-}
-
-/* ---------- Report sheet ---------- */
-.report-sheet {
+.monthly-kpi-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.monthly-kpi-card {
   position: relative;
-  background: transparent;
-  padding: 20px 0 0;
-}
-
-.report-print-heading { margin-bottom: 18px; }
-.report-print-heading h2 {
-  margin: 0 0 3px;
-  font-weight: 700;
-  font-size: 1.2rem;
-  color: var(--ink);
-}
-.report-print-heading p {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-}
-
-/* ---------- Summary stat cards ---------- */
-.report-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 22px;
-}
-.report-summary span {
-  flex: 1 1 200px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 16px 18px;
-  color: var(--ink-soft);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  padding: 14px 16px 12px;
+  overflow: hidden;
 }
-.report-summary span:nth-child(1) { border-top: 3px solid var(--blue); }
-.report-summary span:nth-child(2) { border-top: 3px solid var(--green); }
-.report-summary span:nth-child(3) { border-top: 3px solid var(--red); }
-.report-summary strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--ink);
-  font-weight: 700;
-  font-size: 1.4rem;
-  letter-spacing: -0.01em;
+.monthly-kpi-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--navy);
 }
+.monthly-kpi-card.tone-good::before { background: var(--green); }
+.monthly-kpi-card.tone-bad::before { background: var(--red); }
+.monthly-kpi-card.tone-warn::before { background: var(--amber); }
+.monthly-kpi-label {
+  display: block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink-soft); margin-bottom: 8px;
+}
+.monthly-kpi-value { display: block; font-size: 1.25rem; font-weight: 700; color: var(--navy); }
+.monthly-kpi-card.tone-good .monthly-kpi-value { color: var(--green); }
+.monthly-kpi-card.tone-bad .monthly-kpi-value { color: var(--red); }
+.monthly-kpi-card.tone-warn .monthly-kpi-value { color: var(--amber); }
 
-/* ---------- Table ---------- */
-/* FIX: was `overflow: hidden`, which silently clipped columns that didn't
-   fit (the AMOUNT column was getting cut off to "AI..."). Now the wrapper
-   scrolls horizontally instead of losing data, and the table gets a floor
-   width so table-layout:auto can't crush any column down to nothing. */
+/* ---------- Tables ---------- */
 .reports-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1.5px solid #BFDBFE;
   border-radius: var(--radius-lg);
   background: var(--surface);
+  margin-bottom: 16px;
 }
-.reports-table-wrap table {
-  width: 100%;
-  min-width: 980px; /* floor width so columns get real breathing room */
-  border-collapse: collapse;
-  table-layout: auto;
-}
-
-/* FIX: removed the blanket `overflow-wrap: break-word; word-break: break-word;`
-   that used to apply to every th/td. That's what forced short, fixed-vocabulary
-   values like "Amenity / Service" to fracture letter-by-letter ("Ame nity /
-   Servi ce") once the column got squeezed. Only genuinely long free-text
-   cells (.reports-cell-truncate) need word-breaking now, and those are
-   already handled by ellipsis truncation below. */
-.reports-table-wrap th,
-.reports-table-wrap td {
-  white-space: nowrap;
-}
-
+.reports-table-wrap table { width: 100%; min-width: 560px; border-collapse: collapse; table-layout: auto; }
+.reports-table-wrap th, .reports-table-wrap td { white-space: nowrap; }
 .reports-table-wrap th {
-  text-align: left;
-  color: var(--ink-soft);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-  padding: 14px 16px 12px;
-  background: transparent;
+  text-align: left; color: var(--ink-soft); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 1px solid var(--border);
+  padding: 12px 16px 11px; background: var(--navy-soft);
 }
-.reports-table-wrap td {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.87rem;
-  color: var(--ink);
-}
+.reports-table-wrap td { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--ink); }
 .reports-table-wrap tbody tr:last-child td { border-bottom: 0; }
-.reports-table-wrap tbody tr:hover td { background: #F8FAFC; }
-.reports-table-wrap .number {
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.reports-empty { padding: 44px !important; text-align: center; color: var(--ink-faint); }
-.reports-due {
-  color: var(--red);
-  font-weight: 700;
-}
+.reports-table-wrap tbody tr:nth-child(even) td { background: #F8FAFC; }
+.reports-table-wrap tbody tr:hover td { background: #EEF2FF; }
+.monthly-row-bold td { font-weight: 700; background: var(--navy-soft) !important; }
 
-/* ---------- TYPE column pill ---------- */
-/* FIX: turn the type value into a compact, colored pill instead of raw
-   wrapping text. This is what actually fixes "Amenity / Service" — it now
-   reads as a short badge instead of eating a huge vertical slot. */
-.reports-type-badge {
-  display: inline-block;
-  white-space: nowrap;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  background: var(--blue-soft);
-  color: var(--blue-hover);
-}
-.reports-type-badge.due {
-  background: var(--green-soft);
-  color: #15803D;
-}
+.report-footer { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--ink-faint); font-size: 0.76rem; }
 
-/* Free-text cells (payment details, expense description) are clamped to a
-   single line with an ellipsis so one long/garbage entry can't stretch the
-   whole row; the full text is still available via the native title tooltip
-   on hover or long-press. */
-.reports-cell-truncate {
-  display: inline-block;
-  max-width: 260px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  vertical-align: bottom;
-  cursor: help;
-}
-
-.report-footer {
-  margin-top: 20px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-  color: var(--ink-faint);
-  font-size: 0.76rem;
-}
-
-/* ---------- Expense modal ---------- */
-.reports-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, 0.45); }
-.expense-form { width: min(580px, 100%); box-sizing: border-box; border-radius: var(--radius-lg); padding: 26px; background: var(--surface); box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18); }
-.expense-heading { display: flex; justify-content: space-between; align-items: flex-start; }
-.expense-heading h2 { margin: 0 0 4px; font-weight: 700; color: var(--ink); }
-.expense-heading p { margin: 0; color: var(--ink-soft); }
-.expense-heading button { border: 0; background: transparent; font-size: 1.6rem; cursor: pointer; color: var(--ink-soft); line-height: 1; }
-.expense-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
-.expense-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); }
-.expense-grid .span-2 { grid-column: span 2; }
-.expense-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
-.expense-actions > button:not(.reports-primary) {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-.expense-actions > button:not(.reports-primary):hover { background: #F8FAFC; }
-
-/* Preview line shown in the "Generate Report" month/year picker dialog,
-   confirming exactly which period is about to be printed. */
-.reports-generate-preview {
-  margin: 18px 0 0;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--blue-soft);
-  color: var(--blue-hover);
-  font-size: 0.85rem;
-}
-.reports-generate-preview strong { font-weight: 700; }
+.report-signatures { display: flex; gap: 40px; margin-top: 40px; flex-wrap: wrap; }
+.report-signature-line { flex: 1 1 220px; }
+.report-signature-blank { display: block; height: 1px; background: var(--ink); margin-bottom: 8px; }
+.report-signature-label { font-size: 0.8rem; color: var(--ink-soft); }
 
 /* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .monthly-kpi-grid, .monthly-kpi-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 640px) {
   .reports-page { padding: 18px; }
   .reports-header { align-items: flex-start; flex-direction: column; }
-  .reports-controls { align-items: flex-start; flex-direction: column; }
-  .expense-grid { grid-template-columns: 1fr; }
-  .expense-grid .span-2 { grid-column: auto; }
-  .reports-cell-truncate { max-width: 160px; }
+  .reports-header-actions { width: 100%; justify-content: space-between; }
+  .monthly-report-doc { padding: 24px 18px 32px; }
+  .monthly-kpi-grid, .monthly-kpi-grid-4 { grid-template-columns: 1fr; }
 }
 
-/* ---------- Month picker (header) ---------- */
-.mreport-month-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ink-soft, #64748B);
-}
-.mreport-month-picker input {
-  border: 1px solid var(--border, #E2E8F0);
-  border-radius: var(--radius-sm, 7px);
-  padding: 9px 12px;
-  font-family: var(--font-body, 'Inter', system-ui, sans-serif);
-  font-size: 0.88rem;
-  color: var(--ink, #0F172A);
-  background: var(--surface, #FFFFFF);
-}
-.mreport-month-picker input:focus {
-  outline: 2px solid var(--blue, #2563EB);
-  outline-offset: 1px;
-  border-color: var(--blue, #2563EB);
-}
-
-/* ---------- Full digital monthly report ---------- */
-.mreport {
-  margin-top: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.mreport-letterhead {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  background: #112A52;
-  color: #FFFFFF;
-  border-radius: var(--radius-lg, 14px);
-  padding: 22px 26px;
-}
-.mreport-letterhead-org { margin: 0 0 4px; font-weight: 700; font-size: 1.05rem; }
-.mreport-letterhead-address, .mreport-letterhead-contact {
-  margin: 0 0 2px;
-  font-size: 0.82rem;
-  color: #C7D3E8;
-}
-.mreport-letterhead-meta { text-align: right; font-size: 0.8rem; color: #C7D3E8; }
-.mreport-letterhead-meta p { margin: 0 0 3px; }
-.mreport-letterhead-title { font-weight: 700; font-size: 0.95rem; color: #FFFFFF; margin-bottom: 6px !important; }
-
-.mreport-section {
-  background: var(--surface, #FFFFFF);
-  border: 1px solid var(--border, #E2E8F0);
-  border-radius: var(--radius-lg, 14px);
-  padding: 22px 24px 26px;
-  box-shadow: var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04), 0 1px 8px rgba(15,23,42,0.04));
-}
-
-.mreport-section-heading h2 {
-  margin: 0 0 14px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #112A52;
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: #112A52;
-}
-
-.mreport-subheading {
-  margin: 20px 0 10px;
-  font-weight: 700;
-  font-size: 0.92rem;
-  color: #112A52;
-}
-.mreport-section > .mreport-subheading:first-of-type { margin-top: 16px; }
-
-.mreport-paragraph {
-  margin: 6px 0 0;
-  font-size: 0.88rem;
-  line-height: 1.55;
-  color: var(--ink, #0F172A);
-}
-.mreport-paragraph-muted { color: var(--ink-soft, #64748B); font-size: 0.82rem; }
-.mreport-paragraph-footnote {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border, #E2E8F0);
-  font-style: italic;
-  color: var(--ink-faint, #94A3B8);
-  font-size: 0.78rem;
-}
-
-/* KPI grid */
-.mreport-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.mreport-kpi {
-  position: relative;
-  border: 1px solid var(--border, #E2E8F0);
-  border-radius: var(--radius-md, 10px);
-  padding: 14px 16px 12px;
-  overflow: hidden;
-}
-.mreport-kpi::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--blue, #2563EB);
-}
-.mreport-kpi-good::before { background: var(--green, #16A34A); }
-.mreport-kpi-bad::before { background: var(--red, #DC2626); }
-.mreport-kpi-warn::before { background: #D97706; }
-.mreport-kpi-label {
-  display: block;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft, #64748B);
-}
-.mreport-kpi-value {
-  display: block;
-  margin-top: 8px;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--ink, #0F172A);
-}
-.mreport-kpi-good .mreport-kpi-value { color: var(--green, #16A34A); }
-.mreport-kpi-bad .mreport-kpi-value { color: var(--red, #DC2626); }
-.mreport-kpi-warn .mreport-kpi-value { color: #D97706; }
-
-.mreport-legend {
-  margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm, 7px);
-  background: #F1F5F9;
-  color: var(--ink-soft, #64748B);
-  font-size: 0.78rem;
-}
-.mreport-legend p { margin: 0 0 4px; }
-.mreport-legend p:last-child { margin-bottom: 0; }
-.mreport-legend-good { color: var(--green, #16A34A); font-weight: 700; }
-.mreport-legend-warn { color: #D97706; font-weight: 700; }
-.mreport-legend-bad { color: var(--red, #DC2626); font-weight: 700; }
-
-/* Report tables (reuses the same look as the ledger tables) */
-.mreport-table-wrap {
-  margin-top: 8px;
-  overflow-x: auto;
-  border: 1.5px solid #BFDBFE;
-  border-radius: var(--radius-md, 10px);
-  background: var(--surface, #FFFFFF);
-}
-.mreport-table-wrap table {
-  width: 100%;
-  min-width: 480px;
-  border-collapse: collapse;
-}
-.mreport-table-wrap th {
-  text-align: left;
-  white-space: nowrap;
-  color: var(--ink-soft, #64748B);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border, #E2E8F0);
-  padding: 10px 14px;
-  background: #F8FAFC;
-}
-.mreport-table-wrap td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border, #E2E8F0);
-  font-size: 0.84rem;
-  color: var(--ink, #0F172A);
-}
-.mreport-table-wrap th.number, .mreport-table-wrap td.number {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.mreport-table-wrap tbody tr:last-child td { border-bottom: 0; }
-.mreport-table-wrap tbody tr:hover td { background: #F8FAFC; }
-.mreport-row-bold td { font-weight: 700; background: #F1F5F9; }
-.mreport-empty { padding: 26px !important; text-align: center; color: var(--ink-faint, #94A3B8); font-size: 0.82rem; }
-
-/* ---------- Print ---------- */
+/* ---------- Print (browser Ctrl+P fallback) ---------- */
 @media print {
   body * { visibility: hidden; }
-  .mreport, .mreport * { visibility: visible; }
-  .mreport {
-    position: absolute; inset: 0;
-    padding: 12mm;
-    gap: 14px;
-  }
+  .monthly-report-doc, .monthly-report-doc * { visibility: visible; }
+  .monthly-report-doc { position: absolute; inset: 0; border: 0; box-shadow: none; border-radius: 0; padding: 12mm; }
   .no-print { display: none !important; }
-  .mreport-section { break-inside: avoid; box-shadow: none; }
-  .mreport-table-wrap { overflow: visible; border-color: var(--border, #E2E8F0); }
-  .mreport-table-wrap table { min-width: 0; }
-  .mreport-table-wrap tr { break-inside: avoid; }
-  @page { size: A4 portrait; margin: 10mm; }
+  .reports-table-wrap { overflow: visible; }
+  .reports-table-wrap table { min-width: 0; }
+  .reports-table-wrap tr { break-inside: avoid; }
+  @page { size: letter portrait; margin: 0; }
 }
