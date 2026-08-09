@@ -197,7 +197,7 @@
   border-radius: 16px;
   border: 1px solid rgba(20, 100, 160, 0.14);
   background: rgba(255, 255, 255, 0.9);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .overdue-empty {
@@ -209,27 +209,43 @@
 
 .overdue-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 12.5px;
 }
 
 .overdue-table th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 10px 8px;
   color: #648096;
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   border-bottom: 1px solid rgba(20, 100, 160, 0.12);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .overdue-table td {
-  padding: 12px 16px;
+  padding: 10px 8px;
   border-bottom: 1px solid rgba(20, 100, 160, 0.08);
   color: #071e30;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.overdue-table th:first-child,
+.overdue-table td:first-child {
+  padding-left: 14px;
+}
+
+.overdue-table th:last-child,
+.overdue-table td:last-child {
+  padding-right: 14px;
+  width: 56px;
 }
 
 .overdue-row-flagged {
@@ -365,16 +381,26 @@
 .overdue-log-button {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 1px solid rgba(20, 100, 160, 0.25);
   border-radius: 7px;
   background: #fff;
   color: #1464a0;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
+}
+
+.overdue-log-button span {
+  display: none;
+}
+
+.overdue-penalty-flag {
+  display: block;
+  color: #b3261e;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .overdue-modal-backdrop {
@@ -529,4 +555,42 @@
 .overdue-history-item small {
   color: #648096;
   font-size: 11px;
+}
+.overdue-name-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-weight: 600;
+  color: #071e30;
+  cursor: pointer;
+  text-align: left;
+}
+
+.overdue-name-link:hover {
+  color: #1464a0;
+  text-decoration: underline;
+}
+
+.overdue-contact-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.overdue-contact-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(20, 100, 160, 0.08);
+  color: #1464a0;
+}
+
+.overdue-contact-link:hover {
+  background: rgba(20, 100, 160, 0.16);
 }
