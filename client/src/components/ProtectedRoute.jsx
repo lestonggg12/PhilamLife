@@ -17,7 +17,6 @@ export default function ProtectedRoute({ isAuthenticated, user, allowedRoles, ch
   )
 
   if (normalizedAllowedRoles && !normalizedAllowedRoles.includes(role)) {
-    console.log('[ProtectedRoute] BLOCKED — role:', role, 'allowedRoles:', normalizedAllowedRoles)
     return <Navigate to={dashboardByRole[role] || '/login'} replace />
   }
 

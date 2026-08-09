@@ -382,7 +382,7 @@ function AppContent() {
               user={user}
               allowedRoles={['admin', 'secretary', 'treasurer']}
             >
-              <OverdueAccountsPage />
+              <OverdueAccountsPage user={user} />
             </ProtectedRoute>
           }
         />

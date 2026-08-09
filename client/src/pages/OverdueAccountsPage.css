@@ -270,8 +270,263 @@
 .status-pending { background: rgba(20, 100, 160, 0.1); color: #1464a0; }
 .status-paid { background: rgba(30, 140, 90, 0.12); color: #147a4a; }
 
+/* ---------- Aging buckets ---------- */
+
+.overdue-aging-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.overdue-aging-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid rgba(20, 100, 160, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  text-align: left;
+  cursor: pointer;
+}
+
+.overdue-aging-tier {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #648096;
+}
+
+.overdue-aging-count {
+  font-size: 20px;
+  font-weight: 800;
+  color: #071e30;
+}
+
+.overdue-aging-balance {
+  font-size: 12px;
+  font-weight: 600;
+  color: #648096;
+}
+
+.overdue-aging-chip.active {
+  border-color: #1464a0;
+  background: rgba(20, 100, 160, 0.06);
+}
+
+.overdue-aging-chip.tier-90plus {
+  border-color: rgba(179, 38, 30, 0.3);
+}
+
+.overdue-aging-chip.tier-90plus .overdue-aging-count {
+  color: #b3261e;
+}
+
 @media (max-width: 900px) {
   .overdue-summary {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .overdue-aging-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---------- Collection action log ---------- */
+
+.overdue-action-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #1464a0;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.overdue-action-link small {
+  color: #648096;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.overdue-no-action {
+  color: #a2b4c2;
+  font-size: 12.5px;
+  font-style: italic;
+}
+
+.overdue-log-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid rgba(20, 100, 160, 0.25);
+  border-radius: 7px;
+  background: #fff;
+  color: #1464a0;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.overdue-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(7, 30, 48, 0.45);
+}
+
+.overdue-modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(7, 30, 48, 0.35);
+}
+
+.overdue-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.overdue-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #071e30;
+}
+
+.overdue-modal-header p {
+  margin: 4px 0 0;
+  color: #648096;
+  font-size: 13px;
+}
+
+.overdue-close-button {
+  border: none;
+  background: none;
+  color: #648096;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.overdue-log-form,
+.overdue-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.overdue-log-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #071e30;
+}
+
+.overdue-log-form select,
+.overdue-log-form input,
+.overdue-log-form textarea {
+  padding: 10px 12px;
+  border: 1px solid rgba(20, 100, 160, 0.2);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #071e30;
+}
+
+.overdue-form-error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(179, 38, 30, 0.08);
+  color: #b3261e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.overdue-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.overdue-cancel-button {
+  padding: 9px 16px;
+  border: 1px solid rgba(20, 100, 160, 0.2);
+  border-radius: 8px;
+  background: #fff;
+  color: #071e30;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overdue-submit-button {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #1464a0;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overdue-submit-button:disabled,
+.overdue-cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.overdue-history-item {
+  padding: 12px 14px;
+  border: 1px solid rgba(20, 100, 160, 0.12);
+  border-radius: 10px;
+  background: rgba(20, 100, 160, 0.03);
+}
+
+.overdue-history-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: #071e30;
+  font-size: 13px;
+}
+
+.overdue-history-item-head span {
+  color: #648096;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.overdue-history-item p {
+  margin: 0 0 4px;
+  color: #33495c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.overdue-history-item small {
+  color: #648096;
+  font-size: 11px;
 }
