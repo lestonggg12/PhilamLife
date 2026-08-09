@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
+import { useNavigate } from 'react-router-dom'
+import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import { computeLateFee } from '../lib/latepenalty'
@@ -36,6 +37,7 @@ function agingTierOf(daysOverdue) {
 // (which only reflects posted `homeowner_charges` rows).
 export default function OverdueAccountsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
+  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
@@ -84,7 +86,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setPageError('')
 
     const [propertyResult, paymentResult, settingsResult, actionsResult] = await Promise.all([
-      supabase.from('properties').select('id, homeowner_name, block, lot_number'),
+      supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email'),
       supabase
         .from('payments')
         .select('property_id, homeowner_name, block_name, lot_number, amount_paid, previous_balance, remaining_balance, paid_at, status')
@@ -168,6 +170,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         name: property.homeowner_name,
         block: property.block,
         lot: `Lot ${property.lot_number}`,
+        phone: property.contact_phone || '',
+        email: property.contact_email || '',
         balance,
         penaltyAmount: lateFee.penaltyAmount,
         totalDue: lateFee.totalDue,
@@ -372,16 +376,27 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </p>
         ) : (
           <table className="overdue-table">
+            <colgroup>
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '56px' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Homeowner</th>
+                <th>Contact</th>
                 <th>Block / Lot</th>
                 <th>Days overdue</th>
-                <th>Aging tier</th>
                 <th>Balance</th>
-                <th>Penalty</th>
                 <th>Total due</th>
-                <th>Last payment</th>
+                <th>Last pmt</th>
                 <th>Last action</th>
                 <th>Status</th>
                 <th></th>
@@ -391,15 +406,33 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               {filtered.map((account) => (
                 <tr key={account.id} className={account.status === 'Overdue' ? 'overdue-row-flagged' : ''}>
                   <td className="overdue-name-cell">
-                    <span className="overdue-avatar"><Users size={15} /></span>
-                    {account.name}
+                    <button type="button" className="overdue-name-link" onClick={() => navigate(`/homeowners/${account.id}`)}>
+                      <span className="overdue-avatar"><Users size={15} /></span>
+                      {account.name}
+                    </button>
+                  </td>
+                  <td>
+                    <div className="overdue-contact-icons">
+                      {account.phone && (
+                        <a href={`tel:${account.phone}`} className="overdue-contact-link" title={account.phone} aria-label={`Call ${account.name}`}>
+                          <Phone size={14} />
+                        </a>
+                      )}
+                      {account.email && (
+                        <a href={`mailto:${account.email}`} className="overdue-contact-link" title={account.email} aria-label={`Email ${account.name}`}>
+                          <Mail size={14} />
+                        </a>
+                      )}
+                      {!account.phone && !account.email && <span className="overdue-no-action">No contact on file</span>}
+                    </div>
                   </td>
                   <td>{account.block}, {account.lot}</td>
                   <td>{account.status === 'Overdue' ? `${account.daysOverdue}d` : '—'}</td>
-                  <td>{account.agingTier || '—'}</td>
                   <td>{organization.formatMoney(account.balance)}</td>
-                  <td>{account.penaltyAmount > 0 ? organization.formatMoney(account.penaltyAmount) : '—'}</td>
-                  <td>{organization.formatMoney(account.totalDue)}</td>
+                  <td title={account.penaltyAmount > 0 ? `Includes ${organization.formatMoney(account.penaltyAmount)} penalty` : undefined}>
+                    {organization.formatMoney(account.totalDue)}
+                    {account.penaltyAmount > 0 && <span className="overdue-penalty-flag">+penalty</span>}
+                  </td>
                   <td>{account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt) : 'No payments yet'}</td>
                   <td>
                     {account.lastAction ? (
@@ -413,9 +446,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                   </td>
                   <td><span className={`overdue-status-pill status-${account.status.toLowerCase()}`}>{account.status}</span></td>
                   <td>
-                    <button type="button" className="overdue-log-button" onClick={() => openLogForm(account)}>
+                    <button type="button" className="overdue-log-button" onClick={() => openLogForm(account)} title="Log a collection action" aria-label="Log a collection action">
                       <Plus size={14} />
-                      Log
                     </button>
                   </td>
                 </tr>
