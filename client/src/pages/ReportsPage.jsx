@@ -119,7 +119,7 @@ export default function ReportsPage({ user: suppliedUser }) {
         .select('id, expense_date, category, description, amount, reference_number, recorded_by_name, status, created_at')
         .neq('status', 'Voided')
         .order('expense_date', { ascending: false }),
-      supabase.from('properties').select('id'),
+      supabase.from('properties').select('id, homeowner_status'),
       supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
       supabase.from('documents').select('id, title, category, created_at').order('created_at', { ascending: false }),
       supabase.from('events').select('id, title, description, event_date, location').order('event_date', { ascending: true }),
