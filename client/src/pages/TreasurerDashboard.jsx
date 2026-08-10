@@ -12,8 +12,8 @@ import {
   TrendingUp,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { fetchLedgerAccounts } from '../lib/hoaLedger'
 import { useOrganization } from '../context/OrganizationContext'
+import { computeLateFee } from '../lib/latepenalty'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -74,9 +74,9 @@ export default function TreasurerDashboard() {
       optionalRows('payments', 'paid_at'),
       optionalRows('expenses', 'expense_date'),
       optionalRows('service_transactions', 'paid_at'),
-      fetchLedgerAccounts()
-        .then((data) => ({ table: 'homeowner_ledger_summary', data, error: null }))
-        .catch((error) => ({ table: 'homeowner_ledger_summary', data: [], error })),
+      optionalRows('properties', 'homeowner_name'),
+      supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle()
+        .then(({ data, error }) => ({ table: 'system_settings', data: data ? [data] : [], error })),
       optionalRows('account_adjustments', 'created_at'),
       optionalRows('bank_deposits', 'recorded_at'),
       optionalRows('accounting_periods', 'starts_on'),
@@ -86,7 +86,7 @@ export default function TreasurerDashboard() {
     const criticalError = results.find(
       (result) =>
         result.error &&
-        ['payments', 'expenses', 'homeowner_ledger_summary'].includes(result.table),
+        ['payments', 'expenses', 'properties'].includes(result.table),
     )
 
     if (criticalError) {
@@ -97,7 +97,8 @@ export default function TreasurerDashboard() {
       payments: byTable.payments || [],
       expenses: byTable.expenses || [],
       services: byTable.service_transactions || [],
-      accounts: byTable.homeowner_ledger_summary || [],
+      properties: byTable.properties || [],
+      settings: (byTable.system_settings || [])[0] || null,
       adjustments: byTable.account_adjustments || [],
       deposits: byTable.bank_deposits || [],
       periods: byTable.accounting_periods || [],
@@ -122,16 +123,34 @@ export default function TreasurerDashboard() {
       .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
       .reduce((sum, row) => sum + amount(row, ['amount']), 0)
 
-    const outstanding = finance.accounts.reduce((sum, row) => sum + row.balance, 0)
-    const credits = finance.accounts.reduce((sum, row) => sum + row.unallocatedCredit, 0)
-    const aging = finance.accounts.reduce(
-      (result, row) => ({
-        current: result.current + row.current,
-        days1To30: result.days1To30 + row.days1To30,
-        days31To60: result.days31To60 + row.days31To60,
-        days61To90: result.days61To90 + row.days61To90,
-        days90Plus: result.days90Plus + row.days90Plus,
-      }),
+    // Computed the same way as the Overdue Accounts page: directly from
+    // payment history + Due Day/Grace Period/Late Penalty settings, since
+    // homeowner_ledger_summary (posted-charge based) is not populated.
+    const dueDay = Number(finance.settings?.due_day) || 5
+    const gracePeriodDays = Number(finance.settings?.grace_period_days) || 0
+    const latePenalty = Number(finance.settings?.late_penalty) || 0
+    const duesAmount = Number(finance.settings?.dues_amount) || 0
+
+    const accountRows = finance.properties.map((property) => {
+      const propertyPayments = activePayments
+        .filter((p) => Number(p.property_id) === Number(property.id))
+        .sort((a, b) => new Date(b.paid_at || 0) - new Date(a.paid_at || 0))
+      const latest = propertyPayments[0]
+      const balance = latest ? Number(latest.remaining_balance) || 0 : duesAmount
+      const lateFee = computeLateFee({ balance, dueDay, gracePeriodDays, latePenalty })
+      return { balance, isOverdue: lateFee.isOverdue, daysOverdue: lateFee.daysOverdue }
+    })
+
+    const outstanding = accountRows.reduce((sum, row) => sum + row.balance, 0)
+    const aging = accountRows.reduce(
+      (result, row) => {
+        if (row.balance <= 0) return result
+        if (!row.isOverdue) return { ...result, current: result.current + row.balance }
+        if (row.daysOverdue <= 30) return { ...result, days1To30: result.days1To30 + row.balance }
+        if (row.daysOverdue <= 60) return { ...result, days31To60: result.days31To60 + row.balance }
+        if (row.daysOverdue <= 90) return { ...result, days61To90: result.days61To90 + row.balance }
+        return { ...result, days90Plus: result.days90Plus + row.balance }
+      },
       { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
     )
 
@@ -141,12 +160,9 @@ export default function TreasurerDashboard() {
       expensesThisMonth,
       netThisMonth: collectedThisMonth + servicesThisMonth - expensesThisMonth,
       outstanding,
-      credits,
       overdue: aging.days1To30 + aging.days31To60 + aging.days61To90 + aging.days90Plus,
       aging,
-      overdueAccounts: finance.accounts.filter(
-        (row) => row.days1To30 + row.days31To60 + row.days61To90 + row.days90Plus > 0,
-      ).length,
+      overdueAccounts: accountRows.filter((row) => row.isOverdue).length,
     }
   }, [finance])
 
@@ -273,7 +289,6 @@ export default function TreasurerDashboard() {
           <div className="treasurer-check-list">
             <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{summary.overdueAccounts} overdue accounts</strong><small>{peso.format(summary.overdue)} needs collection follow-up</small></p></div>
             <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{exceptions.unreconciledDeposits} unreconciled deposits</strong><small>Match deposits with bank records</small></p></div>
-            <div><span className="check-icon green"><CheckCircle size={16} /></span><p><strong>{peso.format(summary.credits)} unallocated credit</strong><small>Preserved for future charges or refund review</small></p></div>
             <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{exceptions.pendingAdjustments} pending adjustments</strong><small>{exceptions.currentPeriod ? 'Accounting period is open' : 'No open accounting period found'}</small></p></div>
           </div>
         </article>

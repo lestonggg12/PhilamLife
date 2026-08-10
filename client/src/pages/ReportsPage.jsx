@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { fetchLedgerAccounts } from '../lib/hoaLedger'
 import { computeMonthlyReportData } from '../lib/monthlyReportData'
 import { buildMonthlyReportPdf } from '../lib/monthlyReportPdf'
 import { useOrganization } from '../context/OrganizationContext'
@@ -74,7 +73,7 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [payments, setPayments] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
-  const [ledgerAccounts, setLedgerAccounts] = useState([])
+  const [properties, setProperties] = useState([])
   const [documents, setDocuments] = useState([])
   const [events, setEvents] = useState([])
   const [orgSettings, setOrgSettings] = useState(null)
@@ -105,10 +104,10 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(true)
     setError('')
 
-    const [paymentResult, serviceResult, expenseResult, accountResult, settingsResult, documentResult, eventResult] = await Promise.all([
+    const [paymentResult, serviceResult, expenseResult, propertyResult, settingsResult, documentResult, eventResult] = await Promise.all([
       supabase
         .from('payments')
-        .select('id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
+        .select('id, property_id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
         .neq('status', 'Voided')
         .order('paid_at', { ascending: false }),
       supabase
@@ -120,18 +119,18 @@ export default function ReportsPage({ user: suppliedUser }) {
         .select('id, expense_date, category, description, amount, reference_number, recorded_by_name, status, created_at')
         .neq('status', 'Voided')
         .order('expense_date', { ascending: false }),
-      fetchLedgerAccounts().then((data) => ({ data, error: null })).catch((loadError) => ({ data: [], error: loadError })),
-      supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency').eq('id', 1).maybeSingle(),
+      supabase.from('properties').select('id'),
+      supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
       supabase.from('documents').select('id, title, category, created_at').order('created_at', { ascending: false }),
       supabase.from('events').select('id, title, description, event_date, location').order('event_date', { ascending: true }),
     ])
 
-    const loadError = paymentResult.error || serviceResult.error || expenseResult.error || accountResult.error
+    const loadError = paymentResult.error || serviceResult.error || expenseResult.error || propertyResult.error
     if (loadError) setError(loadError.message)
     if (!paymentResult.error) setPayments(paymentResult.data || [])
     if (!serviceResult.error) setServiceTransactions(serviceResult.data || [])
     if (!expenseResult.error) setExpenses(expenseResult.data || [])
-    if (!accountResult.error) setLedgerAccounts(accountResult.data || [])
+    if (!propertyResult.error) setProperties(propertyResult.data || [])
     if (!settingsResult.error) setOrgSettings(settingsResult.data || null)
     if (!documentResult.error) setDocuments(documentResult.data || [])
     if (!eventResult.error) setEvents(eventResult.data || [])
@@ -139,8 +138,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   }
 
   const report = useMemo(
-    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, ledgerAccounts, documents, events, month }),
-    [payments, serviceTransactions, expenses, ledgerAccounts, documents, events, month]
+    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, settings: orgSettings, documents, events, month }),
+    [payments, serviceTransactions, expenses, properties, orgSettings, documents, events, month]
   )
 
   async function downloadPdf() {
@@ -155,7 +154,8 @@ export default function ReportsPage({ user: suppliedUser }) {
         payments,
         serviceTransactions,
         expenses,
-        ledgerAccounts,
+        properties,
+        settings: orgSettings,
         documents,
         events,
         month,
