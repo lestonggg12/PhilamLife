@@ -1,11 +1,62 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '../context/OrganizationContext';
 import '../styles/LandingPage.css';
 
+const ROLE_CHOICES = [
+  {
+    key: 'Admin',
+    description: 'Full system access — users, settings, and all modules.',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    key: 'Secretary',
+    description: 'Homeowners, documents, events, and community records.',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    key: 'Treasurer',
+    description: 'Ledger, payments, expenses, and financial reports.',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 12V8H6a2 2 0 010-4h12v4" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M4 6v12a2 2 0 002 2h14v-4" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M18 12a2 2 0 100 4 2 2 0 000-4z" stroke="#1766a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+]
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const { organization } = useOrganization();
+  const [rolePickerIntent, setRolePickerIntent] = useState(null); // null | 'login' | 'guide'
+
+  function chooseRole(role) {
+    const intent = rolePickerIntent;
+    setRolePickerIntent(null);
+    if (intent === 'guide') {
+      navigate(`/guide?role=${role}`);
+    } else {
+      navigate(`/login?role=${role}`);
+    }
+  }
+
+  function goToLogin(role) {
+    setRolePickerIntent(null);
+    navigate(`/login?role=${role}`);
+  }
+
   return (
     <div className="lp-container">
       {/* Animated Background Orbs */}
@@ -60,9 +111,9 @@ export default function LandingPage() {
 
           {/* CTA Row */}
           <div className="lp-cta-row">
-            <button className="lp-btn lp-btn-primary" onClick={() => navigate('/login')}>ACCESS PORTAL</button>
+            <button className="lp-btn lp-btn-primary" onClick={() => setRolePickerIntent('login')}>ACCESS PORTAL</button>
             <div className="lp-cta-divider"></div>
-            <a href="#" className="lp-ghost-link" onClick={(e) => { e.preventDefault(); }}>Learn more →</a>
+            <a href="#" className="lp-ghost-link" onClick={(e) => { e.preventDefault(); setRolePickerIntent('guide'); }}>Learn more →</a>
           </div>
         </div>
       </section>
@@ -127,7 +178,7 @@ export default function LandingPage() {
           {/* Platform Column */}
           <div className="lp-footer-column">
             <h5 className="lp-footer-col-title">PLATFORM</h5>
-            <button onClick={() => navigate('/login')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Portal Login</button>
+            <button onClick={() => setRolePickerIntent('login')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Portal Login</button>
             <a href="#" className="lp-footer-link" onClick={(e) => e.preventDefault()}>Features</a>
             <a href="#" className="lp-footer-link" onClick={(e) => e.preventDefault()}>About</a>
           </div>
@@ -135,9 +186,9 @@ export default function LandingPage() {
           {/* Portals Column */}
           <div className="lp-footer-column">
             <h5 className="lp-footer-col-title">PORTALS</h5>
-            <button onClick={() => navigate('/login')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Admin Portal</button>
-            <button onClick={() => navigate('/login')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Treasurer Portal</button>
-            <button onClick={() => navigate('/login')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Secretary Portal</button>
+            <button onClick={() => goToLogin('Admin')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Admin Portal</button>
+            <button onClick={() => goToLogin('Treasurer')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Treasurer Portal</button>
+            <button onClick={() => goToLogin('Secretary')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Secretary Portal</button>
           </div>
 
           {/* Legal Column */}
@@ -158,6 +209,54 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Role Picker Modal */}
+      {rolePickerIntent && (
+        <div
+          className="lp-role-modal-overlay"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setRolePickerIntent(null);
+          }}
+        >
+          <div className="lp-role-modal" role="dialog" aria-modal="true" aria-labelledby="lp-role-modal-title">
+            <button
+              className="lp-role-modal-close"
+              onClick={() => setRolePickerIntent(null)}
+              aria-label="Close"
+              type="button"
+            >
+              ×
+            </button>
+            <h2 id="lp-role-modal-title" className="lp-role-modal-title">
+              {rolePickerIntent === 'guide' ? 'What is your role?' : 'Logging in as?'}
+            </h2>
+            <p className="lp-role-modal-subtitle">
+              {rolePickerIntent === 'guide'
+                ? "Pick your role and we'll open the guide for what you'll actually use."
+                : 'Choose your role to continue to the portal.'}
+            </p>
+
+            <div className="lp-role-modal-options">
+              {ROLE_CHOICES.map((role) => (
+                <button
+                  key={role.key}
+                  type="button"
+                  className="lp-role-option"
+                  onClick={() => chooseRole(role.key)}
+                >
+                  <span className="lp-role-option-icon">{role.icon}</span>
+                  <span className="lp-role-option-text">
+                    <span className="lp-role-option-name">{role.key}</span>
+                    <span className="lp-role-option-description">{role.description}</span>
+                  </span>
+                  <span className="lp-role-option-arrow" aria-hidden="true">→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
