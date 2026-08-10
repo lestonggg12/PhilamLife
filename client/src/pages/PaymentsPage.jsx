@@ -416,7 +416,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number')
+        .select('id, homeowner_name, block, lot_number, homeowner_status')
         .order('homeowner_name'),
     ])
 
@@ -509,6 +509,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     const search = form.homeownerName.trim().toLowerCase()
 
     return properties
+      .filter((property) => (property.homeowner_status || 'active') === 'active')
       .filter((property) => {
         if (!search) return true
 
