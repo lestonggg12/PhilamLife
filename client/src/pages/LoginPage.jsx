@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { setRememberMePreference, supabase } from '../lib/supabaseClient';
 import { useOrganization } from '../context/OrganizationContext';
 
+const VALID_ROLES = ['Admin', 'Secretary', 'Treasurer'];
+
 export default function LoginPage({ onAuthenticated }) {
   const navigate = useNavigate();
   const { organization } = useOrganization();
-  const [selectedRole, setSelectedRole] = useState('Secretary');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roleFromUrl = VALID_ROLES.find(
+    (role) => role.toLowerCase() === (searchParams.get('role') || '').toLowerCase(),
+  );
+  const [selectedRole, setSelectedRole] = useState(roleFromUrl || 'Secretary');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +24,7 @@ export default function LoginPage({ onAuthenticated }) {
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
+    setSearchParams({ role }, { replace: true });
     setError('');
   };
 

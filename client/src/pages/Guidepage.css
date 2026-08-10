@@ -1,0 +1,344 @@
+.guide-page {
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(180deg, #e6f0fa 0%, #f5f9fd 100%);
+  font-family: 'DM Sans', sans-serif;
+  color: #071e30;
+}
+
+/* Top bar */
+.guide-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 24px 48px;
+}
+
+.guide-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(23, 102, 160, 0.25);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1766a0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.guide-back-link:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.guide-role-switch {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(23, 102, 160, 0.2);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.guide-role-switch-btn {
+  border: none;
+  background: transparent;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a7a92;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.guide-role-switch-btn.active {
+  background: #ffffff;
+  color: #1766a0;
+  box-shadow: 0 2px 8px rgba(23, 102, 160, 0.18);
+}
+
+.guide-login-cta {
+  border: none;
+  background: #1766a0;
+  color: #ffffff;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  white-space: nowrap;
+}
+
+.guide-login-cta:hover {
+  background: #0f3f6a;
+  transform: translateY(-1px);
+}
+
+/* Role select (no role chosen yet) */
+.guide-role-select {
+  max-width: 560px;
+  margin: 8vh auto;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.guide-role-select h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  margin: 0 0 10px;
+}
+
+.guide-role-select p {
+  color: #5a7a92;
+  margin: 0 0 28px;
+}
+
+.guide-role-select-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.guide-role-select-btn {
+  border: 1px solid rgba(23, 102, 160, 0.3);
+  background: rgba(255, 255, 255, 0.7);
+  color: #1766a0;
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.guide-role-select-btn:hover {
+  background: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* Hero */
+.guide-hero {
+  max-width: 780px;
+  margin: 12px auto 0;
+  padding: 12px 24px 40px;
+  text-align: center;
+}
+
+.guide-hero-eyebrow {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #1766a0;
+  margin-bottom: 14px;
+}
+
+.guide-hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 48px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #071e30;
+}
+
+.guide-hero-tagline {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1766a0;
+  margin: 0 0 18px;
+}
+
+.guide-hero-intro {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #2a5470;
+  margin: 0;
+}
+
+/* Body layout */
+.guide-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 48px 80px;
+  align-items: start;
+}
+
+.guide-toc {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(23, 102, 160, 0.15);
+  border-radius: 14px;
+  padding: 18px 14px;
+}
+
+.guide-toc-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #5a7a92;
+  text-transform: uppercase;
+  padding: 0 10px 8px;
+}
+
+.guide-toc-link {
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #2a5470;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.guide-toc-link:hover {
+  background: rgba(23, 102, 160, 0.08);
+}
+
+.guide-toc-link.active {
+  background: rgba(23, 102, 160, 0.14);
+  color: #1766a0;
+  font-weight: 700;
+}
+
+.guide-content {
+  min-width: 0;
+}
+
+.guide-section {
+  background: #ffffff;
+  border: 1px solid rgba(23, 102, 160, 0.12);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 20px;
+  scroll-margin-top: 24px;
+}
+
+.guide-section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px;
+  margin: 0 0 10px;
+  color: #071e30;
+}
+
+.guide-section-summary {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #2a5470;
+  margin: 0 0 16px;
+}
+
+.guide-section-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guide-section-steps li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #071e30;
+}
+
+/* Common tasks */
+.guide-common-tasks {
+  background: rgba(23, 102, 160, 0.04);
+}
+
+.guide-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.guide-task-card {
+  background: #ffffff;
+  border: 1px solid rgba(23, 102, 160, 0.15);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.guide-task-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1766a0;
+  margin: 0 0 10px;
+}
+
+.guide-task-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-task-steps li {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #2a5470;
+}
+
+.guide-footer-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: linear-gradient(120deg, rgba(23, 102, 160, 0.1), rgba(31, 158, 110, 0.08));
+  border: 1px solid rgba(23, 102, 160, 0.18);
+  border-radius: 14px;
+  padding: 22px 28px;
+  margin-top: 28px;
+}
+
+.guide-footer-cta p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #071e30;
+}
+
+@media (max-width: 900px) {
+  .guide-topbar {
+    padding: 20px 20px;
+  }
+
+  .guide-body {
+    grid-template-columns: 1fr;
+    padding: 0 20px 60px;
+  }
+
+  .guide-toc {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow-x: auto;
+  }
+
+  .guide-hero-title {
+    font-size: 34px;
+  }
+
+  .guide-section {
+    padding: 22px 20px;
+  }
+}
