@@ -171,12 +171,15 @@ export default function TreasurerDashboard() {
   const exceptions = useMemo(() => {
     const unreconciledDeposits = finance.deposits.filter((row) => {
       const status = String(row.status || row.reconciliation_status || '').toLowerCase()
-      return !['reconciled', 'cleared', 'completed'].includes(status)
+      return !['reconciled', 'cleared', 'completed', 'voided'].includes(status)
     }).length
 
+    // account_adjustments has no status column — the closest available signal
+    // for "needs review" is a non-reversed adjustment with no approval reference on file.
     const pendingAdjustments = finance.adjustments.filter((row) => {
-      const status = String(row.status || 'posted').toLowerCase()
-      return ['pending', 'draft', 'awaiting approval'].includes(status)
+      const isReversed = Boolean(row.reversed_at)
+      const hasApproval = Boolean(String(row.approval_reference || '').trim())
+      return !isReversed && !hasApproval
     }).length
 
     const currentPeriod = finance.periods.find((row) => {

@@ -4,10 +4,13 @@ import { computeLateFee } from './latepenalty'
 // No rendering here — both ReportsPage (on-screen) and monthlyReportPdf.js
 // (PDF export) consume this so the two always show identical figures.
 //
-// Trimmed to real, calculable figures only. Anything the current schema
-// can't support (maintenance, violations, security, capital projects,
-// board action items, reserve fund, budget vs. actual, collection rate)
-// is disclosed once in `untrackedModules`, not repeated as N/A everywhere.
+// Trimmed to real, calculable figures only. Anything without a built
+// frontend feature yet (violations, maintenance, security, capital
+// projects, board action items, reserve fund, budget vs. actual,
+// collection rate) is disclosed once in `untrackedModules`, not repeated
+// as N/A everywhere. Note: `violations` and `payment_allocations` tables
+// already exist in the live schema with RLS — they just have no UI built
+// against them yet, so they stay out of this report until they do.
 
 export function monthBounds(month) {
   const [year, monthNumber] = month.split('-').map(Number)
