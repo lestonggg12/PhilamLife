@@ -362,7 +362,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number')
+        .select('id, homeowner_name, block, lot_number, homeowner_status')
         .order('homeowner_name'),
     ])
 
@@ -577,10 +577,16 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
+    const paid = Number(transactionForm.amount_paid)
+
+    if (!Number.isFinite(paid) || paid <= 0) {
+      setPageError('Enter a payment amount greater than zero.')
+      return
+    }
+
     setSaving(true)
     setPageError('')
 
-    const paid = Number(transactionForm.amount_paid)
     const payload = {
       property_id: Number(property.id),
       service_id: service.id,
@@ -963,7 +969,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   }
                 >
                   <option value="">Select homeowner</option>
-                  {properties.map((property) => (
+                  {properties
+                    .filter((property) => (property.homeowner_status || 'active') === 'active')
+                    .map((property) => (
                     <option value={String(property.id)} key={property.id}>
                       {property.homeowner_name} — {property.block}, Lot {property.lot_number}
                     </option>
@@ -1088,7 +1096,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               <button type="button" onClick={() => setShowPaymentForm(false)}>
                 Cancel
               </button>
-              <button type="submit" disabled={saving || amountDue <= 0}>
+              <button type="submit" disabled={saving || amountDue <= 0 || !(Number(transactionForm.amount_paid) > 0)}>
                 {saving ? 'Saving...' : 'Save & Issue Receipt'}
               </button>
             </div>
