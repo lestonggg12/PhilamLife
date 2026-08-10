@@ -69,7 +69,9 @@ export function computeMonthlyReportData(raw) {
   const latePenalty = Number(settings?.late_penalty) || 0
   const duesAmount = Number(settings?.dues_amount) || 0
 
-  const accountBalances = properties.map((property) => {
+  const accountBalances = properties
+    .filter((property) => (property.homeowner_status || 'active') === 'active')
+    .map((property) => {
     const propertyPayments = payments
       .filter((p) => Number(p.property_id) === Number(property.id))
       .sort((a, b) => new Date(b.paid_at || 0) - new Date(a.paid_at || 0))

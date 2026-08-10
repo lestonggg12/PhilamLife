@@ -80,7 +80,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name')
+          .select('id, block, lot_number, homeowner_name, homeowner_status')
           .order('homeowner_name'),
         supabase
           .from('payments')
@@ -124,6 +124,8 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     const grouped = new Map()
 
     properties.forEach((property) => {
+      if ((property.homeowner_status || 'active') !== 'active') return
+
       const propertyPayments = payments.filter((payment) =>
         paymentMatchesProperty(payment, property),
       )
@@ -176,6 +178,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     const knownBlocks = [...blocks]
 
     properties.forEach((property) => {
+      if ((property.homeowner_status || 'active') !== 'active') return
       if (!knownBlocks.some((block) => normalize(block.name) === normalize(property.block))) {
         knownBlocks.push({ id: `property-${property.block}`, name: property.block })
       }

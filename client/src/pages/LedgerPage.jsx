@@ -132,7 +132,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name, created_at')
+          .select('id, block, lot_number, homeowner_name, created_at, homeowner_status')
           .order('homeowner_name'),
         supabase.from('payments').select('*').order('paid_at', { ascending: false }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
@@ -527,7 +527,9 @@ export default function LedgerPage({ user: suppliedUser }) {
   }
 
   const ledgerEntries = useMemo(() => {
-    return properties.map((property) => {
+    return properties
+      .filter((property) => (property.homeowner_status || 'active') === 'active')
+      .map((property) => {
       const propertyPayments = payments.filter((payment) => {
         if (payment.property_id != null) {
           return Number(payment.property_id) === Number(property.id)

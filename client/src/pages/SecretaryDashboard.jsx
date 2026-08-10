@@ -80,7 +80,7 @@ export default function SecretaryDashboard() {
       await Promise.all([
         supabase
           .from('properties')
-          .select('id, homeowner_name, block, lot_number'),
+          .select('id, homeowner_name, block, lot_number, homeowner_status'),
         supabase
           .from('payments')
           .select('*')
@@ -138,6 +138,8 @@ export default function SecretaryDashboard() {
     )
 
     const outstandingAccounts = properties.filter((property) => {
+      if ((property.homeowner_status || 'active') !== 'active') return false
+
       const latestPayment = activePayments.find((payment) => {
         if (payment.property_id != null) {
           return Number(payment.property_id) === Number(property.id)

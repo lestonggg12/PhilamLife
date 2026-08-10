@@ -10,6 +10,16 @@ const peso = new Intl.NumberFormat('en-PH', {
   currency: 'PHP',
 })
 
+function manilaMonthKey(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date(value))
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}`
+}
+
 const CATEGORIES = [
   'Utilities',
   'Maintenance & Repairs',
@@ -100,8 +110,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   }
 
   const summary = useMemo(() => {
-    const now = new Date()
-    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const currentMonthKey = manilaMonthKey()
     const activeExpenses = expenses.filter((e) => e.status !== 'Voided')
 
     const totalAllTime = activeExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)

@@ -131,7 +131,9 @@ export default function TreasurerDashboard() {
     const latePenalty = Number(finance.settings?.late_penalty) || 0
     const duesAmount = Number(finance.settings?.dues_amount) || 0
 
-    const accountRows = finance.properties.map((property) => {
+    const accountRows = finance.properties
+      .filter((property) => (property.homeowner_status || 'active') === 'active')
+      .map((property) => {
       const propertyPayments = activePayments
         .filter((p) => Number(p.property_id) === Number(property.id))
         .sort((a, b) => new Date(b.paid_at || 0) - new Date(a.paid_at || 0))

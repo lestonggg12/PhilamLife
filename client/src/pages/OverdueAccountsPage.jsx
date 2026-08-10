@@ -86,7 +86,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setPageError('')
 
     const [propertyResult, paymentResult, settingsResult, actionsResult] = await Promise.all([
-      supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email'),
+      supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status'),
       supabase
         .from('payments')
         .select('property_id, homeowner_name, block_name, lot_number, amount_paid, previous_balance, remaining_balance, paid_at, status')
@@ -131,7 +131,9 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   }, [collectionActions])
 
   const accounts = useMemo(() => {
-    return properties.map((property) => {
+    return properties
+      .filter((property) => (property.homeowner_status || 'active') === 'active')
+      .map((property) => {
       const propertyPayments = payments.filter((payment) => {
         if (payment.property_id != null) return Number(payment.property_id) === Number(property.id)
         return (
