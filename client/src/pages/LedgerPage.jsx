@@ -3,7 +3,6 @@ import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { computeLateFee } from '../lib/latepenalty'
-import { fetchLedgerAccounts, fetchStatementLines } from '../lib/hoaLedger'
 import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 import { useOrganization } from '../context/OrganizationContext'
 
@@ -40,12 +39,6 @@ const timeOfDay = new Intl.DateTimeFormat('en-PH', {
 })
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
-const statementValue = (row, keys, fallback = '—') => {
-  for (const key of keys) {
-    if (row?.[key] !== undefined && row?.[key] !== null) return row[key]
-  }
-  return fallback
-}
 
 function compareEntries(a, b, key, direction) {
   let result = 0
@@ -71,8 +64,6 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
-  const [accountSummaries, setAccountSummaries] = useState([])
-  const [ledgerAvailable, setLedgerAvailable] = useState(false)
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
@@ -136,7 +127,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, settingsResult, accountResult] =
+    const [blockResult, propertyResult, paymentResult, settingsResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         supabase
@@ -145,12 +136,9 @@ export default function LedgerPage({ user: suppliedUser }) {
           .order('homeowner_name'),
         supabase.from('payments').select('*').order('paid_at', { ascending: false }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
-        fetchLedgerAccounts()
-          .then((data) => ({ data, error: null }))
-          .catch((error) => ({ data: [], error })),
       ])
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error, accountResult.error]
+    const errors = [blockResult.error, propertyResult.error, paymentResult.error]
       .filter(Boolean)
       .map((error) => error.message)
 
@@ -161,8 +149,6 @@ export default function LedgerPage({ user: suppliedUser }) {
     setBlocks(blockResult.data || [])
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
-    setAccountSummaries(accountResult.data || [])
-    setLedgerAvailable(!accountResult.error)
     setOrgSettings(settingsResult.data || null)
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
@@ -185,20 +171,43 @@ export default function LedgerPage({ user: suppliedUser }) {
     }
   }
 
-  async function openStatement(entry) {
+  function propertyPaymentsFor(entry) {
+    return payments
+      .filter((payment) => {
+        if (payment.property_id != null) {
+          return Number(payment.property_id) === Number(entry.id)
+        }
+
+        return (
+          normalize(payment.homeowner_name) === normalize(entry.name) &&
+          normalize(payment.block_name) === normalize(entry.block) &&
+          normalize(payment.lot_number).replace(/^lot\s*/, '') ===
+            String(entry.lotNumberRaw)
+        )
+      })
+      .slice()
+      .sort((a, b) => new Date(a.paid_at) - new Date(b.paid_at))
+  }
+
+  function openStatement(entry) {
     setStatementAccount(entry)
-    setStatementLines([])
     setStatementError('')
     setStatementLoading(true)
 
-    try {
-      const lines = await fetchStatementLines(entry.id)
-      setStatementLines(lines)
-    } catch (error) {
-      setStatementError(error.message)
-    } finally {
-      setStatementLoading(false)
-    }
+    const lines = propertyPaymentsFor(entry).map((payment) => ({
+      id: payment.id,
+      transaction_date: payment.paid_at,
+      description: payment.status === 'Voided'
+        ? `${payment.coverage_period || 'Payment'} (Voided)`
+        : (payment.coverage_period || 'Payment'),
+      reference_number: payment.reference_number || payment.receipt_number,
+      debit: 0,
+      credit: payment.status === 'Voided' ? 0 : Number(payment.amount_paid) || 0,
+      running_balance: payment.status === 'Voided' ? null : Number(payment.remaining_balance) || 0,
+    }))
+
+    setStatementLines(lines)
+    setStatementLoading(false)
   }
 
   function downloadStatementPdf() {
@@ -207,17 +216,14 @@ export default function LedgerPage({ user: suppliedUser }) {
 
     try {
       const now = new Date()
-      const rows = statementLines.map((line) => {
-        const lineDate = statementValue(line, ['transaction_date', 'line_date', 'entry_date', 'posted_at', 'created_at'], null)
-        return {
-          date: lineDate ? organization.formatDate(lineDate) : '—',
-          entry: statementValue(line, ['description', 'entry_type', 'transaction_type', 'type']),
-          reference: statementValue(line, ['reference_number', 'reference', 'receipt_number']),
-          debit: Number(statementValue(line, ['debit', 'charge_amount'], 0)) || 0,
-          credit: Number(statementValue(line, ['credit', 'payment_amount'], 0)) || 0,
-          balance: Number(statementValue(line, ['running_balance', 'balance'], 0)) || 0,
-        }
-      })
+      const rows = statementLines.map((line) => ({
+        date: line.transaction_date ? organization.formatDate(line.transaction_date) : '—',
+        entry: line.description,
+        reference: line.reference_number || '—',
+        debit: Number(line.debit) || 0,
+        credit: Number(line.credit) || 0,
+        balance: Number(line.running_balance) || 0,
+      }))
 
       const doc = buildHomeownerStatementPdf({
         hoaName: orgSettings?.hoa_name || 'Homeowners Association',
@@ -521,28 +527,6 @@ export default function LedgerPage({ user: suppliedUser }) {
   }
 
   const ledgerEntries = useMemo(() => {
-    if (ledgerAvailable) {
-      return accountSummaries.map((account) => {
-        const overdue = account.days1To30 + account.days31To60 + account.days61To90 + account.days90Plus
-        return {
-          id: account.propertyId,
-          name: account.homeownerName,
-          block: account.blockName,
-          lot: `Lot ${account.lotNumber}`,
-          lotNumberRaw: account.lotNumber,
-          dueAmount: account.totalCharges,
-          paidAmount: account.totalPaid,
-          balance: account.balance,
-          penaltyAmount: 0,
-          totalDue: account.balance,
-          unallocatedCredit: account.unallocatedCredit,
-          lastPayment: account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt) : '—',
-          lastPaymentSort: account.lastPaymentAt ? new Date(account.lastPaymentAt).getTime() : 0,
-          status: account.balance <= 0 ? 'Paid' : overdue > 0 ? 'Overdue' : account.totalPaid > 0 ? 'Partial' : 'Pending',
-        }
-      })
-    }
-
     return properties.map((property) => {
       const propertyPayments = payments.filter((payment) => {
         if (payment.property_id != null) {
@@ -600,7 +584,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         status,
       }
     })
-  }, [accountSummaries, ledgerAvailable, properties, payments, duesAmount, penaltySettings])
+  }, [properties, payments, duesAmount, penaltySettings])
 
   const filtered = useMemo(() => {
     const term = normalize(search)
@@ -706,13 +690,6 @@ export default function LedgerPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {!loading && !ledgerAvailable && (
-        <p className="ledger-foundation-notice">
-          The ledger service is unavailable right now — balances below are computed from
-          legacy payment records, and Statements are temporarily disabled.
-        </p>
-      )}
-
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={20} /></div>
@@ -813,7 +790,7 @@ export default function LedgerPage({ user: suppliedUser }) {
                   <td className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
                   <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
                   <td className="ledger-row-actions">
-                    <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)} disabled={!ledgerAvailable}>Statement</button>
+                    <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>
                     {canManageHomeowners && (
                       <>
                         <button className="ledger-icon-button" type="button" onClick={() => openEditHomeowner(entry)}>Edit</button>
@@ -846,17 +823,16 @@ export default function LedgerPage({ user: suppliedUser }) {
               <table>
                 <thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
                 <tbody>
-                  {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No statement entries found.</td></tr> : statementLines.map((line, index) => {
-                    const lineDate = statementValue(line, ['transaction_date', 'line_date', 'entry_date', 'posted_at', 'created_at'], null)
-                    return <tr key={line.id || `${lineDate}-${index}`}>
-                      <td>{lineDate ? organization.formatDate(lineDate) : '—'}</td>
-                      <td>{statementValue(line, ['description', 'entry_type', 'transaction_type', 'type'])}</td>
-                      <td>{statementValue(line, ['reference_number', 'reference', 'receipt_number'])}</td>
-                      <td>{peso.format(Number(statementValue(line, ['debit', 'charge_amount'], 0)) || 0)}</td>
-                      <td>{peso.format(Number(statementValue(line, ['credit', 'payment_amount'], 0)) || 0)}</td>
-                      <td>{peso.format(Number(statementValue(line, ['running_balance', 'balance'], 0)) || 0)}</td>
+                  {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No payment history found.</td></tr> : statementLines.map((line, index) => (
+                    <tr key={line.id || `${line.transaction_date}-${index}`}>
+                      <td>{line.transaction_date ? organization.formatDate(line.transaction_date) : '—'}</td>
+                      <td>{line.description}</td>
+                      <td>{line.reference_number || '—'}</td>
+                      <td>{peso.format(Number(line.debit) || 0)}</td>
+                      <td>{peso.format(Number(line.credit) || 0)}</td>
+                      <td>{line.running_balance == null ? '—' : peso.format(Number(line.running_balance) || 0)}</td>
                     </tr>
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
