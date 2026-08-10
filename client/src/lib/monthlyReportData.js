@@ -1,3 +1,5 @@
+import { computeLateFee } from './latepenalty'
+
 // Pure data computation for the HOA Monthly Report.
 // No rendering here — both ReportsPage (on-screen) and monthlyReportPdf.js
 // (PDF export) consume this so the two always show identical figures.
@@ -34,13 +36,14 @@ export const untrackedModules = [
  * @param {Array} raw.payments        - already excludes voided
  * @param {Array} raw.serviceTransactions
  * @param {Array} raw.expenses        - already excludes voided
- * @param {Array} raw.ledgerAccounts  - from fetchLedgerAccounts()
+ * @param {Array} raw.properties      - all property/lot records
+ * @param {object} raw.settings      - system_settings row (dues_amount, due_day, grace_period_days, late_penalty)
  * @param {Array} raw.documents
  * @param {Array} raw.events
  * @param {string} raw.month          - 'YYYY-MM'
  */
 export function computeMonthlyReportData(raw) {
-  const { payments = [], serviceTransactions = [], expenses = [], ledgerAccounts = [], documents = [], events = [], month } = raw
+  const { payments = [], serviceTransactions = [], expenses = [], properties = [], settings = null, documents = [], events = [], month } = raw
   const range = monthBounds(month)
 
   const inRange = (iso) => {
@@ -61,8 +64,21 @@ export function computeMonthlyReportData(raw) {
   const totalExpenses = monthlyExpenses.reduce((s, e) => s + Number(e.amount || 0), 0)
   const netIncome = totalIncome - totalExpenses
 
-  const outstandingAccounts = ledgerAccounts.filter((a) => Number(a.balance) > 0)
-  const totalOutstanding = outstandingAccounts.reduce((s, a) => s + Number(a.balance || 0), 0)
+  const dueDay = Number(settings?.due_day) || 5
+  const gracePeriodDays = Number(settings?.grace_period_days) || 0
+  const latePenalty = Number(settings?.late_penalty) || 0
+  const duesAmount = Number(settings?.dues_amount) || 0
+
+  const accountBalances = properties.map((property) => {
+    const propertyPayments = payments
+      .filter((p) => Number(p.property_id) === Number(property.id))
+      .sort((a, b) => new Date(b.paid_at || 0) - new Date(a.paid_at || 0))
+    const latest = propertyPayments[0]
+    const balance = latest ? Number(latest.remaining_balance) || 0 : duesAmount
+    return { balance, isOverdue: computeLateFee({ balance, dueDay, gracePeriodDays, latePenalty }).isOverdue }
+  })
+  const outstandingAccounts = accountBalances.filter((a) => a.balance > 0)
+  const totalOutstanding = outstandingAccounts.reduce((s, a) => s + a.balance, 0)
 
   const expenseByCategory = new Map()
   monthlyExpenses.forEach((e) => {

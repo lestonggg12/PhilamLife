@@ -4,8 +4,8 @@ import { AlertCircle, DollarSign } from '../components/Icons'
 import BlockPayablesSection from '../components/BlockPayablesSection'
 import HomeownerLedgerModal from '../components/HomeownerLedgerModal'
 import { supabase } from '../lib/supabaseClient'
-import { fetchLedgerAccounts } from '../lib/hoaLedger'
 import { useOrganization } from '../context/OrganizationContext'
+import { computeLateFee } from '../lib/latepenalty'
 import './SecretaryPayables.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -35,7 +35,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
-  const [ledgerAccounts, setLedgerAccounts] = useState([])
+  const [penaltySettings, setPenaltySettings] = useState({ duesAmount: 0, dueDay: 5, gracePeriodDays: 0, latePenalty: 0 })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [expandedBlockId, setExpandedBlockId] = useState(null)
@@ -75,7 +75,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, accountResult] =
+    const [blockResult, propertyResult, paymentResult, settingsResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         supabase
@@ -86,16 +86,18 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
           .from('payments')
           .select('*')
           .order('paid_at', { ascending: false }),
-        fetchLedgerAccounts()
-          .then((data) => ({ data, error: null }))
-          .catch((error) => ({ data: [], error })),
+        supabase
+          .from('system_settings')
+          .select('dues_amount, due_day, grace_period_days, late_penalty')
+          .eq('id', 1)
+          .maybeSingle(),
       ])
 
     const errors = [
       blockResult.error,
       propertyResult.error,
       paymentResult.error,
-      accountResult.error,
+      settingsResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -109,7 +111,12 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     setBlocks(blockResult.data || [])
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
-    setLedgerAccounts(accountResult.data || [])
+    setPenaltySettings({
+      duesAmount: Number(settingsResult.data?.dues_amount) || 0,
+      dueDay: Number(settingsResult.data?.due_day) || 5,
+      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
+      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
+    })
     setLoading(false)
   }
 
@@ -124,13 +131,16 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         (payment) => payment.status !== 'Voided',
       )
       const latestPayment = activePayments[0]
-      const account = ledgerAccounts.find(
-        (item) => Number(item.propertyId) === Number(property.id),
-      )
-      const amountDue = account?.balance || 0
-      const overdue = account
-        ? account.days1To30 + account.days31To60 + account.days61To90 + account.days90Plus
-        : 0
+      const amountDue = latestPayment
+        ? Number(latestPayment.remaining_balance) || 0
+        : penaltySettings.duesAmount
+      const lateFee = computeLateFee({
+        balance: amountDue,
+        dueDay: penaltySettings.dueDay,
+        gracePeriodDays: penaltySettings.gracePeriodDays,
+        latePenalty: penaltySettings.latePenalty,
+      })
+      const overdue = lateFee.isOverdue ? amountDue : 0
 
       const homeowner = {
         id: property.id,
@@ -147,10 +157,10 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
           ? organization.formatDate(latestPayment.paid_at)
           : 'No payment yet',
         amountDue,
-        penaltyAmount: 0,
-        totalDue: amountDue,
-        daysOverdue: 0,
-        unallocatedCredit: account?.unallocatedCredit || 0,
+        penaltyAmount: lateFee.penaltyAmount,
+        totalDue: lateFee.totalDue,
+        daysOverdue: lateFee.daysOverdue,
+        unallocatedCredit: 0,
         avatar: '🏠',
         payments: propertyPayments,
       }
@@ -160,7 +170,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
     })
 
     return grouped
-  }, [ledgerAccounts, payments, properties])
+  }, [penaltySettings, payments, properties])
 
   const blockSummaries = useMemo(() => {
     const knownBlocks = [...blocks]
