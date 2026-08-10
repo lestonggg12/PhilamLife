@@ -320,7 +320,7 @@
   line-height: 0;
 }
 
-.login-input {
+.login-input-wrapper .login-input {
   width: 100%;
   background: rgba(255, 255, 255, 0.60);
   border: 0.5px solid rgba(180, 215, 238, 0.80);
@@ -340,7 +340,7 @@
   color: #6ea8c8;
 }
 
-.login-input:focus {
+.login-input-wrapper .login-input:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(20, 100, 160, 0.45);
@@ -584,7 +584,7 @@
     font-size: 11px;
   }
 
-  .login-input {
+  .login-input-wrapper .login-input {
     font-size: 12px;
     padding: 10px 36px 10px 48px;
   }
