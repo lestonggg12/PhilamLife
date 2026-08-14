@@ -10,11 +10,11 @@ import {
   HardDrive,
   BarChart3,
   AlertCircle,
-  Check,
   Clock,
   Zap,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { computeLateFee } from '../lib/latepenalty'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate } from '../config/organization'
@@ -37,24 +37,6 @@ const monthFormatter = new Intl.DateTimeFormat('en-PH', {
   year: 'numeric',
   timeZone: 'UTC',
 })
-
-const chartColors = [
-  'rgba(20,100,160,0.65)',
-  'rgba(26,138,96,0.65)',
-  'rgba(108,60,160,0.65)',
-  'rgba(212,146,10,0.80)',
-  'rgba(192,57,43,0.65)',
-  'rgba(42,96,128,0.72)',
-]
-
-const chartBorders = [
-  'rgba(20,100,160,0.90)',
-  'rgba(26,138,96,0.90)',
-  'rgba(108,60,160,0.90)',
-  'rgba(212,146,10,0.95)',
-  'rgba(192,57,43,0.90)',
-  'rgba(42,96,128,0.95)',
-]
 
 function normalize(value) {
   return String(value ?? '').trim().toLowerCase()
@@ -149,6 +131,12 @@ export default function AdminDashboard() {
   const [payments, setPayments] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [activities, setActivities] = useState([])
+  const [duesAmount, setDuesAmount] = useState(0)
+  const [penaltySettings, setPenaltySettings] = useState({
+    dueDay: 5,
+    gracePeriodDays: 0,
+    latePenalty: 0,
+  })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -167,13 +155,14 @@ export default function AdminDashboard() {
       paymentResult,
       serviceResult,
       activityResult,
+      settingsResult,
     ] = await Promise.all([
       supabase
         .from('profiles')
         .select('id, full_name, email, role, is_active'),
       supabase
         .from('properties')
-        .select('id, block, lot_number, homeowner_name'),
+        .select('id, block, lot_number, homeowner_name, homeowner_status'),
       supabase
         .from('payments')
         .select(
@@ -188,6 +177,11 @@ export default function AdminDashboard() {
         .select('id, user_id, action, target, created_at')
         .order('created_at', { ascending: false })
         .limit(5),
+      supabase
+        .from('system_settings')
+        .select('dues_amount, due_day, grace_period_days, late_penalty')
+        .eq('id', 1)
+        .maybeSingle(),
     ])
 
     const errors = [
@@ -211,6 +205,12 @@ export default function AdminDashboard() {
     setPayments(paymentResult.data || [])
     setServiceTransactions(serviceResult.data || [])
     setActivities(activityResult.data || [])
+    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
+    setPenaltySettings({
+      dueDay: Number(settingsResult.data?.due_day) || 5,
+      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
+      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
+    })
     setLoading(false)
   }
 
@@ -219,59 +219,79 @@ export default function AdminDashboard() {
     [payments],
   )
 
-  const totalCollections = useMemo(() => {
-    const dues = activePayments.reduce(
-      (sum, payment) => sum + (Number(payment.amount_paid) || 0),
-      0,
-    )
-    const amenityRevenue = serviceTransactions.reduce(
-      (sum, transaction) =>
-        sum + (Number(transaction.amount_paid) || 0),
-      0,
-    )
-
-    return dues + amenityRevenue
-  }, [activePayments, serviceTransactions])
+  const activeProperties = useMemo(
+    () => properties.filter((property) => (property.homeowner_status || 'active') === 'active'),
+    [properties],
+  )
 
   const sixMonths = useMemo(() => getLastSixMonths(), [])
 
-  const paymentsByBlock = useMemo(() => {
-    const validMonthKeys = new Set(sixMonths.map((month) => month.key))
-    const totals = new Map()
-
-    properties.forEach((property) => {
-      const block = String(property.block || '').trim()
-      if (block) totals.set(block, 0)
-    })
+  const collectionsByMonth = useMemo(() => {
+    const totals = new Map(sixMonths.map((month) => [month.key, 0]))
 
     activePayments.forEach((payment) => {
-      if (!payment.paid_at || !validMonthKeys.has(manilaMonthKey(payment.paid_at))) {
-        return
+      const key = manilaMonthKey(payment.paid_at)
+      if (totals.has(key)) {
+        totals.set(key, totals.get(key) + (Number(payment.amount_paid) || 0))
       }
-
-      const block = String(payment.block_name || 'Unassigned').trim()
-      totals.set(block, (totals.get(block) || 0) + 1)
     })
 
-    const sortedEntries = [...totals.entries()].sort(([left], [right]) =>
-      left.localeCompare(right, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      }),
-    )
+    serviceTransactions.forEach((transaction) => {
+      const key = manilaMonthKey(transaction.paid_at)
+      if (totals.has(key)) {
+        totals.set(key, totals.get(key) + (Number(transaction.amount_paid) || 0))
+      }
+    })
 
     return {
-      labels: sortedEntries.map(([block]) => block),
-      values: sortedEntries.map(([, total]) => total),
+      labels: sixMonths.map((month) => month.label),
+      values: sixMonths.map((month) => totals.get(month.key) || 0),
     }
-  }, [activePayments, properties, sixMonths])
+  }, [sixMonths, activePayments, serviceTransactions])
+
+  const currentMonthLabel = sixMonths[sixMonths.length - 1]?.label || ''
+  const collectedThisMonth = collectionsByMonth.values[collectionsByMonth.values.length - 1] || 0
+  const collectedLastMonth = collectionsByMonth.values[collectionsByMonth.values.length - 2] || 0
+  const collectedTrendPercent = collectedLastMonth > 0
+    ? ((collectedThisMonth - collectedLastMonth) / collectedLastMonth) * 100
+    : null
+
+  const monthlyDuesTarget = activeProperties.length * duesAmount
+
+  const overdueSummary = useMemo(() => {
+    let count = 0
+    let outstanding = 0
+
+    activeProperties.forEach((property) => {
+      const latestPayment = activePayments.find((payment) =>
+        paymentMatchesProperty(payment, property),
+      )
+      const balance = latestPayment
+        ? Number(latestPayment.remaining_balance) || 0
+        : duesAmount
+
+      const lateFee = computeLateFee({
+        balance,
+        dueDay: penaltySettings.dueDay,
+        gracePeriodDays: penaltySettings.gracePeriodDays,
+        latePenalty: penaltySettings.latePenalty,
+      })
+
+      if (lateFee.isOverdue && balance > 0) {
+        count += 1
+        outstanding += balance
+      }
+    })
+
+    return { count, outstanding }
+  }, [activeProperties, activePayments, duesAmount, penaltySettings])
 
   const accountStatus = useMemo(() => {
     let paid = 0
     let balanceDue = 0
     let noRecord = 0
 
-    properties.forEach((property) => {
+    activeProperties.forEach((property) => {
       const latestPayment = activePayments.find((payment) =>
         paymentMatchesProperty(payment, property),
       )
@@ -293,9 +313,9 @@ export default function AdminDashboard() {
       paid,
       balanceDue,
       noRecord,
-      total: properties.length,
+      total: activeProperties.length,
     }
-  }, [activePayments, properties])
+  }, [activePayments, activeProperties])
 
   const recentActivities = useMemo(() => {
     const profilesById = new Map(
@@ -326,26 +346,38 @@ export default function AdminDashboard() {
 
     if (barChartRef.current) {
       const barChart = new Chart(barChartRef.current, {
-        type: 'bar',
         data: {
-          labels: paymentsByBlock.labels,
+          labels: collectionsByMonth.labels,
           datasets: [
             {
-              data: paymentsByBlock.values,
-              backgroundColor: paymentsByBlock.labels.map(
-                (_, index) => chartColors[index % chartColors.length],
-              ),
-              borderColor: paymentsByBlock.labels.map(
-                (_, index) => chartBorders[index % chartBorders.length],
-              ),
+              type: 'bar',
+              label: 'Collected',
+              data: collectionsByMonth.values,
+              backgroundColor: 'rgba(20,100,160,0.65)',
+              borderColor: 'rgba(20,100,160,0.90)',
               borderWidth: 1.5,
               borderRadius: 8,
               borderSkipped: false,
+              order: 2,
+            },
+            {
+              type: 'line',
+              label: 'Target',
+              data: collectionsByMonth.labels.map(() => monthlyDuesTarget),
+              borderColor: 'rgba(7,30,48,0.55)',
+              borderDash: [6, 5],
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: false,
+              tension: 0,
+              order: 1,
             },
           ],
         },
         options: {
           responsive: true,
+          interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -358,9 +390,7 @@ export default function AdminDashboard() {
               cornerRadius: 10,
               callbacks: {
                 label: (context) =>
-                  `  ${context.parsed.y} payment${
-                    context.parsed.y === 1 ? '' : 's'
-                  }`,
+                  `  ${context.dataset.label}: ${peso.format(context.parsed.y)}`,
               },
             },
           },
@@ -379,9 +409,8 @@ export default function AdminDashboard() {
               border: { display: false },
               ticks: {
                 color: '#2a5470',
-                font: { size: 12, weight: '500' },
-                precision: 0,
-                stepSize: 1,
+                font: { size: 11.5, weight: '500' },
+                callback: (value) => `₱${(value / 1000).toLocaleString('en-PH')}k`,
               },
             },
           },
@@ -453,49 +482,55 @@ export default function AdminDashboard() {
   }, [
     accountStatus,
     loading,
-    paymentsByBlock,
+    collectionsByMonth,
+    monthlyDuesTarget,
   ])
 
-  const activeUserCount = profiles.filter(
-    (profile) => profile.is_active !== false,
-  ).length
+  const activeUserProfiles = profiles.filter((profile) => profile.is_active !== false)
+  const activeUserCount = activeUserProfiles.length
+  const activeRoleLabels = [...new Set(
+    activeUserProfiles.map((profile) => {
+      const role = String(profile.role || '').trim().toLowerCase()
+      return role ? role.charAt(0).toUpperCase() + role.slice(1) : null
+    }).filter(Boolean),
+  )]
 
   const systemStats = [
     {
-      label: 'TOTAL USERS',
-      value: loading ? '—' : profiles.length.toLocaleString('en-PH'),
-      footer: loading
-        ? 'Loading accounts'
-        : `${activeUserCount.toLocaleString('en-PH')} active account${
-            activeUserCount === 1 ? '' : 's'
-          }`,
+      label: 'TOTAL HOMEOWNERS',
+      value: loading ? '—' : activeProperties.length.toLocaleString('en-PH'),
+      footer: 'Active registered',
+      trend: null,
       icon: Users,
-      color: '#1a8a60',
+      tone: 'blue',
     },
     {
-      label: 'PROPERTIES',
-      value: loading ? '—' : properties.length.toLocaleString('en-PH'),
-      footer: 'Registered lots',
-      icon: Home,
-      color: '#1a8a60',
-    },
-    {
-      label: 'TOTAL COLLECTIONS',
-      value: loading ? '—' : peso.format(totalCollections),
-      footer: 'Dues and amenity revenue',
+      label: `COLLECTED ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
+      value: loading ? '—' : peso.format(collectedThisMonth),
+      footer: monthlyDuesTarget > 0
+        ? `vs ${peso.format(monthlyDuesTarget)} target`
+        : 'Dues and amenity revenue',
+      trend: collectedTrendPercent === null
+        ? null
+        : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs last month`,
       icon: DollarSign,
-      color: '#1a8a60',
+      tone: 'green',
     },
     {
-      label: 'SYSTEM STATUS',
-      value: loading ? 'Checking' : pageError ? 'Partial' : 'Live',
-      footer: loading
-        ? 'Connecting to database'
-        : pageError
-          ? 'Some data unavailable'
-          : 'Live database connected',
-      icon: pageError ? AlertCircle : Check,
-      color: pageError ? '#c0392b' : '#2a6080',
+      label: 'OVERDUE ACCOUNTS',
+      value: loading ? '—' : overdueSummary.count.toLocaleString('en-PH'),
+      footer: loading ? '—' : `${peso.format(overdueSummary.outstanding)} outstanding`,
+      trend: null,
+      icon: AlertCircle,
+      tone: 'red',
+    },
+    {
+      label: 'ACTIVE USERS',
+      value: loading ? '—' : activeUserCount.toLocaleString('en-PH'),
+      footer: loading ? 'Loading accounts' : (activeRoleLabels.join(', ') || 'No active accounts'),
+      trend: null,
+      icon: Zap,
+      tone: 'navy',
     },
   ]
 
@@ -573,10 +608,9 @@ export default function AdminDashboard() {
     <div className="dash-admin-dashboard">
       <div className="dash-page-header">
         <div className="dash-page-header-copy">
-          <p className="dash-page-eyebrow">Admin workspace</p>
           <h1 className="dash-page-title">Admin Dashboard</h1>
           <p className="dash-page-subtitle">
-            Live overview of users, properties, collections, and system activity.
+            {organization.hoaName} · {currentMonthLabel}
           </p>
         </div>
       </div>
@@ -588,15 +622,20 @@ export default function AdminDashboard() {
           <div key={stat.label} className="dash-stat-card">
             <div className="dash-stat-top">
               <div className="dash-stat-label">{stat.label}</div>
-              <div className="dash-stat-icon-box">
+              <div className={`dash-stat-icon-box tone-${stat.tone}`}>
                 <stat.icon size={18} />
               </div>
             </div>
             <div className="dash-stat-value">{stat.value}</div>
             <div className="dash-stat-footer">
-              <TrendingUp size={13} color={stat.color} />
               <span>{stat.footer}</span>
             </div>
+            {stat.trend && (
+              <div className={`dash-stat-trend ${stat.trend.startsWith('-') ? 'down' : 'up'}`}>
+                <TrendingUp size={13} />
+                <span>{stat.trend}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -608,33 +647,21 @@ export default function AdminDashboard() {
 
       <div className="dash-charts-grid">
         <div className="dash-chart-card">
-          <h3 className="dash-chart-title">Payments per Block</h3>
-          <div className="dash-date-badge">{monthRangeLabel}</div>
-          <canvas ref={barChartRef} height="120" />
-          <div className="dash-bar-legend">
-            {paymentsByBlock.labels.length === 0 ? (
-              <p className="dash-empty-state">
-                No payment records are available for this period.
-              </p>
-            ) : (
-              paymentsByBlock.labels.map((block, index) => (
-                <div className="dash-legend-item" key={block}>
-                  <div
-                    className="dash-legend-box"
-                    style={{
-                      background:
-                        chartColors[index % chartColors.length],
-                    }}
-                  />
-                  {block} — {paymentsByBlock.values[index]}
-                </div>
-              ))
-            )}
-          </div>
+          <h3 className="dash-chart-title">Monthly Collections</h3>
+          <p className="dash-chart-subtitle">{monthRangeLabel}</p>
+          {monthlyDuesTarget > 0 && (
+            <div className="dash-date-badge dash-target-badge">
+              Target {peso.format(monthlyDuesTarget)} / mo
+            </div>
+          )}
+          <canvas ref={barChartRef} height="130" />
         </div>
 
         <div className="dash-chart-card">
-          <h3 className="dash-chart-title">Property Payment Status</h3>
+          <h3 className="dash-chart-title">Payment Status</h3>
+          <p className="dash-chart-subtitle">
+            {loading ? 'Loading…' : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
+          </p>
           <div className="dash-donut-container">
             <div className="dash-donut-canvas">
               <canvas ref={donutChartRef} />
@@ -669,17 +696,6 @@ export default function AdminDashboard() {
                   </div>
                 )
               })}
-            </div>
-          </div>
-          <div className="dash-payment-stats">
-            <div className="dash-stat-item">
-              <span>
-                {loading
-                  ? 'Loading properties...'
-                  : `${accountStatus.total.toLocaleString(
-                      'en-PH',
-                    )} registered properties`}
-              </span>
             </div>
           </div>
         </div>

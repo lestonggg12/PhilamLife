@@ -29,20 +29,45 @@
 .logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 16px;
-  color: #1464a0;
+  gap: 12px;
   text-decoration: none;
 }
 
-.logo svg {
+.logo-badge {
   flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #1464a0;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .logo-text {
   white-space: nowrap;
   font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #071e30;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logo-subtext {
+  white-space: nowrap;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 11px;
+  color: #5a7a92;
 }
 
 /* ============================================
@@ -82,14 +107,13 @@
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
   color: #2a5470;
   text-decoration: none;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   background: transparent;
-  border-left: 3px solid transparent;
   font-size: 13px;
   font-weight: 500;
   font-family: 'DM Sans', sans-serif;
@@ -98,14 +122,13 @@
 .nav-item:hover {
   background: rgba(20, 100, 160, 0.08);
   color: #1464a0;
-  border-left-color: #1464a0;
 }
 
 .nav-item.active {
-  background: rgba(20, 100, 160, 0.15);
-  color: #1464a0;
+  background: #1464a0;
+  color: #ffffff;
   font-weight: 600;
-  border-left-color: #1464a0;
+  box-shadow: 0 4px 10px rgba(20, 100, 160, 0.25);
 }
 
 .nav-icon {
@@ -281,9 +304,18 @@
     margin-bottom: 12px;
   }
 
-  .logo {
-    font-size: 14px;
-    gap: 8px;
+  .logo-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .logo-text {
+    font-size: 13px;
+  }
+
+  .logo-subtext {
+    font-size: 10px;
   }
 
   .sidebar-nav {

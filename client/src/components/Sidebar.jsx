@@ -138,8 +138,11 @@ export default function Sidebar({ user, onLogout }) {
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="logo">
-          <Home size={20} />
-          <span className="logo-text">{organization.hoaName}</span>
+          <span className="logo-badge"><Home size={18} /></span>
+          <span className="logo-text-group">
+            <span className="logo-text">{organization.hoaName}</span>
+            <span className="logo-subtext">{user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1).toLowerCase()} Portal` : 'Portal'}</span>
+          </span>
         </div>
       </div>
 

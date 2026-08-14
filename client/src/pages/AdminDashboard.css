@@ -202,14 +202,35 @@
 .dash-stat-icon-box {
   width: 36px;
   height: 36px;
-  background: rgba(26, 138, 96, 0.12);
-  border: 1px solid rgba(26, 138, 96, 0.2);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1a8a60;
   flex-shrink: 0;
+}
+
+.dash-stat-icon-box.tone-blue {
+  background: rgba(20, 100, 160, 0.12);
+  border: 1px solid rgba(20, 100, 160, 0.22);
+  color: #1464a0;
+}
+
+.dash-stat-icon-box.tone-green {
+  background: rgba(26, 138, 96, 0.12);
+  border: 1px solid rgba(26, 138, 96, 0.22);
+  color: #1a8a60;
+}
+
+.dash-stat-icon-box.tone-red {
+  background: rgba(192, 57, 43, 0.12);
+  border: 1px solid rgba(192, 57, 43, 0.22);
+  color: #c0392b;
+}
+
+.dash-stat-icon-box.tone-navy {
+  background: rgba(7, 30, 48, 0.10);
+  border: 1px solid rgba(7, 30, 48, 0.18);
+  color: #2a5470;
 }
 
 .dash-stat-value {
@@ -217,7 +238,7 @@
   font-size: 28px;
   font-weight: 600;
   color: #071e30;
-  margin: 0 0 10px 0;
+  margin: 0 0 6px 0;
   line-height: 1.2;
 }
 
@@ -226,11 +247,28 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #2a5470;
+  color: #5a7a92;
 }
 
-.dash-stat-footer svg {
-  flex-shrink: 0;
+.dash-stat-trend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.dash-stat-trend.up {
+  color: #1a8a60;
+}
+
+.dash-stat-trend.down {
+  color: #c0392b;
+}
+
+.dash-stat-trend.down svg {
+  transform: scaleY(-1);
 }
 
 /* ============================================
@@ -288,7 +326,13 @@
   font-size: 16px;
   font-weight: 600;
   color: #071e30;
-  margin: 0 0 6px 0;
+  margin: 0 0 2px 0;
+}
+
+.dash-chart-subtitle {
+  font-size: 12px;
+  color: #5a7a92;
+  margin: 0 0 10px 0;
 }
 
 .dash-date-badge {
@@ -301,6 +345,15 @@
   margin-bottom: 10px;
   font-weight: 600;
   letter-spacing: 0.4px;
+}
+
+.dash-target-badge {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(7, 30, 48, 0.06);
+  color: #071e30;
+  margin-bottom: 0;
 }
 
 /* Bar Chart Legend */
