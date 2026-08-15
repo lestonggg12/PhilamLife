@@ -1,11 +1,11 @@
 /* ============================================
-   SIDEBAR
+   SIDEBAR — Baby Blue
    ============================================ */
 
 .sidebar {
   width: 280px;
   height: calc(100vh - 60px);
-  background: #e6f0fa;
+  background: var(--bg-dark);
   display: flex;
   flex-direction: column;
   padding: 24px 20px;
@@ -38,7 +38,7 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #1464a0;
+  background: var(--primary);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -54,20 +54,20 @@
 
 .logo-text {
   white-space: nowrap;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 15px;
-  color: #071e30;
+  color: var(--text-dark);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .logo-subtext {
   white-space: nowrap;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-weight: 500;
   font-size: 11px;
-  color: #5a7a92;
+  color: var(--text-muted);
 }
 
 /* ============================================
@@ -91,11 +91,11 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1px;
-  color: #5a7a92;
+  color: var(--text-muted);
   text-transform: uppercase;
   margin: 0 0 8px 0;
   padding: 0 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
 }
 
 .nav-items {
@@ -110,22 +110,22 @@
   gap: 10px;
   padding: 9px 12px;
   border-radius: 10px;
-  color: #2a5470;
+  color: var(--text-light);
   text-decoration: none;
   transition: all 0.2s ease;
   background: transparent;
   font-size: 13px;
   font-weight: 500;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
 }
 
 .nav-item:hover {
   background: rgba(20, 100, 160, 0.08);
-  color: #1464a0;
+  color: var(--primary);
 }
 
 .nav-item.active {
-  background: #1464a0;
+  background: var(--primary);
   color: #ffffff;
   font-weight: 600;
   box-shadow: 0 4px 10px rgba(20, 100, 160, 0.25);
@@ -170,7 +170,7 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: #1464a0;
+  background: var(--primary);
   color: white;
   display: flex;
   align-items: center;
@@ -178,7 +178,7 @@
   font-weight: 700;
   font-size: 14px;
   flex-shrink: 0;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
 }
 
 .user-info {
@@ -189,14 +189,14 @@
 .user-name {
   font-size: 12px;
   font-weight: 600;
-  color: #071e30;
-  font-family: 'DM Sans', sans-serif;
+  color: var(--text-dark);
+  font-family: var(--font-body);
 }
 
 .user-role {
   font-size: 11px;
-  color: #5a7a92;
-  font-family: 'DM Sans', sans-serif;
+  color: var(--text-muted);
+  font-family: var(--font-body);
   text-transform: capitalize;
 }
 
@@ -211,7 +211,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.25s ease;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
 }
 
 .logout-btn:hover {

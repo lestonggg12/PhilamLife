@@ -665,17 +665,17 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       </div>
 
       <div className="contact-summary">
-        <div className="contact-summary-item">
+        <div className="contact-summary-item is-active">
+          <strong>{loading ? '—' : String(activeContactCount).padStart(2, '0')}</strong>
           <span>Active homeowners</span>
-          <strong>{loading ? '—' : activeContactCount}</strong>
         </div>
-        <div className="contact-summary-item">
+        <div className="contact-summary-item is-moved">
+          <strong>{loading ? '—' : String(movedContactCount).padStart(2, '0')}</strong>
           <span>Moved homeowners</span>
-          <strong>{loading ? '—' : movedContactCount}</strong>
         </div>
-        <div className="contact-summary-item">
+        <div className="contact-summary-item is-transferred">
+          <strong>{loading ? '—' : String(transferredContactCount).padStart(2, '0')}</strong>
           <span>Transferred homeowners</span>
-          <strong>{loading ? '—' : transferredContactCount}</strong>
         </div>
       </div>
 
@@ -745,88 +745,92 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                   : 'Active'
 
             return (
-              <article key={contact.id} className="contact-card glass-card">
-                <div className="contact-card-heading">
-                  <div className="contact-avatar">
-                    {(contact.homeowner_name || '?').charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h2 className="contact-name">
-                      {contact.homeowner_name || 'Unnamed homeowner'}
-                    </h2>
-                    <p className="contact-property">
-                      {contact.block}, Lot {contact.lot_number}
-                    </p>
-                    <span className={`contact-status-badge is-${homeownerStatus}`}>
-                      {statusLabel}
-                    </span>
-                  </div>
+              <article key={contact.id} className={`contact-card glass-card is-${homeownerStatus}`}>
+                <div className="contact-plaque" aria-hidden="true">
+                  <span className="contact-plaque-block">{contact.block}</span>
+                  <span className="contact-plaque-lot">Lot {contact.lot_number}</span>
                 </div>
 
-                <div className="contact-details">
-                  <div className="contact-detail">
-                    <Phone size={17} />
-                    {contact.contact_phone ? (
-                      <a href={`tel:${contact.contact_phone}`}>
-                        {contact.contact_phone}
-                      </a>
-                    ) : (
-                      <span className="contact-missing">Phone not provided</span>
-                    )}
-                  </div>
-                  <div className="contact-detail">
-                    <Mail size={17} />
-                    {contact.contact_email ? (
-                      <a href={`mailto:${contact.contact_email}`}>
-                        {contact.contact_email}
-                      </a>
-                    ) : (
-                      <span className="contact-missing">Email not provided</span>
-                    )}
-                  </div>
-                </div>
-
-                {isActive ? (
-                  canManageContacts && (
-                    <div className="contact-card-actions">
-                      <button
-                        type="button"
-                        className="contact-edit-button"
-                        onClick={() => openContactForm(contact)}
-                      >
-                        <Edit size={16} />
-                        {hasContactDetails
-                          ? 'Edit Contact Details'
-                          : 'Add Contact Details'}
-                      </button>
-                      <button
-                        type="button"
-                        className="contact-transfer-button"
-                        onClick={() => requestTransferContact(contact)}
-                        disabled={transferringContactId === contact.id}
-                        aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
-                        title="Mark as moved or transferred"
-                      >
-                        <FileArchive size={16} />
-                        Move / Transfer
-                      </button>
+                <div className="contact-card-body">
+                  <div className="contact-card-heading">
+                    <div className="contact-avatar">
+                      {(contact.homeowner_name || '?').charAt(0).toUpperCase()}
                     </div>
-                  )
-                ) : (
-                  <div className="contact-card-history-note">
-                    <span className="contact-card-history-label">
-                      {statusLabel}
-                      {contact.status_effective_date
-                        ? ` since ${contact.status_effective_date}`
-                        : ''}
-                    </span>
-                    {contact.status_reason && (
-                      <span className="contact-card-history-reason">
-                        {contact.status_reason}
+                    <div>
+                      <h2 className="contact-name">
+                        {contact.homeowner_name || 'Unnamed homeowner'}
+                      </h2>
+                      <span className={`contact-status-badge is-${homeownerStatus}`}>
+                        {statusLabel}
                       </span>
-                    )}
+                    </div>
                   </div>
-                )}
+
+                  <div className="contact-details">
+                    <div className="contact-detail">
+                      <Phone size={16} />
+                      {contact.contact_phone ? (
+                        <a href={`tel:${contact.contact_phone}`}>
+                          {contact.contact_phone}
+                        </a>
+                      ) : (
+                        <span className="contact-missing">Phone not provided</span>
+                      )}
+                    </div>
+                    <div className="contact-detail">
+                      <Mail size={16} />
+                      {contact.contact_email ? (
+                        <a href={`mailto:${contact.contact_email}`}>
+                          {contact.contact_email}
+                        </a>
+                      ) : (
+                        <span className="contact-missing">Email not provided</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {isActive ? (
+                    canManageContacts && (
+                      <div className="contact-card-actions">
+                        <button
+                          type="button"
+                          className="contact-edit-button"
+                          onClick={() => openContactForm(contact)}
+                        >
+                          <Edit size={16} />
+                          {hasContactDetails
+                            ? 'Edit Contact Details'
+                            : 'Add Contact Details'}
+                        </button>
+                        <button
+                          type="button"
+                          className="contact-transfer-button"
+                          onClick={() => requestTransferContact(contact)}
+                          disabled={transferringContactId === contact.id}
+                          aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
+                          title="Mark as moved or transferred"
+                        >
+                          <FileArchive size={16} />
+                          Move / Transfer
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <div className="contact-card-history-note">
+                      <span className="contact-card-history-label">
+                        {statusLabel}
+                        {contact.status_effective_date
+                          ? ` since ${contact.status_effective_date}`
+                          : ''}
+                      </span>
+                      {contact.status_reason && (
+                        <span className="contact-card-history-reason">
+                          {contact.status_reason}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </article>
             )
           })}
