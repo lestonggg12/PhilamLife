@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import './Navbar.css'
-import { Bell, Search, LogOut } from './Icons'
+import { LogOut } from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
 
 const PAGE_LABELS = {
@@ -31,7 +31,7 @@ function pageLabelFor(pathname) {
   return match ? PAGE_LABELS[match] : 'Dashboard'
 }
 
-export default function Navbar({ user, onLogout, hasNotifications = false }) {
+export default function Navbar({ user, onLogout }) {
   const { organization } = useOrganization()
   const location = useLocation()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
@@ -68,16 +68,6 @@ export default function Navbar({ user, onLogout, hasNotifications = false }) {
         </div>
 
         <div className="navbar-right">
-          <label className="navbar-search">
-            <Search size={16} />
-            <input type="search" placeholder="Search anything..." aria-label="Search" />
-          </label>
-
-          <button className="icon-btn" title="Notifications">
-            <Bell size={19} />
-            {hasNotifications && <span className="icon-btn-dot" aria-hidden="true" />}
-          </button>
-
           <button className="navbar-signout" onClick={handleLogoutClick}>
             <LogOut size={15} />
             <span>Sign Out</span>
