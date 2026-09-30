@@ -777,7 +777,7 @@ export default function LedgerPage({ user: suppliedUser }) {
                 ))}
                 <th>Credit</th>
                 <th>Status</th>
-                <th aria-label="Actions">Actions</th>
+                <th className="ledger-actions-heading" aria-label="Actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -792,13 +792,15 @@ export default function LedgerPage({ user: suppliedUser }) {
                   <td className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
                   <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
                   <td className="ledger-row-actions">
-                    <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>
-                    {canManageHomeowners && (
-                      <>
-                        <button className="ledger-icon-button" type="button" onClick={() => openEditHomeowner(entry)}>Edit</button>
-                        <button className="ledger-icon-button ledger-icon-button-danger" type="button" onClick={() => handleDeleteHomeowner(entry)}>Delete</button>
-                      </>
-                    )}
+                    <div className="ledger-actions-card">
+                      <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>
+                      {canManageHomeowners && (
+                        <>
+                          <button className="ledger-icon-button" type="button" onClick={() => openEditHomeowner(entry)}>Edit</button>
+                          <button className="ledger-icon-button ledger-icon-button-danger" type="button" onClick={() => handleDeleteHomeowner(entry)}>Delete</button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
