@@ -451,30 +451,7 @@
   transform: translateY(0);
 }
 
-/* ========================================
-   CONTACT HINT
-   ======================================== */
 
-.login-contact-hint {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  color: #2a5470;
-  text-align: center;
-  margin-top: 16px;
-  margin-bottom: 0;
-}
-
-.login-contact-link {
-  font-weight: 600;
-  color: #1464a0;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.login-contact-link:hover {
-  color: #071e30;
-}
 
 /* ========================================
    RESPONSIVE DESIGN
@@ -619,8 +596,5 @@
     font-size: 12px;
   }
 
-  .login-contact-hint {
-    font-size: 11px;
-    margin-top: 12px;
-  }
+  
 }

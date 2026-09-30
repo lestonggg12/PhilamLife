@@ -1,5 +1,8 @@
 /* ============================================
    LAYOUT - FIXED NAVBAR + SIDEBAR
+   Liquid-glass backdrop: a soft gradient wash plus two blurred
+   color blobs sitting behind the frosted navbar/sidebar/cards,
+   so their backdrop-filter has something to actually refract.
    ============================================ */
 
 .layout {
@@ -7,20 +10,52 @@
   flex-direction: column;
   width: 100%;
   min-height: 100vh;
-  background: #e6f0fa;
+  background: linear-gradient(135deg, #e6f0fa 0%, #f0f5fa 100%);
+  position: relative;
+  overflow-x: hidden;
+}
+
+.layout::before,
+.layout::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(70px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.layout::before {
+  width: 480px;
+  height: 480px;
+  top: -140px;
+  right: -100px;
+  background: rgba(120, 162, 210, 0.5);
+}
+
+.layout::after {
+  width: 420px;
+  height: 420px;
+  bottom: -160px;
+  left: 220px;
+  background: rgba(20, 100, 160, 0.25);
 }
 
 .layout-container {
   display: flex;
   flex: 1;
   margin-top: 56px;
+  height: calc(100vh - 56px);
+  position: relative;
+  z-index: 1;
 }
 
 .page-content {
   flex: 1;
+  height: 100%;
   margin-left: 280px;
   padding: 24px 32px;
-  background: #e6f0fa;
+  background: transparent;
   overflow-y: auto;
   box-sizing: border-box;
 }
