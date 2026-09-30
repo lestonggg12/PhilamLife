@@ -191,12 +191,7 @@ export default function LoginPage({ onAuthenticated }) {
             {loading ? 'Signing in...' : `Sign In To ${selectedRole} Portal`}
           </button>
 
-          <p className="login-contact-hint">
-            Need access?{' '}
-            <a href="#" className="login-contact-link" onClick={(e) => e.preventDefault()}>
-              Contact the Admin
-            </a>
-          </p>
+          
         </form>
       </div>
     </div>

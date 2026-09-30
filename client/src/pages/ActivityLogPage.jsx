@@ -357,6 +357,28 @@ export default function ActivityLogPage() {
           <h1>Activity Log</h1>
           <p>Daily system activity and calendar-based archive</p>
         </div>
+
+        <div className="activity-header-date">
+          <span
+            className={`day-type-badge header-badge ${
+              isTodaySelected ? 'current' : 'archive'
+            }`}
+          >
+            {isTodaySelected ? 'Current Day' : 'Archived Day'}
+          </span>
+          <div className="header-date-value">
+            {selectedDateFormatter.format(dateFromKey(selectedDate))}
+          </div>
+          <div className="header-date-caption">
+            {selectedDayLogs.length === 0
+              ? isTodaySelected
+                ? 'This daily page is ready for new system activities.'
+                : 'No activity was recorded on this day.'
+              : `${selectedDayLogs.length} recorded ${
+                  selectedDayLogs.length === 1 ? 'activity' : 'activities'
+                } on this day.`}
+          </div>
+        </div>
       </div>
 
       {errorMessage && (
@@ -370,26 +392,9 @@ export default function ActivityLogPage() {
         <div className="activity-day-heading">
           <div>
             <div className="activity-day-title-row">
-              <h2>
-                {selectedDateFormatter.format(dateFromKey(selectedDate))}
-              </h2>
-              <span
-                className={`day-type-badge ${
-                  isTodaySelected ? 'current' : 'archive'
-                }`}
-              >
-                {isTodaySelected ? 'Current day' : 'Archived day'}
-              </span>
+              <h2>{isTodaySelected ? "Today's Log" : 'Archived Log'}</h2>
             </div>
-            <p>
-              {selectedDayLogs.length === 0
-                ? isTodaySelected
-                  ? 'This daily page is ready for new system activities.'
-                  : 'No activity was recorded on this day.'
-                : `${selectedDayLogs.length} recorded ${
-                    selectedDayLogs.length === 1 ? 'activity' : 'activities'
-                  } on this day.`}
-            </p>
+            <p>Filter, search, or jump to another day below.</p>
           </div>
 
           <div className="activity-day-actions">
