@@ -721,10 +721,15 @@
   box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
 }
 
-.payment-form input[readonly] {
+.payment-form input[readonly],
+.payment-form input:disabled {
   background: rgba(120, 162, 210, 0.1);
   color: var(--text-light);
   cursor: default;
+}
+
+.payment-form input:disabled {
+  cursor: not-allowed;
 }
 
 .payment-homeowner-field {

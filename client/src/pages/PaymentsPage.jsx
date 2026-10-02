@@ -541,14 +541,28 @@ export default function PaymentsPage({ user: suppliedUser }) {
       homeownerName: value,
       blockName: '',
       lotNumber: '',
+      previousBalance: '',
     }))
     setHomeownerMenuOpen(true)
     setFormError('')
   }
 
+  function getCurrentBalance(propertyId) {
+    // payments is sorted newest first; latest non-voided receipt holds the running balance
+    const latest = payments.find(
+      (payment) =>
+        String(payment.property_id) === String(propertyId) &&
+        payment.status !== 'Voided' &&
+        payment.remaining_balance !== null &&
+        payment.remaining_balance !== undefined,
+    )
+    return latest ? String(Number(latest.remaining_balance)) : ''
+  }
+
   function selectHomeowner(property) {
     setForm((current) => ({
       ...current,
+      previousBalance: getCurrentBalance(property.id),
       propertyId: String(property.id),
       homeownerName: property.homeowner_name,
       blockName: property.block,
@@ -618,7 +632,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
 
     if (!Number.isFinite(previous) || previous < 0) {
-      setFormError('Previous balance must be zero or greater.')
+      setFormError('Current balance must be zero or greater.')
       return
     }
 
@@ -628,7 +642,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
 
     if (paid > previous) {
-      setFormError('Amount paid cannot be greater than the previous balance.')
+      setFormError('Amount paid cannot be greater than the current balance.')
       return
     }
 
@@ -1002,12 +1016,31 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 />
               </label>
 
-              <label>Previous balance
-                <input name="previousBalance" type="number" min="0" step="0.01" value={form.previousBalance} onChange={updateField} required />
+              <label>Current Balance
+                <input
+                  name="previousBalance"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.previousBalance}
+                  onChange={updateField}
+                  placeholder="Select a homeowner first"
+                  disabled={!form.propertyId}
+                  required
+                />
               </label>
 
               <label>Amount paid
-                <input name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} required />
+                <input
+                  name="amountPaid"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.amountPaid}
+                  onChange={updateField}
+                  onWheel={(event) => event.currentTarget.blur()}
+                  required
+                />
               </label>
 
               <div className="payment-balance-preview payment-span-2">
