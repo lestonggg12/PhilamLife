@@ -998,7 +998,7 @@ export default function OfficialReceiptsPage() {
   return (
     <div className="official-receipts-page">
       <header className="official-receipts-header">
-        <div>
+        <div className="official-receipts-header-content">
           <p className="official-receipts-eyebrow">
             Secretary workspace
           </p>

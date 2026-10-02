@@ -2,19 +2,19 @@ Admin
 
 Email: admin@philamvillage.hoa
 
-Password: philamadmin
+Password: P2q!ID8vzxwwlIq$Q64@
 
 Secretary
 
 Email: secretary@philamvillage.hoa
 
-Password: philamsecretary123
+Password: !UZka2nubQm9npEAC2Mp
 
 Treasurer
 
 Email: treasurer@philamvillage.hoa
 
-Password: philamtreasurer123
+Password: IRB6i9B*h*mO%aLr21R-
 
 
 
