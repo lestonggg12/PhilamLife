@@ -28,6 +28,73 @@ const EMPTY_FORM = {
   note: '',
 }
 
+const formatBalance = (value) =>
+  value < 0 ? `Advance credit ${peso.format(Math.abs(value))}` : peso.format(value)
+
+// Advance-credit details from the admin's System Settings (monthly dues
+// amount, due day, grace period). Credit is deducted when the next month's
+// dues are billed (1st of the month).
+function advanceCreditDetails(credit, settings) {
+  if (!settings) return { credit, hasSettings: false }
+
+  const dues = Number(settings.dues_amount) || 0
+  const dueDay = Math.min(Math.max(Number(settings.due_day) || 1, 1), 28)
+  const grace = Number(settings.grace_period_days) || 0
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date())
+  const year = Number(parts.find((item) => item.type === 'year').value)
+  const month = Number(parts.find((item) => item.type === 'month').value) // 1-12; used as next month's 0-based index
+  const fmt = (date) =>
+    date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
+  const due = new Date(Date.UTC(year, month, dueDay))
+  const months = dues > 0 ? Math.floor(credit / dues) : 0
+  const rest = dues > 0 ? Math.round((credit - months * dues) * 100) / 100 : 0
+
+  return {
+    credit,
+    hasSettings: true,
+    dues,
+    grace,
+    months,
+    rest,
+    shortfall: dues > 0 && months === 0 ? Math.round((dues - credit) * 100) / 100 : 0,
+    billing: fmt(new Date(Date.UTC(year, month, 1))),
+    due: fmt(due),
+    deadline: fmt(new Date(due.getTime() + grace * 86400000)),
+  }
+}
+
+function advanceCreditNote(credit, settings) {
+  const d = advanceCreditDetails(credit, settings)
+  const amount = peso.format(credit)
+  if (!d.hasSettings) {
+    return `${amount} will be kept as advance credit and deducted when the next monthly dues are billed.`
+  }
+
+  const schedule = d.grace > 0
+    ? `due ${d.due}, grace period until ${d.deadline}`
+    : `due ${d.due}, no grace period`
+
+  let coverage = ''
+  if (d.dues > 0) {
+    coverage = d.months > 0
+      ? ` This covers ${d.months} full month${d.months > 1 ? 's' : ''} of dues${d.rest > 0 ? `, plus ${peso.format(d.rest)} toward the next` : ''}.`
+      : ` This is less than one month's dues, so ${peso.format(d.shortfall)} will still be due after the deduction.`
+  }
+
+  return `${amount} will be kept as advance credit and deducted automatically when the next monthly dues (${peso.format(d.dues)}) are billed on ${d.billing} (${schedule}).${coverage}`
+}
+
+const EMPTY_CHARGE = {
+  propertyId: '',
+  chargeType: 'Penalty / Late Fee',
+  description: '',
+  amount: '',
+}
+
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -330,6 +397,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
+  const [duesSettings, setDuesSettings] = useState(null)
+  const [advanceConfirm, setAdvanceConfirm] = useState(null)
+  const advanceApprovedRef = useRef(false)
+  const [showCharge, setShowCharge] = useState(false)
+  const [chargeForm, setChargeForm] = useState(EMPTY_CHARGE)
+  const [chargeError, setChargeError] = useState('')
+  const [chargeSaving, setChargeSaving] = useState(false)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
   const [selectedDateKey, setSelectedDateKey] = useState('')
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -409,16 +483,25 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, propertyResult] = await Promise.all([
+    const [paymentResult, propertyResult, settingsResult] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
         .order('paid_at', { ascending: false }),
       supabase
         .from('properties')
-        .select('id, homeowner_name, block, lot_number, homeowner_status')
+        .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')
         .order('homeowner_name'),
+      supabase
+        .from('system_settings')
+        .select('dues_amount, due_day, grace_period_days')
+        .eq('id', 1)
+        .maybeSingle(),
     ])
+
+    if (!settingsResult.error && settingsResult.data) {
+      setDuesSettings(settingsResult.data)
+    }
 
     if (paymentResult.error) {
       setPageError(`Could not load payments: ${paymentResult.error.message}`)
@@ -440,7 +523,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const remainingBalance = useMemo(() => {
     const previous = Number(form.previousBalance) || 0
     const paid = Number(form.amountPaid) || 0
-    return Math.max(previous - paid, 0)
+    return previous - paid
   }, [form.previousBalance, form.amountPaid])
 
   // Like Official Receipts, the payment history table stays empty
@@ -547,22 +630,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setFormError('')
   }
 
-  function getCurrentBalance(propertyId) {
-    // payments is sorted newest first; latest non-voided receipt holds the running balance
-    const latest = payments.find(
-      (payment) =>
-        String(payment.property_id) === String(propertyId) &&
-        payment.status !== 'Voided' &&
-        payment.remaining_balance !== null &&
-        payment.remaining_balance !== undefined,
-    )
-    return latest ? String(Number(latest.remaining_balance)) : ''
-  }
-
   function selectHomeowner(property) {
     setForm((current) => ({
       ...current,
-      previousBalance: getCurrentBalance(property.id),
+      previousBalance: String(Number(property.current_balance) || 0),
       propertyId: String(property.id),
       homeownerName: property.homeowner_name,
       blockName: property.block,
@@ -595,8 +666,90 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setSelectedDateKey('')
   }
 
+  function openChargeForm() {
+    if (!canManagePayments) return
+    setChargeForm(EMPTY_CHARGE)
+    setChargeError('')
+    setShowCharge(true)
+  }
+
+  function closeChargeForm() {
+    if (chargeSaving) return
+    setShowCharge(false)
+  }
+
+  function updateChargeField(event) {
+    const { name, value } = event.target
+    setChargeForm((current) => ({ ...current, [name]: value }))
+    setChargeError('')
+  }
+
+  async function addCharge(event) {
+    event.preventDefault()
+
+    if (!canManagePayments || !currentUser?.id) {
+      setChargeError('Only an Admin, Secretary, or Treasurer can add charges.')
+      return
+    }
+
+    const amount = Math.round((Number(chargeForm.amount) + Number.EPSILON) * 100) / 100
+    const property = properties.find((item) => String(item.id) === chargeForm.propertyId)
+
+    if (!property) {
+      setChargeError('Select a homeowner.')
+      return
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setChargeError('Charge amount must be greater than zero.')
+      return
+    }
+
+    setChargeSaving(true)
+    setChargeError('')
+
+    const { error } = await supabase.from('property_charges').insert({
+      property_id: property.id,
+      charge_type: chargeForm.chargeType,
+      description: chargeForm.description.trim() || null,
+      amount,
+      created_by: currentUser.id,
+      created_by_name: recorderName,
+    })
+
+    if (error) {
+      setChargeError(error.message)
+      setChargeSaving(false)
+      return
+    }
+
+    await supabase.from('activity_log').insert({
+      user_id: currentUser.id,
+      action: 'Charge Added',
+      target: `${chargeForm.chargeType} — ${property.homeowner_name} — ${peso.format(amount)}`,
+    })
+
+    setProperties((current) =>
+      current.map((item) =>
+        item.id === property.id
+          ? { ...item, current_balance: (Number(item.current_balance) || 0) + amount }
+          : item,
+      ),
+    )
+    setShowCharge(false)
+    setChargeSaving(false)
+  }
+
+  function confirmAdvancePayment() {
+    advanceApprovedRef.current = true
+    setAdvanceConfirm(null)
+    recordPayment({ preventDefault() {} })
+  }
+
   async function recordPayment(event) {
     event.preventDefault()
+    const advanceApproved = advanceApprovedRef.current
+    advanceApprovedRef.current = false
 
     if (!canManagePayments) {
       setFormError('Only an Admin, Secretary, or Treasurer can record payments.')
@@ -631,8 +784,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
-    if (!Number.isFinite(previous) || previous < 0) {
-      setFormError('Current balance must be zero or greater.')
+    if (!Number.isFinite(previous)) {
+      setFormError('Current balance is not available. Select the homeowner again.')
       return
     }
 
@@ -641,8 +794,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
-    if (paid > previous) {
-      setFormError('Amount paid cannot be greater than the current balance.')
+    if (paid > Math.max(previous, 0) && !advanceApproved) {
+      setAdvanceConfirm({ credit: paid - previous, paid })
       return
     }
 
@@ -700,6 +853,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
 
     setPayments((current) => [data, ...current])
+    setProperties((current) =>
+      current.map((property) =>
+        String(property.id) === String(data.property_id)
+          ? { ...property, current_balance: Number(data.remaining_balance) || 0 }
+          : property,
+      ),
+    )
     setShowForm(false)
     setForm(EMPTY_FORM)
     setReceipt(data)
@@ -736,6 +896,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
             </svg>
             View by Date
           </button>
+
+          {canManagePayments && (
+            <button className="payments-secondary" type="button" onClick={openChargeForm}>
+              Add Charge
+            </button>
+          )}
 
           {canManagePayments && (
             <button className="payments-primary" type="button" onClick={openForm}>
@@ -1019,34 +1185,29 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <label>Current Balance
                 <input
                   name="previousBalance"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.previousBalance}
-                  onChange={updateField}
+                  type="text"
+                  value={form.propertyId ? formatBalance(Number(form.previousBalance) || 0) : ''}
                   placeholder="Select a homeowner first"
-                  disabled={!form.propertyId}
-                  required
+                  disabled
+                  readOnly
                 />
               </label>
 
               <label>Amount paid
-                <input
-                  name="amountPaid"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.amountPaid}
-                  onChange={updateField}
-                  onWheel={(event) => event.currentTarget.blur()}
-                  required
-                />
+                <input name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} required />
               </label>
 
               <div className="payment-balance-preview payment-span-2">
-                <span>Remaining balance after payment</span>
-                <strong>{peso.format(remainingBalance)}</strong>
+                <span>{remainingBalance < 0 ? 'Advance credit after payment' : 'Remaining balance after payment'}</span>
+                <strong>{formatBalance(remainingBalance)}</strong>
               </div>
+
+              {form.propertyId && remainingBalance < 0 && (
+                <div className="payment-credit-note payment-span-2" role="status">
+                  <strong>Advance payment</strong>
+                  <span>{advanceCreditNote(-remainingBalance, duesSettings)}</span>
+                </div>
+              )}
 
               <label>Payment Method
                 <select name="paymentMethod" value={form.paymentMethod} onChange={updateField}>
@@ -1076,6 +1237,101 @@ export default function PaymentsPage({ user: suppliedUser }) {
         </div>
       )}
 
+      {showCharge && canManagePayments && (
+        <div className="payments-overlay" onMouseDown={closeChargeForm}>
+          <form className="payment-form" onSubmit={addCharge} onMouseDown={(e) => e.stopPropagation()} autoComplete="off">
+            <div className="payment-modal-heading">
+              <div>
+                <h2>Add Charge</h2>
+                <p>Adds an amount owed to the homeowner's Current Balance. Monthly dues are added automatically.</p>
+              </div>
+              <button type="button" className="payments-close" onClick={closeChargeForm}>×</button>
+            </div>
+
+            <div className="payment-form-grid">
+              <label className="payment-span-2">Homeowner
+                <select name="propertyId" value={chargeForm.propertyId} onChange={updateChargeField} required>
+                  <option value="">Select homeowner</option>
+                  {properties
+                    .filter((property) => property.homeowner_status === 'active')
+                    .map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.homeowner_name} — {property.block}, Lot {property.lot_number}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <label>Charge Type
+                <select name="chargeType" value={chargeForm.chargeType} onChange={updateChargeField}>
+                  {PAYMENT_PURPOSES.map((purpose) => (
+                    <option key={purpose}>{purpose}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label>Amount
+                <input name="amount" type="number" min="0.01" step="0.01" value={chargeForm.amount} onChange={updateChargeField} required />
+              </label>
+
+              <label className="payment-span-2">Description (Optional)
+                <input name="description" value={chargeForm.description} onChange={updateChargeField} maxLength="250" placeholder="e.g., Noise violation, July 2026" />
+              </label>
+            </div>
+
+            {chargeError && <p className="payments-error">{chargeError}</p>}
+
+            <div className="payment-actions">
+              <button type="button" className="payments-secondary" onClick={closeChargeForm} disabled={chargeSaving}>Cancel</button>
+              <button type="submit" className="payments-primary" disabled={chargeSaving}>{chargeSaving ? 'Saving...' : 'Add Charge'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {advanceConfirm && (() => {
+        const d = advanceCreditDetails(advanceConfirm.credit, duesSettings)
+        return (
+          <div className="payments-overlay advance-overlay" onMouseDown={() => setAdvanceConfirm(null)}>
+            <section className="advance-dialog" role="dialog" aria-modal="true" aria-labelledby="advance-title" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="advance-icon" aria-hidden="true">₱</div>
+              <h2 id="advance-title">Advance payment</h2>
+              <p className="advance-lead">This payment is more than what the homeowner owes. The extra will be saved as credit.</p>
+
+              <div className="advance-amount">
+                <span>Advance credit after this payment</span>
+                <strong>{peso.format(d.credit)}</strong>
+              </div>
+
+              {d.hasSettings ? (
+                <>
+                  <dl className="advance-details">
+                    <div><dt>Deducted on</dt><dd>{d.billing}</dd></div>
+                    <div><dt>Monthly dues</dt><dd>{peso.format(d.dues)}</dd></div>
+                    <div><dt>Dues date</dt><dd>{d.due}</dd></div>
+                    <div><dt>Grace period</dt><dd>{d.grace > 0 ? `${d.grace} days (until ${d.deadline})` : 'None'}</dd></div>
+                  </dl>
+                  {d.dues > 0 && (
+                    <p className="advance-coverage">
+                      {d.months > 0
+                        ? `Covers ${d.months} full month${d.months > 1 ? 's' : ''} of dues${d.rest > 0 ? `, plus ${peso.format(d.rest)} toward the next.` : '.'}`
+                        : `Less than one month of dues — ${peso.format(d.shortfall)} will still be due after the deduction.`}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="advance-coverage">It will be deducted automatically when the next monthly dues are billed.</p>
+              )}
+
+              <div className="advance-actions">
+                <button type="button" className="payments-secondary" onClick={() => setAdvanceConfirm(null)}>Go back</button>
+                <button type="button" className="payments-primary" onClick={confirmAdvancePayment} autoFocus>Confirm payment</button>
+              </div>
+            </section>
+          </div>
+        )
+      })()}
+
       {receipt && (
         <div className="payments-overlay receipt-overlay" onMouseDown={() => setReceipt(null)}>
           <article className="receipt" onMouseDown={(e) => e.stopPropagation()}>
@@ -1100,8 +1356,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <div className="receipt-totals">
                 <div><span>Previous balance</span><span>{peso.format(receipt.previous_balance)}</span></div>
                 <div className="receipt-paid"><strong>Amount paid</strong><strong>{peso.format(receipt.amount_paid)}</strong></div>
-                <div><span>Remaining balance</span><strong>{peso.format(receipt.remaining_balance)}</strong></div>
+                <div><span>{Number(receipt.remaining_balance) < 0 ? 'Advance credit' : 'Remaining balance'}</span><strong>{peso.format(Math.abs(Number(receipt.remaining_balance) || 0))}</strong></div>
               </div>
+
+              {Number(receipt.remaining_balance) < 0 && (
+                <p className="receipt-note">
+                  <strong>Advance credit:</strong> {advanceCreditNote(-Number(receipt.remaining_balance), duesSettings)}
+                </p>
+              )}
 
               {receipt.note && <p className="receipt-note"><strong>Note:</strong> {receipt.note}</p>}
 

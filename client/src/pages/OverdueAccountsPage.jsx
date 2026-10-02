@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
-import { computeLateFee } from '../lib/latepenalty'
+import { computeOverdueFromCharges } from '../lib/latepenalty'
 import './OverdueAccountsPage.css'
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
@@ -53,6 +53,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [pageError, setPageError] = useState('')
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('All')
+  const [charges, setCharges] = useState([])
   const [statusFilter, setStatusFilter] = useState('Overdue')
   const [agingFilter, setAgingFilter] = useState('All')
   const [logTarget, setLogTarget] = useState(null)
@@ -85,8 +86,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     isRefresh ? setRefreshing(true) : setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, settingsResult, actionsResult] = await Promise.all([
-      supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status'),
+    const [propertyResult, paymentResult, settingsResult, actionsResult, chargesResult] = await Promise.all([
+      supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance'),
       supabase
         .from('payments')
         .select('property_id, homeowner_name, block_name, lot_number, amount_paid, previous_balance, remaining_balance, paid_at, status')
@@ -100,9 +101,13 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         .from('collection_actions')
         .select('id, property_id, action_type, action_date, details, document_reference, created_by')
         .order('action_date', { ascending: false }),
+      supabase
+        .from('property_charges')
+        .select('property_id, amount, billing_month, created_at')
+        .is('voided_at', null),
     ])
 
-    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, actionsResult.error].filter(Boolean)
+    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, actionsResult.error, chargesResult.error].filter(Boolean)
     if (errors.length > 0) {
       setPageError(`Some records could not be loaded: ${errors.map((e) => e.message).join(' ')}`)
     }
@@ -110,6 +115,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setProperties(propertyResult.data || [])
     setPayments((paymentResult.data || []).filter((p) => p.status !== 'Voided'))
     setCollectionActions(actionsResult.data || [])
+    setCharges(chargesResult.data || [])
     setPenaltySettings({
       duesAmount: Number(settingsResult.data?.dues_amount) || 0,
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -143,14 +149,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         )
       })
       const latestPayment = propertyPayments[0]
-      const dueAmount = latestPayment
-        ? Number(latestPayment.previous_balance) || penaltySettings.duesAmount
-        : penaltySettings.duesAmount
       const paidAmount = latestPayment ? Number(latestPayment.amount_paid) || 0 : 0
-      const balance = latestPayment ? Number(latestPayment.remaining_balance) || 0 : dueAmount
+      const balance = Number(property.current_balance) || 0
 
-      const lateFee = computeLateFee({
+      const lateFee = computeOverdueFromCharges({
         balance,
+        charges: charges.filter((charge) => Number(charge.property_id) === Number(property.id)),
         dueDay: penaltySettings.dueDay,
         gracePeriodDays: penaltySettings.gracePeriodDays,
         latePenalty: penaltySettings.latePenalty,
@@ -186,7 +190,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         actions: propertyActions,
       }
     })
-  }, [properties, payments, penaltySettings, actionsByProperty])
+  }, [properties, payments, charges, penaltySettings, actionsByProperty])
 
   const blocks = useMemo(
     () => ['All', ...new Set(properties.map((p) => p.block).filter(Boolean))].sort(),

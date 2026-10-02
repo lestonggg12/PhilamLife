@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { computeLateFee } from '../lib/latepenalty'
+import { computeOverdueFromCharges } from '../lib/latepenalty'
 import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 import { useOrganization } from '../context/OrganizationContext'
 
@@ -15,11 +15,14 @@ const EMPTY_HOMEOWNER = {
 const SORT_COLUMNS = [
   { key: 'name', label: 'Homeowner' },
   { key: 'block', label: 'Block / Lot' },
-  { key: 'dueAmount', label: 'Charges' },
-  { key: 'paidAmount', label: 'Allocated' },
+  { key: 'dueAmount', label: 'Previous Balance' },
+  { key: 'paidAmount', label: 'Last Paid' },
   { key: 'balance', label: 'Balance' },
   { key: 'lastPaymentSort', label: 'Last Payment' },
 ]
+
+// Negative balances are advance credit — show them as credit, not as "-₱x".
+const formatMoney = (value) => (value < 0 ? `${peso.format(-value)} credit` : peso.format(value))
 
 // The table only renders once the user has narrowed things down — with a
 // search term or a non-default filter — so we never dump the full
@@ -64,6 +67,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
+  const [charges, setCharges] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
@@ -127,18 +131,22 @@ export default function LedgerPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, settingsResult] =
+    const [blockResult, propertyResult, paymentResult, settingsResult, chargesResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name, created_at, homeowner_status')
+          .select('id, block, lot_number, homeowner_name, created_at, homeowner_status, current_balance')
           .order('homeowner_name'),
         supabase.from('payments').select('*').order('paid_at', { ascending: false }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
+        supabase
+          .from('property_charges')
+          .select('property_id, amount, billing_month, created_at')
+          .is('voided_at', null),
       ])
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error]
+    const errors = [blockResult.error, propertyResult.error, paymentResult.error, chargesResult.error]
       .filter(Boolean)
       .map((error) => error.message)
 
@@ -149,6 +157,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setBlocks(blockResult.data || [])
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
+    setCharges(chargesResult.data || [])
     setOrgSettings(settingsResult.data || null)
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
@@ -547,25 +556,31 @@ export default function LedgerPage({ user: suppliedUser }) {
         (payment) => payment.status !== 'Voided',
       )
       const latestPayment = activePropertyPayments[0]
-      const dueAmount = latestPayment
-        ? Number(latestPayment.previous_balance) || duesAmount
-        : duesAmount
+      // Stored balance: positive = owed, negative = advance credit.
+      const stored = Number(property.current_balance) || 0
+      const balance = Math.max(stored, 0)
+      const credit = Math.max(-stored, 0)
+      const previousBalance = latestPayment
+        ? Number(latestPayment.previous_balance) || 0
+        : stored
       const paidAmount = latestPayment ? Number(latestPayment.amount_paid) || 0 : 0
-      const balance = latestPayment
-        ? Number(latestPayment.remaining_balance) || 0
-        : dueAmount
-      const lateFee = computeLateFee({
-        balance,
+      const totalPaid = activePropertyPayments.reduce(
+        (sum, payment) => sum + (Number(payment.amount_paid) || 0),
+        0,
+      )
+      const lateFee = computeOverdueFromCharges({
+        balance: stored,
+        charges: charges.filter((charge) => Number(charge.property_id) === Number(property.id)),
         dueDay: penaltySettings.dueDay,
         gracePeriodDays: penaltySettings.gracePeriodDays,
         latePenalty: penaltySettings.latePenalty,
       })
-      const status = balance <= 0
+      const status = stored <= 0
         ? 'Paid'
-        : paidAmount > 0
-          ? 'Partial'
-          : lateFee.isOverdue
-            ? 'Overdue'
+        : lateFee.isOverdue
+          ? 'Overdue'
+          : paidAmount > 0
+            ? 'Partial'
             : 'Pending'
 
       return {
@@ -574,9 +589,12 @@ export default function LedgerPage({ user: suppliedUser }) {
         block: property.block,
         lot: `Lot ${property.lot_number}`,
         lotNumberRaw: property.lot_number,
-        dueAmount,
+        dueAmount: previousBalance,
         paidAmount,
+        totalPaid,
+        stored,
         balance,
+        unallocatedCredit: credit,
         penaltyAmount: lateFee.penaltyAmount,
         totalDue: lateFee.totalDue,
         lastPayment: latestPayment?.paid_at
@@ -586,7 +604,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         status,
       }
     })
-  }, [properties, payments, duesAmount, penaltySettings])
+  }, [properties, payments, charges, penaltySettings])
 
   const filtered = useMemo(() => {
     const term = normalize(search)
@@ -615,8 +633,9 @@ export default function LedgerPage({ user: suppliedUser }) {
   const totals = useMemo(() => {
     return ledgerEntries.reduce(
       (result, entry) => ({
-        totalDue: result.totalDue + entry.dueAmount,
-        totalPaid: result.totalPaid + entry.paidAmount,
+        // billed to date = everything paid + whatever is still owed (minus any credit)
+        totalDue: result.totalDue + entry.totalPaid + entry.stored,
+        totalPaid: result.totalPaid + entry.totalPaid,
         totalBalance: result.totalBalance + entry.balance,
       }),
       { totalDue: 0, totalPaid: 0, totalBalance: 0 },
@@ -785,7 +804,7 @@ export default function LedgerPage({ user: suppliedUser }) {
                 <tr key={entry.id}>
                   <td><strong>{entry.name}</strong></td>
                   <td>{entry.block}, {entry.lot}</td>
-                  <td>{peso.format(entry.dueAmount)}</td>
+                  <td>{formatMoney(entry.dueAmount)}</td>
                   <td>{peso.format(entry.paidAmount)}</td>
                   <td className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
                   <td>{entry.lastPayment}</td>
@@ -817,8 +836,8 @@ export default function LedgerPage({ user: suppliedUser }) {
               <button type="button" className="ledger-modal-close" onClick={() => setStatementAccount(null)} aria-label="Close">×</button>
             </div>
             <div className="ledger-statement-summary">
-              <div><span>Total charges</span><strong>{peso.format(statementAccount.dueAmount)}</strong></div>
-              <div><span>Payments allocated</span><strong>{peso.format(statementAccount.paidAmount)}</strong></div>
+              <div><span>Previous balance</span><strong>{formatMoney(statementAccount.dueAmount)}</strong></div>
+              <div><span>Last payment</span><strong>{peso.format(statementAccount.paidAmount)}</strong></div>
               <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
               <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
             </div>

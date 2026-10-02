@@ -79,8 +79,8 @@ export function buildHomeownerStatementPdf({
 
   // ---------- Summary cards ----------
   const cards = [
-    { label: 'Total charges', value: money(totalCharges), tone: NAVY },
-    { label: 'Payments allocated', value: money(paymentsAllocated), tone: GREEN },
+    { label: 'Previous balance', value: money(totalCharges), tone: NAVY },
+    { label: 'Last payment', value: money(paymentsAllocated), tone: GREEN },
     { label: 'Outstanding balance', value: money(outstandingBalance), tone: Number(outstandingBalance) > 0 ? RED : GREEN },
     { label: 'Available credit', value: money(availableCredit), tone: GREEN },
   ]

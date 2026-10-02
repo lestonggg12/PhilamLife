@@ -84,7 +84,7 @@
 .contact-eyebrow {
   margin: 0 0 4px;
   color: var(--primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -94,7 +94,7 @@
 .contact-header h1 {
   margin: 0;
   color: var(--text-dark);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 30px;
 }
@@ -228,7 +228,7 @@
 .contact-summary-item.is-transferred { border-left-color: var(--slate); }
 
 .contact-summary-item strong {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   color: var(--text-dark);
   font-size: 1.7rem;
   font-weight: 500;
@@ -293,7 +293,7 @@
 .contact-result-count {
   flex-shrink: 0;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.78rem;
 }
 
@@ -354,7 +354,7 @@
 .contact-plaque-block {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.78rem;
   letter-spacing: 0.05em;
@@ -366,7 +366,7 @@
 .contact-plaque-lot {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-weight: 500;
   font-size: 0.7rem;
   color: var(--ink);
@@ -412,7 +412,7 @@
   border-radius: 50%;
   background: var(--moss);
   color: #fff;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 1.05rem;
   font-weight: 600;
 }
@@ -420,7 +420,7 @@
 .contact-name {
   margin: 0;
   color: var(--text-dark);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 1.08rem;
 }
@@ -431,7 +431,7 @@
   gap: 6px;
   margin-top: 6px;
   padding: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -494,7 +494,7 @@
   color: var(--moss-dark);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.82rem;
 }
 
@@ -559,7 +559,7 @@
 }
 
 .contact-card-history-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.76rem;
   font-weight: 600;
   color: var(--slate);
@@ -611,7 +611,7 @@
   justify-content: space-between;
   padding: 12px 14px;
   border-bottom: 1px solid rgba(20, 100, 160, 0.08);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 13px;
   color: var(--text-dark);
 }
@@ -624,7 +624,7 @@
   padding: 46px 20px;
   color: var(--text-muted);
   text-align: center;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 1.05rem;
 }
 
@@ -661,7 +661,7 @@
 }
 
 .contact-page-indicator {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.8rem;
   color: var(--text-muted);
 }
@@ -686,7 +686,7 @@
 .contact-campaign-heading h2 {
   margin: 0 0 4px;
   color: var(--text-dark);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 1.1rem;
 }
 
@@ -718,7 +718,7 @@
   padding: 10px 12px;
   border-bottom: 1px solid rgba(20, 100, 160, 0.12);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.72rem;
   text-align: left;
   text-transform: uppercase;
@@ -839,7 +839,7 @@
 .contact-modal-heading h2 {
   margin: 0 0 5px;
   color: var(--text-dark);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 600;
 }
 
@@ -936,7 +936,7 @@
 
 .contact-transfer-homeowner strong {
   color: var(--text-dark);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.92rem;
 }
 

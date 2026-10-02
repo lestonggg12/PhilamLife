@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Edit, FileArchive, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import ActionDialog from '../components/ActionDialog'
@@ -71,6 +72,19 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageContacts = role === 'admin' || role === 'secretary'
+
+  // Arriving from a homeowner profile ("/contacts?edit=<id>") opens that
+  // homeowner's Contact Details dialog straight away.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (!editId || loading || !role) return
+
+    const contact = contacts.find((item) => String(item.id) === editId)
+    if (contact && canManageContacts) openContactForm(contact)
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, loading, role, contacts])
   const actorName =
     currentUser?.full_name ||
     currentUser?.name ||
