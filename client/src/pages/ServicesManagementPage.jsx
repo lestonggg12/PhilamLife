@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircle,
   CreditCard,
@@ -41,6 +41,180 @@ import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import './ServicesManagementPage.css'
+
+// Search-and-select homeowner field. Filters by name, block and lot;
+// supports keyboard (arrows / Enter / Esc) and keeps native form validation.
+const HOMEOWNER_RESULT_LIMIT = 50
+
+function homeownerLabel(property) {
+  return `${property.homeowner_name} — ${property.block}, Lot ${property.lot_number}`
+}
+
+function HomeownerCombobox({ properties, value, onChange }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const wrapRef = useRef(null)
+  const inputRef = useRef(null)
+  const listRef = useRef(null)
+
+  const selected = useMemo(
+    () => properties.find((property) => String(property.id) === value) || null,
+    [properties, value],
+  )
+
+  const matches = useMemo(() => {
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    return properties
+      .filter((property) => (property.homeowner_status || 'active') === 'active')
+      .filter((property) => {
+        if (!terms.length) return true
+        const haystack = [
+          property.homeowner_name,
+          property.block,
+          `lot ${property.lot_number}`,
+          property.lot_number,
+        ]
+          .join(' ')
+          .toLowerCase()
+        return terms.every((term) => haystack.includes(term))
+      })
+  }, [properties, query])
+
+  const visible = matches.slice(0, HOMEOWNER_RESULT_LIMIT)
+
+  useEffect(() => {
+    inputRef.current?.setCustomValidity(
+      value ? '' : 'Search and select a homeowner from the list.',
+    )
+  }, [value])
+
+  useEffect(() => {
+    if (!open) return undefined
+    function handleClickAway(event) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickAway)
+    return () => document.removeEventListener('mousedown', handleClickAway)
+  }, [open])
+
+  useEffect(() => {
+    listRef.current?.children[activeIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, open])
+
+  function choose(property) {
+    onChange(String(property.id))
+    setOpen(false)
+    setQuery('')
+  }
+
+  function clear() {
+    onChange('')
+    setQuery('')
+    setOpen(true)
+    inputRef.current?.focus()
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setOpen(true)
+      setActiveIndex((index) => Math.min(index + 1, visible.length - 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.max(index - 1, 0))
+    } else if (event.key === 'Enter' && open) {
+      event.preventDefault()
+      if (visible[activeIndex]) choose(visible[activeIndex])
+    } else if (event.key === 'Escape' && open) {
+      event.stopPropagation()
+      setOpen(false)
+      setQuery('')
+    }
+  }
+
+  return (
+    <div className="services-combobox-field">
+      <label htmlFor="services-homeowner-input">Homeowner</label>
+      <div className="services-combobox" ref={wrapRef}>
+        <input
+          id="services-homeowner-input"
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="services-homeowner-list"
+          aria-autocomplete="list"
+          autoComplete="off"
+          required
+          placeholder="Search name, block or lot"
+          value={open ? query : selected ? homeownerLabel(selected) : query}
+          onFocus={() => {
+            setOpen(true)
+            setActiveIndex(0)
+          }}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+            setActiveIndex(0)
+            if (value) onChange('')
+          }}
+          onKeyDown={handleKeyDown}
+        />
+        {value && (
+          <button
+            type="button"
+            className="services-combobox-clear"
+            aria-label="Clear homeowner"
+            onClick={clear}
+          >
+            <X size={14} />
+          </button>
+        )}
+        {open && (
+          <ul
+            className="services-combobox-list"
+            id="services-homeowner-list"
+            role="listbox"
+            ref={listRef}
+          >
+            {visible.length === 0 && (
+              <li className="services-combobox-empty">No matching homeowner</li>
+            )}
+            {visible.map((property, index) => (
+              <li key={property.id} role="presentation">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={String(property.id) === value}
+                  className={`services-combobox-option${
+                    index === activeIndex ? ' is-active' : ''
+                  }`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => choose(property)}
+                >
+                  <strong>{property.homeowner_name}</strong>
+                  <span>
+                    {property.block}, Lot {property.lot_number}
+                  </span>
+                </button>
+              </li>
+            ))}
+            {matches.length > HOMEOWNER_RESULT_LIMIT && (
+              <li className="services-combobox-empty">
+                Showing first {HOMEOWNER_RESULT_LIMIT} of {matches.length} — keep typing to narrow
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -956,28 +1130,16 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   ))}
                 </select>
               </label>
-              <label>
-                Homeowner
-                <select
-                  required
-                  value={transactionForm.property_id}
-                  onChange={(event) =>
-                    setTransactionForm((current) => ({
-                      ...current,
-                      property_id: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Select homeowner</option>
-                  {properties
-                    .filter((property) => (property.homeowner_status || 'active') === 'active')
-                    .map((property) => (
-                    <option value={String(property.id)} key={property.id}>
-                      {property.homeowner_name} — {property.block}, Lot {property.lot_number}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <HomeownerCombobox
+                properties={properties}
+                value={transactionForm.property_id}
+                onChange={(propertyId) =>
+                  setTransactionForm((current) => ({
+                    ...current,
+                    property_id: propertyId,
+                  }))
+                }
+              />
             </div>
 
             <div className="services-form-row services-form-row-three">

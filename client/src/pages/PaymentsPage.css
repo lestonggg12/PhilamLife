@@ -67,6 +67,13 @@
   gap: 22px;
   padding: 24px 28px;
   border-radius: 24px;
+  /* Must not clip the View-by-Date popover; sits above the cards below. */
+  overflow: visible;
+  z-index: 5;
+}
+
+.payments-page .payments-header::before {
+  border-radius: inherit;
 }
 
 .payments-header-copy {
@@ -435,7 +442,10 @@
   background: transparent;
 }
 
-.payments-page .payments-table thead { display: table-header-group; }
+.payments-page .payments-table thead {
+  display: table-header-group;
+  background: linear-gradient(135deg, #78a2d2, #668dc4);
+}
 .payments-page .payments-table tbody { display: table-row-group; }
 .payments-page .payments-table tr { display: table-row; }
 
@@ -448,7 +458,7 @@
 }
 
 .payments-page .payments-table th {
-  background: linear-gradient(135deg, #78a2d2, #668dc4);
+  background: transparent;
   color: #fff;
   font-size: 0.66rem;
   font-weight: 800;
