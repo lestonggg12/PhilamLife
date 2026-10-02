@@ -1045,6 +1045,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   step="0.01"
                   type="number"
                   value={serviceForm.rate}
+                  onWheel={(event) => event.currentTarget.blur()}
                   onChange={(event) =>
                     setServiceForm((current) => ({ ...current, rate: event.target.value }))
                   }
@@ -1201,6 +1202,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   step="0.01"
                   type="number"
                   value={transactionForm.amount_paid}
+                  onWheel={(event) => event.currentTarget.blur()}
                   onChange={(event) =>
                     setTransactionForm((current) => ({
                       ...current,

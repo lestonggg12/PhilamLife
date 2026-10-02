@@ -214,7 +214,7 @@ export default function HomeownersPage() {
       supabase
         .from('properties')
         .select(
-          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status',
+          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
         )
         .order('homeowner_name'),
       supabase
@@ -414,16 +414,22 @@ export default function HomeownersPage() {
       0,
     )
     const latestRegularPayment = activePayments[0]
-    const outstanding = Number(latestRegularPayment?.remaining_balance) || 0
+    // Stored balance: positive = owed, negative = advance credit.
+    const storedBalance = selectedProperty && selectedProperty.current_balance != null
+      ? Number(selectedProperty.current_balance) || 0
+      : Number(latestRegularPayment?.remaining_balance) || 0
+    const outstanding = Math.max(storedBalance, 0)
+    const credit = Math.max(-storedBalance, 0)
     const latestRecord = history[0]
 
     return {
       totalPaid: regularTotal + serviceTotal,
       outstanding,
+      credit,
       lastPayment: latestRecord ? formatDate(latestRecord.paidAt, organization.dateFormat) : 'No payments yet',
       receipts: history.length,
     }
-  }, [activePayments, history, selectedServices])
+  }, [activePayments, history, selectedServices, selectedProperty])
 
   const visibleHistory = useMemo(() => {
     if (activeTab === 'dues') return history.filter((item) => item.kind === 'dues')
@@ -665,7 +671,7 @@ export default function HomeownersPage() {
                 </div>
               </div>
               <div className="homeowner-profile-actions">
-                <button type="button" onClick={() => navigate('/contacts')}>
+                <button type="button" onClick={() => navigate(`/contacts?edit=${selectedProperty.id}`)}>
                   Edit Contact
                 </button>
                 <button type="button" onClick={() => navigate('/payments')}>
@@ -693,6 +699,11 @@ export default function HomeownersPage() {
                 <span>Current Balance</span>
                 <strong>{peso.format(summary.outstanding)}</strong>
                 <small>{summary.outstanding > 0 ? 'Payment still required' : 'No recorded balance'}</small>
+              </article>
+              <article className={summary.credit > 0 ? 'has-credit' : ''}>
+                <span>Credit</span>
+                <strong>{peso.format(summary.credit)}</strong>
+                <small>{summary.credit > 0 ? 'Applied to next dues' : 'No advance credit'}</small>
               </article>
               <article>
                 <span>Last Payment</span>
@@ -917,7 +928,9 @@ export default function HomeownersPage() {
                           <td>{item.description}</td>
                           <td>{item.method}</td>
                           <td className="homeowner-number">{peso.format(item.amount)}</td>
-                          <td className={item.remaining > 0 ? 'homeowner-balance' : 'homeowner-number'}>{peso.format(item.remaining)}</td>
+                          <td className={item.remaining > 0 ? 'homeowner-balance' : item.remaining < 0 ? 'homeowner-credit' : 'homeowner-number'}>
+                            {item.remaining < 0 ? `${peso.format(Math.abs(item.remaining))} credit` : peso.format(item.remaining)}
+                          </td>
                           <td><span className={`homeowner-payment-status status-${normalize(item.status).replace(/\s+/g, '-')}`}>{item.status}</span></td>
                         </tr>
                       ))

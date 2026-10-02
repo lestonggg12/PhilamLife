@@ -398,6 +398,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                     step="0.01"
                     placeholder="0.00"
                     value={form.amount}
+                    onWheel={(event) => event.currentTarget.blur()}
                     onChange={(e) => updateForm('amount', e.target.value)}
                     required
                   />

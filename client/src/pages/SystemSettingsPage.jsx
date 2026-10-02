@@ -309,7 +309,7 @@ function SettingsCard({ title, subtitle, children, full = false }) {
 }
 
 function Field({ label, value, onChange, wide = false, ...props }) {
-  return <label className={`ss-field ${wide ? 'wide' : ''}`}><span>{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} {...props} /></label>
+  return <label className={`ss-field ${wide ? 'wide' : ''}`}><span>{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} onWheel={(event) => event.currentTarget.blur()} {...props} /></label>
 }
 
 function SelectField({ label, value, onChange, options }) {

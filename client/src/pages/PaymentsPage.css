@@ -1246,3 +1246,122 @@
   .receipt-copy { padding: 24px; }
   @page { size: A4; margin: 14mm; }
 }
+.payment-credit-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(20, 100, 160, 0.35);
+  border-left: 4px solid var(--primary);
+  border-radius: 12px;
+  background: rgba(20, 100, 160, 0.08);
+  color: var(--text-dark);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* Advance payment confirmation */
+.advance-overlay {
+  z-index: 1100;
+}
+
+.advance-dialog {
+  width: min(440px, 100%);
+  padding: 28px 26px 22px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 63, 106, 0.28);
+  text-align: center;
+  color: var(--text-dark);
+}
+
+.advance-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1f7fc4, #0f4f86);
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.advance-dialog h2 {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+}
+
+.advance-lead {
+  margin: 0 0 16px;
+  color: var(--text-light);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.advance-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(20, 100, 160, 0.09);
+}
+
+.advance-amount span {
+  font-size: 0.8rem;
+  color: var(--text-light);
+}
+
+.advance-amount strong {
+  font-size: 1.9rem;
+  color: #0f4f86;
+}
+
+.advance-details {
+  margin: 14px 0 0;
+  padding: 0;
+  text-align: left;
+}
+
+.advance-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 2px;
+  border-bottom: 1px solid rgba(120, 162, 210, 0.25);
+  font-size: 0.9rem;
+}
+
+.advance-details dt {
+  color: var(--text-light);
+}
+
+.advance-details dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.advance-coverage {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(34, 139, 94, 0.1);
+  color: #1b6b49;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.advance-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.advance-actions button {
+  flex: 1;
+  justify-content: center;
+}

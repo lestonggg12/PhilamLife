@@ -80,3 +80,74 @@ export function computeLateFee({ balance, dueDay, gracePeriodDays, latePenalty }
     daysOverdue,
   }
 }
+
+/**
+ * Per-charge overdue calculation. Payments are applied to the oldest charges
+ * first, so the unpaid part of the balance sits on the newest charges.
+ * A charge is overdue once its due date + grace period has passed:
+ *  - monthly dues: billing month's Due Day + grace period
+ *  - manual charges: date added + grace period
+ * Any part of the balance not backed by a charge (opening balances recorded
+ * before charges existed) is judged with the old computeLateFee() rule.
+ * A balance of zero or below (advance credit) is never overdue.
+ */
+export function computeOverdueFromCharges({ balance, charges = [], dueDay, gracePeriodDays, latePenalty }) {
+  const owed = Number(balance) || 0
+  const none = { isOverdue: false, penaltyAmount: 0, totalDue: owed, daysOverdue: 0, overdueAmount: 0 }
+  if (owed <= 0) return none
+
+  const grace = Number(gracePeriodDays) || 0
+  const safeDueDay = Math.min(Math.max(Number(dueDay) || 1, 1), 28)
+  const { year, month, day } = manilaToday()
+  const today = new Date(Date.UTC(year, month - 1, day))
+  const DAY = 24 * 60 * 60 * 1000
+
+  const dated = charges
+    .map((charge) => {
+      let base
+      if (charge.billing_month) {
+        const [y, m] = String(charge.billing_month).slice(0, 10).split('-').map(Number)
+        base = new Date(Date.UTC(y, m - 1, safeDueDay))
+      } else {
+        const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(charge.created_at))
+        const [y, m, d] = iso.split('-').map(Number)
+        base = new Date(Date.UTC(y, m - 1, d))
+      }
+      return { amount: Number(charge.amount) || 0, deadline: new Date(base.getTime() + grace * DAY) }
+    })
+    .sort((a, b) => a.deadline - b.deadline)
+
+  const chargesTotal = dated.reduce((sum, item) => sum + item.amount, 0)
+  let unpaid = Math.min(owed, chargesTotal)
+  const legacy = Math.round((owed - unpaid) * 100) / 100
+
+  let overdueAmount = 0
+  let daysOverdue = 0
+
+  for (let i = dated.length - 1; i >= 0 && unpaid > 0.005; i -= 1) {
+    const take = Math.min(unpaid, dated[i].amount)
+    unpaid -= take
+    if (dated[i].deadline < today) {
+      overdueAmount += take
+      daysOverdue = Math.max(daysOverdue, Math.round((today - dated[i].deadline) / DAY))
+    }
+  }
+
+  if (legacy > 0.005) {
+    const old = computeLateFee({ balance: legacy, dueDay, gracePeriodDays, latePenalty })
+    if (old.isOverdue) {
+      overdueAmount += legacy
+      daysOverdue = Math.max(daysOverdue, old.daysOverdue)
+    }
+  }
+
+  const isOverdue = overdueAmount > 0.005
+  const penaltyAmount = isOverdue ? Number(latePenalty) || 0 : 0
+  return {
+    isOverdue,
+    penaltyAmount,
+    totalDue: owed + penaltyAmount,
+    daysOverdue: isOverdue ? daysOverdue : 0,
+    overdueAmount: Math.round(overdueAmount * 100) / 100,
+  }
+}
