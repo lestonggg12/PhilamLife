@@ -9,7 +9,7 @@ import {
 import { supabase } from './lib/supabaseClient'
 import Layout from './components/Layout'
 import LandingPage from './pages/LandingPage'
-import GuidePage from './pages/GuidePage'
+import GuidePage from './pages/Guidepage'
 import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'

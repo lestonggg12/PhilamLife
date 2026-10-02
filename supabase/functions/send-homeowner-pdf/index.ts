@@ -1,27 +1,54 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+// Only these origins may call this function from a browser.
+// Set APP_ORIGIN (comma-separated) in the function secrets for your production URL(s).
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  ...(Deno.env.get("APP_ORIGIN") ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]);
+
+const corsFor = (req: Request) => {
+  const origin = req.headers.get("Origin") ?? "";
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-store",
+  };
+  if (allowedOrigins.has(origin)) headers["Access-Control-Allow-Origin"] = origin;
+  return headers;
 };
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
 const allowedRoles = new Set(["admin", "secretary", "treasurer"]);
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const cleanName = (value: unknown) =>
-  typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 120) : "";
 
 const cleanEmail = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
+  typeof value === "string" ? value.trim().toLowerCase().slice(0, 254) : "";
+
+const strongPassword = (value: string) =>
+  value.length >= 12 &&
+  value.length <= 128 &&
+  /[a-z]/.test(value) &&
+  /[A-Z]/.test(value) &&
+  /\d/.test(value) &&
+  /[^A-Za-z0-9]/.test(value);
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const cors = corsFor(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
   try {
@@ -119,11 +146,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const role = cleanName(body.role).toLowerCase();
       const password = typeof body.password === "string" ? body.password : "";
 
-      if (!fullName || !email || !allowedRoles.has(role)) {
+      if (!fullName || !emailPattern.test(email) || !allowedRoles.has(role)) {
         return json({ error: "Enter a valid name, email, and role." }, 400);
       }
-      if (password.length < 8) {
-        return json({ error: "The temporary password must have at least 8 characters." }, 400);
+      if (!strongPassword(password)) {
+        return json({
+          error:
+            "The temporary password must be 12-128 characters with upper and lower case letters, a number, and a symbol.",
+        }, 400);
       }
 
       const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -219,13 +249,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (!target.email) return json({ error: "This user has no email address." }, 400);
 
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-      if (!anonKey) return json({ error: "SUPABASE_ANON_KEY is not configured." }, 500);
+      if (!anonKey) return json({ error: "Supabase server environment is not configured." }, 500);
       const publicClient = createClient(supabaseUrl, anonKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
-      const redirectTo = typeof body.redirectTo === "string" && body.redirectTo
-        ? body.redirectTo
-        : undefined;
+
+      // Only allow redirects back to our own origins (prevents open-redirect abuse).
+      let redirectTo: string | undefined;
+      if (typeof body.redirectTo === "string" && body.redirectTo) {
+        try {
+          const url = new URL(body.redirectTo);
+          if (allowedOrigins.has(url.origin)) redirectTo = url.toString();
+        } catch {
+          // ignore malformed URL
+        }
+      }
+
       const { error: resetError } = await publicClient.auth.resetPasswordForEmail(
         target.email,
         redirectTo ? { redirectTo } : undefined,
@@ -238,10 +277,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     return json({ error: "Unknown user-management action." }, 400);
   } catch (error) {
+    // Log details server-side only; never return internal error text to the browser.
     console.error(error);
-    return json(
-      { error: error instanceof Error ? error.message : "An unexpected server error occurred." },
-      500,
-    );
+    return json({ error: "An unexpected server error occurred." }, 500);
   }
 });
