@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
 
@@ -29,85 +30,6 @@ const EMPTY_FORM = {
 
 const formatBalance = (value) =>
   value < 0 ? `Advance credit ${peso.format(Math.abs(value))}` : peso.format(value)
-
-// Advance-credit details from the admin's System Settings (monthly dues
-// amount, due day, grace period). Credit is deducted when the next month's
-// dues are billed (1st of the month).
-function advanceCreditDetails(credit, settings) {
-  if (!settings) return { credit, hasSettings: false }
-
-  const dues = Number(settings.dues_amount) || 0
-  const dueDay = Math.min(Math.max(Number(settings.due_day) || 1, 1), 31)
-  const billingDay = Math.min(Math.max(Number(settings.billing_day) || 1, 1), 31)
-  const grace = Number(settings.grace_period_days) || 0
-
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const part = (type) => Number(parts.find((item) => item.type === type).value)
-  const year = part('year')
-  const month0 = part('month') - 1
-  const today = part('day')
-
-  // Date on `day` of the month (clamped to the month's last day); month0 may overflow into next year.
-  const onDay = (y, m0, day) => {
-    const lastDay = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate()
-    return new Date(Date.UTC(y, m0, Math.min(day, lastDay)))
-  }
-  const fmt = (date) =>
-    date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
-
-  // Next billing run: the admin's billing day. If this month is already billed, it is next month's.
-  // If this month isn't billed yet and the day has passed, the daily run will bill it tomorrow.
-  let billing = onDay(year, month0, billingDay)
-  if (settings.billed_this_month) {
-    billing = onDay(year, month0 + 1, billingDay)
-  } else {
-    const tomorrow = new Date(Date.UTC(year, month0, today + 1))
-    if (billing < tomorrow) billing = tomorrow
-  }
-
-  const due = onDay(billing.getUTCFullYear(), billing.getUTCMonth(), dueDay)
-  const months = dues > 0 ? Math.floor(credit / dues) : 0
-  const rest = dues > 0 ? Math.round((credit - months * dues) * 100) / 100 : 0
-
-  return {
-    credit,
-    hasSettings: true,
-    dues,
-    grace,
-    months,
-    rest,
-    shortfall: dues > 0 && months === 0 ? Math.round((dues - credit) * 100) / 100 : 0,
-    billing: fmt(billing),
-    due: fmt(due),
-    deadline: fmt(new Date(due.getTime() + grace * 86400000)),
-  }
-}
-
-function advanceCreditNote(credit, settings) {
-  const d = advanceCreditDetails(credit, settings)
-  const amount = peso.format(credit)
-  if (!d.hasSettings) {
-    return `${amount} will be kept as advance credit and deducted when the next monthly dues are billed.`
-  }
-
-  const schedule = d.grace > 0
-    ? `due ${d.due}, grace period until ${d.deadline}`
-    : `due ${d.due}, no grace period`
-
-  let coverage = ''
-  if (d.dues > 0) {
-    coverage = d.months > 0
-      ? ` This covers ${d.months} full month${d.months > 1 ? 's' : ''} of dues${d.rest > 0 ? `, plus ${peso.format(d.rest)} toward the next` : ''}.`
-      : ` This is less than one month's dues, so ${peso.format(d.shortfall)} will still be due after the deduction.`
-  }
-
-  return `${amount} will be kept as advance credit and deducted automatically when the next monthly dues (${peso.format(d.dues)}) are billed on ${d.billing} (${schedule}).${coverage}`
-}
 
 const EMPTY_CHARGE = {
   propertyId: '',
@@ -418,6 +340,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [receipt, setReceipt] = useState(null)
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
+  const [charges, setCharges] = useState([])
+  const [showCharges, setShowCharges] = useState(false)
+  const [chargeSearch, setChargeSearch] = useState('')
+  const [voidTarget, setVoidTarget] = useState(null)
+  const [voidReason, setVoidReason] = useState('')
+  const [voiding, setVoiding] = useState(false)
+  const [voidError, setVoidError] = useState('')
   const advanceApprovedRef = useRef(false)
   const [showCharge, setShowCharge] = useState(false)
   const [chargeForm, setChargeForm] = useState(EMPTY_CHARGE)
@@ -488,7 +417,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, propertyResult, settingsResult, billedResult] = await Promise.all([
+    const [paymentResult, propertyResult, settingsResult, billedResult, chargesResult] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
@@ -508,7 +437,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .select('id')
         .eq('billing_month', `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).slice(0, 7)}-01`)
         .limit(1),
+      supabase
+        .from('property_charges')
+        .select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at')
+        .is('voided_at', null)
+        .order('created_at', { ascending: false }),
     ])
+
+    if (!chargesResult.error) setCharges(chargesResult.data || [])
 
     if (!settingsResult.error && settingsResult.data) {
       setDuesSettings({
@@ -534,11 +470,38 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(false)
   }
 
+  // Dues payments come off the balance in full (extra becomes advance credit).
+  // Fees/penalties only pay off an open charge of the same type; otherwise they are a one-time fee.
+  const purposeType = PAYMENT_PURPOSES.includes(form.paymentPurpose)
+    ? form.paymentPurpose
+    : form.paymentPurpose
+      ? 'Other'
+      : ''
+  const isDuesPayment = !purposeType || purposeType === 'Association Dues'
+
+  const openOfType = useMemo(() => {
+    if (!form.propertyId || isDuesPayment) return 0
+    const propertyId = Number(form.propertyId)
+    const charged = charges
+      .filter((charge) => Number(charge.property_id) === propertyId && charge.charge_type === purposeType)
+      .reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0)
+    const applied = payments
+      .filter(
+        (payment) =>
+          Number(payment.property_id) === propertyId &&
+          payment.charge_type === purposeType &&
+          payment.status !== 'Voided',
+      )
+      .reduce((sum, payment) => sum + (Number(payment.balance_effect) || 0), 0)
+    return Math.max(Math.round((charged - applied) * 100) / 100, 0)
+  }, [form.propertyId, isDuesPayment, purposeType, charges, payments])
+
   const remainingBalance = useMemo(() => {
     const previous = Number(form.previousBalance) || 0
     const paid = Number(form.amountPaid) || 0
-    return previous - paid
-  }, [form.previousBalance, form.amountPaid])
+    const effect = isDuesPayment ? paid : Math.min(paid, openOfType)
+    return previous - effect
+  }, [form.previousBalance, form.amountPaid, isDuesPayment, openOfType])
 
   // Like Official Receipts, the payment history table stays empty
   // until the user actively searches or picks a date — no default
@@ -722,14 +685,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setChargeSaving(true)
     setChargeError('')
 
-    const { error } = await supabase.from('property_charges').insert({
+    const { data: newCharge, error } = await supabase.from('property_charges').insert({
       property_id: property.id,
       charge_type: chargeForm.chargeType,
       description: chargeForm.description.trim() || null,
       amount,
       created_by: currentUser.id,
       created_by_name: recorderName,
-    })
+    }).select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at').single()
 
     if (error) {
       setChargeError(error.message)
@@ -750,8 +713,114 @@ export default function PaymentsPage({ user: suppliedUser }) {
           : item,
       ),
     )
+    if (newCharge) setCharges((current) => [newCharge, ...current])
     setShowCharge(false)
     setChargeSaving(false)
+  }
+
+  const canVoidPayments = role === 'secretary' || role === 'treasurer'
+
+  const propertyById = useMemo(
+    () => new Map(properties.map((property) => [Number(property.id), property])),
+    [properties],
+  )
+
+  const visibleCharges = useMemo(() => {
+    const term = chargeSearch.trim().toLowerCase()
+    return charges
+      .filter((charge) => {
+        if (!term) return true
+        const owner = propertyById.get(Number(charge.property_id))
+        return `${owner?.homeowner_name || ''} ${charge.charge_type} ${charge.description || ''}`
+          .toLowerCase()
+          .includes(term)
+      })
+      .slice(0, 50)
+  }, [charges, chargeSearch, propertyById])
+
+  function openVoid(kind, item) {
+    setVoidTarget({ kind, item })
+    setVoidReason('')
+    setVoidError('')
+  }
+
+  async function confirmVoid(event) {
+    event.preventDefault()
+    const reason = voidReason.trim()
+
+    if (reason.length < 5) {
+      setVoidError('Enter a reason (at least 5 characters).')
+      return
+    }
+
+    setVoiding(true)
+    setVoidError('')
+    const { kind, item } = voidTarget
+
+    if (kind === 'payment') {
+      const { data, error } = await supabase
+        .from('payments')
+        .update({ status: 'Voided', void_reason: reason })
+        .eq('id', item.id)
+        .neq('status', 'Voided')
+        .select('id')
+
+      if (error || !data?.length) {
+        setVoidError(error?.message || 'Could not void this payment. It may already be voided, or you may not have permission.')
+        setVoiding(false)
+        return
+      }
+
+      const effect = Number(item.balance_effect ?? item.amount_paid ?? item.amount) || 0
+      setPayments((current) =>
+        current.map((payment) =>
+          payment.id === item.id ? { ...payment, status: 'Voided', void_reason: reason } : payment,
+        ),
+      )
+      setProperties((current) =>
+        current.map((property) =>
+          Number(property.id) === Number(item.property_id)
+            ? { ...property, current_balance: (Number(property.current_balance) || 0) + effect }
+            : property,
+        ),
+      )
+      await supabase.from('activity_log').insert({
+        user_id: currentUser.id,
+        action: 'Payment Voided',
+        target: `${item.receipt_number} — ${item.homeowner_name} — ${peso.format(Number(item.amount_paid) || 0)} — ${reason}`,
+      })
+    } else {
+      const { data, error } = await supabase
+        .from('property_charges')
+        .update({ voided_at: new Date().toISOString(), void_reason: reason })
+        .eq('id', item.id)
+        .is('voided_at', null)
+        .select('id')
+
+      if (error || !data?.length) {
+        setVoidError(error?.message || 'Could not void this charge. It may already be voided, or you may not have permission.')
+        setVoiding(false)
+        return
+      }
+
+      const owner = propertyById.get(Number(item.property_id))
+      setCharges((current) => current.filter((charge) => charge.id !== item.id))
+      setProperties((current) =>
+        current.map((property) =>
+          Number(property.id) === Number(item.property_id)
+            ? { ...property, current_balance: (Number(property.current_balance) || 0) - (Number(item.amount) || 0) }
+            : property,
+        ),
+      )
+      await supabase.from('activity_log').insert({
+        user_id: currentUser.id,
+        action: 'Charge Voided',
+        target: `${item.charge_type} — ${owner?.homeowner_name || 'Homeowner'} — ${peso.format(Number(item.amount) || 0)} — ${reason}`,
+      })
+    }
+
+    setVoiding(false)
+    setVoidTarget(null)
   }
 
   function confirmAdvancePayment() {
@@ -808,7 +877,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
-    if (paid > Math.max(previous, 0) && !advanceApproved) {
+    if (form.paymentPurpose === 'Association Dues' && paid > Math.max(previous, 0) && !advanceApproved) {
       setAdvanceConfirm({ credit: paid - previous, paid })
       return
     }
@@ -827,6 +896,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       block_name: form.blockName,
       lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
       coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
+      charge_type: PAYMENT_PURPOSES.includes(form.paymentPurpose) ? form.paymentPurpose : 'Other',
       previous_balance: previous,
       amount: paid,
       amount_paid: paid,
@@ -914,6 +984,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
           {canManagePayments && (
             <button className="payments-secondary" type="button" onClick={openChargeForm}>
               Add Charge
+            </button>
+          )}
+
+          {canManagePayments && (
+            <button className="payments-secondary" type="button" onClick={() => { setChargeSearch(''); setShowCharges(true) }}>
+              View Charges
             </button>
           )}
 
@@ -1061,6 +1137,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
                     <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
                       View <span aria-hidden="true">→</span>
                     </button>
+                    {canVoidPayments && payment.status !== 'Voided' && (
+                      <button className="payments-link payments-link-danger" type="button" onClick={() => openVoid('payment', payment)}>
+                        Void
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -1216,10 +1297,21 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 <strong>{formatBalance(remainingBalance)}</strong>
               </div>
 
-              {form.propertyId && remainingBalance < 0 && (
+              {form.propertyId && isDuesPayment && remainingBalance < 0 && (
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>Advance payment</strong>
                   <span>{advanceCreditNote(-remainingBalance, duesSettings)}</span>
+                </div>
+              )}
+
+              {form.propertyId && !isDuesPayment && Number(form.amountPaid) > 0 && (
+                <div className="payment-credit-note payment-span-2" role="status">
+                  <strong>{purposeType}</strong>
+                  <span>
+                    {openOfType > 0
+                      ? `This homeowner has an open ${purposeType} charge of ${peso.format(openOfType)}. ${peso.format(Math.min(Number(form.amountPaid) || 0, openOfType))} of this payment will be applied to it${Number(form.amountPaid) > openOfType ? `; the extra ${peso.format(Number(form.amountPaid) - openOfType)} is recorded as a one-time fee.` : '.'}`
+                      : `No open ${purposeType} charge for this homeowner. This is recorded as a one-time fee and does not change their dues balance.`}
+                  </span>
                 </div>
               )}
 
@@ -1303,6 +1395,76 @@ export default function PaymentsPage({ user: suppliedUser }) {
         </div>
       )}
 
+      {showCharges && canManagePayments && (
+        <div className="payments-overlay" onMouseDown={() => setShowCharges(false)}>
+          <section className="payment-form charge-list-dialog" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="payment-modal-heading">
+              <div>
+                <h2>Charges</h2>
+                <p>Charges added to homeowner balances. Void a charge that was added or billed by mistake.</p>
+              </div>
+              <button type="button" className="payments-close" onClick={() => setShowCharges(false)}>×</button>
+            </div>
+
+            <input
+              className="charge-list-search"
+              placeholder="Search homeowner, type, or description..."
+              value={chargeSearch}
+              onChange={(e) => setChargeSearch(e.target.value)}
+            />
+
+            <div className="charge-list">
+              {visibleCharges.length === 0 ? (
+                <p className="charge-list-empty">No charges found.</p>
+              ) : (
+                visibleCharges.map((charge) => {
+                  const owner = propertyById.get(Number(charge.property_id))
+                  return (
+                    <div className="charge-list-row" key={charge.id}>
+                      <div>
+                        <strong>{owner?.homeowner_name || 'Unknown homeowner'}</strong>
+                        <small>
+                          {charge.charge_type}
+                          {charge.billing_month ? ` · ${String(charge.billing_month).slice(0, 7)}` : ''}
+                          {charge.description ? ` · ${charge.description}` : ''}
+                        </small>
+                        <small>{organization.formatDate(charge.created_at)} · {charge.created_by_name || 'System'}</small>
+                      </div>
+                      <strong className="charge-list-amount">{peso.format(Number(charge.amount) || 0)}</strong>
+                      <button type="button" className="payments-link payments-link-danger" onClick={() => openVoid('charge', charge)}>Void</button>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {voidTarget && (
+        <div className="payments-overlay advance-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
+          <form className="advance-dialog void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>
+            <div className="advance-icon void-icon" aria-hidden="true">!</div>
+            <h2>{voidTarget.kind === 'payment' ? 'Void payment' : 'Void charge'}</h2>
+            <p className="advance-lead">
+              {voidTarget.kind === 'payment'
+                ? `${voidTarget.item.receipt_number} — ${voidTarget.item.homeowner_name} — ${peso.format(Number(voidTarget.item.amount_paid) || 0)}`
+                : `${voidTarget.item.charge_type} — ${propertyById.get(Number(voidTarget.item.property_id))?.homeowner_name || 'Homeowner'} — ${peso.format(Number(voidTarget.item.amount) || 0)}`}
+              <br />
+              The homeowner's balance is corrected automatically. This cannot be undone.
+            </p>
+            <label className="void-reason">Reason (required)
+              <textarea value={voidReason} onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }} rows="3" maxLength="250" placeholder="e.g., Wrong amount typed" autoFocus />
+            </label>
+            {voidError && <p className="payments-error">{voidError}</p>}
+            <div className="advance-actions">
+              <button type="button" className="payments-secondary" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
+              <button type="submit" className="payments-primary void-confirm" disabled={voiding}>{voiding ? 'Voiding...' : 'Void'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {advanceConfirm && (() => {
         const d = advanceCreditDetails(advanceConfirm.credit, duesSettings)
         return (
@@ -1373,13 +1535,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 <div><span>{Number(receipt.remaining_balance) < 0 ? 'Advance credit' : 'Remaining balance'}</span><strong>{peso.format(Math.abs(Number(receipt.remaining_balance) || 0))}</strong></div>
               </div>
 
-              {Number(receipt.remaining_balance) < 0 && (
+              {Number(receipt.remaining_balance) < 0 && (!receipt.charge_type || receipt.charge_type === 'Association Dues') && (
                 <p className="receipt-note">
                   <strong>Advance credit:</strong> {advanceCreditNote(-Number(receipt.remaining_balance), duesSettings)}
                 </p>
               )}
 
               {receipt.note && <p className="receipt-note"><strong>Note:</strong> {receipt.note}</p>}
+              {receipt.status === 'Voided' && receipt.void_reason && (
+                <p className="receipt-note"><strong>Voided:</strong> {receipt.void_reason}</p>
+              )}
 
               <footer className="receipt-footer">
                 <div><span>Recorded by</span><strong>{receipt.recorded_by_name}</strong></div>

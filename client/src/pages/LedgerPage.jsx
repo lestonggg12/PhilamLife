@@ -362,12 +362,33 @@ export default function LedgerPage({ user: suppliedUser }) {
   async function handleDeleteHomeowner(entry) {
     if (!canManageHomeowners) return
 
+    setPageError('')
+
+    // Never delete a homeowner who has money history - it must stay on record.
+    const [paymentCount, chargeCount] = await Promise.all([
+      supabase.from('payments').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
+      supabase.from('property_charges').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
+    ])
+    const records = (paymentCount.count || 0) + (chargeCount.count || 0)
+
+    if (paymentCount.error || chargeCount.error) {
+      setPageError('Could not check this homeowner\'s records. Please try again.')
+      return
+    }
+
+    if (records > 0) {
+      setPageError(
+        `${entry.name} can't be removed because they have ${records} receipt/charge record${records > 1 ? 's' : ''} on file. ` +
+        'Use Move / Transfer in Contact Manager instead, so their payment history is kept.',
+      )
+      return
+    }
+
     const confirmed = window.confirm(
-      `Remove ${entry.name} (${entry.block}, ${entry.lot})? This cannot be undone.`,
+      `Remove ${entry.name} (${entry.block}, ${entry.lot})? They have no payments or charges. This cannot be undone.`,
     )
     if (!confirmed) return
 
-    setPageError('')
     const { error } = await supabase.from('properties').delete().eq('id', entry.id)
 
     if (error) {
