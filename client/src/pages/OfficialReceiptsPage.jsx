@@ -12,6 +12,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
 import './OfficialReceiptsPage.css'
+import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -772,8 +773,7 @@ export default function OfficialReceiptsPage() {
   const [toDate, setToDate] = useState('')
   const [selectedReceipt, setSelectedReceipt] =
     useState(null)
-  const [calendarOpen, setCalendarOpen] =
-    useState(false)
+  const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
   useEffect(() => {
@@ -781,11 +781,11 @@ export default function OfficialReceiptsPage() {
   }, [])
 
   useEffect(() => {
-    if (!calendarOpen) return undefined
+    if (!calendar.open) return undefined
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
-        setCalendarOpen(false)
+        calendar.hide()
       }
     }
 
@@ -794,7 +794,7 @@ export default function OfficialReceiptsPage() {
         calendarAnchorRef.current &&
         !calendarAnchorRef.current.contains(event.target)
       ) {
-        setCalendarOpen(false)
+        calendar.hide()
       }
     }
 
@@ -814,7 +814,7 @@ export default function OfficialReceiptsPage() {
         handleOutsideClick,
       )
     }
-  }, [calendarOpen])
+  }, [calendar.open])
 
   async function loadReceipts() {
     setLoading(true)
@@ -989,7 +989,7 @@ export default function OfficialReceiptsPage() {
   function handleSelectCalendarDate(dateKey) {
     setFromDate(dateKey)
     setToDate(dateKey)
-    setCalendarOpen(false)
+    calendar.hide()
   }
 
   const selectedSingleDateKey =
@@ -1025,9 +1025,9 @@ export default function OfficialReceiptsPage() {
               official-receipts-secondary
             "
             onClick={() =>
-              setCalendarOpen((open) => !open)
+              calendar.toggle()
             }
-            aria-expanded={calendarOpen}
+            aria-expanded={calendar.open}
           >
             <FileText size={17} />
             View by Date
@@ -1049,13 +1049,15 @@ export default function OfficialReceiptsPage() {
               : 'Refresh Receipts'}
           </button>
 
-          {calendarOpen && (
-            <ReceiptCalendar
+          {calendar.mounted && (
+            <div className={`official-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
+              <ReceiptCalendar
               selectedDateKey={selectedSingleDateKey}
               activeDateKeys={activeDateKeys}
               onSelectDate={handleSelectCalendarDate}
-              onClose={() => setCalendarOpen(false)}
-            />
+              onClose={calendar.hide}
+              />
+            </div>
           )}
         </div>
       </header>

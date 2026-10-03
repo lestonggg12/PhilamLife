@@ -555,6 +555,23 @@
   box-shadow: 0 18px 44px rgba(7, 30, 48, 0.18);
 }
 
+.official-calendar-animation {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+.official-calendar-animation.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0s;
+}
+
 .official-calendar-nav {
   display: flex;
   align-items: center;

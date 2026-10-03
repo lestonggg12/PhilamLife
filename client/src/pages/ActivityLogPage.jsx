@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './ActivityLogPage.css'
+import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
 const MANILA_TIME_ZONE = 'Asia/Manila'
 const MANILA_OFFSET = '+08:00'
@@ -138,7 +139,7 @@ export default function ActivityLogPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [calendarOpen, setCalendarOpen] = useState(false)
+  const calendar = useAnimatedPopover()
 
   const calendarWrapRef = useRef(null)
 
@@ -170,19 +171,19 @@ export default function ActivityLogPage() {
   }, [])
 
   useEffect(() => {
-    if (!calendarOpen) return undefined
+    if (!calendar.open) return undefined
 
     function handleClickOutside(event) {
       if (
         calendarWrapRef.current &&
         !calendarWrapRef.current.contains(event.target)
       ) {
-        setCalendarOpen(false)
+        calendar.hide()
       }
     }
 
     function handleEscape(event) {
-      if (event.key === 'Escape') setCalendarOpen(false)
+      if (event.key === 'Escape') calendar.hide()
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -191,7 +192,7 @@ export default function ActivityLogPage() {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [calendarOpen])
+  }, [calendar.open])
 
   async function loadActivityLogs(isRefresh = false) {
     if (isRefresh) setRefreshing(true)
@@ -322,7 +323,7 @@ export default function ActivityLogPage() {
     setVisibleMonth(monthKeyFromDateKey(dateKey))
     setSearchTerm('')
     setFilter('all')
-    setCalendarOpen(false)
+    calendar.hide()
   }
 
   function changeMonth(amount) {
@@ -339,10 +340,6 @@ export default function ActivityLogPage() {
 
   function goToToday() {
     selectDate(todayKey)
-  }
-
-  function toggleCalendar() {
-    setCalendarOpen((current) => !current)
   }
 
   function formatDescription(description) {
@@ -402,11 +399,11 @@ export default function ActivityLogPage() {
               <button
                 type="button"
                 className={`calendar-trigger-btn ${
-                  calendarOpen ? 'is-open' : ''
+                  calendar.open ? 'is-open' : ''
                 }`}
-                onClick={toggleCalendar}
+                onClick={calendar.toggle}
                 aria-haspopup="dialog"
-                aria-expanded={calendarOpen}
+                aria-expanded={calendar.open}
               >
                 <Calendar size={15} />
                 {calendarTriggerLabel}
@@ -415,9 +412,9 @@ export default function ActivityLogPage() {
                 )}
               </button>
 
-              {calendarOpen && (
+              {calendar.mounted && (
                 <div
-                  className="calendar-popover"
+                  className={`calendar-popover ${calendar.visible ? 'is-visible' : ''}`}
                   role="dialog"
                   aria-label="Select a date"
                 >

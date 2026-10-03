@@ -43,7 +43,7 @@ function KpiCard({ label, value, tone }) {
 function SimpleTable({ head, rows, boldLastRow }) {
   return (
     <div className="reports-table-wrap">
-      <table>
+      <table data-column-count={head.length}>
         <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {rows.map((row, i) => (

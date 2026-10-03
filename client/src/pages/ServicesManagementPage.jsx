@@ -41,6 +41,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import './ServicesManagementPage.css'
+import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
 // Search-and-select homeowner field. Filters by name, block and lot;
 // supports keyboard (arrows / Enter / Esc) and keeps native form validation.
@@ -474,7 +475,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   // --- Calendar day-modal state (calendar lives beside "Record Payment";
   // picking an exact date opens a floating statement-style modal) ---
-  const [calendarOpen, setCalendarOpen] = useState(false)
+  const calendar = useAnimatedPopover()
   const [calendarCursor, setCalendarCursor] = useState(() => {
     const [year, month] = today().split('-').map(Number)
     return { year, month: month - 1 }
@@ -492,15 +493,15 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   }, [])
 
   useEffect(() => {
-    if (!calendarOpen) return undefined
+    if (!calendar.open) return undefined
     function handleClickAway(event) {
       if (!event.target.closest('.services-calendar-wrap')) {
-        setCalendarOpen(false)
+        calendar.hide()
       }
     }
     document.addEventListener('mousedown', handleClickAway)
     return () => document.removeEventListener('mousedown', handleClickAway)
-  }, [calendarOpen])
+  }, [calendar.open])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -613,7 +614,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   function openCalendar() {
     const [year, month] = today().split('-').map(Number)
     setCalendarCursor({ year, month: month - 1 })
-    setCalendarOpen((open) => !open)
+    calendar.toggle()
   }
 
   function changeCalendarMonth(delta) {
@@ -624,7 +625,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   }
 
   function pickDay(dateKey) {
-    setCalendarOpen(false)
+    calendar.hide()
     setDayModalDate(dateKey)
   }
 
@@ -848,13 +849,14 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   className="services-button services-button-secondary day-picker-trigger"
                   onClick={openCalendar}
                   aria-haspopup="dialog"
-                  aria-expanded={calendarOpen}
+                  aria-expanded={calendar.open}
                 >
                   <CalendarIcon size={17} /> View by Date
                 </button>
 
-                {calendarOpen && (
-                  <div className="services-calendar-popover" role="dialog" aria-label="Choose a day">
+                {calendar.mounted && (
+                  <div className={`services-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
+                    <div className="services-calendar-popover" role="dialog" aria-label="Choose a day">
                     <div className="services-calendar-nav">
                       <button type="button" onClick={() => changeCalendarMonth(-1)} aria-label="Previous month">
                         <ChevronLeftIcon size={16} />
@@ -896,6 +898,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                       <span><span className="legend-dot today-dot" /> Today</span>
                       <span><span className="legend-dot activity-legend-dot" /> Has activity</span>
                       <button type="button" onClick={jumpToToday}>Jump to today</button>
+                    </div>
                     </div>
                   </div>
                 )}

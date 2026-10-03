@@ -11,6 +11,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import ActionDialog from '../components/ActionDialog'
+import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import './EventCalendarPage.css'
 
 const EMPTY_FORM = {
@@ -31,6 +32,126 @@ const monthFormatter = new Intl.DateTimeFormat('en-PH', {
   month: 'short',
   timeZone: 'Asia/Manila',
 })
+
+const fullMonthFormatter = new Intl.DateTimeFormat('en-PH', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+})
+
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  timeZone: 'Asia/Manila',
+})
+
+function datePickerDays(cursor) {
+  const [year, month] = cursor.split('-').map(Number)
+  const firstDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const daysInPreviousMonth = new Date(Date.UTC(year, month - 1, 0)).getUTCDate()
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const dayOffset = index - firstDay + 1
+    let day = dayOffset
+    let displayMonth = month
+    let displayYear = year
+    let outside = false
+
+    if (dayOffset <= 0) {
+      day = daysInPreviousMonth + dayOffset
+      displayMonth -= 1
+      outside = true
+    } else if (dayOffset > daysInMonth) {
+      day = dayOffset - daysInMonth
+      displayMonth += 1
+      outside = true
+    }
+
+    if (displayMonth === 0) {
+      displayMonth = 12
+      displayYear -= 1
+    }
+    if (displayMonth === 13) {
+      displayMonth = 1
+      displayYear += 1
+    }
+
+    return {
+      key: `${displayYear}-${String(displayMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      day,
+      outside,
+    }
+  })
+}
+
+function shiftDatePickerMonth(cursor, offset) {
+  const [year, month] = cursor.split('-').map(Number)
+  const next = new Date(Date.UTC(year, month - 1 + offset, 1))
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+function EventDatePicker({ value, onChange, disabled }) {
+  const picker = useAnimatedPopover()
+  const [cursor, setCursor] = useState(value ? value.slice(0, 7) : manilaToday().slice(0, 7))
+  const pickerRef = React.useRef(null)
+  const days = datePickerDays(cursor)
+
+  useEffect(() => {
+    function closeOnOutside(event) {
+      if (!pickerRef.current?.contains(event.target)) picker.hide()
+    }
+    document.addEventListener('mousedown', closeOnOutside)
+    return () => document.removeEventListener('mousedown', closeOnOutside)
+  }, [picker])
+
+  function selectDate(dateKey) {
+    onChange({ target: { name: 'eventDate', value: dateKey } })
+    picker.hide()
+  }
+
+  return (
+    <div className="cal-date-picker" ref={pickerRef}>
+      <button
+        type="button"
+        className={`cal-date-trigger ${picker.open ? 'is-open' : ''}`}
+        onClick={picker.toggle}
+        disabled={disabled}
+        aria-expanded={picker.open}
+        aria-haspopup="dialog"
+      >
+        <span>{value ? dateInManila(value).toLocaleDateString('en-PH') : 'Select event date'}</span>
+        <span className="cal-date-trigger-icon" aria-hidden="true">▣</span>
+      </button>
+      {picker.mounted && (
+        <div className={`cal-date-popover ${picker.visible ? 'is-visible' : ''}`} role="dialog" aria-label="Select event date">
+          <div className="cal-date-popover-header">
+            <button type="button" onClick={() => setCursor(shiftDatePickerMonth(cursor, -1))} aria-label="Previous month">‹</button>
+            <strong>{fullMonthFormatter.format(dateInManila(`${cursor}-01`))}</strong>
+            <button type="button" onClick={() => setCursor(shiftDatePickerMonth(cursor, 1))} aria-label="Next month">›</button>
+          </div>
+          <div className="cal-date-weekdays">
+            {Array.from({ length: 7 }, (_, index) => weekdayFormatter.format(new Date(Date.UTC(2026, 0, 4 + index)))).map((day) => (
+              <span key={day}>{day.slice(0, 2)}</span>
+            ))}
+          </div>
+          <div className="cal-date-grid">
+            {days.map((day) => (
+              <button
+                key={day.key}
+                type="button"
+                className={`${day.outside ? 'is-outside' : ''} ${day.key === value ? 'is-selected' : ''}`}
+                onClick={() => selectDate(day.key)}
+              >
+                {day.day}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="cal-date-today" onClick={() => selectDate(manilaToday())}>Today</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function manilaToday() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -105,6 +226,55 @@ function timeValue({ hour, minute, period }) {
   return `${String(hour24).padStart(2, '0')}:${minute || '00'}`
 }
 
+function TimeSegment({ value, placeholder, options, onChange, disabled, label }) {
+  const picker = useAnimatedPopover()
+  const segmentRef = React.useRef(null)
+
+  useEffect(() => {
+    function closeOnOutside(event) {
+      if (!segmentRef.current?.contains(event.target)) picker.hide()
+    }
+    document.addEventListener('mousedown', closeOnOutside)
+    return () => document.removeEventListener('mousedown', closeOnOutside)
+  }, [picker])
+
+  return (
+    <div className="cal-time-segment" ref={segmentRef}>
+      <button
+        type="button"
+        className={`cal-time-segment-trigger ${picker.open ? 'is-open' : ''}`}
+        onClick={picker.toggle}
+        disabled={disabled}
+        aria-label={`${label}: ${value || placeholder}`}
+        aria-expanded={picker.open}
+        aria-haspopup="listbox"
+      >
+        <span>{value || placeholder}</span>
+        <span className="cal-time-segment-chevron" aria-hidden="true">⌄</span>
+      </button>
+      {picker.mounted && (
+        <div className={`cal-time-options ${picker.visible ? 'is-visible' : ''}`} role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={option === value}
+              className={option === value ? 'is-selected' : ''}
+              onClick={() => {
+                onChange(option)
+                picker.hide()
+              }}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TimePicker({ label, name, value, onChange, disabled }) {
   const parts = timeParts(value)
 
@@ -133,55 +303,36 @@ function TimePicker({ label, name, value, onChange, disabled }) {
       <div className="cal-time-control">
         <Clock size={17} aria-hidden="true" />
 
-        <select
+        <TimeSegment
           value={parts.hour}
-          onChange={(event) => updatePart('hour', event.target.value)}
+          placeholder="HH"
+          options={TIME_HOURS}
+          onChange={(nextValue) => updatePart('hour', nextValue)}
           disabled={disabled}
-          aria-label={`${label} hour`}
-        >
-          <option value="" disabled>
-            HH
-          </option>
-          {TIME_HOURS.map((hour) => (
-            <option key={hour} value={hour}>
-              {hour}
-            </option>
-          ))}
-        </select>
+          label={`${label} hour`}
+        />
 
         <span className="cal-time-separator" aria-hidden="true">
           :
         </span>
 
-        <select
+        <TimeSegment
           value={parts.minute}
-          onChange={(event) => updatePart('minute', event.target.value)}
+          placeholder="MM"
+          options={TIME_MINUTES}
+          onChange={(nextValue) => updatePart('minute', nextValue)}
           disabled={disabled}
-          aria-label={`${label} minute`}
-        >
-          <option value="" disabled>
-            MM
-          </option>
-          {TIME_MINUTES.map((minute) => (
-            <option key={minute} value={minute}>
-              {minute}
-            </option>
-          ))}
-        </select>
+          label={`${label} minute`}
+        />
 
-        <select
-          className="cal-period-select"
+        <TimeSegment
           value={parts.period}
-          onChange={(event) => updatePart('period', event.target.value)}
+          placeholder="AM/PM"
+          options={['AM', 'PM']}
+          onChange={(nextValue) => updatePart('period', nextValue)}
           disabled={disabled}
-          aria-label={`${label} period`}
-        >
-          <option value="" disabled>
-            AM/PM
-          </option>
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
-        </select>
+          label={`${label} period`}
+        />
 
         {value && (
           <button
@@ -725,14 +876,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
 
               <label>
                 Event date
-                <input
-                  type="date"
-                  name="eventDate"
-                  value={form.eventDate}
-                  onChange={updateForm}
-                  disabled={saving}
-                  required
-                />
+                <EventDatePicker value={form.eventDate} onChange={updateForm} disabled={saving} />
               </label>
 
               <label>

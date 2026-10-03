@@ -885,6 +885,23 @@
   text-align: left;
 }
 
+.services-calendar-animation {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+.services-calendar-animation.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0s;
+}
+
 .services-calendar-nav {
   display: flex;
   align-items: center;
