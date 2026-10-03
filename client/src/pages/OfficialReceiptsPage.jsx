@@ -4,6 +4,7 @@ import {
   Eye,
   FileText,
   Printer,
+  Search,
   RefreshCw,
   X,
 } from '../components/Icons'
@@ -1195,7 +1196,8 @@ export default function OfficialReceiptsPage() {
         <div className="official-receipts-filters">
           <label className="official-search-field">
             <span>Search</span>
-
+            <div className="official-search-control">
+              <Search size={16} aria-hidden="true" />
             <input
               type="search"
               value={search}
@@ -1207,6 +1209,7 @@ export default function OfficialReceiptsPage() {
                 property, or purpose
               "
             />
+            </div>
           </label>
 
           <label>

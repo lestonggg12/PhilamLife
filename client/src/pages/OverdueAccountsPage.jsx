@@ -431,7 +431,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                           <Mail size={14} />
                         </a>
                       )}
-                      {!account.phone && !account.email && <span className="overdue-no-action">No contact on file</span>}
+                      {!account.phone && !account.email && <span className="overdue-no-action">No contact</span>}
                     </div>
                   </td>
                   <td>{account.block}, {account.lot}</td>
@@ -441,12 +441,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                     {organization.formatMoney(account.totalDue)}
                     {account.penaltyAmount > 0 && <span className="overdue-penalty-flag">+penalty</span>}
                   </td>
-                  <td>{account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt) : 'No payments yet'}</td>
+                  <td>{account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2)) : 'No payments yet'}</td>
                   <td>
                     {account.lastAction ? (
                       <button type="button" className="overdue-action-link" onClick={() => setHistoryTarget(account)}>
                         {account.lastAction.action_type}
-                        <small>{organization.formatDate(account.lastAction.action_date)}{account.actionCount > 1 ? ` (+${account.actionCount - 1} more)` : ''}</small>
+                        <small>{organization.formatDate(account.lastAction.action_date).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2))}{account.actionCount > 1 ? ` (+${account.actionCount - 1} more)` : ''}</small>
                       </button>
                     ) : (
                       <span className="overdue-no-action">No actions logged</span>

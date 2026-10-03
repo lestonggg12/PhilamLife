@@ -233,6 +233,129 @@ input::placeholder {
   margin-bottom: 1rem;
 }
 
+/* Shared search-field treatment */
+.doc-search-wrap,
+.contact-search-wrap,
+.overdue-search-wrap,
+.cal-search,
+.payments-search-wrap,
+.official-search-control,
+.tsr-search-field,
+.block-modal-search,
+.payment-homeowner-combobox,
+.homeowners-search-wrap,
+.ledger-search-wrap,
+.search-box {
+  position: relative;
+}
+
+.payment-homeowner-combobox {
+  position: relative;
+}
+
+.doc-search-wrap {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.official-search-control,
+.tsr-search-field {
+  display: flex;
+  align-items: center;
+}
+
+.doc-search-wrap > svg,
+.contact-search-wrap > svg,
+.overdue-search-wrap > svg,
+.cal-search > svg,
+.payments-search-wrap > svg,
+.official-search-control > svg,
+.tsr-search-field > svg,
+.block-modal-search > svg,
+.payment-homeowner-combobox > svg,
+.homeowners-search-icon,
+.ledger-search-icon,
+.search-box::before {
+  color: #1464a0;
+  opacity: 1;
+  filter: drop-shadow(0 1px 1px rgba(20, 100, 160, 0.12));
+}
+
+.payment-homeowner-combobox > svg {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  color: #1464a0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.payment-homeowner-combobox:focus-within {
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.13);
+}
+
+.payment-homeowner-combobox input {
+  padding-left: 38px;
+}
+
+.doc-search-wrap,
+.contact-search-wrap,
+.overdue-search-wrap,
+.cal-search,
+.payments-search-wrap,
+.official-search-control,
+.tsr-search-field,
+.block-modal-search,
+.payment-homeowner-combobox,
+.homeowners-search-wrap,
+.ledger-search-wrap,
+.search-box {
+  border-color: #bfd8eb;
+  box-shadow: 0 4px 12px rgba(20, 100, 160, 0.08);
+}
+
+.doc-search-wrap:focus-within,
+.contact-search-wrap:focus-within,
+.overdue-search-wrap:focus-within,
+.cal-search:focus-within,
+.payments-search-wrap:focus-within,
+.official-search-control:focus-within,
+.tsr-search-field:focus-within,
+.block-modal-search:focus-within,
+.payment-homeowner-combobox:focus-within,
+.homeowners-search-wrap:focus-within,
+.ledger-search-wrap:focus-within,
+.search-box:focus-within {
+  border-color: #1464a0;
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.13), 0 5px 14px rgba(20, 100, 160, 0.1);
+}
+
+.doc-search-wrap .doc-search,
+.contact-search-wrap .contact-search,
+.official-search-control input,
+.tsr-search-field input {
+  padding-left: 38px;
+}
+
+.doc-search-wrap > svg,
+.contact-search-wrap > svg,
+.official-search-control > svg,
+.tsr-search-field > svg {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

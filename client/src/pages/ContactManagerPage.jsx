@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Edit, FileArchive, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings } from '../components/Icons'
+import { Edit, FileArchive, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import ActionDialog from '../components/ActionDialog'
 import './ContactManagerPage.css'
@@ -695,6 +695,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       <div className="contact-toolbar">
         <div className="contact-search-wrap">
+          <Search size={16} aria-hidden="true" />
           <input
             type="search"
             placeholder="Search by name, block, lot, phone, or email..."

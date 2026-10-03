@@ -80,7 +80,7 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         supabase.from('blocks').select('id, name').order('name'),
         supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name, homeowner_status')
+          .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance')
           .order('homeowner_name'),
         supabase
           .from('payments')
@@ -133,9 +133,14 @@ export default function SecretaryPayablesPage({ user: suppliedUser }) {
         (payment) => payment.status !== 'Voided',
       )
       const latestPayment = activePayments[0]
-      const amountDue = latestPayment
-        ? Number(latestPayment.remaining_balance) || 0
-        : penaltySettings.duesAmount
+      // current_balance is the live running balance (kept in sync by the database when
+      // charges or payments are added or voided). A payment's remaining_balance is only a
+      // snapshot from the day it was recorded, so it goes stale after any void.
+      const amountDue = property.current_balance != null
+        ? Number(property.current_balance) || 0
+        : latestPayment
+          ? Number(latestPayment.remaining_balance) || 0
+          : penaltySettings.duesAmount
       const lateFee = computeLateFee({
         balance: amountDue,
         dueDay: penaltySettings.dueDay,
