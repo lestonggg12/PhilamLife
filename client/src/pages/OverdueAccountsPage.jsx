@@ -344,14 +344,16 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           />
         </div>
 
-        <select value={blockFilter} onChange={(e) => setBlockFilter(e.target.value)} aria-label="Filter by block">
-          {blocks.map((b) => <option key={b} value={b}>{b === 'All' ? 'All Blocks' : b}</option>)}
-        </select>
+        <div className="overdue-filter-pair">
+          <select value={blockFilter} onChange={(e) => setBlockFilter(e.target.value)} aria-label="Filter by block">
+            {blocks.map((b) => <option key={b} value={b}>{b === 'All' ? 'All Blocks' : b}</option>)}
+          </select>
 
-        <select value={agingFilter} onChange={(e) => setAgingFilter(e.target.value)} aria-label="Filter by aging tier">
-          <option value="All">All Aging Tiers</option>
-          {AGING_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+          <select value={agingFilter} onChange={(e) => setAgingFilter(e.target.value)} aria-label="Filter by aging tier">
+            <option value="All">All Aging Tiers</option>
+            {AGING_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
 
         <div className="overdue-status-tabs" role="tablist" aria-label="Filter by status">
           {STATUS_FILTERS.map((s) => (
