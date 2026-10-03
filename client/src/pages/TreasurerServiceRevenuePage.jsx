@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
+import Loader from '../components/Loader'
 import './TreasurerServiceRevenue.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -57,10 +58,25 @@ export default function TreasurerServiceRevenuePage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [showBreakdown, setShowBreakdown] = useState(() => {
+    try {
+      return localStorage.getItem('tsr-breakdown-open') === '1'
+    } catch {
+      return false
+    }
+  })
 
   useEffect(() => {
     loadTransactions()
   }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tsr-breakdown-open', showBreakdown ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [showBreakdown])
 
   async function loadTransactions() {
     setLoading(true)
@@ -227,12 +243,117 @@ export default function TreasurerServiceRevenuePage() {
         </div>
 
         <div className="tsr-stat-card">
-          <span className="tsr-stat-label">Top Service</span>
+          <div className="tsr-stat-top">
+            <span className="tsr-stat-label">Top Service</span>
+            <div className="tsr-stat-icon-box tsr-icon-accent">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="8" r="6" />
+                <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+              </svg>
+            </div>
+          </div>
           <h3 className="tsr-stat-value tsr-stat-value-sm">
             {loading || !summary.topService ? '—' : summary.topService.name}
           </h3>
+          {!loading && summary.topService && (
+            <p className="tsr-stat-sub">
+              {peso.format(summary.topService.amount)}
+              {summary.totalCollected > 0 && (
+                <> · {((summary.topService.amount / summary.totalCollected) * 100).toFixed(0)}% of total</>
+              )}
+            </p>
+          )}
         </div>
       </div>
+
+      <section className="tsr-breakdown-section">
+        <button
+          type="button"
+          className="tsr-breakdown-toggle"
+          onClick={() => setShowBreakdown((open) => !open)}
+          aria-expanded={showBreakdown}
+          aria-controls="tsr-breakdown-panel"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+          <span>Revenue by Service</span>
+          <svg
+            className={`tsr-breakdown-chevron${showBreakdown ? ' is-open' : ''}`}
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        <div
+          id="tsr-breakdown-panel"
+          className={`tsr-breakdown-collapse${showBreakdown ? ' is-open' : ''}`}
+          aria-hidden={!showBreakdown}
+        >
+          <div className="tsr-breakdown-collapse-inner">
+            <div className="tsr-breakdown-panel">
+              {loading ? (
+                <Loader variant="panel" />
+              ) : summary.byService.length === 0 ? (
+                <div className="tsr-state">No data yet.</div>
+              ) : (
+                <div className="tsr-breakdown-grid">
+                  {summary.byService.map(([name, amount]) => {
+                    const pct = summary.totalCollected > 0
+                      ? (amount / summary.totalCollected) * 100
+                      : 0
+                    return (
+                      <div className="tsr-breakdown-row" key={name}>
+                        <div className="tsr-breakdown-top">
+                          <span className="tsr-breakdown-name">{name}</span>
+                          <span className="tsr-breakdown-amount">
+                            {peso.format(amount)}{' '}
+                            <span className="tsr-breakdown-pct">· {pct.toFixed(0)}%</span>
+                          </span>
+                        </div>
+                        <div className="tsr-breakdown-bar-track">
+                          <div className="tsr-breakdown-bar-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="tsr-content-grid">
         <div className="tsr-table-panel">
@@ -309,7 +430,7 @@ export default function TreasurerServiceRevenuePage() {
           </p>
 
           {loading ? (
-            <div className="tsr-state">Loading transactions...</div>
+            <Loader variant="panel" />
           ) : filteredTransactions.length === 0 ? (
             <div className="tsr-state">No service transactions found.</div>
           ) : (
@@ -349,31 +470,6 @@ export default function TreasurerServiceRevenuePage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-
-        <div className="tsr-breakdown-panel">
-          <h3 className="tsr-section-title">Revenue by Service</h3>
-
-          {loading ? (
-            <div className="tsr-state">Loading...</div>
-          ) : summary.byService.length === 0 ? (
-            <div className="tsr-state">No data yet.</div>
-          ) : (
-            summary.byService.map(([name, amount]) => {
-              const pct = summary.totalCollected > 0 ? (amount / summary.totalCollected) * 100 : 0
-              return (
-                <div className="tsr-breakdown-row" key={name}>
-                  <div className="tsr-breakdown-top">
-                    <span className="tsr-breakdown-name">{name}</span>
-                    <span className="tsr-breakdown-amount">{peso.format(amount)}</span>
-                  </div>
-                  <div className="tsr-breakdown-bar-track">
-                    <div className="tsr-breakdown-bar-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              )
-            })
           )}
         </div>
       </div>

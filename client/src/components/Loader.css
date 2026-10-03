@@ -1,0 +1,99 @@
+/* ============================================
+   PHILAM VILLAGE — LOADER
+   Text fills left to right, then repeats.
+   ============================================ */
+
+.tl-wrap {
+  --tl-ink: #112a52;
+  --tl-fill: #1464a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tl-text {
+  width: fit-content;
+  font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--tl-ink);
+  background: conic-gradient(var(--tl-fill) 0 0) 0 / 0% 100% no-repeat text;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: tl-fill 1.4s linear infinite;
+}
+
+.tl-text::before {
+  content: attr(data-text);
+}
+
+@keyframes tl-fill {
+  to { background-size: 120% 100%; }
+}
+
+/* Screen-reader only label */
+.tl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Variants ---------- */
+
+.tl-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: linear-gradient(135deg, #f3f8fe 0%, #e3eefb 55%, #cfe0f5 100%);
+  /* short delay so fast loads never flash the screen */
+  animation: tl-appear 0.25s ease 0.15s both;
+}
+
+.tl-fullscreen .tl-text {
+  font-size: clamp(26px, 6vw, 48px);
+}
+
+.tl-panel {
+  width: 100%;
+  padding: 36px 16px;
+}
+
+.tl-panel .tl-text {
+  font-size: clamp(16px, 2.4vw, 22px);
+}
+
+.tl-inline {
+  display: inline-flex;
+  padding: 0;
+}
+
+.tl-inline .tl-text {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+@keyframes tl-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- Reduced motion: static, fully filled text ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .tl-text {
+    animation: none;
+    background-size: 100% 100%;
+  }
+
+  .tl-fullscreen {
+    animation: none;
+  }
+}
