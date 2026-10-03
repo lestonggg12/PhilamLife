@@ -17,7 +17,6 @@ import AdminDashboard from './pages/AdminDashboard'
 import TreasurerDashboard from './pages/TreasurerDashboard'
 import TreasurerExpensesPage from './pages/TreasurerExpensesPage'
 import SecretaryDashboard from './pages/SecretaryDashboard'
-import SecretaryPayablesPage from './pages/SecretaryPayablesPage'
 import ServicesManagementPage from './pages/ServicesManagementPage'
 import OfficialReceiptsPage from './pages/OfficialReceiptsPage'
 import PaymentsPage from './pages/PaymentsPage'
@@ -233,18 +232,6 @@ function AppContent() {
           }
         />
 
-        <Route
-          path="/secretary/payables"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary', 'treasurer']}
-            >
-              <SecretaryPayablesPage user={user} />
-            </ProtectedRoute>
-          }
-        />
 
         <Route
           path="/secretary/services"

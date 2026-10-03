@@ -80,7 +80,7 @@ export default function SecretaryDashboard() {
       await Promise.all([
         supabase
           .from('properties')
-          .select('id, homeowner_name, block, lot_number, homeowner_status'),
+          .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance'),
         supabase
           .from('payments')
           .select('*')
@@ -137,26 +137,11 @@ export default function SecretaryDashboard() {
       0,
     )
 
-    const outstandingAccounts = properties.filter((property) => {
-      if ((property.homeowner_status || 'active') !== 'active') return false
-
-      const latestPayment = activePayments.find((payment) => {
-        if (payment.property_id != null) {
-          return Number(payment.property_id) === Number(property.id)
-        }
-
-        return (
-          normalize(payment.homeowner_name) ===
-            normalize(property.homeowner_name) &&
-          normalize(payment.block_name) === normalize(property.block) &&
-          normalize(payment.lot_number).replace(/^lot\s*/, '') ===
-            String(property.lot_number)
-        )
-      })
-
-      if (!latestPayment) return duesAmount > 0
-      return Number(latestPayment.remaining_balance) > 0
-    }).length
+    const outstandingAccounts = properties.filter(
+      (property) =>
+        (property.homeowner_status || 'active') === 'active' &&
+        (Number(property.current_balance) || 0) > 0,
+    ).length
 
     return {
       monthlyCollections,
@@ -355,18 +340,6 @@ export default function SecretaryDashboard() {
                 </small>
               </span>
             </button>
-
-          <button
-            type="button"
-            className="sec-action"
-            onClick={() => navigate('/secretary/payables')}
-          >
-            <span className="sec-action-icon"><CheckCircle size={19} /></span>
-            <span>
-              <strong>Payables & Collections</strong>
-              <small>Review block collection status</small>
-            </span>
-          </button>
 
                 <button
   type="button"

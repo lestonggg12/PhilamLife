@@ -142,7 +142,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         supabase
           .from('property_charges')
-          .select('property_id, amount, billing_month, created_at')
+          .select('property_id, amount, billing_month, created_at, charge_type')
           .is('voided_at', null),
       ])
 

@@ -97,7 +97,7 @@ export function computeOverdueFromCharges({ balance, charges = [], dueDay, grace
   if (owed <= 0) return none
 
   const grace = Number(gracePeriodDays) || 0
-  const safeDueDay = Math.min(Math.max(Number(dueDay) || 1, 1), 28)
+  const safeDueDay = Math.min(Math.max(Number(dueDay) || 1, 1), 31)
   const { year, month, day } = manilaToday()
   const today = new Date(Date.UTC(year, month - 1, day))
   const DAY = 24 * 60 * 60 * 1000
@@ -107,7 +107,8 @@ export function computeOverdueFromCharges({ balance, charges = [], dueDay, grace
       let base
       if (charge.billing_month) {
         const [y, m] = String(charge.billing_month).slice(0, 10).split('-').map(Number)
-        base = new Date(Date.UTC(y, m - 1, safeDueDay))
+        const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+        base = new Date(Date.UTC(y, m - 1, Math.min(safeDueDay, lastDay)))
       } else {
         const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(charge.created_at))
         const [y, m, d] = iso.split('-').map(Number)
@@ -123,6 +124,7 @@ export function computeOverdueFromCharges({ balance, charges = [], dueDay, grace
 
   let overdueAmount = 0
   let daysOverdue = 0
+  let oldestOverdueDeadline = null
 
   for (let i = dated.length - 1; i >= 0 && unpaid > 0.005; i -= 1) {
     const take = Math.min(unpaid, dated[i].amount)
@@ -130,6 +132,9 @@ export function computeOverdueFromCharges({ balance, charges = [], dueDay, grace
     if (dated[i].deadline < today) {
       overdueAmount += take
       daysOverdue = Math.max(daysOverdue, Math.round((today - dated[i].deadline) / DAY))
+      if (!oldestOverdueDeadline || dated[i].deadline < oldestOverdueDeadline) {
+        oldestOverdueDeadline = dated[i].deadline
+      }
     }
   }
 
@@ -142,12 +147,44 @@ export function computeOverdueFromCharges({ balance, charges = [], dueDay, grace
   }
 
   const isOverdue = overdueAmount > 0.005
-  const penaltyAmount = isOverdue ? Number(latePenalty) || 0 : 0
+  // If staff already added a real "Penalty / Late Fee" charge since this account
+  // went overdue, it is part of the balance - don't also show the display-only fee.
+  const penaltyAlreadyCharged = oldestOverdueDeadline
+    ? charges.some(
+        (charge) =>
+          charge.charge_type === 'Penalty / Late Fee' &&
+          new Date(charge.created_at) >= oldestOverdueDeadline,
+      )
+    : false
+  const penaltyAmount = isOverdue && !penaltyAlreadyCharged ? Number(latePenalty) || 0 : 0
   return {
     isOverdue,
     penaltyAmount,
     totalDue: owed + penaltyAmount,
     daysOverdue: isOverdue ? daysOverdue : 0,
     overdueAmount: Math.round(overdueAmount * 100) / 100,
+  }
+}
+/**
+ * One account's balance + overdue status from the stored balance and charges.
+ * `settings` is the System Settings row (due_day, grace_period_days, late_penalty).
+ * balance = amount owed (never negative); credit = advance credit.
+ */
+export function accountStatus(property, charges, settings) {
+  const stored = Number(property.current_balance) || 0
+  const result = computeOverdueFromCharges({
+    balance: stored,
+    charges: (charges || []).filter((charge) => Number(charge.property_id) === Number(property.id)),
+    dueDay: Number(settings?.due_day) || 5,
+    gracePeriodDays: Number(settings?.grace_period_days) || 0,
+    latePenalty: Number(settings?.late_penalty) || 0,
+  })
+  return {
+    stored,
+    balance: Math.max(stored, 0),
+    credit: Math.max(-stored, 0),
+    isOverdue: result.isOverdue,
+    daysOverdue: result.daysOverdue,
+    overdueAmount: result.overdueAmount,
   }
 }

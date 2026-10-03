@@ -144,16 +144,17 @@ function regularPaymentCategory(payment) {
   return coverage.includes('association dues') ? 'dues' : 'other'
 }
 
-function homeownerStatus(propertyPayments) {
+function homeownerStatus(propertyPayments, property) {
   const active = propertyPayments.filter(
     (payment) => normalize(payment.status) !== 'voided',
   )
-  if (!active.length) return { key: 'no-history', label: 'No payment history' }
 
-  const latest = active[0]
-  if ((Number(latest.remaining_balance) || 0) > 0) {
+  // Stored balance: positive = owed, negative = advance credit.
+  if ((Number(property?.current_balance) || 0) > 0) {
     return { key: 'balance', label: 'With balance' }
   }
+
+  if (!active.length) return { key: 'no-history', label: 'No payment history' }
 
   return { key: 'current', label: 'Current' }
 }
@@ -260,7 +261,7 @@ export default function HomeownersPage() {
         )
         return {
           property,
-          status: homeownerStatus(propertyPayments),
+          status: homeownerStatus(propertyPayments, property),
         }
       }),
     [payments, properties],
@@ -528,7 +529,7 @@ export default function HomeownersPage() {
     setTrackerOpen(false)
   }
 
-  const selectedStatus = homeownerStatus(selectedPayments)
+  const selectedStatus = homeownerStatus(selectedPayments, selectedProperty)
 
   return (
     <div className="homeowners-page">
