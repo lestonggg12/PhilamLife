@@ -74,6 +74,7 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
   const [properties, setProperties] = useState([])
+  const [charges, setCharges] = useState([])
   const [documents, setDocuments] = useState([])
   const [events, setEvents] = useState([])
   const [orgSettings, setOrgSettings] = useState(null)
@@ -104,7 +105,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     setLoading(true)
     setError('')
 
-    const [paymentResult, serviceResult, expenseResult, propertyResult, settingsResult, documentResult, eventResult] = await Promise.all([
+    const [paymentResult, serviceResult, expenseResult, propertyResult, settingsResult, documentResult, eventResult, chargesResult] = await Promise.all([
       supabase
         .from('payments')
         .select('id, property_id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
@@ -119,10 +120,11 @@ export default function ReportsPage({ user: suppliedUser }) {
         .select('id, expense_date, category, description, amount, reference_number, recorded_by_name, status, created_at')
         .neq('status', 'Voided')
         .order('expense_date', { ascending: false }),
-      supabase.from('properties').select('id, homeowner_status'),
+      supabase.from('properties').select('id, homeowner_status, current_balance'),
       supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
       supabase.from('documents').select('id, title, category, created_at').order('created_at', { ascending: false }),
       supabase.from('events').select('id, title, description, event_date, location').order('event_date', { ascending: true }),
+      supabase.from('property_charges').select('property_id, amount, billing_month, created_at, charge_type').is('voided_at', null),
     ])
 
     const loadError = paymentResult.error || serviceResult.error || expenseResult.error || propertyResult.error
@@ -131,6 +133,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     if (!serviceResult.error) setServiceTransactions(serviceResult.data || [])
     if (!expenseResult.error) setExpenses(expenseResult.data || [])
     if (!propertyResult.error) setProperties(propertyResult.data || [])
+    if (!chargesResult.error) setCharges(chargesResult.data || [])
     if (!settingsResult.error) setOrgSettings(settingsResult.data || null)
     if (!documentResult.error) setDocuments(documentResult.data || [])
     if (!eventResult.error) setEvents(eventResult.data || [])
@@ -138,8 +141,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   }
 
   const report = useMemo(
-    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, settings: orgSettings, documents, events, month }),
-    [payments, serviceTransactions, expenses, properties, orgSettings, documents, events, month]
+    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, charges, settings: orgSettings, documents, events, month }),
+    [payments, serviceTransactions, expenses, properties, charges, orgSettings, documents, events, month]
   )
 
   async function downloadPdf() {
@@ -155,6 +158,7 @@ export default function ReportsPage({ user: suppliedUser }) {
         serviceTransactions,
         expenses,
         properties,
+        charges,
         settings: orgSettings,
         documents,
         events,

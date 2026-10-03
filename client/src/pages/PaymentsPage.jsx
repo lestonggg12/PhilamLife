@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -38,18 +37,40 @@ function advanceCreditDetails(credit, settings) {
   if (!settings) return { credit, hasSettings: false }
 
   const dues = Number(settings.dues_amount) || 0
-  const dueDay = Math.min(Math.max(Number(settings.due_day) || 1, 1), 28)
+  const dueDay = Math.min(Math.max(Number(settings.due_day) || 1, 1), 31)
+  const billingDay = Math.min(Math.max(Number(settings.billing_day) || 1, 1), 31)
   const grace = Number(settings.grace_period_days) || 0
+
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
     year: 'numeric',
     month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date())
-  const year = Number(parts.find((item) => item.type === 'year').value)
-  const month = Number(parts.find((item) => item.type === 'month').value) // 1-12; used as next month's 0-based index
+  const part = (type) => Number(parts.find((item) => item.type === type).value)
+  const year = part('year')
+  const month0 = part('month') - 1
+  const today = part('day')
+
+  // Date on `day` of the month (clamped to the month's last day); month0 may overflow into next year.
+  const onDay = (y, m0, day) => {
+    const lastDay = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate()
+    return new Date(Date.UTC(y, m0, Math.min(day, lastDay)))
+  }
   const fmt = (date) =>
     date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
-  const due = new Date(Date.UTC(year, month, dueDay))
+
+  // Next billing run: the admin's billing day. If this month is already billed, it is next month's.
+  // If this month isn't billed yet and the day has passed, the daily run will bill it tomorrow.
+  let billing = onDay(year, month0, billingDay)
+  if (settings.billed_this_month) {
+    billing = onDay(year, month0 + 1, billingDay)
+  } else {
+    const tomorrow = new Date(Date.UTC(year, month0, today + 1))
+    if (billing < tomorrow) billing = tomorrow
+  }
+
+  const due = onDay(billing.getUTCFullYear(), billing.getUTCMonth(), dueDay)
   const months = dues > 0 ? Math.floor(credit / dues) : 0
   const rest = dues > 0 ? Math.round((credit - months * dues) * 100) / 100 : 0
 
@@ -61,7 +82,7 @@ function advanceCreditDetails(credit, settings) {
     months,
     rest,
     shortfall: dues > 0 && months === 0 ? Math.round((dues - credit) * 100) / 100 : 0,
-    billing: fmt(new Date(Date.UTC(year, month, 1))),
+    billing: fmt(billing),
     due: fmt(due),
     deadline: fmt(new Date(due.getTime() + grace * 86400000)),
   }
@@ -384,8 +405,6 @@ function PaymentCalendar({
 
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
-  const location = useLocation()
-  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [payments, setPayments] = useState([])
   const [properties, setProperties] = useState([])
@@ -419,20 +438,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
     loadPage()
     resolveCurrentUser()
   }, [])
-  useEffect(() => {
-   const prefill = location.state?.prefill
-    if (!prefill) return
-
-    setForm((current) => ({
-    ...current,
-     ...prefill,
-   }))
-   setShowForm(true)
-
-   // Clear the navigation state so refresh/back doesn't re-trigger the prefill.
-   navigate(location.pathname, { replace: true, state: {} })
-   // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [location.state])
 
   useEffect(() => {
     if (!calendarOpen) return undefined
@@ -483,7 +488,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, propertyResult, settingsResult] = await Promise.all([
+    const [paymentResult, propertyResult, settingsResult, billedResult] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
@@ -494,13 +499,22 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .order('homeowner_name'),
       supabase
         .from('system_settings')
-        .select('dues_amount, due_day, grace_period_days')
+        .select('dues_amount, billing_day, due_day, grace_period_days')
         .eq('id', 1)
         .maybeSingle(),
+      // Has this month's dues run already? (decides which billing date the advance note shows)
+      supabase
+        .from('property_charges')
+        .select('id')
+        .eq('billing_month', `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).slice(0, 7)}-01`)
+        .limit(1),
     ])
 
     if (!settingsResult.error && settingsResult.data) {
-      setDuesSettings(settingsResult.data)
+      setDuesSettings({
+        ...settingsResult.data,
+        billed_this_month: !billedResult.error && (billedResult.data || []).length > 0,
+      })
     }
 
     if (paymentResult.error) {

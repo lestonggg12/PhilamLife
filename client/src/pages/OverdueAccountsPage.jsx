@@ -103,7 +103,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         .order('action_date', { ascending: false }),
       supabase
         .from('property_charges')
-        .select('property_id, amount, billing_month, created_at')
+        .select('property_id, amount, billing_month, created_at, charge_type')
         .is('voided_at', null),
     ])
 

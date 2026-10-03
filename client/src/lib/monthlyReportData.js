@@ -1,4 +1,4 @@
-import { computeLateFee } from './latepenalty'
+import { accountStatus } from './latepenalty'
 
 // Pure data computation for the HOA Monthly Report.
 // No rendering here — both ReportsPage (on-screen) and monthlyReportPdf.js
@@ -46,7 +46,7 @@ export const untrackedModules = [
  * @param {string} raw.month          - 'YYYY-MM'
  */
 export function computeMonthlyReportData(raw) {
-  const { payments = [], serviceTransactions = [], expenses = [], properties = [], settings = null, documents = [], events = [], month } = raw
+  const { payments = [], serviceTransactions = [], expenses = [], properties = [], charges = [], settings = null, documents = [], events = [], month } = raw
   const range = monthBounds(month)
 
   const inRange = (iso) => {
@@ -75,12 +75,8 @@ export function computeMonthlyReportData(raw) {
   const accountBalances = properties
     .filter((property) => (property.homeowner_status || 'active') === 'active')
     .map((property) => {
-    const propertyPayments = payments
-      .filter((p) => Number(p.property_id) === Number(property.id))
-      .sort((a, b) => new Date(b.paid_at || 0) - new Date(a.paid_at || 0))
-    const latest = propertyPayments[0]
-    const balance = latest ? Number(latest.remaining_balance) || 0 : duesAmount
-    return { balance, isOverdue: computeLateFee({ balance, dueDay, gracePeriodDays, latePenalty }).isOverdue }
+    const { balance, isOverdue } = accountStatus(property, charges, settings)
+    return { balance, isOverdue }
   })
   const outstandingAccounts = accountBalances.filter((a) => a.balance > 0)
   const totalOutstanding = outstandingAccounts.reduce((s, a) => s + a.balance, 0)

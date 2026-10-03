@@ -14,7 +14,7 @@ import {
   Zap,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { computeLateFee } from '../lib/latepenalty'
+import { accountStatus as getAccountStatus } from '../lib/latepenalty'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate } from '../config/organization'
@@ -129,6 +129,7 @@ export default function AdminDashboard() {
   const [profiles, setProfiles] = useState([])
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
+  const [charges, setCharges] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [activities, setActivities] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
@@ -156,13 +157,14 @@ export default function AdminDashboard() {
       serviceResult,
       activityResult,
       settingsResult,
+      chargesResult,
     ] = await Promise.all([
       supabase
         .from('profiles')
         .select('id, full_name, email, role, is_active'),
       supabase
         .from('properties')
-        .select('id, block, lot_number, homeowner_name, homeowner_status'),
+        .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance'),
       supabase
         .from('payments')
         .select(
@@ -182,6 +184,10 @@ export default function AdminDashboard() {
         .select('dues_amount, due_day, grace_period_days, late_penalty')
         .eq('id', 1)
         .maybeSingle(),
+      supabase
+        .from('property_charges')
+        .select('property_id, amount, billing_month, created_at, charge_type')
+        .is('voided_at', null),
     ])
 
     const errors = [
@@ -203,6 +209,7 @@ export default function AdminDashboard() {
     setProfiles(profileResult.data || [])
     setProperties(propertyResult.data || [])
     setPayments(paymentResult.data || [])
+    setCharges(chargesResult.data || [])
     setServiceTransactions(serviceResult.data || [])
     setActivities(activityResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
@@ -262,29 +269,23 @@ export default function AdminDashboard() {
     let count = 0
     let outstanding = 0
 
+    const settings = {
+      due_day: penaltySettings.dueDay,
+      grace_period_days: penaltySettings.gracePeriodDays,
+      late_penalty: penaltySettings.latePenalty,
+    }
+
     activeProperties.forEach((property) => {
-      const latestPayment = activePayments.find((payment) =>
-        paymentMatchesProperty(payment, property),
-      )
-      const balance = latestPayment
-        ? Number(latestPayment.remaining_balance) || 0
-        : duesAmount
+      const status = getAccountStatus(property, charges, settings)
 
-      const lateFee = computeLateFee({
-        balance,
-        dueDay: penaltySettings.dueDay,
-        gracePeriodDays: penaltySettings.gracePeriodDays,
-        latePenalty: penaltySettings.latePenalty,
-      })
-
-      if (lateFee.isOverdue && balance > 0) {
+      if (status.isOverdue && status.balance > 0) {
         count += 1
-        outstanding += balance
+        outstanding += status.balance
       }
     })
 
     return { count, outstanding }
-  }, [activeProperties, activePayments, duesAmount, penaltySettings])
+  }, [activeProperties, charges, penaltySettings])
 
   const accountStatus = useMemo(() => {
     let paid = 0
@@ -292,20 +293,17 @@ export default function AdminDashboard() {
     let noRecord = 0
 
     activeProperties.forEach((property) => {
-      const latestPayment = activePayments.find((payment) =>
+      const owed = (Number(property.current_balance) || 0) > 0
+      const hasPayment = activePayments.some((payment) =>
         paymentMatchesProperty(payment, property),
       )
 
-      if (!latestPayment) {
-        noRecord += 1
-        return
-      }
-
-      const remainingBalance = Number(latestPayment.remaining_balance)
-      if (Number.isFinite(remainingBalance) && remainingBalance > 0) {
+      if (owed) {
         balanceDue += 1
-      } else {
+      } else if (hasPayment) {
         paid += 1
+      } else {
+        noRecord += 1
       }
     })
 

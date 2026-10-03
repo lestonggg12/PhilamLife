@@ -40,12 +40,13 @@ export function buildMonthlyReportPdf({
   serviceTransactions = [],
   expenses = [],
   properties = [],
+  charges = [],
   settings = null,
   documents = [],
   events = [],
   month,
 }) {
-  const data = computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, settings, documents, events, month })
+  const data = computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, charges, settings, documents, events, month })
   const doc = new jsPDF({ unit: 'mm', format: 'letter' })
 
   let pageNum = 0

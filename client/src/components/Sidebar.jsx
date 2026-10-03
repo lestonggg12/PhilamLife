@@ -62,12 +62,6 @@ export default function Sidebar({ user, onLogout }) {
 
   const financeItems = [
     {
-      name: 'Payables & Collections',
-      path: '/secretary/payables',
-      icon: Users,
-      roles: ['treasurer'],
-    },
-    {
       name: 'Ledger',
       path: '/ledger',
       icon: FileText,

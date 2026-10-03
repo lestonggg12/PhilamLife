@@ -13,7 +13,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
-import { computeLateFee } from '../lib/latepenalty'
+import { accountStatus } from '../lib/latepenalty'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -55,6 +55,7 @@ export default function TreasurerDashboard() {
     expenses: [],
     services: [],
     properties: [],
+    charges: [],
     settings: null,
     adjustments: [],
     deposits: [],
@@ -78,6 +79,7 @@ export default function TreasurerDashboard() {
       optionalRows('properties', 'homeowner_name'),
       supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle()
         .then(({ data, error }) => ({ table: 'system_settings', data: data ? [data] : [], error })),
+      optionalRows('property_charges', 'created_at'),
       optionalRows('account_adjustments', 'created_at'),
       optionalRows('bank_deposits', 'recorded_at'),
       optionalRows('accounting_periods', 'starts_on'),
@@ -99,6 +101,7 @@ export default function TreasurerDashboard() {
       expenses: byTable.expenses || [],
       services: byTable.service_transactions || [],
       properties: byTable.properties || [],
+      charges: (byTable.property_charges || []).filter((row) => !row.voided_at),
       settings: (byTable.system_settings || [])[0] || null,
       adjustments: byTable.account_adjustments || [],
       deposits: byTable.bank_deposits || [],
@@ -135,13 +138,8 @@ export default function TreasurerDashboard() {
     const accountRows = finance.properties
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
-      const propertyPayments = activePayments
-        .filter((p) => Number(p.property_id) === Number(property.id))
-        .sort((a, b) => new Date(b.paid_at || 0) - new Date(a.paid_at || 0))
-      const latest = propertyPayments[0]
-      const balance = latest ? Number(latest.remaining_balance) || 0 : duesAmount
-      const lateFee = computeLateFee({ balance, dueDay, gracePeriodDays, latePenalty })
-      return { balance, isOverdue: lateFee.isOverdue, daysOverdue: lateFee.daysOverdue }
+      const { balance, isOverdue, daysOverdue } = accountStatus(property, finance.charges, finance.settings)
+      return { balance, isOverdue, daysOverdue }
     })
 
     const outstanding = accountRows.reduce((sum, row) => sum + row.balance, 0)

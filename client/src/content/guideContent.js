@@ -183,14 +183,6 @@ export const GUIDE_CONTENT = {
       },
       SHARED_SECTIONS.overdueAccounts,
       SHARED_SECTIONS.documentLibrary,
-      {
-        id: 'payables',
-        title: 'Payables & Collections',
-        summary: 'A block-by-block view of who owes what, useful when you\'re following up with an entire block rather than one homeowner at a time.',
-        steps: [
-          'Expand a block to see every active homeowner in it, along with their balance.',
-        ],
-      },
       SHARED_SECTIONS.ledger,
       SHARED_SECTIONS.payments,
       {
@@ -265,14 +257,6 @@ export const GUIDE_CONTENT = {
       SHARED_SECTIONS.contactManager,
       SHARED_SECTIONS.overdueAccounts,
       SHARED_SECTIONS.documentLibrary,
-      {
-        id: 'payables',
-        title: 'Payables & Collections',
-        summary: 'Block-by-block view of collections — useful for spotting which blocks are lagging on dues.',
-        steps: [
-          'Expand any block to see every active homeowner\'s balance within it.',
-        ],
-      },
       SHARED_SECTIONS.ledger,
       {
         id: 'service-revenue',
@@ -316,9 +300,9 @@ export const GUIDE_CONTENT = {
         ],
       },
       {
-        title: 'See which blocks are behind on dues',
+        title: 'See which homeowners or blocks are behind on dues',
         steps: [
-          'Go to Payables & Collections and scan by block, or go to Overdue Accounts and filter by aging bucket for individual homeowners.',
+          'Go to Overdue Accounts, then filter by block or aging bucket to see who is behind.',
         ],
       },
       {

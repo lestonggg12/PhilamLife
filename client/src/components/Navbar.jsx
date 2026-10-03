@@ -14,7 +14,6 @@ const PAGE_LABELS = {
   '/homeowners': 'Homeowners',
   '/overdue-accounts': 'Overdue Accounts',
   '/documents': 'Document Library',
-  '/secretary/payables': 'Payables & Collections',
   '/ledger': 'Ledger',
   '/treasurer/service-revenue': 'Amenity Revenue',
   '/payments': 'Payments',
