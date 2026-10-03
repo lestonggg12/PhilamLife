@@ -165,6 +165,11 @@ export default function HomeownersPage() {
   const { homeownerId } = useParams()
   const [properties, setProperties] = useState([])
   const [payments, setPayments] = useState([])
+  const [currentUser, setCurrentUser] = useState(null)
+  const [voidTarget, setVoidTarget] = useState(null)
+  const [voidReason, setVoidReason] = useState('')
+  const [voiding, setVoiding] = useState(false)
+  const [voidError, setVoidError] = useState('')
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -205,6 +210,77 @@ export default function HomeownersPage() {
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function resolveUser() {
+      const { data: { user: authUser } = {} } = await supabase.auth.getUser()
+      if (!authUser) return
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
+      if (!cancelled && profile) setCurrentUser(profile)
+    }
+    resolveUser()
+    return () => { cancelled = true }
+  }, [])
+
+  const userRole = currentUser?.role?.trim().toLowerCase()
+  const canVoidPayments = userRole === 'secretary' || userRole === 'treasurer'
+
+  function openVoid(item) {
+    const payment = payments.find((row) => `payment-${row.id}` === item.id)
+    if (!payment) return
+    setVoidTarget(payment)
+    setVoidReason('')
+    setVoidError('')
+  }
+
+  async function confirmVoid(event) {
+    event.preventDefault()
+    const reason = voidReason.trim()
+
+    if (reason.length < 5) {
+      setVoidError('Enter a reason (at least 5 characters).')
+      return
+    }
+
+    setVoiding(true)
+    setVoidError('')
+
+    const { data, error } = await supabase
+      .from('payments')
+      .update({ status: 'Voided', void_reason: reason })
+      .eq('id', voidTarget.id)
+      .neq('status', 'Voided')
+      .select('id')
+
+    if (error || !data?.length) {
+      setVoidError(error?.message || 'Could not void this payment. It may already be voided, or you may not have permission.')
+      setVoiding(false)
+      return
+    }
+
+    const effect = Number(voidTarget.balance_effect ?? voidTarget.amount_paid ?? voidTarget.amount) || 0
+    setPayments((current) =>
+      current.map((row) =>
+        row.id === voidTarget.id ? { ...row, status: 'Voided', void_reason: reason } : row,
+      ),
+    )
+    setProperties((current) =>
+      current.map((property) =>
+        Number(property.id) === Number(voidTarget.property_id)
+          ? { ...property, current_balance: (Number(property.current_balance) || 0) + effect }
+          : property,
+      ),
+    )
+    await supabase.from('activity_log').insert({
+      user_id: currentUser.id,
+      action: 'Payment Voided',
+      target: `${voidTarget.receipt_number} — ${voidTarget.homeowner_name} — ${peso.format(Number(voidTarget.amount_paid) || 0)} — ${reason}`,
+    })
+
+    setVoiding(false)
+    setVoidTarget(null)
+  }
 
   async function loadHomeowners(isRefresh = false) {
     if (isRefresh) setRefreshing(true)
@@ -915,11 +991,12 @@ export default function HomeownersPage() {
                       <th>Amount</th>
                       <th>Balance</th>
                       <th>Status</th>
+                      <th aria-label="Actions" />
                     </tr>
                   </thead>
                   <tbody>
                     {(activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).length === 0 ? (
-                      <tr><td colSpan="8" className="homeowners-empty">No payment records in this category.</td></tr>
+                      <tr><td colSpan="9" className="homeowners-empty">No payment records in this category.</td></tr>
                     ) : (
                       (activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).map((item) => (
                         <tr key={item.id}>
@@ -933,6 +1010,11 @@ export default function HomeownersPage() {
                             {item.remaining < 0 ? `${peso.format(Math.abs(item.remaining))} credit` : peso.format(item.remaining)}
                           </td>
                           <td><span className={`homeowner-payment-status status-${normalize(item.status).replace(/\s+/g, '-')}`}>{item.status}</span></td>
+                          <td>
+                            {canVoidPayments && item.id.startsWith('payment-') && item.statusKey !== 'voided' && (
+                              <button type="button" className="homeowner-void-link" onClick={() => openVoid(item)}>Void</button>
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -943,6 +1025,28 @@ export default function HomeownersPage() {
           </>
         )}
       </main>
+
+      {voidTarget && (
+        <div className="homeowner-void-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
+          <form className="homeowner-void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>
+            <div className="homeowner-void-icon" aria-hidden="true">!</div>
+            <h2>Void payment</h2>
+            <p>
+              {voidTarget.receipt_number} — {voidTarget.homeowner_name} — {peso.format(Number(voidTarget.amount_paid) || 0)}
+              <br />
+              The homeowner's balance is corrected automatically. This cannot be undone.
+            </p>
+            <label>Reason (required)
+              <textarea value={voidReason} onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }} rows="3" maxLength="250" placeholder="e.g., Wrong amount typed" autoFocus />
+            </label>
+            {voidError && <p className="homeowner-void-error">{voidError}</p>}
+            <div className="homeowner-void-actions">
+              <button type="button" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
+              <button type="submit" className="homeowner-void-confirm" disabled={voiding}>{voiding ? 'Voiding...' : 'Void payment'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

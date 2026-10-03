@@ -1270,3 +1270,103 @@
   text-align: right;
   white-space: nowrap;
 }
+/* Void payment from the homeowner profile */
+.homeowner-history-table th:nth-child(1), .homeowner-history-table td:nth-child(1) { width: 11%; }
+.homeowner-history-table th:nth-child(2), .homeowner-history-table td:nth-child(2) { width: 12%; }
+.homeowner-history-table th:nth-child(3), .homeowner-history-table td:nth-child(3) { width: 14%; }
+.homeowner-history-table th:nth-child(4), .homeowner-history-table td:nth-child(4) { width: 14%; }
+.homeowner-history-table th:nth-child(5), .homeowner-history-table td:nth-child(5) { width: 8%; }
+.homeowner-history-table th:nth-child(6), .homeowner-history-table td:nth-child(6) { width: 12%; }
+.homeowner-history-table th:nth-child(7), .homeowner-history-table td:nth-child(7) { width: 12%; }
+.homeowner-history-table th:nth-child(8), .homeowner-history-table td:nth-child(8) { width: 10%; }
+.homeowner-history-table th:nth-child(9), .homeowner-history-table td:nth-child(9) { width: 7%; }
+
+.homeowner-void-link {
+  padding: 4px 10px;
+  border: 1px solid rgba(179, 38, 30, 0.35);
+  border-radius: 999px;
+  background: #fff;
+  color: #b3261e;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.homeowner-void-link:hover { background: #fdecea; }
+
+.homeowner-void-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 63, 106, 0.4);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.homeowner-void-dialog {
+  width: min(440px, 100%);
+  padding: 26px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 63, 106, 0.28);
+  text-align: center;
+}
+
+.homeowner-void-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d9534f, #a61e1a);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.homeowner-void-dialog h2 { margin: 0 0 6px; font-size: 1.3rem; }
+.homeowner-void-dialog p { margin: 0 0 14px; color: #526b7d; font-size: 0.9rem; line-height: 1.45; }
+
+.homeowner-void-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.homeowner-void-dialog textarea {
+  padding: 10px 12px;
+  border: 1px solid rgba(120, 162, 210, 0.5);
+  border-radius: 12px;
+  font: inherit;
+  resize: vertical;
+}
+
+.homeowner-void-dialog .homeowner-void-error { margin: 10px 0 0; color: #b3261e; font-weight: 600; }
+
+.homeowner-void-actions { display: flex; gap: 10px; margin-top: 18px; }
+
+.homeowner-void-actions button {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(120, 162, 210, 0.5);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.homeowner-void-actions .homeowner-void-confirm {
+  border-color: #b3261e;
+  background: #b3261e;
+  color: #fff;
+}

@@ -14,6 +14,9 @@ const PAYMENT_PURPOSES = [
   'Other',
 ]
 
+// Association Dues are billed automatically every month, so they can't be added by hand.
+const CHARGE_TYPES = PAYMENT_PURPOSES.filter((purpose) => purpose !== 'Association Dues')
+
 const EMPTY_FORM = {
   propertyId: '',
   homeownerName: '',
@@ -1375,7 +1378,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
               <label>Charge Type
                 <select name="chargeType" value={chargeForm.chargeType} onChange={updateChargeField}>
-                  {PAYMENT_PURPOSES.map((purpose) => (
+                  {CHARGE_TYPES.map((purpose) => (
                     <option key={purpose}>{purpose}</option>
                   ))}
                 </select>

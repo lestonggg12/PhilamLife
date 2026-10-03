@@ -6,6 +6,7 @@ import {
   FileText,
   Plus,
   RefreshCw,
+  Search,
   Trash2,
   X,
 } from '../components/Icons'
@@ -507,14 +508,17 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       )}
 
       <div className="doc-toolbar">
-        <input
-          type="search"
-          placeholder="Search by title, file name, category, or uploader..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="doc-search"
-          aria-label="Search documents"
-        />
+        <label className="doc-search-wrap">
+          <Search size={16} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Search by title, file name, category, or uploader..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="doc-search"
+            aria-label="Search documents"
+          />
+        </label>
 
         <select
           value={category}

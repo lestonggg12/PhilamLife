@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, DollarSign, TrendingUp, Clock } from '../components/Icons'
+import { AlertCircle, DollarSign, TrendingUp, Clock, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
@@ -362,12 +362,15 @@ export default function TreasurerServiceRevenuePage() {
           <div className="tsr-controls">
             <label className="tsr-control tsr-search-control">
               <span>Search</span>
-              <input
-                type="search"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Receipt, customer, block/lot, method..."
-              />
+              <div className="tsr-search-field">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Receipt, customer, block/lot, method..."
+                />
+              </div>
             </label>
 
             <label className="tsr-control">
