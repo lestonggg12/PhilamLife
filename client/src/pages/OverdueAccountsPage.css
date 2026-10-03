@@ -152,7 +152,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 1 100%;
   min-width: 220px;
   padding: 0 12px;
   height: 42px;
@@ -169,6 +169,17 @@
   font-size: 14px;
   color: #071e30;
   background: transparent;
+}
+
+.overdue-filter-pair {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 10px;
+}
+
+.overdue-filter-pair select {
+  flex: 1;
+  min-width: 0;
 }
 
 .overdue-toolbar select {

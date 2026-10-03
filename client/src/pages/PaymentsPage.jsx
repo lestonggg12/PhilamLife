@@ -1086,7 +1086,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <th>Payment details</th>
               <th>Amount / Method</th>
               <th>Status</th>
-              <th aria-label="Actions" />
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1135,7 +1135,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
                   </td>
                   <td data-label="Receipt" className="payments-action-cell">
                     <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
-                      View <span aria-hidden="true">→</span>
+                      View
                     </button>
                     {canVoidPayments && payment.status !== 'Voided' && (
                       <button className="payments-link payments-link-danger" type="button" onClick={() => openVoid('payment', payment)}>
@@ -1289,7 +1289,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <label>Amount paid
-                <input name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} required />
+                <input
+                  name="amountPaid"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.amountPaid}
+                  onChange={updateField}
+                  onWheel={(event) => event.currentTarget.blur()}
+                  required
+                />
               </label>
 
               <div className="payment-balance-preview payment-span-2">
@@ -1377,7 +1386,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <label>Amount
-                <input name="amount" type="number" min="0.01" step="0.01" value={chargeForm.amount} onChange={updateChargeField} required />
+                <input
+                  name="amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={chargeForm.amount}
+                  onChange={updateChargeField}
+                  onWheel={(event) => event.currentTarget.blur()}
+                  required
+                />
               </label>
 
               <label className="payment-span-2">Description (Optional)
