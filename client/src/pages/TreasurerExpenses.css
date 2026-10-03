@@ -129,8 +129,261 @@
   font-size: 18px;
   font-weight: 600;
   color: #071e30;
-  margin: 0 0 16px 0;
+  margin: 0;
   letter-spacing: -0.2px;
+}
+
+.tex-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.tex-history-caption {
+  margin: 4px 0 0;
+  color: #5a7a92;
+  font-size: 12px;
+}
+
+.tex-history-subtitle {
+  margin: 20px 0 8px;
+  color: #071e30;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tex-history-subtitle:first-child {
+  margin-top: 0;
+}
+
+.tex-history-subtitle-voided {
+  color: #5a7a92;
+  border-top: 1px solid #d0e4f0;
+  padding-top: 16px;
+}
+
+.tex-history-note {
+  margin: -2px 0 10px;
+  color: #5a7a92;
+  font-size: 12px;
+}
+
+.tex-month-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: -2px;
+}
+
+.tex-month-trigger {
+  min-width: 174px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #c5dbe9;
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: #071e30;
+  background: #f8fbfd;
+  font: 600 13px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+
+.tex-month-trigger:hover,
+.tex-month-trigger.is-open {
+  outline: none;
+  border-color: #1464a0;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.1);
+}
+
+.tex-month-trigger-icon {
+  color: #1464a0;
+  font-size: 12px;
+}
+
+.tex-month-trigger-chevron {
+  --rotation: 45deg;
+  position: relative;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.tex-month-trigger-chevron::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 3px;
+  width: 9px;
+  height: 9px;
+  border-right: 3px solid #5a7a92;
+  border-bottom: 3px solid #5a7a92;
+  border-radius: 2px;
+  transform: rotate(var(--rotation));
+  transition: border-color 0.2s ease, transform 0.25s ease;
+}
+
+.tex-month-trigger-chevron:hover,
+.tex-month-trigger-chevron:focus-visible {
+  background: #eaf4fa;
+  outline: none;
+}
+
+.tex-month-trigger-chevron:hover::after,
+.tex-month-trigger-chevron:focus-visible::after {
+  border-color: #1464a0;
+}
+
+.tex-month-trigger-chevron:focus-visible {
+  box-shadow: 0 0 0 2px rgba(20, 100, 160, 0.22);
+}
+
+.tex-month-trigger-chevron[aria-label="Close month selector"] {
+  --rotation: -135deg;
+}
+
+.tex-month-menu {
+  position: fixed;
+  z-index: 10;
+  width: 242px;
+  padding: 12px;
+  border: 1px solid #c5dbe9;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(7, 30, 48, 0.16);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0.18s;
+}
+
+.tex-month-menu.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tex-month-trigger-chevron::after,
+  .tex-month-menu {
+    transition: none;
+  }
+}
+
+.tex-month-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #071e30;
+  font-size: 14px;
+}
+
+.tex-year-nav {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #d0e4f0;
+  border-radius: 6px;
+  color: #1464a0;
+  background: #f8fbfd;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tex-year-nav:hover {
+  background: #eaf4fa;
+}
+
+.tex-month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.tex-month-grid button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 8px 4px;
+  color: #2a5470;
+  background: transparent;
+  font: 600 12px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+
+.tex-month-grid button:hover {
+  background: #eaf4fa;
+  color: #1464a0;
+}
+
+.tex-month-grid button.is-selected {
+  border-color: #1464a0;
+  background: #1464a0;
+  color: #fff;
+}
+
+.tex-current-month {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 4px 2px;
+  border: 0;
+  border-top: 1px solid #e6f0f7;
+  color: #1464a0;
+  background: transparent;
+  font: 600 11px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+
+.tex-current-month:hover {
+  color: #0f4d7d;
+}
+
+.tex-month-nav {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #c5dbe9;
+  border-radius: 7px;
+  color: #1464a0;
+  background: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tex-month-nav:hover {
+  background: #eef6fb;
+}
+
+.tex-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .tex-state {
@@ -412,5 +665,23 @@
 
   .tex-page-title {
     font-size: 24px;
+  }
+
+  .tex-history-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tex-month-picker {
+    width: 100%;
+  }
+
+  .tex-month-trigger {
+    flex: 1;
+    width: 100%;
+  }
+
+  .tex-month-menu {
+    width: min(242px, calc(100vw - 24px));
   }
 }

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
+import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
 const PAYMENT_PURPOSES = [
   'Association Dues',
@@ -354,7 +355,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [chargeSaving, setChargeSaving] = useState(false)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
   const [selectedDateKey, setSelectedDateKey] = useState('')
-  const [calendarOpen, setCalendarOpen] = useState(false)
+  const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
@@ -369,11 +370,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }, [])
 
   useEffect(() => {
-    if (!calendarOpen) return undefined
+    if (!calendar.open) return undefined
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
-        setCalendarOpen(false)
+        calendar.hide()
       }
     }
 
@@ -382,7 +383,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         calendarAnchorRef.current &&
         !calendarAnchorRef.current.contains(event.target)
       ) {
-        setCalendarOpen(false)
+        calendar.hide()
       }
     }
 
@@ -393,7 +394,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('mousedown', handleOutsideClick)
     }
-  }, [calendarOpen])
+  }, [calendar.open])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -636,7 +637,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
   function handleSelectCalendarDate(dateKey) {
     setSelectedDateKey(dateKey)
-    setCalendarOpen(false)
+    calendar.hide()
   }
 
   function clearDateFilter() {
@@ -971,8 +972,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
           <button
             type="button"
             className={`payments-date-toggle ${selectedDateKey ? 'is-active' : ''}`}
-            onClick={() => setCalendarOpen((open) => !open)}
-            aria-expanded={calendarOpen}
+            onClick={calendar.toggle}
+            aria-expanded={calendar.open}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -1000,12 +1001,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
             </button>
           )}
 
-          {calendarOpen && (
-            <PaymentCalendar
+          {calendar.mounted && (
+            <div className={`payments-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
+              <PaymentCalendar
               selectedDateKey={selectedDateKey}
               activeDateKeys={activeDateKeys}
               onSelectDate={handleSelectCalendarDate}
-            />
+              />
+            </div>
           )}
         </div>
       </header>
@@ -1086,7 +1089,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <th>Payment details</th>
               <th>Amount / Method</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -1134,14 +1137,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
                     </span>
                   </td>
                   <td data-label="Receipt" className="payments-action-cell">
-                    <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
-                      View
-                    </button>
-                    {canVoidPayments && payment.status !== 'Voided' && (
-                      <button className="payments-link payments-link-danger" type="button" onClick={() => openVoid('payment', payment)}>
-                        Void
+                    <div className="payments-row-actions">
+                      <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
+                        View <span aria-hidden="true">→</span>
                       </button>
-                    )}
+                      {canVoidPayments && payment.status !== 'Voided' && (
+                        <button className="payments-link payments-link-danger" type="button" onClick={() => openVoid('payment', payment)}>
+                          Void
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -1289,16 +1294,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <label>Amount paid
-                <input
-                  name="amountPaid"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.amountPaid}
-                  onChange={updateField}
-                  onWheel={(event) => event.currentTarget.blur()}
-                  required
-                />
+                <input name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} required />
               </label>
 
               <div className="payment-balance-preview payment-span-2">
@@ -1386,16 +1382,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               </label>
 
               <label>Amount
-                <input
-                  name="amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={chargeForm.amount}
-                  onChange={updateChargeField}
-                  onWheel={(event) => event.currentTarget.blur()}
-                  required
-                />
+                <input name="amount" type="number" min="0.01" step="0.01" value={chargeForm.amount} onChange={updateChargeField} required />
               </label>
 
               <label className="payment-span-2">Description (Optional)
@@ -1469,7 +1456,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 ? `${voidTarget.item.receipt_number} — ${voidTarget.item.homeowner_name} — ${peso.format(Number(voidTarget.item.amount_paid) || 0)}`
                 : `${voidTarget.item.charge_type} — ${propertyById.get(Number(voidTarget.item.property_id))?.homeowner_name || 'Homeowner'} — ${peso.format(Number(voidTarget.item.amount) || 0)}`}
               <br />
-              The homeowner's balance is corrected automatically. This cannot be undone.
+              {voidTarget.kind === 'payment'
+                ? "The homeowner's balance is corrected automatically. This cannot be undone."
+                : 'This removes the charge from the homeowner\'s balance. It does not cancel any payment — to undo a payment, use Void on the payment itself. This cannot be undone.'}
             </p>
             <label className="void-reason">Reason (required)
               <textarea value={voidReason} onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }} rows="3" maxLength="250" placeholder="e.g., Wrong amount typed" autoFocus />
@@ -1572,6 +1561,19 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
             <div className="receipt-actions">
               <button type="button" className="payments-secondary" onClick={() => setReceipt(null)}>Close</button>
+              {canVoidPayments && receipt.status !== 'Voided' && (
+                <button
+                  type="button"
+                  className="payments-secondary payments-link-danger"
+                  onClick={() => {
+                    const target = receipt
+                    setReceipt(null)
+                    openVoid('payment', target)
+                  }}
+                >
+                  Void this payment
+                </button>
+              )}
               <button type="button" className="payments-primary" onClick={() => window.print()}>Print / Save as PDF</button>
             </div>
           </article>
