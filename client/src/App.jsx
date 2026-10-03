@@ -31,6 +31,7 @@ import HomeownersPage from './pages/HomeownersPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import OverdueAccountsPage from './pages/OverdueAccountsPage'
 import ProtectedRoute from './components/ProtectedRoute'
+import Loader from './components/Loader'
 import { OrganizationProvider } from './context/OrganizationContext'
 import {
   clearRememberMePreference,
@@ -116,7 +117,7 @@ function AppContent() {
   }
 
   if (loading) {
-    return <div>Loading...</div>
+    return <Loader variant="fullscreen" />
   }
 
   return (

@@ -14,6 +14,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import { accountStatus } from '../lib/latepenalty'
+import Loader from '../components/Loader'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -124,7 +125,7 @@ export default function TreasurerDashboard() {
       .reduce((sum, row) => sum + amount(row, ['amount_paid', 'amount']), 0)
 
     const expensesThisMonth = activeExpenses
-      .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
+      .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 8) === currentMonth)
       .reduce((sum, row) => sum + amount(row, ['amount']), 0)
 
     // Computed the same way as the Overdue Accounts page: directly from
@@ -224,7 +225,7 @@ export default function TreasurerDashboard() {
     return rows
       .filter((row) => row.date)
       .sort((left, right) => new Date(right.date) - new Date(left.date))
-      .slice(0, 7)
+      .slice(0, 8)
   }, [finance.expenses, finance.payments, finance.services])
 
   const statCards = [
@@ -299,7 +300,7 @@ export default function TreasurerDashboard() {
 
         <article className="treasurer-panel activity-panel">
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent cash activity</h2></div></div>
-          {loading ? <p className="treasurer-empty">Loading activity…</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
+          {loading ? <Loader variant="panel" /> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
             <div className="treasurer-activity-list">
               {recentActivity.map((row) => (
                 <div className="treasurer-activity-row" key={row.id}>

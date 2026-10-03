@@ -325,18 +325,35 @@ export function buildMonthlyReportPdf({
   )
   y += 8
 
-  // ---- 6. Final Commentary ----
-  sectionTitle('6', 'Final Management Commentary')
-  paragraph(
+  // ---- 6. Final Commentary + Signatures (kept together) ----
+  const SIGNATURE_LIMIT = PAGE_H - 14 // just above the footer rule (PAGE_H - 12)
+  const textWidth = PAGE_W - MARGIN * 2
+
+  const commentary =
     `The association recorded ${money(kpis.totalIncome)} in income against ${money(kpis.totalExpenses)} in expenses this period, a net ` +
     `${kpis.netIncome >= 0 ? 'surplus' : 'deficit'} of ${money(Math.abs(kpis.netIncome))}. Outstanding homeowner balances stand at ${money(kpis.totalOutstanding)}. ` +
     `Community activity on record for the period totals ${data.events.thisMonth.length} event(s).`
-  )
+  const disclaimer =
+    'This report is prepared for informational purposes only, based solely on records available in the PhilamLife system as of the date prepared. No figures have been estimated or fabricated.'
+
+  // Measure the whole closing block so it moves to a new page as one unit
+  // (or stays on the current page) instead of leaving signatures stranded.
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  const commentaryLines = doc.splitTextToSize(commentary, textWidth).length
+  doc.setFontSize(8)
+  const disclaimerLines = doc.splitTextToSize(disclaimer, textWidth).length
+
+  // title (10) + commentary + gap (4) + disclaimer + gap above lines (14) + label (5 + 3)
+  const closingHeight = 10 + commentaryLines * 4.6 + 4 + disclaimerLines * 4.6 + 14 + 8
+  if (y + closingHeight > SIGNATURE_LIMIT) y = newPage()
+
+  sectionTitle('6', 'Final Management Commentary')
+  paragraph(commentary)
   y += 4
-  paragraph('This report is prepared for informational purposes only, based solely on records available in the PhilamLife system as of the date prepared. No figures have been estimated or fabricated.', { size: 8, color: GRAY })
+  paragraph(disclaimer, { size: 8, color: GRAY })
 
   // ---- Signatures ----
-  ensureSpace(30)
   y += 14
   const sigW = (PAGE_W - MARGIN * 2 - 20) / 2
   doc.setDrawColor(...NAVY)

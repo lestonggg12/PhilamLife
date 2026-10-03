@@ -1211,7 +1211,7 @@
   .payments-primary-text,
   .payments-secondary-text,
   .payments-receipt-number { overflow: visible; text-overflow: clip; white-space: normal; }
-  .payments-coverage { display: block; overflow: visible; -webkit-line-clamp: unset; }
+  .payments-coverage { display: block; overflow: visible; -webkit-line-clamp: unset; line-clamp: unset; }
   .payments-link { justify-self: start; }
   .payment-form-grid,
   .receipt-details { grid-template-columns: 1fr; }
