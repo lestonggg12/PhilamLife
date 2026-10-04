@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
 import './TreasurerServiceRevenue.css'
@@ -82,10 +83,10 @@ export default function TreasurerServiceRevenuePage() {
     setLoading(true)
     setPageError('')
 
-    const { data, error } = await supabase
+    const { data, error } = await fetchAll(() => supabase
       .from('service_transactions')
       .select('*')
-      .order('paid_at', { ascending: false })
+      .order('paid_at', { ascending: false }))
 
     if (error) {
       setPageError(`Service revenue could not be loaded: ${error.message}`)

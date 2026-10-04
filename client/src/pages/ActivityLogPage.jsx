@@ -6,13 +6,13 @@ import {
   RefreshCw,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './ActivityLogPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
 const MANILA_TIME_ZONE = 'Asia/Manila'
 const MANILA_OFFSET = '+08:00'
-const PAGE_SIZE = 1000
 const TABLE_COLUMN_COUNT = 5
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -202,28 +202,17 @@ export default function ActivityLogPage() {
 
     const monthStart = monthBoundary(visibleMonth)
     const monthEnd = monthBoundary(shiftMonth(visibleMonth, 1))
-    const activityData = []
-    let activityError = null
-    let from = 0
-
-    while (!activityError) {
-      const { data, error } = await supabase
+    // Shared helper: pages through every row and adds an `id` tiebreaker so rows
+    // with identical timestamps can't be repeated or skipped between pages.
+    const { data: fetchedLogs, error: activityError } = await fetchAll(() =>
+      supabase
         .from('activity_log')
         .select('*')
         .gte('created_at', monthStart)
         .lt('created_at', monthEnd)
-        .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1)
-
-      if (error) {
-        activityError = error
-        break
-      }
-
-      activityData.push(...(data || []))
-      if (!data || data.length < PAGE_SIZE) break
-      from += PAGE_SIZE
-    }
+        .order('created_at', { ascending: false }),
+    )
+    const activityData = fetchedLogs || []
 
     if (activityError) {
       setLogs([])

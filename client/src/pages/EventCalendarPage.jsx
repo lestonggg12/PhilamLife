@@ -10,6 +10,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import ActionDialog from '../components/ActionDialog'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import './EventCalendarPage.css'
@@ -413,13 +414,13 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     setPageError('')
     setNotice('')
 
-    const { data, error } = await supabase
+    const { data, error } = await fetchAll(() => supabase
       .from('events')
       .select(
         'id, title, description, event_date, start_time, end_time, location, created_by, created_by_name, created_at, updated_at',
       )
       .order('event_date', { ascending: true })
-      .order('start_time', { ascending: true, nullsFirst: true })
+      .order('start_time', { ascending: true, nullsFirst: true }))
 
     if (error) {
       setEvents([])

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { computeOverdueFromCharges } from '../lib/latepenalty'
 import './OverdueAccountsPage.css'
@@ -87,24 +88,24 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setPageError('')
 
     const [propertyResult, paymentResult, settingsResult, actionsResult, chargesResult] = await Promise.all([
-      supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance'),
-      supabase
+      fetchAll(() => supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance')),
+      fetchAll(() => supabase
         .from('payments')
         .select('property_id, homeowner_name, block_name, lot_number, amount_paid, previous_balance, remaining_balance, paid_at, status')
-        .order('paid_at', { ascending: false }),
+        .order('paid_at', { ascending: false })),
       supabase
         .from('system_settings')
         .select('dues_amount, due_day, grace_period_days, late_penalty')
         .eq('id', 1)
         .maybeSingle(),
-      supabase
+      fetchAll(() => supabase
         .from('collection_actions')
         .select('id, property_id, action_type, action_date, details, document_reference, created_by')
-        .order('action_date', { ascending: false }),
-      supabase
+        .order('action_date', { ascending: false })),
+      fetchAll(() => supabase
         .from('property_charges')
         .select('property_id, amount, billing_month, created_at, charge_type')
-        .is('voided_at', null),
+        .is('voided_at', null)),
     ])
 
     const errors = [propertyResult.error, paymentResult.error, settingsResult.error, actionsResult.error, chargesResult.error].filter(Boolean)

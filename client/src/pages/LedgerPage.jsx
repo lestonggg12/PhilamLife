@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { computeOverdueFromCharges } from '../lib/latepenalty'
 import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 import { useOrganization } from '../context/OrganizationContext'
@@ -134,16 +135,16 @@ export default function LedgerPage({ user: suppliedUser }) {
     const [blockResult, propertyResult, paymentResult, settingsResult, chargesResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
-        supabase
+        fetchAll(() => supabase
           .from('properties')
           .select('id, block, lot_number, homeowner_name, created_at, homeowner_status, current_balance')
-          .order('homeowner_name'),
-        supabase.from('payments').select('*').order('paid_at', { ascending: false }),
+          .order('homeowner_name')),
+        fetchAll(() => supabase.from('payments').select('*').order('paid_at', { ascending: false })),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
-        supabase
+        fetchAll(() => supabase
           .from('property_charges')
           .select('property_id, amount, billing_month, created_at, charge_type')
-          .is('voided_at', null),
+          .is('voided_at', null)),
       ])
 
     const errors = [blockResult.error, propertyResult.error, paymentResult.error, chargesResult.error]

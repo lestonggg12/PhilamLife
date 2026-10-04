@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import ActionDialog from '../components/ActionDialog'
 import { useOrganization } from '../context/OrganizationContext'
 import './TreasurerExpenses.css'
@@ -189,11 +190,11 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const { data, error } = await supabase
+    const { data, error } = await fetchAll(() => supabase
       .from('expenses')
       .select('*')
       .order('expense_date', { ascending: false })
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }))
 
     if (error) {
       setPageError(`Expenses could not be loaded: ${error.message}`)

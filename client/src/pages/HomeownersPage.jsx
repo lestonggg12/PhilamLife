@@ -12,6 +12,7 @@ import {
   Users,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import './HomeownersPage.css'
@@ -288,20 +289,20 @@ export default function HomeownersPage() {
     setPageError('')
 
     const [propertyResult, paymentResult, serviceResult] = await Promise.all([
-      supabase
+      fetchAll(() => supabase
         .from('properties')
         .select(
           'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
         )
-        .order('homeowner_name'),
-      supabase
+        .order('homeowner_name')),
+      fetchAll(() => supabase
         .from('payments')
         .select('*')
-        .order('paid_at', { ascending: false }),
-      supabase
+        .order('paid_at', { ascending: false })),
+      fetchAll(() => supabase
         .from('service_transactions')
         .select('*')
-        .order('paid_at', { ascending: false }),
+        .order('paid_at', { ascending: false })),
     ])
 
     const errors = [

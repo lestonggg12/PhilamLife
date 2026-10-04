@@ -14,6 +14,7 @@ import {
   Zap,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { accountStatus as getAccountStatus } from '../lib/latepenalty'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
@@ -162,18 +163,18 @@ export default function AdminDashboard() {
       supabase
         .from('profiles')
         .select('id, full_name, email, role, is_active'),
-      supabase
+      fetchAll(() => supabase
         .from('properties')
-        .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance'),
-      supabase
+        .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance')),
+      fetchAll(() => supabase
         .from('payments')
         .select(
           'id, property_id, amount_paid, status, paid_at, homeowner_name, block_name, lot_number, remaining_balance',
         )
-        .order('paid_at', { ascending: false }),
-      supabase
+        .order('paid_at', { ascending: false })),
+      fetchAll(() => supabase
         .from('service_transactions')
-        .select('id, amount_paid, paid_at'),
+        .select('id, amount_paid, paid_at')),
       supabase
         .from('activity_log')
         .select('id, user_id, action, target, created_at')
@@ -184,10 +185,10 @@ export default function AdminDashboard() {
         .select('dues_amount, due_day, grace_period_days, late_penalty')
         .eq('id', 1)
         .maybeSingle(),
-      supabase
+      fetchAll(() => supabase
         .from('property_charges')
         .select('property_id, amount, billing_month, created_at, charge_type')
-        .is('voided_at', null),
+        .is('voided_at', null)),
     ])
 
     const errors = [

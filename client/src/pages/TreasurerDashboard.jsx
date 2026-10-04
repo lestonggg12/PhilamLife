@@ -12,6 +12,7 @@ import {
   TrendingUp,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { accountStatus } from '../lib/latepenalty'
 import Loader from '../components/Loader'
@@ -43,9 +44,12 @@ const amount = (row, keys) => {
 const isVoided = (row) => String(row?.status || '').toLowerCase() === 'voided'
 
 async function optionalRows(table, orderColumn) {
-  let query = supabase.from(table).select('*')
-  if (orderColumn) query = query.order(orderColumn, { ascending: false })
-  const { data, error } = await query
+  // fetchAll pages through the whole table so totals are never cut off at the
+  // API's 1,000-row limit.
+  const { data, error } = await fetchAll(() => {
+    const query = supabase.from(table).select('*')
+    return orderColumn ? query.order(orderColumn, { ascending: false }) : query
+  })
   return { table, data: data || [], error }
 }
 

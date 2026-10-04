@@ -9,6 +9,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
@@ -825,19 +826,19 @@ export default function OfficialReceiptsPage() {
       paymentResult,
       serviceResult,
     ] = await Promise.all([
-      supabase
+      fetchAll(() => supabase
         .from('payments')
         .select('*')
         .order('paid_at', {
           ascending: false,
-        }),
+        })),
 
-      supabase
+      fetchAll(() => supabase
         .from('service_transactions')
         .select('*')
         .order('paid_at', {
           ascending: false,
-        }),
+        })),
     ])
 
     const errors = []

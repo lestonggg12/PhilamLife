@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import {
   AlertCircle,
   CheckCircle,
@@ -78,13 +79,13 @@ export default function SecretaryDashboard() {
 
     const [propertyResult, paymentResult, activityResult, settingsResult] =
       await Promise.all([
-        supabase
+        fetchAll(() => supabase
           .from('properties')
-          .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance'),
-        supabase
+          .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')),
+        fetchAll(() => supabase
           .from('payments')
           .select('*')
-          .order('paid_at', { ascending: false }),
+          .order('paid_at', { ascending: false })),
         supabase
           .from('activity_log')
           .select('*')

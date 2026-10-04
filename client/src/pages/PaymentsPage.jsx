@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
@@ -422,14 +423,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setPageError('')
 
     const [paymentResult, propertyResult, settingsResult, billedResult, chargesResult] = await Promise.all([
-      supabase
+      fetchAll(() => supabase
         .from('payments')
         .select('*')
-        .order('paid_at', { ascending: false }),
-      supabase
+        .order('paid_at', { ascending: false })),
+      fetchAll(() => supabase
         .from('properties')
         .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')
-        .order('homeowner_name'),
+        .order('homeowner_name')),
       supabase
         .from('system_settings')
         .select('dues_amount, billing_day, due_day, grace_period_days')
@@ -441,11 +442,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .select('id')
         .eq('billing_month', `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).slice(0, 7)}-01`)
         .limit(1),
-      supabase
+      fetchAll(() => supabase
         .from('property_charges')
         .select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at')
         .is('voided_at', null)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })),
     ])
 
     if (!chargesResult.error) setCharges(chargesResult.data || [])

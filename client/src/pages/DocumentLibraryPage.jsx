@@ -11,6 +11,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 
@@ -147,12 +148,12 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     setPageError('')
     setNotice('')
 
-    const { data, error } = await supabase
+    const { data, error } = await fetchAll(() => supabase
       .from('documents')
       .select(
         'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at',
       )
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }))
 
     if (error) {
       setDocuments([])

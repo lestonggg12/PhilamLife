@@ -38,6 +38,7 @@ function ChevronRightIcon({ size = 16 }) {
   )
 }
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import './ServicesManagementPage.css'
@@ -531,14 +532,14 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
     const [serviceResult, transactionResult, propertyResult] = await Promise.all([
       supabase.from('amenity_services').select('*').order('name'),
-      supabase
+      fetchAll(() => supabase
         .from('service_transactions')
         .select('*')
-        .order('paid_at', { ascending: false }),
-      supabase
+        .order('paid_at', { ascending: false })),
+      fetchAll(() => supabase
         .from('properties')
         .select('id, homeowner_name, block, lot_number, homeowner_status')
-        .order('homeowner_name'),
+        .order('homeowner_name')),
     ])
 
     const errors = [

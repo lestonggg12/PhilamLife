@@ -1,21 +1,33 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchTableVerified } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 
+// Every table needed to fully restore the system. Financial tables that used
+// to be missing from this list (property_charges, payment_allocations,
+// account_adjustments, accounting_periods, bank_deposits, collection_actions,
+// violations) are included so a "Full System Data" backup is really complete.
 const TABLES = [
+  'account_adjustments',
+  'accounting_periods',
   'activity_log',
   'amenity_services',
+  'bank_deposits',
   'blocks',
+  'collection_actions',
   'documents',
   'events',
   'expenses',
+  'payment_allocations',
   'payments',
   'profiles',
   'properties',
+  'property_charges',
   'service_transactions',
   'system_settings',
   'user_management_logs',
+  'violations',
 ]
 
 const EXPORTS = [
@@ -190,13 +202,13 @@ export default function SystemSettingsPage({ user }) {
   async function exportTable(table, label) {
     setExporting(table)
     setMessage(null)
-    const { data, error } = await supabase.from(table).select('*')
+    const { data, error, count } = await fetchTableVerified(supabase, table)
     if (error) setMessage({ type: 'error', text: `Unable to export ${label}: ${error.message}` })
     else {
       const filename = `${table}-${stamp()}.csv`
       downloadFile('\uFEFF' + rowsToCsv(data || []), filename, 'text/csv;charset=utf-8')
       recordExport(`${label} CSV`, filename)
-      setMessage({ type: 'success', text: `${label} export downloaded.` })
+      setMessage({ type: 'success', text: `${label} export downloaded (${count} rows, verified complete).` })
     }
     setExporting('')
   }
@@ -205,9 +217,9 @@ export default function SystemSettingsPage({ user }) {
     setExporting('ledger')
     setMessage(null)
     const [payments, expenses, services] = await Promise.all([
-      supabase.from('payments').select('*'),
-      supabase.from('expenses').select('*'),
-      supabase.from('service_transactions').select('*'),
+      fetchTableVerified(supabase, 'payments'),
+      fetchTableVerified(supabase, 'expenses'),
+      fetchTableVerified(supabase, 'service_transactions'),
     ])
     const error = payments.error || expenses.error || services.error
     if (error) setMessage({ type: 'error', text: `Unable to export ledger: ${error.message}` })
@@ -228,15 +240,16 @@ export default function SystemSettingsPage({ user }) {
   async function exportAll() {
     setExporting('all')
     setMessage(null)
-    const results = await Promise.all(TABLES.map(async (table) => ({ table, result: await supabase.from(table).select('*') })))
+    const results = await Promise.all(TABLES.map(async (table) => ({ table, result: await fetchTableVerified(supabase, table) })))
     const failed = results.find(({ result }) => result.error)
     if (failed) setMessage({ type: 'error', text: `Unable to export ${failed.table}: ${failed.result.error.message}` })
     else {
       const payload = { exported_at: new Date().toISOString(), timezone: 'Asia/Manila', exported_by: user?.email || user?.full_name || null, tables: Object.fromEntries(results.map(({ table, result }) => [table, result.data || []])) }
       const filename = `philam-system-data-${stamp()}.json`
+      const totalRows = results.reduce((sum, { result }) => sum + result.count, 0)
       downloadFile(JSON.stringify(payload, null, 2), filename, 'application/json;charset=utf-8')
       recordExport('Full System Data JSON', filename)
-      setMessage({ type: 'success', text: 'Full system data export downloaded.' })
+      setMessage({ type: 'success', text: `Full system data export downloaded (${TABLES.length} tables, ${totalRows} rows, verified complete).` })
     }
     setExporting('')
   }

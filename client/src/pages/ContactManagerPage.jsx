@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Edit, FileArchive, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import ActionDialog from '../components/ActionDialog'
 import './ContactManagerPage.css'
 
@@ -129,12 +130,12 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setNotice('')
 
     const [contactsResult, blocksResult] = await Promise.all([
-      supabase
+      fetchAll(() => supabase
         .from('properties')
         .select(
           'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
         )
-        .order('homeowner_name'),
+        .order('homeowner_name')),
       supabase.from('blocks').select('id, name').order('name'),
     ])
 
