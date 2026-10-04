@@ -10,5 +10,9 @@ dist/
 *.pem
 *.key
 
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
 # Local notes with credentials
 mockusepas.md

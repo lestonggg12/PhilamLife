@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
@@ -6,6 +6,12 @@ import { setRememberMePreference, supabase } from '../lib/supabaseClient';
 import { useOrganization } from '../context/OrganizationContext';
 
 const VALID_ROLES = ['Admin', 'Secretary', 'Treasurer'];
+
+// Client-side brake against password guessing. Real rate limiting is enforced
+// by Supabase Auth on the server; this just slows down casual abuse.
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_MS = 60 * 1000;
+const LOCKOUT_KEY = 'philam-login-locked-until';
 
 export default function LoginPage({ onAuthenticated }) {
   const navigate = useNavigate();
@@ -21,6 +27,7 @@ export default function LoginPage({ onAuthenticated }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const failedAttempts = useRef(0);
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
@@ -34,20 +41,39 @@ export default function LoginPage({ onAuthenticated }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError('');
+
+    const lockedUntil = Number(sessionStorage.getItem(LOCKOUT_KEY)) || 0;
+    if (Date.now() < lockedUntil) {
+      const seconds = Math.ceil((lockedUntil - Date.now()) / 1000);
+      setError(`Too many failed attempts. Please try again in ${seconds} seconds.`);
+      return;
+    }
+
     setLoading(true);
     setRememberMePreference(rememberMe);
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
 
     if (authError) {
-      setError('Invalid email or password');
+      failedAttempts.current += 1;
+      if (failedAttempts.current >= MAX_FAILED_ATTEMPTS) {
+        sessionStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+        failedAttempts.current = 0;
+        setError('Too many failed attempts. Please wait a minute before trying again.');
+      } else {
+        setError('Invalid email or password');
+      }
       setLoading(false);
       return;
     }
+
+    failedAttempts.current = 0;
+    sessionStorage.removeItem(LOCKOUT_KEY);
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
