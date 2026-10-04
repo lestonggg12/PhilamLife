@@ -41,7 +41,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [properties, setProperties] = useState([])
-  const [payments, setPayments] = useState([])
+  const [paymentSummaries, setPaymentSummaries] = useState([])
   const [collectionActions, setCollectionActions] = useState([])
   const [penaltySettings, setPenaltySettings] = useState({
     duesAmount: 0,
@@ -89,10 +89,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
     const [propertyResult, paymentResult, settingsResult, actionsResult, chargesResult] = await Promise.all([
       fetchAll(() => supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance')),
-      fetchAll(() => supabase
-        .from('payments')
-        .select('property_id, homeowner_name, block_name, lot_number, amount_paid, previous_balance, remaining_balance, paid_at, status')
-        .order('paid_at', { ascending: false })),
+      // One small row per homeowner (latest payment) computed by the database.
+      fetchAll(() => supabase.from('property_payment_summary').select('property_id, latest_paid_at, latest_amount_paid').order('property_id'), { tiebreaker: null }),
       supabase
         .from('system_settings')
         .select('dues_amount, due_day, grace_period_days, late_penalty')
@@ -114,7 +112,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     }
 
     setProperties(propertyResult.data || [])
-    setPayments((paymentResult.data || []).filter((p) => p.status !== 'Voided'))
+    setPaymentSummaries(paymentResult.data || [])
     setCollectionActions(actionsResult.data || [])
     setCharges(chargesResult.data || [])
     setPenaltySettings({
@@ -137,25 +135,33 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     return map
   }, [collectionActions])
 
+  const summaryByProperty = useMemo(
+    () => new Map(paymentSummaries.map((row) => [Number(row.property_id), row])),
+    [paymentSummaries],
+  )
+
+  const chargesByProperty = useMemo(() => {
+    const grouped = new Map()
+    for (const charge of charges) {
+      const key = Number(charge.property_id)
+      const list = grouped.get(key)
+      if (list) list.push(charge)
+      else grouped.set(key, [charge])
+    }
+    return grouped
+  }, [charges])
+
   const accounts = useMemo(() => {
     return properties
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
-      const propertyPayments = payments.filter((payment) => {
-        if (payment.property_id != null) return Number(payment.property_id) === Number(property.id)
-        return (
-          normalize(payment.homeowner_name) === normalize(property.homeowner_name) &&
-          normalize(payment.block_name) === normalize(property.block) &&
-          normalize(payment.lot_number).replace(/^lot\s*/, '') === String(property.lot_number)
-        )
-      })
-      const latestPayment = propertyPayments[0]
-      const paidAmount = latestPayment ? Number(latestPayment.amount_paid) || 0 : 0
+      const latestPayment = summaryByProperty.get(Number(property.id))
+      const paidAmount = latestPayment ? Number(latestPayment.latest_amount_paid) || 0 : 0
       const balance = Number(property.current_balance) || 0
 
       const lateFee = computeOverdueFromCharges({
         balance,
-        charges: charges.filter((charge) => Number(charge.property_id) === Number(property.id)),
+        charges: chargesByProperty.get(Number(property.id)) || [],
         dueDay: penaltySettings.dueDay,
         gracePeriodDays: penaltySettings.gracePeriodDays,
         latePenalty: penaltySettings.latePenalty,
@@ -184,14 +190,14 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         totalDue: lateFee.totalDue,
         daysOverdue: lateFee.daysOverdue,
         agingTier: status === 'Overdue' ? agingTierOf(lateFee.daysOverdue) : null,
-        lastPaymentAt: latestPayment?.paid_at || null,
+        lastPaymentAt: latestPayment?.latest_paid_at || null,
         status,
         lastAction,
         actionCount: propertyActions.length,
         actions: propertyActions,
       }
     })
-  }, [properties, payments, charges, penaltySettings, actionsByProperty])
+  }, [properties, summaryByProperty, chargesByProperty, penaltySettings, actionsByProperty])
 
   const blocks = useMemo(
     () => ['All', ...new Set(properties.map((p) => p.block).filter(Boolean))].sort(),
@@ -386,15 +392,15 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         ) : (
           <table className="overdue-table">
             <colgroup>
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '11%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
               <col style={{ width: '8%' }} />
               <col style={{ width: '10%' }} />
               <col style={{ width: '11%' }} />
               <col style={{ width: '9%' }} />
               <col style={{ width: '13%' }} />
-              <col style={{ width: '8%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '56px' }} />
             </colgroup>
             <thead>
@@ -453,7 +459,9 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                       <span className="overdue-no-action">No actions logged</span>
                     )}
                   </td>
-                  <td><span className={`overdue-status-pill status-${account.status.toLowerCase()}`}>{account.status}</span></td>
+                  <td className="overdue-status-cell">
+                    <span className={`overdue-status-pill status-${account.status.toLowerCase()}`}>{account.status}</span>
+                  </td>
                   <td>
                     <button type="button" className="overdue-log-button" onClick={() => openLogForm(account)} title="Log a collection action" aria-label="Log a collection action">
                       <Plus size={14} />

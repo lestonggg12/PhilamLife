@@ -21,8 +21,6 @@ const peso = new Intl.NumberFormat('en-PH', {
   maximumFractionDigits: 2,
 })
 
-const normalize = (value) => String(value ?? '').trim().toLowerCase()
-
 function manilaDateParts(value = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
@@ -36,23 +34,6 @@ function manilaDateParts(value = new Date()) {
   }
 }
 
-function sameManilaMonth(value, comparison = new Date()) {
-  if (!value) return false
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return false
-
-  const left = manilaDateParts(date)
-  const right = manilaDateParts(comparison)
-  return left.year === right.year && left.month === right.month
-}
-
-function sameManilaYear(value, comparison = new Date()) {
-  if (!value) return false
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return false
-  return manilaDateParts(date).year === manilaDateParts(comparison).year
-}
-
 function formatActivityTime(value, dateFormat) {
   if (!value) return 'Time unavailable'
   const parsed = new Date(value)
@@ -63,7 +44,8 @@ export default function SecretaryDashboard() {
   const { organization } = useOrganization()
   const navigate = useNavigate()
   const [properties, setProperties] = useState([])
-  const [payments, setPayments] = useState([])
+  const [recentPayments, setRecentPayments] = useState([])
+  const [monthlyRows, setMonthlyRows] = useState([])
   const [activities, setActivities] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -77,15 +59,17 @@ export default function SecretaryDashboard() {
     setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, activityResult, settingsResult] =
+    const [propertyResult, paymentResult, activityResult, settingsResult, monthlyResult] =
       await Promise.all([
         fetchAll(() => supabase
           .from('properties')
           .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')),
-        fetchAll(() => supabase
+        // Only the 5 newest payments are shown, so only 5 are downloaded.
+        supabase
           .from('payments')
           .select('*')
-          .order('paid_at', { ascending: false })),
+          .order('paid_at', { ascending: false })
+          .limit(5),
         supabase
           .from('activity_log')
           .select('*')
@@ -96,12 +80,19 @@ export default function SecretaryDashboard() {
           .select('dues_amount')
           .eq('id', 1)
           .maybeSingle(),
+        // This year's monthly totals, computed by the database (max 12 rows).
+        supabase
+          .from('monthly_collections')
+          .select('month_start, dues_collected, dues_receipts')
+          .gte('month_start', `${manilaDateParts().year}-01-01`)
+          .order('month_start'),
       ])
 
     const errors = [
       propertyResult.error,
       paymentResult.error,
       activityResult.error,
+      monthlyResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -113,30 +104,25 @@ export default function SecretaryDashboard() {
     }
 
     setProperties(propertyResult.data || [])
-    setPayments(paymentResult.data || [])
+    setRecentPayments(paymentResult.data || [])
+    setMonthlyRows(monthlyResult.data || [])
     setActivities(activityResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setLoading(false)
   }
 
   const summary = useMemo(() => {
-    const activePayments = payments.filter((payment) => payment.status !== 'Voided')
+    const { year, month } = manilaDateParts()
+    const currentKey = `${year}-${month}`
 
-    const monthlyPayments = activePayments.filter((payment) =>
-      sameManilaMonth(payment.paid_at),
-    )
-    const yearlyPayments = activePayments.filter((payment) =>
-      sameManilaYear(payment.paid_at),
-    )
-
-    const monthlyCollections = monthlyPayments.reduce(
-      (sum, payment) => sum + (Number(payment.amount_paid) || 0),
+    const yearlyCollections = monthlyRows.reduce(
+      (sum, row) => sum + (Number(row.dues_collected) || 0),
       0,
     )
-    const yearlyCollections = yearlyPayments.reduce(
-      (sum, payment) => sum + (Number(payment.amount_paid) || 0),
-      0,
+    const thisMonth = monthlyRows.find(
+      (row) => String(row.month_start).slice(0, 7) === currentKey,
     )
+    const monthlyCollections = Number(thisMonth?.dues_collected) || 0
 
     const outstandingAccounts = properties.filter(
       (property) =>
@@ -148,11 +134,9 @@ export default function SecretaryDashboard() {
       monthlyCollections,
       yearlyCollections,
       outstandingAccounts,
-      receiptsThisMonth: monthlyPayments.length,
+      receiptsThisMonth: Number(thisMonth?.dues_receipts) || 0,
     }
-  }, [duesAmount, payments, properties])
-
-  const recentPayments = payments.slice(0, 5)
+  }, [monthlyRows, properties])
 
   return (
     <div className="sec-secretary-dashboard">

@@ -174,7 +174,11 @@ export function accountStatus(property, charges, settings) {
   const stored = Number(property.current_balance) || 0
   const result = computeOverdueFromCharges({
     balance: stored,
-    charges: (charges || []).filter((charge) => Number(charge.property_id) === Number(property.id)),
+    // `charges` may be a Map(propertyId -> charges[]) built once by the caller
+    // (fast for hundreds of homeowners) or a plain array (filtered here).
+    charges: charges instanceof Map
+      ? (charges.get(Number(property.id)) || [])
+      : (charges || []).filter((charge) => Number(charge.property_id) === Number(property.id)),
     dueDay: Number(settings?.due_day) || 5,
     gracePeriodDays: Number(settings?.grace_period_days) || 0,
     latePenalty: Number(settings?.late_penalty) || 0,
@@ -187,4 +191,15 @@ export function accountStatus(property, charges, settings) {
     daysOverdue: result.daysOverdue,
     overdueAmount: result.overdueAmount,
   }
+}
+/** Group charges by property once, for use with accountStatus(). */
+export function groupChargesByProperty(charges) {
+  const grouped = new Map()
+  for (const charge of charges || []) {
+    const key = Number(charge.property_id)
+    const list = grouped.get(key)
+    if (list) list.push(charge)
+    else grouped.set(key, [charge])
+  }
+  return grouped
 }

@@ -1,4 +1,4 @@
-import { accountStatus } from './latepenalty'
+import { accountStatus, groupChargesByProperty } from './latepenalty'
 
 // Pure data computation for the HOA Monthly Report.
 // No rendering here — both ReportsPage (on-screen) and monthlyReportPdf.js
@@ -72,10 +72,11 @@ export function computeMonthlyReportData(raw) {
   const latePenalty = Number(settings?.late_penalty) || 0
   const duesAmount = Number(settings?.dues_amount) || 0
 
+  const chargesByProperty = groupChargesByProperty(charges)
   const accountBalances = properties
     .filter((property) => (property.homeowner_status || 'active') === 'active')
     .map((property) => {
-    const { balance, isOverdue } = accountStatus(property, charges, settings)
+    const { balance, isOverdue } = accountStatus(property, chargesByProperty, settings)
     return { balance, isOverdue }
   })
   const outstandingAccounts = accountBalances.filter((a) => a.balance > 0)

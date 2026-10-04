@@ -14,7 +14,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
-import { accountStatus } from '../lib/latepenalty'
+import { accountStatus, groupChargesByProperty } from '../lib/latepenalty'
 import Loader from '../components/Loader'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -57,6 +57,7 @@ export default function TreasurerDashboard() {
   const { organization } = useOrganization()
   const [finance, setFinance] = useState({
     payments: [],
+    monthly: null,
     expenses: [],
     services: [],
     properties: [],
@@ -78,9 +79,16 @@ export default function TreasurerDashboard() {
     setPageError('')
 
     const results = await Promise.all([
-      optionalRows('payments', 'paid_at'),
+      // Only the 8 newest payments feed the activity list; this month's totals
+      // come from the database as a single row.
+      supabase.from('payments').select('*').neq('status', 'Voided').order('paid_at', { ascending: false }).limit(8)
+        .then(({ data, error }) => ({ table: 'payments', data: data || [], error })),
       optionalRows('expenses', 'expense_date'),
-      optionalRows('service_transactions', 'paid_at'),
+      supabase.from('service_transactions').select('*').order('paid_at', { ascending: false }).limit(8)
+        .then(({ data, error }) => ({ table: 'service_transactions', data: data || [], error })),
+      supabase.from('monthly_collections').select('month_start, dues_collected, service_collected')
+        .eq('month_start', `${manilaMonthKey()}-01`).maybeSingle()
+        .then(({ data, error }) => ({ table: 'monthly_collections', data: data ? [data] : [], error })),
       optionalRows('properties', 'homeowner_name'),
       supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle()
         .then(({ data, error }) => ({ table: 'system_settings', data: data ? [data] : [], error })),
@@ -94,7 +102,7 @@ export default function TreasurerDashboard() {
     const criticalError = results.find(
       (result) =>
         result.error &&
-        ['payments', 'expenses', 'properties'].includes(result.table),
+        ['payments', 'expenses', 'properties', 'monthly_collections'].includes(result.table),
     )
 
     if (criticalError) {
@@ -103,6 +111,7 @@ export default function TreasurerDashboard() {
 
     setFinance({
       payments: byTable.payments || [],
+      monthly: (byTable.monthly_collections || [])[0] || null,
       expenses: byTable.expenses || [],
       services: byTable.service_transactions || [],
       properties: byTable.properties || [],
@@ -117,19 +126,13 @@ export default function TreasurerDashboard() {
 
   const summary = useMemo(() => {
     const currentMonth = manilaMonthKey()
-    const activePayments = finance.payments.filter((row) => !isVoided(row))
     const activeExpenses = finance.expenses.filter((row) => !isVoided(row))
 
-    const collectedThisMonth = activePayments
-      .filter((row) => row.paid_at && manilaMonthKey(row.paid_at) === currentMonth)
-      .reduce((sum, row) => sum + amount(row, ['amount_paid', 'amount']), 0)
-
-    const servicesThisMonth = finance.services
-      .filter((row) => row.paid_at && manilaMonthKey(row.paid_at) === currentMonth)
-      .reduce((sum, row) => sum + amount(row, ['amount_paid', 'amount']), 0)
+    const collectedThisMonth = Number(finance.monthly?.dues_collected) || 0
+    const servicesThisMonth = Number(finance.monthly?.service_collected) || 0
 
     const expensesThisMonth = activeExpenses
-      .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 8) === currentMonth)
+      .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
       .reduce((sum, row) => sum + amount(row, ['amount']), 0)
 
     // Computed the same way as the Overdue Accounts page: directly from
@@ -140,10 +143,11 @@ export default function TreasurerDashboard() {
     const latePenalty = Number(finance.settings?.late_penalty) || 0
     const duesAmount = Number(finance.settings?.dues_amount) || 0
 
+    const chargesByProperty = groupChargesByProperty(finance.charges)
     const accountRows = finance.properties
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
-      const { balance, isOverdue, daysOverdue } = accountStatus(property, finance.charges, finance.settings)
+      const { balance, isOverdue, daysOverdue } = accountStatus(property, chargesByProperty, finance.settings)
       return { balance, isOverdue, daysOverdue }
     })
 

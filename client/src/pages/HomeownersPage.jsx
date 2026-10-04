@@ -35,7 +35,6 @@ const monthNames = Array.from({ length: 12 }, (_, month) =>
 )
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
-const normalizeLot = (value) => normalize(value).replace(/^lot\s*/, '')
 
 // Homeowners marked Moved or Transferred (in Contact Manager) are excluded
 // from this page entirely — they should not appear in the directory, in
@@ -116,46 +115,18 @@ function trackerStatus(records) {
   return { key: 'recorded', label: 'Recorded' }
 }
 
-function paymentMatchesProperty(payment, property) {
-  if (payment.property_id != null) {
-    return String(payment.property_id) === String(property.id)
-  }
-
-  return (
-    normalize(payment.homeowner_name) === normalize(property.homeowner_name) &&
-    normalize(payment.block_name) === normalize(property.block) &&
-    normalizeLot(payment.lot_number) === normalizeLot(property.lot_number)
-  )
-}
-
-function serviceMatchesProperty(transaction, property) {
-  if (transaction.property_id != null) {
-    return String(transaction.property_id) === String(property.id)
-  }
-
-  return (
-    normalize(transaction.customer_name) === normalize(property.homeowner_name) &&
-    normalize(transaction.block_name) === normalize(property.block) &&
-    normalizeLot(transaction.lot_number) === normalizeLot(property.lot_number)
-  )
-}
-
 function regularPaymentCategory(payment) {
   const coverage = normalize(payment.coverage_period)
   return coverage.includes('association dues') ? 'dues' : 'other'
 }
 
-function homeownerStatus(propertyPayments, property) {
-  const active = propertyPayments.filter(
-    (payment) => normalize(payment.status) !== 'voided',
-  )
-
+function homeownerStatus(activePaymentCount, property) {
   // Stored balance: positive = owed, negative = advance credit.
   if ((Number(property?.current_balance) || 0) > 0) {
     return { key: 'balance', label: 'With balance' }
   }
 
-  if (!active.length) return { key: 'no-history', label: 'No payment history' }
+  if (!activePaymentCount) return { key: 'no-history', label: 'No payment history' }
 
   return { key: 'current', label: 'Current' }
 }
@@ -165,7 +136,12 @@ export default function HomeownersPage() {
   const navigate = useNavigate()
   const { homeownerId } = useParams()
   const [properties, setProperties] = useState([])
+  // `payments` / `serviceTransactions` hold ONLY the selected homeowner's records,
+  // loaded when a homeowner is opened. The directory uses small per-homeowner counts.
   const [payments, setPayments] = useState([])
+  const [paymentCounts, setPaymentCounts] = useState(new Map())
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [currentUser, setCurrentUser] = useState(null)
   const [voidTarget, setVoidTarget] = useState(null)
   const [voidReason, setVoidReason] = useState('')
@@ -266,6 +242,12 @@ export default function HomeownersPage() {
         row.id === voidTarget.id ? { ...row, status: 'Voided', void_reason: reason } : row,
       ),
     )
+    setPaymentCounts((current) => {
+      const next = new Map(current)
+      const key = Number(voidTarget.property_id)
+      next.set(key, Math.max((next.get(key) || 0) - 1, 0))
+      return next
+    })
     setProperties((current) =>
       current.map((property) =>
         Number(property.id) === Number(voidTarget.property_id)
@@ -288,35 +270,32 @@ export default function HomeownersPage() {
     else setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, serviceResult] = await Promise.all([
+    const [propertyResult, paymentResult] = await Promise.all([
       fetchAll(() => supabase
         .from('properties')
         .select(
           'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
         )
         .order('homeowner_name')),
+      // One tiny row per homeowner: how many active payments they have.
       fetchAll(() => supabase
-        .from('payments')
-        .select('*')
-        .order('paid_at', { ascending: false })),
-      fetchAll(() => supabase
-        .from('service_transactions')
-        .select('*')
-        .order('paid_at', { ascending: false })),
+        .from('property_payment_summary')
+        .select('property_id, active_payment_count')
+        .order('property_id'), { tiebreaker: null }),
     ])
 
     const errors = [
       propertyResult.error,
       paymentResult.error,
-      serviceResult.error,
     ].filter(Boolean)
 
     // Moved/transferred homeowners are dropped here, before anything else
     // in the component ever sees them — they cannot appear in the
     // directory, search results, or be selected via a stale URL.
     setProperties((propertyResult.data || []).filter(isActiveHomeowner))
-    setPayments(paymentResult.data || [])
-    setServiceTransactions(serviceResult.data || [])
+    setPaymentCounts(new Map((paymentResult.data || []).map((row) => [Number(row.property_id), Number(row.active_payment_count) || 0])))
+    // Refresh also reloads the open homeowner's records.
+    setDetailReloadKey((key) => key + 1)
 
     if (errors.length) {
       setPageError(
@@ -332,16 +311,14 @@ export default function HomeownersPage() {
 
   const directoryEntries = useMemo(
     () =>
-      properties.map((property) => {
-        const propertyPayments = payments.filter((payment) =>
-          paymentMatchesProperty(payment, property),
-        )
-        return {
+      properties.map((property) => ({
+        property,
+        status: homeownerStatus(
+          paymentCounts.get(Number(property.id)) || 0,
           property,
-          status: homeownerStatus(propertyPayments, property),
-        }
-      }),
-    [payments, properties],
+        ),
+      })),
+    [paymentCounts, properties],
   )
 
   const hasQuery = search.trim().length > 0
@@ -388,25 +365,46 @@ export default function HomeownersPage() {
     [homeownerId, properties],
   )
 
-  const selectedPayments = useMemo(
-    () =>
-      selectedProperty
-        ? payments.filter((payment) =>
-            paymentMatchesProperty(payment, selectedProperty),
-          )
-        : [],
-    [payments, selectedProperty],
-  )
+  const selectedPropertyId = selectedProperty?.id ?? null
 
-  const selectedServices = useMemo(
-    () =>
-      selectedProperty
-        ? serviceTransactions.filter((transaction) =>
-            serviceMatchesProperty(transaction, selectedProperty),
-          )
-        : [],
-    [selectedProperty, serviceTransactions],
-  )
+  // Load only this homeowner's payments and service purchases.
+  useEffect(() => {
+    if (selectedPropertyId == null) {
+      setPayments([])
+      setServiceTransactions([])
+      return undefined
+    }
+
+    let cancelled = false
+    setDetailLoading(true)
+
+    Promise.all([
+      fetchAll(() => supabase
+        .from('payments')
+        .select('*')
+        .eq('property_id', selectedPropertyId)
+        .order('paid_at', { ascending: false })),
+      fetchAll(() => supabase
+        .from('service_transactions')
+        .select('*')
+        .eq('property_id', selectedPropertyId)
+        .order('paid_at', { ascending: false })),
+    ]).then(([paymentResult, serviceResult]) => {
+      if (cancelled) return
+      const errors = [paymentResult.error, serviceResult.error].filter(Boolean)
+      if (errors.length) {
+        setPageError(`Could not load this homeowner's records: ${errors.map((error) => error.message).join(' ')}`)
+      }
+      setPayments(paymentResult.data || [])
+      setServiceTransactions(serviceResult.data || [])
+      setDetailLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [selectedPropertyId, detailReloadKey])
+
+  const selectedPayments = payments
+  const selectedServices = serviceTransactions
 
   const activePayments = useMemo(
     () =>
@@ -606,7 +604,10 @@ export default function HomeownersPage() {
     setTrackerOpen(false)
   }
 
-  const selectedStatus = homeownerStatus(selectedPayments, selectedProperty)
+  const selectedStatus = homeownerStatus(
+    selectedPayments.filter((payment) => normalize(payment.status) !== 'voided').length,
+    selectedProperty,
+  )
 
   return (
     <div className="homeowners-page">
@@ -714,7 +715,7 @@ export default function HomeownersPage() {
       </section>
 
       <main className="homeowner-profile-panel">
-        {loading ? (
+        {loading || (selectedProperty && detailLoading) ? (
           <div className="homeowner-profile-empty">Loading homeowner profile...</div>
         ) : !selectedProperty ? (
           <div className="homeowner-profile-empty">

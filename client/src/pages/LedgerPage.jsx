@@ -67,7 +67,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' })
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
-  const [payments, setPayments] = useState([])
+  const [paymentSummaries, setPaymentSummaries] = useState([])
   const [charges, setCharges] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
@@ -139,7 +139,9 @@ export default function LedgerPage({ user: suppliedUser }) {
           .from('properties')
           .select('id, block, lot_number, homeowner_name, created_at, homeowner_status, current_balance')
           .order('homeowner_name')),
-        fetchAll(() => supabase.from('payments').select('*').order('paid_at', { ascending: false })),
+        // One small row per homeowner (totals + latest payment) computed by the database,
+        // instead of downloading every payment ever recorded.
+        fetchAll(() => supabase.from('property_payment_summary').select('*').order('property_id'), { tiebreaker: null }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         fetchAll(() => supabase
           .from('property_charges')
@@ -157,7 +159,7 @@ export default function LedgerPage({ user: suppliedUser }) {
 
     setBlocks(blockResult.data || [])
     setProperties(propertyResult.data || [])
-    setPayments(paymentResult.data || [])
+    setPaymentSummaries(paymentResult.data || [])
     setCharges(chargesResult.data || [])
     setOrgSettings(settingsResult.data || null)
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
@@ -181,30 +183,26 @@ export default function LedgerPage({ user: suppliedUser }) {
     }
   }
 
-  function propertyPaymentsFor(entry) {
-    return payments
-      .filter((payment) => {
-        if (payment.property_id != null) {
-          return Number(payment.property_id) === Number(entry.id)
-        }
-
-        return (
-          normalize(payment.homeowner_name) === normalize(entry.name) &&
-          normalize(payment.block_name) === normalize(entry.block) &&
-          normalize(payment.lot_number).replace(/^lot\s*/, '') ===
-            String(entry.lotNumberRaw)
-        )
-      })
-      .slice()
-      .sort((a, b) => new Date(a.paid_at) - new Date(b.paid_at))
-  }
-
-  function openStatement(entry) {
+  async function openStatement(entry) {
     setStatementAccount(entry)
     setStatementError('')
+    setStatementLines([])
     setStatementLoading(true)
 
-    const lines = propertyPaymentsFor(entry).map((payment) => ({
+    // Only this homeowner's payments are fetched, when the statement is opened.
+    const { data, error } = await fetchAll(() => supabase
+      .from('payments')
+      .select('id, paid_at, status, coverage_period, reference_number, receipt_number, amount_paid, remaining_balance')
+      .eq('property_id', entry.id)
+      .order('paid_at', { ascending: true }))
+
+    if (error) {
+      setStatementError(`Could not load payment history: ${error.message}`)
+      setStatementLoading(false)
+      return
+    }
+
+    const lines = (data || []).map((payment) => ({
       id: payment.id,
       transaction_date: payment.paid_at,
       description: payment.status === 'Voided'
@@ -557,42 +555,40 @@ export default function LedgerPage({ user: suppliedUser }) {
     )
   }
 
+  const summaryByProperty = useMemo(
+    () => new Map(paymentSummaries.map((row) => [Number(row.property_id), row])),
+    [paymentSummaries],
+  )
+
+  const chargesByProperty = useMemo(() => {
+    const grouped = new Map()
+    for (const charge of charges) {
+      const key = Number(charge.property_id)
+      const list = grouped.get(key)
+      if (list) list.push(charge)
+      else grouped.set(key, [charge])
+    }
+    return grouped
+  }, [charges])
+
   const ledgerEntries = useMemo(() => {
     return properties
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
-      const propertyPayments = payments.filter((payment) => {
-        if (payment.property_id != null) {
-          return Number(payment.property_id) === Number(property.id)
-        }
-
-        return (
-          normalize(payment.homeowner_name) === normalize(property.homeowner_name) &&
-          normalize(payment.block_name) === normalize(property.block) &&
-          normalize(payment.lot_number).replace(/^lot\s*/, '') ===
-            String(property.lot_number)
-        )
-      })
-
-      const activePropertyPayments = propertyPayments.filter(
-        (payment) => payment.status !== 'Voided',
-      )
-      const latestPayment = activePropertyPayments[0]
+      const summary = summaryByProperty.get(Number(property.id))
       // Stored balance: positive = owed, negative = advance credit.
       const stored = Number(property.current_balance) || 0
       const balance = Math.max(stored, 0)
       const credit = Math.max(-stored, 0)
-      const previousBalance = latestPayment
-        ? Number(latestPayment.previous_balance) || 0
+      const previousBalance = summary
+        ? Number(summary.latest_previous_balance) || 0
         : stored
-      const paidAmount = latestPayment ? Number(latestPayment.amount_paid) || 0 : 0
-      const totalPaid = activePropertyPayments.reduce(
-        (sum, payment) => sum + (Number(payment.amount_paid) || 0),
-        0,
-      )
+      const paidAmount = summary ? Number(summary.latest_amount_paid) || 0 : 0
+      const totalPaid = summary ? Number(summary.total_paid) || 0 : 0
+      const lastPaidAt = summary?.latest_paid_at || null
       const lateFee = computeOverdueFromCharges({
         balance: stored,
-        charges: charges.filter((charge) => Number(charge.property_id) === Number(property.id)),
+        charges: chargesByProperty.get(Number(property.id)) || [],
         dueDay: penaltySettings.dueDay,
         gracePeriodDays: penaltySettings.gracePeriodDays,
         latePenalty: penaltySettings.latePenalty,
@@ -619,14 +615,14 @@ export default function LedgerPage({ user: suppliedUser }) {
         unallocatedCredit: credit,
         penaltyAmount: lateFee.penaltyAmount,
         totalDue: lateFee.totalDue,
-        lastPayment: latestPayment?.paid_at
-          ? organization.formatDate(latestPayment.paid_at)
+        lastPayment: lastPaidAt
+          ? organization.formatDate(lastPaidAt)
           : '—',
-        lastPaymentSort: latestPayment?.paid_at ? new Date(latestPayment.paid_at).getTime() : 0,
+        lastPaymentSort: lastPaidAt ? new Date(lastPaidAt).getTime() : 0,
         status,
       }
     })
-  }, [properties, payments, charges, penaltySettings])
+  }, [properties, summaryByProperty, chargesByProperty, penaltySettings])
 
   const filtered = useMemo(() => {
     const term = normalize(search)

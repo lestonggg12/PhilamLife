@@ -15,7 +15,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { accountStatus as getAccountStatus } from '../lib/latepenalty'
+import { accountStatus as getAccountStatus, groupChargesByProperty } from '../lib/latepenalty'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate } from '../config/organization'
@@ -38,14 +38,6 @@ const monthFormatter = new Intl.DateTimeFormat('en-PH', {
   year: 'numeric',
   timeZone: 'UTC',
 })
-
-function normalize(value) {
-  return String(value ?? '').trim().toLowerCase()
-}
-
-function normalizeLot(value) {
-  return normalize(value).replace(/^lot\s*/, '')
-}
 
 function manilaMonthKey(value = new Date()) {
   const date = new Date(value)
@@ -76,26 +68,6 @@ function getLastSixMonths() {
       label: monthFormatter.format(date),
     }
   })
-}
-
-function isVoided(payment) {
-  return normalize(payment.status) === 'voided'
-}
-
-function paymentMatchesProperty(payment, property) {
-  if (
-    payment.property_id != null &&
-    Number(payment.property_id) === Number(property.id)
-  ) {
-    return true
-  }
-
-  return (
-    normalize(payment.homeowner_name) ===
-      normalize(property.homeowner_name) &&
-    normalize(payment.block_name) === normalize(property.block) &&
-    normalizeLot(payment.lot_number) === normalizeLot(property.lot_number)
-  )
 }
 
 function getInitials(name) {
@@ -129,9 +101,9 @@ export default function AdminDashboard() {
 
   const [profiles, setProfiles] = useState([])
   const [properties, setProperties] = useState([])
-  const [payments, setPayments] = useState([])
+  const [monthlyRows, setMonthlyRows] = useState([])
+  const [paidPropertyIds, setPaidPropertyIds] = useState(new Set())
   const [charges, setCharges] = useState([])
-  const [serviceTransactions, setServiceTransactions] = useState([])
   const [activities, setActivities] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
@@ -150,6 +122,7 @@ export default function AdminDashboard() {
   async function loadDashboard() {
     setLoading(true)
     setPageError('')
+    const sixMonthsAgoKey = getLastSixMonths()[0].key
 
     const [
       profileResult,
@@ -166,15 +139,17 @@ export default function AdminDashboard() {
       fetchAll(() => supabase
         .from('properties')
         .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance')),
+      // Monthly totals (last 6 months) and which homeowners have paid, both
+      // computed by the database - a few dozen rows instead of every payment.
       fetchAll(() => supabase
-        .from('payments')
-        .select(
-          'id, property_id, amount_paid, status, paid_at, homeowner_name, block_name, lot_number, remaining_balance',
-        )
-        .order('paid_at', { ascending: false })),
+        .from('monthly_collections')
+        .select('month_start, dues_collected, service_collected')
+        .gte('month_start', `${sixMonthsAgoKey}-01`)
+        .order('month_start'), { tiebreaker: null }),
       fetchAll(() => supabase
-        .from('service_transactions')
-        .select('id, amount_paid, paid_at')),
+        .from('property_payment_summary')
+        .select('property_id')
+        .order('property_id'), { tiebreaker: null }),
       supabase
         .from('activity_log')
         .select('id, user_id, action, target, created_at')
@@ -209,9 +184,9 @@ export default function AdminDashboard() {
 
     setProfiles(profileResult.data || [])
     setProperties(propertyResult.data || [])
-    setPayments(paymentResult.data || [])
+    setMonthlyRows(paymentResult.data || [])
+    setPaidPropertyIds(new Set((serviceResult.data || []).map((row) => Number(row.property_id))))
     setCharges(chargesResult.data || [])
-    setServiceTransactions(serviceResult.data || [])
     setActivities(activityResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
@@ -221,11 +196,6 @@ export default function AdminDashboard() {
     })
     setLoading(false)
   }
-
-  const activePayments = useMemo(
-    () => payments.filter((payment) => !isVoided(payment)),
-    [payments],
-  )
 
   const activeProperties = useMemo(
     () => properties.filter((property) => (property.homeowner_status || 'active') === 'active'),
@@ -237,17 +207,15 @@ export default function AdminDashboard() {
   const collectionsByMonth = useMemo(() => {
     const totals = new Map(sixMonths.map((month) => [month.key, 0]))
 
-    activePayments.forEach((payment) => {
-      const key = manilaMonthKey(payment.paid_at)
+    monthlyRows.forEach((row) => {
+      const key = String(row.month_start).slice(0, 7)
       if (totals.has(key)) {
-        totals.set(key, totals.get(key) + (Number(payment.amount_paid) || 0))
-      }
-    })
-
-    serviceTransactions.forEach((transaction) => {
-      const key = manilaMonthKey(transaction.paid_at)
-      if (totals.has(key)) {
-        totals.set(key, totals.get(key) + (Number(transaction.amount_paid) || 0))
+        totals.set(
+          key,
+          totals.get(key) +
+            (Number(row.dues_collected) || 0) +
+            (Number(row.service_collected) || 0),
+        )
       }
     })
 
@@ -255,7 +223,7 @@ export default function AdminDashboard() {
       labels: sixMonths.map((month) => month.label),
       values: sixMonths.map((month) => totals.get(month.key) || 0),
     }
-  }, [sixMonths, activePayments, serviceTransactions])
+  }, [sixMonths, monthlyRows])
 
   const currentMonthLabel = sixMonths[sixMonths.length - 1]?.label || ''
   const collectedThisMonth = collectionsByMonth.values[collectionsByMonth.values.length - 1] || 0
@@ -270,6 +238,7 @@ export default function AdminDashboard() {
     let count = 0
     let outstanding = 0
 
+    const chargesByProperty = groupChargesByProperty(charges)
     const settings = {
       due_day: penaltySettings.dueDay,
       grace_period_days: penaltySettings.gracePeriodDays,
@@ -277,7 +246,7 @@ export default function AdminDashboard() {
     }
 
     activeProperties.forEach((property) => {
-      const status = getAccountStatus(property, charges, settings)
+      const status = getAccountStatus(property, chargesByProperty, settings)
 
       if (status.isOverdue && status.balance > 0) {
         count += 1
@@ -295,9 +264,7 @@ export default function AdminDashboard() {
 
     activeProperties.forEach((property) => {
       const owed = (Number(property.current_balance) || 0) > 0
-      const hasPayment = activePayments.some((payment) =>
-        paymentMatchesProperty(payment, property),
-      )
+      const hasPayment = paidPropertyIds.has(Number(property.id))
 
       if (owed) {
         balanceDue += 1
@@ -314,7 +281,7 @@ export default function AdminDashboard() {
       noRecord,
       total: activeProperties.length,
     }
-  }, [activePayments, activeProperties])
+  }, [paidPropertyIds, activeProperties])
 
   const recentActivities = useMemo(() => {
     const profilesById = new Map(

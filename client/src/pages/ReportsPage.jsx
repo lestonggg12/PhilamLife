@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { computeMonthlyReportData } from '../lib/monthlyReportData'
+import { computeMonthlyReportData, monthBounds } from '../lib/monthlyReportData'
 import { buildMonthlyReportPdf } from '../lib/monthlyReportPdf'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
@@ -82,14 +82,23 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
+  const monthLoadToken = useRef(0)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canGenerateReports = role === 'admin' || role === 'treasurer'
 
+  // Community-wide data (balances, charges, settings) loads once.
   useEffect(() => {
-    loadReports()
+    loadCommunityData()
     resolveCurrentUser()
   }, [])
+
+  // Everything dated (payments, services, expenses, documents, events) loads for
+  // the selected month only, so the report stays fast no matter how many years of
+  // history exist.
+  useEffect(() => {
+    loadMonthData(month)
+  }, [month])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -102,42 +111,82 @@ export default function ReportsPage({ user: suppliedUser }) {
     if (!profileError) setCurrentUser(profile)
   }
 
-  async function loadReports() {
+  async function loadCommunityData() {
+    const [propertyResult, settingsResult, chargesResult] = await Promise.all([
+      fetchAll(() => supabase.from('properties').select('id, homeowner_status, current_balance')),
+      supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
+      fetchAll(() => supabase.from('property_charges').select('property_id, amount, billing_month, created_at, charge_type').is('voided_at', null)),
+    ])
+
+    if (propertyResult.error) setError(propertyResult.error.message)
+    if (!propertyResult.error) setProperties(propertyResult.data || [])
+    if (!chargesResult.error) setCharges(chargesResult.data || [])
+    if (!settingsResult.error) setOrgSettings(settingsResult.data || null)
+  }
+
+  async function loadMonthData(selectedMonth) {
+    // If the month is changed again while this is loading, ignore the older answer.
+    const token = (monthLoadToken.current += 1)
     setLoading(true)
     setError('')
 
-    const [paymentResult, serviceResult, expenseResult, propertyResult, settingsResult, documentResult, eventResult, chargesResult] = await Promise.all([
+    const range = monthBounds(selectedMonth)
+    const monthStartDate = range.start.slice(0, 10)
+    const monthEndDate = range.end.slice(0, 10)
+
+    const [paymentResult, serviceResult, expenseResult, documentResult, eventResult, upcomingResult] = await Promise.all([
       fetchAll(() => supabase
         .from('payments')
         .select('id, property_id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
         .neq('status', 'Voided')
+        .gte('paid_at', range.start)
+        .lt('paid_at', range.end)
         .order('paid_at', { ascending: false })),
       fetchAll(() => supabase
         .from('service_transactions')
         .select('id, receipt_number, customer_name, block_name, lot_number, service_name, amount_paid, payment_method, paid_at')
+        .gte('paid_at', range.start)
+        .lt('paid_at', range.end)
         .order('paid_at', { ascending: false })),
       fetchAll(() => supabase
         .from('expenses')
         .select('id, expense_date, category, description, amount, reference_number, recorded_by_name, status, created_at')
         .neq('status', 'Voided')
+        .gte('expense_date', monthStartDate)
+        .lt('expense_date', monthEndDate)
         .order('expense_date', { ascending: false })),
-      fetchAll(() => supabase.from('properties').select('id, homeowner_status, current_balance')),
-      supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
-      fetchAll(() => supabase.from('documents').select('id, title, category, created_at').order('created_at', { ascending: false })),
-      fetchAll(() => supabase.from('events').select('id, title, description, event_date, location').order('event_date', { ascending: true })),
-      fetchAll(() => supabase.from('property_charges').select('property_id, amount, billing_month, created_at, charge_type').is('voided_at', null)),
+      fetchAll(() => supabase
+        .from('documents')
+        .select('id, title, category, created_at')
+        .gte('created_at', range.start)
+        .lt('created_at', range.end)
+        .order('created_at', { ascending: false })),
+      fetchAll(() => supabase
+        .from('events')
+        .select('id, title, description, event_date, location')
+        .gte('event_date', monthStartDate)
+        .lt('event_date', monthEndDate)
+        .order('event_date', { ascending: true })),
+      supabase
+        .from('events')
+        .select('id, title, description, event_date, location')
+        .gte('event_date', monthEndDate)
+        .order('event_date', { ascending: true })
+        .limit(6),
     ])
 
-    const loadError = paymentResult.error || serviceResult.error || expenseResult.error || propertyResult.error
+    if (token !== monthLoadToken.current) return
+
+    const loadError = paymentResult.error || serviceResult.error || expenseResult.error
     if (loadError) setError(loadError.message)
-    if (!paymentResult.error) setPayments(paymentResult.data || [])
-    if (!serviceResult.error) setServiceTransactions(serviceResult.data || [])
-    if (!expenseResult.error) setExpenses(expenseResult.data || [])
-    if (!propertyResult.error) setProperties(propertyResult.data || [])
-    if (!chargesResult.error) setCharges(chargesResult.data || [])
-    if (!settingsResult.error) setOrgSettings(settingsResult.data || null)
-    if (!documentResult.error) setDocuments(documentResult.data || [])
-    if (!eventResult.error) setEvents(eventResult.data || [])
+    setPayments(paymentResult.error ? [] : paymentResult.data || [])
+    setServiceTransactions(serviceResult.error ? [] : serviceResult.data || [])
+    setExpenses(expenseResult.error ? [] : expenseResult.data || [])
+    setDocuments(documentResult.error ? [] : documentResult.data || [])
+    setEvents([
+      ...(eventResult.error ? [] : eventResult.data || []),
+      ...(upcomingResult.error ? [] : upcomingResult.data || []),
+    ])
     setLoading(false)
   }
 
