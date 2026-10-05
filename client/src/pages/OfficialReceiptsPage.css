@@ -427,16 +427,16 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  overflow-y: auto;
+  overflow: hidden;
   background: rgba(7, 30, 48, 0.58);
 }
 
 .official-receipt-modal {
-  width: min(700px, 100%);
-  max-height: calc(100vh - 40px);
-  padding: 26px;
-  overflow-y: auto;
-  border-radius: 16px;
+  width: min(620px, calc(100vw - 40px));
+  max-height: none;
+  padding: 22px;
+  overflow: visible;
+  border-radius: 20px;
   background: #fff;
   box-shadow: 0 24px 70px rgba(7, 30, 48, 0.28);
 }
@@ -480,7 +480,7 @@
 
 .official-receipt-number {
   display: block;
-  margin: 16px 0 20px;
+  margin: 12px 0 16px;
   color: #1464a0;
   font-size: 17px;
   text-align: right;
@@ -497,7 +497,7 @@
     minmax(130px, 0.8fr)
     minmax(0, 1.4fr);
   gap: 22px;
-  padding: 11px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #e7eff4;
 }
 

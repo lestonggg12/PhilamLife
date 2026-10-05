@@ -514,6 +514,15 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   }, [])
 
   useEffect(() => {
+    if (!receipt) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [receipt])
+
+  useEffect(() => {
     if (!calendar.open) return undefined
     function handleClickAway(event) {
       if (!event.target.closest('.services-calendar-wrap')) {
@@ -1366,9 +1375,10 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   }
                 />
               </label>
-              <label>
+              <label className="services-time-field">
                 Start time
                 <input
+                  aria-label="Start time"
                   type="time"
                   value={transactionForm.start_time}
                   onChange={(event) =>
@@ -1573,7 +1583,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
       {receipt && (
         <div className="services-modal-backdrop" role="presentation">
-          <article className="service-receipt">
+          <article className="service-receipt receipt-card">
             <div className="receipt-success"><CheckCircle size={24} /></div>
             <p className="receipt-kicker">{organization.associationName}</p>
             <h2>Official Service Receipt</h2>

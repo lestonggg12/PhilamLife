@@ -8,6 +8,14 @@
   box-sizing: border-box;
 }
 
+.receipt-card {
+  width: min(620px, calc(100vw - 40px));
+  max-height: none;
+  overflow: visible;
+  border-radius: 20px;
+  box-shadow: 0 26px 64px -20px rgba(15, 63, 106, 0.38);
+}
+
 :root {
   /* Colors - PHILAM Village Brand ("Village Registry" system, baby blue) */
   --ink: #0f3f6a;           /* deep sky-blue, chrome surfaces */

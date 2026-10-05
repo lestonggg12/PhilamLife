@@ -407,6 +407,17 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }, [])
 
   useEffect(() => {
+    if (!receipt) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [receipt])
+
+  useEffect(() => {
     if (!calendar.open) return undefined
 
     function handleKeyDown(event) {
@@ -1705,7 +1716,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
       {receipt && (
         <div className="payments-overlay receipt-overlay" onMouseDown={() => setReceipt(null)}>
-          <article className="receipt" onMouseDown={(e) => e.stopPropagation()}>
+          <article className="receipt receipt-card" onMouseDown={(e) => e.stopPropagation()}>
             <div className="receipt-copy">
               <header className="receipt-header">
                 <div>

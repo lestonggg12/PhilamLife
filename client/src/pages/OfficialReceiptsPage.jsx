@@ -850,6 +850,15 @@ export default function OfficialReceiptsPage() {
   const calendarAnchorRef = useRef(null)
 
   useEffect(() => {
+    if (!selectedReceipt) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [selectedReceipt])
+
+  useEffect(() => {
     if (!calendar.open) return undefined
 
     function handleKeyDown(event) {
@@ -1492,7 +1501,7 @@ export default function OfficialReceiptsPage() {
           }
         >
           <article
-            className="official-receipt-modal"
+            className="official-receipt-modal receipt-card"
             role="dialog"
             aria-modal="true"
             aria-labelledby="official-receipt-title"
