@@ -3,7 +3,10 @@ const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP'
 // Advance-credit details from the admin's System Settings (monthly dues
 // amount, due day, grace period). Credit is deducted when the next month's
 // dues are billed (1st of the month).
-export function advanceCreditDetails(credit, settings) {
+export function advanceCreditDetails(rawCredit, settings) {
+  // Round to whole centavos first: JavaScript decimals like 4999.98 - 3499.98
+  // come out as 1499.9999999999995, which would undercount whole months.
+  const credit = Math.round((Number(rawCredit) || 0) * 100) / 100
   if (!settings) return { credit, hasSettings: false }
 
   const dues = Number(settings.dues_amount) || 0
