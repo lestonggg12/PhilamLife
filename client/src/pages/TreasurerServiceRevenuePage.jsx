@@ -52,6 +52,7 @@ function transactionPaymentStatus(transaction) {
 export default function TreasurerServiceRevenuePage() {
   const { organization } = useOrganization()
   const [transactions, setTransactions] = useState([])
+  const [owedTotal, setOwedTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -87,6 +88,11 @@ export default function TreasurerServiceRevenuePage() {
       .from('service_transactions')
       .select('*')
       .order('paid_at', { ascending: false }))
+
+    const balanceResult = await supabase.from('service_balances').select('balance_due')
+    setOwedTotal(
+      (balanceResult.data || []).reduce((sum, row) => sum + (Number(row.balance_due) || 0), 0),
+    )
 
     if (error) {
       setPageError(`Service revenue could not be loaded: ${error.message}`)
@@ -149,14 +155,6 @@ export default function TreasurerServiceRevenuePage() {
       (sum, t) => sum + (Number(t.amount_paid) || 0),
       0,
     )
-    const outstanding = transactions.reduce(
-      (sum, t) => sum + Math.max(
-        (Number(t.amount_due) || 0) - (Number(t.amount_paid) || 0),
-        0,
-      ),
-      0,
-    )
-
     const collectedThisMonth = transactions
       .filter((t) => t.paid_at && manilaMonthKey(t.paid_at) === currentMonthKey)
       .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
@@ -172,11 +170,11 @@ export default function TreasurerServiceRevenuePage() {
     return {
       totalCollected,
       collectedThisMonth,
-      outstanding,
+      outstanding: owedTotal,
       byService: [...byService.entries()].sort((a, b) => b[1] - a[1]),
       topService: topService ? { name: topService[0], amount: topService[1] } : null,
     }
-  }, [transactions])
+  }, [transactions, owedTotal])
 
   function clearFilters() {
     setSearchTerm('')
