@@ -1088,6 +1088,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setSaving(false)
   }
 
+  // Preview for the Add Charge dialog: credit is used up first, then a balance remains.
+  const chargeProperty = properties.find((item) => String(item.id) === chargeForm.propertyId)
+  const chargePreviewAmount = Math.round((Number(chargeForm.amount) || 0) * 100) / 100
+  const chargeBalanceBefore = Number(chargeProperty?.current_balance) || 0
+  const chargeBalanceAfter = Math.round((chargeBalanceBefore + chargePreviewAmount) * 100) / 100
+  const chargeCreditUsed = chargeBalanceBefore < 0 ? Math.min(-chargeBalanceBefore, chargePreviewAmount) : 0
+
   return (
     <div className="payments-page">
       <header className="payments-header">
@@ -1292,6 +1299,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
                       </button>
                       {canVoidPayments && payment.status !== 'Voided' && (
                         <button className="payments-link payments-link-danger" type="button" onClick={() => openVoid('payment', payment)}>
+                          <span className="payments-void-mark" aria-hidden="true">×</span>
                           Void
                         </button>
                       )}
@@ -1471,6 +1479,16 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 </div>
               )}
 
+              {form.propertyId && !isDuesPayment && Number(form.previousBalance) < 0 && (
+                <div className="payment-credit-note payment-span-2" role="status">
+                  <strong>Advance credit on file</strong>
+                  <span>
+                    This homeowner has {peso.format(-Number(form.previousBalance))} of credit, and new charges are deducted from it automatically.
+                    Collect this fee in cash only if the homeowner wants to pay it separately.
+                  </span>
+                </div>
+              )}
+
               <label>Payment Method
                 <select name="paymentMethod" value={form.paymentMethod} onChange={updateField}>
                   <option>Cash</option>
@@ -1535,6 +1553,18 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <label>Amount
                 <input name="amount" type="number" min="0.01" step="0.01" value={chargeForm.amount} onChange={updateChargeField} required />
               </label>
+
+              {chargeProperty && chargePreviewAmount > 0 && (
+                <div className="payment-balance-preview payment-span-2">
+                  <span>
+                    {chargeCreditUsed > 0
+                      ? `${peso.format(chargeCreditUsed)} of the homeowner's credit will be applied automatically. `
+                      : ''}
+                    {chargeBalanceAfter < 0 ? 'Advance credit left after charge' : 'Balance owed after charge'}
+                  </span>
+                  <strong>{formatBalance(chargeBalanceAfter)}</strong>
+                </div>
+              )}
 
               <label className="payment-span-2">Description (Optional)
                 <input name="description" value={chargeForm.description} onChange={updateChargeField} maxLength="250" placeholder="e.g., Noise violation, July 2026" />

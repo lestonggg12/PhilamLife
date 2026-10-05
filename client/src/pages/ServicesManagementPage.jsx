@@ -272,6 +272,7 @@ function printServiceReceipt(receipt, associationName, onPopupBlocked) {
     ['Date issued', dateTime.format(new Date(receipt.paid_at))],
     ['Processed by', receipt.recorded_by_name],
   ]
+  if (receipt.notes) rows.push(['Notes', receipt.notes])
 
   const receiptRows = rows
     .map(
@@ -398,16 +399,17 @@ const today = () =>
     day: '2-digit',
   }).format(new Date())
 
-function isCurrentManilaMonth(value) {
-  if (!value) return false
-  const parts = (date) =>
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Manila',
-      year: 'numeric',
-      month: '2-digit',
-    }).format(date)
-
-  return parts(new Date(value)) === parts(new Date())
+// Manila-time start and end of a 'YYYY-MM' month, for database range queries.
+function monthRangeOf(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number)
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  return {
+    from: `${monthKey}-01T00:00:00+08:00`,
+    to: `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00+08:00`,
+    dateFrom: `${monthKey}-01`,
+    dateTo: `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`,
+  }
 }
 
 // A YYYY-MM-DD string, treated as a fixed calendar day (no timezone drift).
@@ -457,6 +459,8 @@ const emptyTransaction = {
   notes: '',
 }
 
+const emptyCollect = { amount: '', payment_method: 'Cash', reference_number: '', notes: '' }
+
 // Money is stored in whole centavos; round typed/calculated amounts the same way
 // so what staff see on screen is exactly what gets saved.
 const toCents = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
@@ -466,7 +470,6 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [popupNotice, setPopupNotice] = useState('')
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [services, setServices] = useState([])
-  const [transactions, setTransactions] = useState([])
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -478,6 +481,15 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [transactionForm, setTransactionForm] = useState(emptyTransaction)
   const [receipt, setReceipt] = useState(null)
 
+  // Totals for the current month and overall come from small database queries;
+  // the page never downloads the full list of service receipts.
+  const [stats, setStats] = useState({ monthCount: 0, monthCollected: 0, totalReceipts: 0 })
+  const [balances, setBalances] = useState([])
+  const [collectTarget, setCollectTarget] = useState(null)
+  const [collectForm, setCollectForm] = useState(emptyCollect)
+  const [collectError, setCollectError] = useState('')
+  const [reloadTick, setReloadTick] = useState(0)
+
   // --- Calendar day-modal state (calendar lives beside "Record Payment";
   // picking an exact date opens a floating statement-style modal) ---
   const calendar = useAnimatedPopover()
@@ -486,6 +498,10 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     return { year, month: month - 1 }
   })
   const [dayModalDate, setDayModalDate] = useState(null)
+  const [dayRows, setDayRows] = useState([])
+  const [dayLoading, setDayLoading] = useState(false)
+  const [activityByMonth, setActivityByMonth] = useState({})
+  const loadedMonthsRef = useRef(new Set())
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageServices = role === 'secretary'
@@ -530,28 +546,20 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     if (!error) setCurrentUser(profile)
   }
 
+  // Catalog + homeowners (small lists). Totals and balances load separately.
   async function loadPage() {
     setLoading(true)
     setPageError('')
 
-    const [serviceResult, transactionResult, propertyResult] = await Promise.all([
+    const [serviceResult, propertyResult] = await Promise.all([
       supabase.from('amenity_services').select('*').order('name'),
-      fetchAll(() => supabase
-        .from('service_transactions')
-        .select('*')
-        .order('paid_at', { ascending: false })),
       fetchAll(() => supabase
         .from('properties')
         .select('id, homeowner_name, block, lot_number, homeowner_status')
         .order('homeowner_name')),
     ])
 
-    const errors = [
-      serviceResult.error,
-      transactionResult.error,
-      propertyResult.error,
-    ].filter(Boolean)
-
+    const errors = [serviceResult.error, propertyResult.error].filter(Boolean)
     if (errors.length) {
       setPageError(
         `Some service records could not be loaded: ${errors
@@ -561,53 +569,122 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     }
 
     setServices(serviceResult.data || [])
-    setTransactions(transactionResult.data || [])
     setProperties(propertyResult.data || [])
+    setReloadTick((tick) => tick + 1)
     setLoading(false)
   }
+
+  // This month's totals, the all-time receipt count and the unpaid balances.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadStats() {
+      const range = monthRangeOf(today().slice(0, 7))
+      const [summaryResult, countResult, balanceResult] = await Promise.all([
+        supabase.rpc('receipts_period_summary', { p_from: range.from, p_to: range.to }),
+        supabase.from('service_transactions').select('id', { count: 'exact', head: true }),
+        supabase
+          .from('service_balances')
+          .select('*')
+          .order('paid_at', { ascending: true })
+          .limit(200),
+      ])
+      if (cancelled) return
+
+      const summaryRow = Array.isArray(summaryResult.data) ? summaryResult.data[0] : summaryResult.data
+      setStats({
+        monthCount: Number(summaryRow?.service_count) || 0,
+        monthCollected: Number(summaryRow?.service_collected) || 0,
+        totalReceipts: countResult.count || 0,
+      })
+      setBalances(balanceResult.error ? [] : balanceResult.data || [])
+    }
+
+    loadStats()
+    return () => { cancelled = true }
+  }, [reloadTick])
 
   const activeServices = useMemo(
     () => services.filter((service) => service.is_active),
     [services],
   )
 
-  const summary = useMemo(() => {
-    const thisMonth = transactions.filter((item) =>
-      isCurrentManilaMonth(item.paid_at),
-    )
+  const balanceById = useMemo(
+    () => new Map(balances.map((row) => [row.id, row])),
+    [balances],
+  )
+  const totalUnpaid = useMemo(
+    () => toCents(balances.reduce((sum, row) => sum + (Number(row.balance_due) || 0), 0)),
+    [balances],
+  )
 
-    return {
-      activeServices: activeServices.length,
-      monthlyTransactions: thisMonth.length,
-      monthlyCollections: thisMonth.reduce(
-        (sum, item) => sum + (Number(item.amount_paid) || 0),
-        0,
-      ),
-      receipts: transactions.length,
-    }
-  }, [activeServices, transactions])
+  const summary = {
+    activeServices: activeServices.length,
+    monthlyTransactions: stats.monthCount,
+    monthlyCollections: stats.monthCollected,
+    receipts: stats.totalReceipts,
+  }
 
-  // Every calendar day that has at least one transaction, keyed by
-  // service_date (YYYY-MM-DD) — drives the "has activity" dots.
+  // Calendar dots: one month at a time, only for the month the calendar is showing.
+  const calendarMonthKey = `${calendarCursor.year}-${String(calendarCursor.month + 1).padStart(2, '0')}`
+
+  useEffect(() => { loadedMonthsRef.current = new Set(); setActivityByMonth({}) }, [reloadTick])
+
+  useEffect(() => {
+    if (!calendar.open || loadedMonthsRef.current.has(calendarMonthKey)) return undefined
+    loadedMonthsRef.current.add(calendarMonthKey)
+    let cancelled = false
+    const range = monthRangeOf(calendarMonthKey)
+
+    supabase
+      .from('service_transactions')
+      .select('service_date')
+      .gte('service_date', range.dateFrom)
+      .lt('service_date', range.dateTo)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) { loadedMonthsRef.current.delete(calendarMonthKey); return }
+        setActivityByMonth((current) => ({
+          ...current,
+          [calendarMonthKey]: new Set((data || []).map((row) => row.service_date)),
+        }))
+      })
+
+    return () => { cancelled = true }
+  }, [calendar.open, calendarMonthKey, reloadTick])
+
   const activityDates = useMemo(() => {
     const set = new Set()
-    transactions.forEach((item) => {
-      if (item.service_date) set.add(item.service_date)
-    })
+    Object.values(activityByMonth).forEach((days) => days.forEach((day) => set.add(day)))
     return set
-  }, [transactions])
+  }, [activityByMonth])
 
-  // Transactions shown inside the floating day modal, once a specific date
-  // has been picked from the calendar.
-  const dayModalTransactions = useMemo(() => {
-    if (!dayModalDate) return []
-    return transactions
-      .filter((item) => item.service_date === dayModalDate)
-      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
-  }, [transactions, dayModalDate])
+  // Receipts for the day picked in the calendar - fetched when the day modal opens.
+  useEffect(() => {
+    if (!dayModalDate) { setDayRows([]); return undefined }
+    let cancelled = false
+    setDayLoading(true)
+
+    supabase
+      .from('service_transactions')
+      .select('*')
+      .eq('service_date', dayModalDate)
+      .order('start_time', { ascending: true, nullsFirst: false })
+      .order('paid_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        setDayRows(error ? [] : data || [])
+        if (error) setPageError(`Could not load that day's receipts: ${error.message}`)
+        setDayLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [dayModalDate, reloadTick])
+
+  const dayModalTransactions = dayRows
 
   const dayModalTotal = useMemo(
-    () => dayModalTransactions.reduce((sum, item) => sum + (Number(item.amount_paid) || 0), 0),
+    () => toCents(dayModalTransactions.reduce((sum, item) => sum + (Number(item.amount_paid) || 0), 0)),
     [dayModalTransactions],
   )
 
@@ -648,6 +725,12 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     Math.max(Number(transactionForm.quantity) || 1, 1),
   )
 
+  // Whatever is handed over above the amount due is change, never revenue or credit.
+  const amountReceived = toCents(transactionForm.amount_paid) || 0
+  const amountApplied = Math.min(amountReceived, amountDue)
+  const changeDue = toCents(Math.max(amountReceived - amountDue, 0))
+  const stillOwed = toCents(Math.max(amountDue - amountReceived, 0))
+
   function openPaymentForm(service = null) {
     if (!canManageServices) return
 
@@ -682,7 +765,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setTransactionForm((current) => ({
       ...current,
       service_id: event.target.value,
-      amount_paid: service?.rate ? String(service.rate) : '',
+      amount_paid: service?.rate
+        ? String(toCents((Number(service.rate) || 0) * Math.max(Number(current.quantity) || 1, 1)))
+        : '',
     }))
   }
 
@@ -758,12 +843,20 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
-    const paid = toCents(transactionForm.amount_paid)
+    const received = toCents(transactionForm.amount_paid)
 
-    if (!Number.isFinite(paid) || paid <= 0) {
-      setPageError('Enter a payment amount greater than zero.')
+    if (!Number.isFinite(received) || received <= 0) {
+      setPageError('Enter the amount received, greater than zero.')
       return
     }
+
+    // Only the amount due is kept; anything extra is change handed back.
+    const paid = Math.min(received, amountDue)
+    const change = toCents(Math.max(received - amountDue, 0))
+    const changeNote = change > 0
+      ? `Received ${peso.format(received)}; ${peso.format(change)} returned as change.`
+      : ''
+    const notes = [transactionForm.notes.trim(), changeNote].filter(Boolean).join(' ') || null
 
     setSaving(true)
     setPageError('')
@@ -782,7 +875,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       amount_paid: paid,
       payment_method: transactionForm.payment_method,
       reference_number: transactionForm.reference_number.trim() || null,
-      notes: transactionForm.notes.trim() || null,
+      notes,
       payment_status: paid >= amountDue ? 'paid' : 'partial',
       recorded_by: currentUser.id,
       recorded_by_name: recorderName,
@@ -800,14 +893,11 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
-    setTransactions((current) => [data, ...current])
     setTransactionForm(emptyTransaction)
     setShowPaymentForm(false)
     setReceipt(data)
     setSaving(false)
-    // Jump the calendar view to the day the new payment was recorded for,
-    // so the freshly-created receipt is visible in the day's list.
-    setDayModalDate(data.service_date)
+    setReloadTick((tick) => tick + 1)
 
     const { error: activityError } = await supabase.from('activity_log').insert({
       user_id: currentUser.id,
@@ -818,6 +908,81 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     if (activityError) {
       console.warn('Service saved, but activity logging failed:', activityError.message)
     }
+  }
+
+  // --- Collecting the unpaid balance of a partial payment (creates a new, linked receipt) ---
+  function openCollect(balanceRow) {
+    if (!canManageServices) return
+    setCollectTarget(balanceRow)
+    setCollectForm({ ...emptyCollect, amount: String(toCents(balanceRow.balance_due)) })
+    setCollectError('')
+  }
+
+  async function collectBalance(event) {
+    event.preventDefault()
+    if (!collectTarget || !canManageServices || !currentUser?.id) return
+
+    const amount = toCents(collectForm.amount)
+    const remaining = toCents(collectTarget.balance_due)
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setCollectError('Enter an amount greater than zero.')
+      return
+    }
+    if (amount > remaining) {
+      setCollectError(`The most that can be collected is ${peso.format(remaining)}. Extra money is change.`)
+      return
+    }
+    if (collectForm.payment_method !== 'Cash' && !collectForm.reference_number.trim()) {
+      setCollectError('A reference number is required for non-cash payments.')
+      return
+    }
+
+    setSaving(true)
+    setCollectError('')
+
+    // The database fills in the customer, service and receipt details from the original
+    // receipt and rejects anything above the unpaid balance.
+    const { data, error } = await supabase
+      .from('service_transactions')
+      .insert({
+        balance_of: collectTarget.id,
+        property_id: collectTarget.property_id,
+        service_id: collectTarget.service_id,
+        service_name: collectTarget.service_name,
+        customer_name: collectTarget.customer_name,
+        block_name: collectTarget.block_name,
+        lot_number: collectTarget.lot_number,
+        service_date: today(),
+        quantity: 1,
+        amount_due: amount,
+        amount_paid: amount,
+        payment_status: 'paid',
+        payment_method: collectForm.payment_method,
+        reference_number: collectForm.reference_number.trim() || null,
+        notes: collectForm.notes.trim() || null,
+        recorded_by: currentUser.id,
+        recorded_by_name: recorderName,
+      })
+      .select('*')
+      .single()
+
+    setSaving(false)
+
+    if (error) {
+      setCollectError(error.message)
+      return
+    }
+
+    setCollectTarget(null)
+    setReceipt(data)
+    setReloadTick((tick) => tick + 1)
+
+    await supabase.from('activity_log').insert({
+      user_id: currentUser.id,
+      action: 'Service Balance Collected',
+      target: `${data.receipt_number} — ${peso.format(amount)} for ${collectTarget.receipt_number} — ${collectTarget.customer_name}`,
+    })
   }
 
   return (
@@ -953,6 +1118,40 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
           <small>Permanent service records</small>
         </article>
       </section>
+
+      {balances.length > 0 && (
+        <section className="service-catalog svc-balances">
+          <div className="services-section-heading">
+            <div>
+              <h2>Unpaid service balances</h2>
+              <p>
+                {balances.length} partial payment{balances.length === 1 ? '' : 's'} with{' '}
+                <strong>{peso.format(totalUnpaid)}</strong> still to collect. Collecting a balance issues a new receipt.
+              </p>
+            </div>
+          </div>
+          <div className="svc-balance-list">
+            {balances.map((row) => (
+              <div className="svc-balance-row" key={row.id}>
+                <div className="svc-balance-main">
+                  <strong>{row.customer_name}</strong>
+                  <span>{row.block_name}, Lot {row.lot_number} · {row.service_name}</span>
+                  <small>
+                    {row.receipt_number} · due {peso.format(Number(row.amount_due) || 0)}, paid{' '}
+                    {peso.format((Number(row.amount_paid) || 0) + (Number(row.collected_later) || 0))}
+                  </small>
+                </div>
+                <strong className="svc-balance-amount">{peso.format(Number(row.balance_due) || 0)}</strong>
+                {canManageServices && (
+                  <button type="button" className="svc-balance-button" onClick={() => openCollect(row)}>
+                    Collect balance
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="service-catalog">
         <div className="services-section-heading">
@@ -1187,12 +1386,21 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   min="1"
                   type="number"
                   value={transactionForm.quantity}
-                  onChange={(event) =>
-                    setTransactionForm((current) => ({
-                      ...current,
-                      quantity: event.target.value,
-                    }))
-                  }
+                  onChange={(event) => {
+                    const nextQuantity = event.target.value
+                    setTransactionForm((current) => {
+                      // Keep "amount received" in step with the amount due while the two still match.
+                      const rate = Number(selectedService?.rate) || 0
+                      const oldDue = toCents(rate * Math.max(Number(current.quantity) || 1, 1))
+                      const newDue = toCents(rate * Math.max(Number(nextQuantity) || 1, 1))
+                      const followsDue = toCents(current.amount_paid) === oldDue
+                      return {
+                        ...current,
+                        quantity: nextQuantity,
+                        amount_paid: followsDue ? String(newDue) : current.amount_paid,
+                      }
+                    })
+                  }}
                 />
               </label>
             </div>
@@ -1204,7 +1412,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
             <div className="services-form-row">
               <label>
-                Amount paid
+                Amount received
                 <input
                   required
                   min="0.01"
@@ -1238,6 +1446,18 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 </select>
               </label>
             </div>
+
+            {amountReceived > 0 && amountDue > 0 && (
+              <div className="services-amount-due">
+                {changeDue > 0 ? (
+                  <><span>Change to return</span><strong>{peso.format(changeDue)}</strong></>
+                ) : stillOwed > 0 ? (
+                  <><span>Partial payment — still unpaid</span><strong>{peso.format(stillOwed)}</strong></>
+                ) : (
+                  <><span>Paid in full</span><strong>{peso.format(amountApplied)}</strong></>
+                )}
+              </div>
+            )}
 
             <label>
               Reference number
@@ -1277,6 +1497,80 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
       )}
 
+      {collectTarget && (
+        <div className="services-modal-backdrop" role="presentation">
+          <form className="services-modal" onSubmit={collectBalance}>
+            <div className="services-modal-header">
+              <div>
+                <h2>Collect Unpaid Balance</h2>
+                <p>
+                  {collectTarget.customer_name} — {collectTarget.service_name} ({collectTarget.receipt_number})
+                </p>
+              </div>
+              <button type="button" onClick={() => !saving && setCollectTarget(null)} aria-label="Close">
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="services-amount-due">
+              <span>Unpaid balance</span>
+              <strong>{peso.format(Number(collectTarget.balance_due) || 0)}</strong>
+            </div>
+
+            <div className="services-form-row">
+              <label>
+                Amount collected
+                <input
+                  required
+                  min="0.01"
+                  step="0.01"
+                  type="number"
+                  value={collectForm.amount}
+                  onWheel={(event) => event.currentTarget.blur()}
+                  onChange={(event) => { setCollectForm((current) => ({ ...current, amount: event.target.value })); setCollectError('') }}
+                />
+              </label>
+              <label>
+                Payment method
+                <select
+                  value={collectForm.payment_method}
+                  onChange={(event) => setCollectForm((current) => ({ ...current, payment_method: event.target.value }))}
+                >
+                  <option>Cash</option>
+                  <option>GCash</option>
+                  <option>Bank Transfer</option>
+                  <option>Check</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Reference number
+              <input
+                value={collectForm.reference_number}
+                onChange={(event) => setCollectForm((current) => ({ ...current, reference_number: event.target.value }))}
+                placeholder="Required for non-cash payments"
+              />
+            </label>
+            <label>
+              Notes
+              <textarea
+                rows="2"
+                value={collectForm.notes}
+                onChange={(event) => setCollectForm((current) => ({ ...current, notes: event.target.value }))}
+              />
+            </label>
+
+            {collectError && <p className="services-error">{collectError}</p>}
+
+            <div className="services-modal-actions">
+              <button type="button" onClick={() => setCollectTarget(null)} disabled={saving}>Cancel</button>
+              <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Collect & Issue Receipt'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {receipt && (
         <div className="services-modal-backdrop" role="presentation">
           <article className="service-receipt">
@@ -1293,6 +1587,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               <div><dt>Payment method</dt><dd>{receipt.payment_method}</dd></div>
               <div><dt>Date issued</dt><dd>{dateTime.format(new Date(receipt.paid_at))}</dd></div>
               <div><dt>Processed by</dt><dd>{receipt.recorded_by_name}</dd></div>
+              {receipt.notes && <div><dt>Notes</dt><dd>{receipt.notes}</dd></div>}
             </dl>
             <p className="receipt-note">
               This receipt is a permanent transaction record and cannot be deleted
@@ -1327,16 +1622,18 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             <div className="day-modal-stats">
               <div>
                 <span>Transactions</span>
-                <strong>{dayModalTransactions.length}</strong>
+                <strong>{dayLoading ? '…' : dayModalTransactions.length}</strong>
               </div>
               <div>
                 <span>Amount collected</span>
-                <strong>{peso.format(dayModalTotal)}</strong>
+                <strong>{dayLoading ? '…' : peso.format(dayModalTotal)}</strong>
               </div>
             </div>
 
             <div className="day-modal-list">
-              {dayModalTransactions.length === 0 ? (
+              {dayLoading && dayModalTransactions.length === 0 ? (
+                <p className="services-day-empty">Loading...</p>
+              ) : dayModalTransactions.length === 0 ? (
                 <p className="services-day-empty">No service transactions recorded on this day.</p>
               ) : (
                 dayModalTransactions.map((item) => (
@@ -1348,6 +1645,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                     <div className="day-modal-row-meta">
                       <span>{item.customer_name} — {item.block_name}, Lot {item.lot_number}</span>
                       {item.start_time && <span>{item.start_time.slice(0, 5)}</span>}
+                      {balanceById.get(item.id) && (
+                        <span>Unpaid {peso.format(Number(balanceById.get(item.id).balance_due) || 0)}</span>
+                      )}
                     </div>
                     <div className="day-modal-row-end">
                       <strong>{peso.format(Number(item.amount_paid) || 0)}</strong>

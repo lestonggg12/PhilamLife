@@ -995,9 +995,7 @@
    ============================================================ */
 
 .payments-calendar-popover {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
+  position: relative;
   z-index: 40;
   width: 300px;
   padding: 16px;
@@ -1010,11 +1008,14 @@
 }
 
 .payments-calendar-animation {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transform: translateY(-8px) scale(0.98);
-  transform-origin: top right;
+  transform-origin: top left;
   transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
 }
 
@@ -1468,9 +1469,15 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 7px;
 }
 
 .payments-row-actions .payments-link-danger {
   margin-left: 0;
+}
+
+.payments-void-mark {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 0.8;
 }
