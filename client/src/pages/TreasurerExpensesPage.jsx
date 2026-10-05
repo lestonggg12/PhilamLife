@@ -68,6 +68,10 @@ function emptyForm() {
   }
 }
 
+// Money is stored in whole centavos; round typed/calculated amounts the same way
+// so what staff see on screen is exactly what gets saved.
+const toCents = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
+
 export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
@@ -265,7 +269,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
       return
     }
 
-    const amount = Number(form.amount)
+    const amount = toCents(form.amount)
     if (!form.description.trim()) {
       setFormError('Please enter a description.')
       return

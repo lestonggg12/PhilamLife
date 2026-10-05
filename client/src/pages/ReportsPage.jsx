@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { computeMonthlyReportData, monthBounds } from '../lib/monthlyReportData'
+import { computeMonthlyReportData, incomeTableRows, monthBounds } from '../lib/monthlyReportData'
 import { buildMonthlyReportPdf } from '../lib/monthlyReportPdf'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
@@ -137,7 +137,8 @@ export default function ReportsPage({ user: suppliedUser }) {
     const [paymentResult, serviceResult, expenseResult, documentResult, eventResult, upcomingResult] = await Promise.all([
       fetchAll(() => supabase
         .from('payments')
-        .select('id, property_id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, amount_paid, remaining_balance, payment_method, paid_at, status')
+        // charge_type tells the report whether a payment was dues or a fee.
+        .select('id, property_id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, charge_type, amount_paid, remaining_balance, payment_method, paid_at, status')
         .neq('status', 'Voided')
         .gte('paid_at', range.start)
         .lt('paid_at', range.end)
@@ -283,11 +284,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             <SimpleTable
               head={['Revenue Category', 'Amount']}
               boldLastRow
-              rows={[
-                ['Homeowner Assessments (Dues)', money(report.income.duesIncome)],
-                ...report.income.serviceByName.map((s) => [`Amenity / Service — ${s.name}`, money(s.amount)]),
-                ['Total Income', money(report.income.totalIncome)],
-              ]}
+              rows={incomeTableRows(report.income, money)}
             />
 
             <h3 className="monthly-subheading">2.2 Expenses</h3>
@@ -330,6 +327,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             <h3 className="monthly-subheading">2.3 Accounts Receivable & Collections</h3>
             <SimpleTable head={['Metric', 'Value']} rows={[
               ['Dues collected this period', money(report.receivables.duesIncome)],
+              ['Fees & charges collected this period', money(report.receivables.feesIncome)],
               ['Amenity / service revenue collected this period', money(report.receivables.serviceIncome)],
               ['Outstanding homeowner balances (aggregate, as of report date)', money(report.receivables.totalOutstanding)],
               ['Number of accounts with an outstanding balance', String(report.receivables.outstandingAccountCount)],

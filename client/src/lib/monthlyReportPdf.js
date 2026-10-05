@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { computeMonthlyReportData } from './monthlyReportData'
+import { computeMonthlyReportData, incomeTableRows } from './monthlyReportData'
 
 const NAVY = [17, 42, 82]
 const GRAY = [100, 116, 139]
@@ -233,11 +233,7 @@ export function buildMonthlyReportPdf({
   sectionTitle('2', 'Financial Report')
   subheading('2.1 Income')
 
-  const incomeRows = [
-    ['Homeowner Assessments (Dues)', money(data.income.duesIncome)],
-    ...data.income.serviceByName.map((s) => [`Amenity / Service — ${s.name}`, money(s.amount)]),
-  ]
-  incomeRows.push(['Total Income', money(data.income.totalIncome)])
+  const incomeRows = incomeTableRows(data.income, money)
   table(['Revenue Category', 'Amount'], incomeRows, {
     didParseCell: (d) => { if (d.row.index === incomeRows.length - 1) d.cell.styles.fontStyle = 'bold' },
   })
@@ -280,6 +276,7 @@ export function buildMonthlyReportPdf({
   subheading('2.3 Accounts Receivable & Collections')
   table(['Metric', 'Value'], [
     ['Dues collected this period', money(data.receivables.duesIncome)],
+    ['Fees & charges collected this period', money(data.receivables.feesIncome)],
     ['Amenity / service revenue collected this period', money(data.receivables.serviceIncome)],
     ['Outstanding homeowner balances (aggregate, as of report date)', money(data.receivables.totalOutstanding)],
     ['Number of accounts with an outstanding balance', String(data.receivables.outstandingAccountCount)],

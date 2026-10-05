@@ -457,6 +457,10 @@ const emptyTransaction = {
   notes: '',
 }
 
+// Money is stored in whole centavos; round typed/calculated amounts the same way
+// so what staff see on screen is exactly what gets saved.
+const toCents = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
+
 export default function ServicesManagementPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [popupNotice, setPopupNotice] = useState('')
@@ -639,9 +643,10 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const selectedService = services.find(
     (service) => service.id === transactionForm.service_id,
   )
-  const amountDue =
+  const amountDue = toCents(
     (Number(selectedService?.rate) || 0) *
-    Math.max(Number(transactionForm.quantity) || 1, 1)
+    Math.max(Number(transactionForm.quantity) || 1, 1),
+  )
 
   function openPaymentForm(service = null) {
     if (!canManageServices) return
@@ -753,7 +758,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
-    const paid = Number(transactionForm.amount_paid)
+    const paid = toCents(transactionForm.amount_paid)
 
     if (!Number.isFinite(paid) || paid <= 0) {
       setPageError('Enter a payment amount greater than zero.')
