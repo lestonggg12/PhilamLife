@@ -9,12 +9,41 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
 import './OfficialReceiptsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
+import useDebouncedValue from '../hooks/useDebouncedValue'
+import { MonthSwitcher, Pager } from '../components/PagerControls'
+import {
+  applySearch,
+  applyTimeRange,
+  countLabel,
+  currentManilaMonthKey,
+  dateSpanRange,
+  interpretPage,
+  monthLabel,
+  monthRange,
+  pageCount,
+  pageWindow,
+  searchTokens,
+} from '../lib/pagedQuery'
+
+// Columns the receipt search looks through (every typed word must match one of them).
+const RECEIPT_SEARCH_COLUMNS = [
+  'receipt_number',
+  'payer',
+  'property_label',
+  'description',
+  'payment_method',
+  'reference_number',
+  'recorded_by_name',
+]
+
+// Open-ended custom date ranges use these far-apart bounds for the totals.
+const EARLIEST = '1970-01-01T00:00:00+08:00'
+const LATEST = '2100-01-01T00:00:00+08:00'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -250,6 +279,34 @@ function mapPaymentReceipt(payment) {
   )
 
   return receipt
+}
+
+/**
+ * One line of the paged list (a row of the official_receipts_feed view).
+ * It has what the table needs; the full record - previous balance, notes,
+ * service times, etc. - is fetched only when a receipt is opened (see openReceipt).
+ */
+function mapFeedRow(row) {
+  const isService = row.kind === 'service'
+
+  return {
+    id: `${row.kind}-${row.source_id}`,
+    sourceId: row.source_id,
+    type: isService ? 'service' : 'payment',
+    typeLabel: isService ? 'Service Payment' : 'Regular Payment',
+    title: isService ? 'HOA Service Receipt' : 'HOA Payment Receipt',
+    receiptNumber: row.receipt_number || 'Receipt number unavailable',
+    issuedAt: row.paid_at,
+    issuedDateKey: toManilaDateKey(row.paid_at),
+    payer: row.payer || 'Unnamed homeowner',
+    property: row.property_label || 'Not specified',
+    description: row.description || (isService ? 'Village service' : 'Homeowner payment'),
+    amount: Number(row.amount_paid) || 0,
+    method: row.payment_method || 'Not specified',
+    referenceNumber: row.reference_number || '',
+    recordedBy: row.recorded_by_name || 'Staff member',
+    isVoided: Boolean(row.is_voided),
+  }
 }
 
 function mapServiceReceipt(transaction) {
@@ -602,6 +659,7 @@ function ReceiptCalendar({
   activeDateKeys,
   onSelectDate,
   onClose,
+  onViewMonthChange,
 }) {
   const manilaAnchor = manilaToday()
 
@@ -626,6 +684,11 @@ function ReceiptCalendar({
     () => buildCalendarWeeks(viewYear, viewMonth),
     [viewYear, viewMonth],
   )
+
+  // Tell the page which month is showing so it can fetch just that month's dots.
+  useEffect(() => {
+    if (onViewMonthChange) onViewMonthChange(viewYear, viewMonth)
+  }, [viewYear, viewMonth])
 
   function goToPrevMonth() {
     setViewMonth((month) => {
@@ -764,7 +827,15 @@ function ReceiptCalendar({
 
 export default function OfficialReceiptsPage() {
   const { organization } = useOrganization()
-  const [receipts, setReceipts] = useState([])
+  // One page (50) of receipts at a time, read from the database.
+  const [rows, setRows] = useState([])
+  const [pageInfo, setPageInfo] = useState({ total: 0, minimum: 0 })
+  const [monthKey, setMonthKey] = useState(() => currentManilaMonthKey())
+  const [pageState, setPageState] = useState({ key: '', page: 0 })
+  const [summary, setSummary] = useState(null)
+  const [reloadTick, setReloadTick] = useState(0)
+  const [activeDays, setActiveDays] = useState({})
+  const [openingId, setOpeningId] = useState('')
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [popupNotice, setPopupNotice] = useState('')
@@ -777,10 +848,6 @@ export default function OfficialReceiptsPage() {
     useState(null)
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
-
-  useEffect(() => {
-    loadReceipts()
-  }, [])
 
   useEffect(() => {
     if (!calendar.open) return undefined
@@ -818,174 +885,181 @@ export default function OfficialReceiptsPage() {
     }
   }, [calendar.open])
 
-  async function loadReceipts() {
-    setLoading(true)
-    setPageError('')
+  // ---- Paged receipts --------------------------------------------------------
+  //   * Default view: the selected month (this month when the page opens).
+  //   * Typing a search (without a date range) looks through ALL months.
+  //   * A From/To range or a calendar date limits the list to those days.
+  const debouncedSearch = useDebouncedValue(search, 350)
+  const searching = searchTokens(debouncedSearch).length > 0
+  const invalidDateRange = Boolean(fromDate && toDate && fromDate > toDate)
+  const hasCustomRange = Boolean(fromDate || toDate)
+  const customRange = invalidDateRange ? null : dateSpanRange(fromDate, toDate)
+  const scopeKind = hasCustomRange ? 'range' : searching ? 'search' : 'month'
+  const listRange = hasCustomRange ? customRange : searching ? null : monthRange(monthKey)
+  const scopeKey = `${scopeKind}|${monthKey}|${fromDate}|${toDate}|${typeFilter}|${debouncedSearch}`
 
-    const [
-      paymentResult,
-      serviceResult,
-    ] = await Promise.all([
-      fetchAll(() => supabase
-        .from('payments')
-        .select('*')
-        .order('paid_at', {
-          ascending: false,
-        })),
+  const filtersActive = Boolean(search || typeFilter !== 'all' || fromDate || toDate)
 
-      fetchAll(() => supabase
-        .from('service_transactions')
-        .select('*')
-        .order('paid_at', {
-          ascending: false,
-        })),
-    ])
-
-    const errors = []
-    const combined = []
-
-    if (paymentResult.error) {
-      errors.push(
-        `Regular receipts: ${paymentResult.error.message}`,
-      )
-    } else {
-      combined.push(
-        ...(paymentResult.data || []).map(
-          mapPaymentReceipt,
-        ),
-      )
-    }
-
-    if (serviceResult.error) {
-      errors.push(
-        `Service receipts: ${serviceResult.error.message}`,
-      )
-    } else {
-      combined.push(
-        ...(serviceResult.data || []).map(
-          mapServiceReceipt,
-        ),
-      )
-    }
-
-    combined.sort((left, right) => {
-      const leftTime =
-        new Date(left.issuedAt).getTime() || 0
-
-      const rightTime =
-        new Date(right.issuedAt).getTime() || 0
-
-      return rightTime - leftTime
-    })
-
-    setReceipts(combined)
-
-    setPageError(
-      errors.length > 0
-        ? `Some receipts could not be loaded. ${errors.join(
-            ' ',
-          )}`
-        : '',
-    )
-
-    setLoading(false)
+  // The page number belongs to one scope; changing month/search/filters starts at page 1.
+  const page = pageState.key === scopeKey ? pageState.page : 0
+  function goToPage(nextPage) {
+    setPageState({ key: scopeKey, page: Math.max(0, nextPage) })
   }
 
-  const invalidDateRange = Boolean(
-    fromDate &&
-      toDate &&
-      fromDate > toDate,
-  )
+  useEffect(() => {
+    if (invalidDateRange) {
+      setRows([])
+      setPageInfo({ total: 0, minimum: 0 })
+      setLoading(false)
+      return undefined
+    }
 
-  // The receipt list is intentionally not shown until the user has
-  // actively searched, filtered by type, or picked a date — walking
-  // in and dumping every historical receipt on screen isn't useful,
-  // and it's easy to mistake an old receipt for a new one at a
-  // glance. Once any of these are set, the table takes over.
-  const filtersActive = Boolean(
-    search ||
-      typeFilter !== 'all' ||
-      fromDate ||
-      toDate,
-  )
+    let cancelled = false
 
-  const filteredReceipts = useMemo(() => {
-    if (!filtersActive || invalidDateRange) return []
+    async function loadRows() {
+      setLoading(true)
+      const { from, to } = pageWindow(page)
 
-    const query = normalize(search)
+      // Browsing a month or a date range gets an exact total (cheap: it uses the date
+      // index). An open-ended search skips the exact count and asks for one extra row
+      // to learn whether a next page exists.
+      const exact = scopeKind !== 'search'
+      let query = supabase.from('official_receipts_feed').select('*', exact ? { count: 'exact' } : undefined)
+      if (typeFilter !== 'all') query = query.eq('kind', typeFilter)
+      query = applyTimeRange(query, 'paid_at', listRange)
+      query = applySearch(query, RECEIPT_SEARCH_COLUMNS, debouncedSearch)
 
-    return receipts.filter((receipt) => {
-      const matchesSearch =
-        !query ||
-        receipt.searchText.includes(query)
+      // kind + source_id are tiebreakers so pages stay stable.
+      const { data, error, count } = await query
+        .order('paid_at', { ascending: false })
+        .order('kind', { ascending: true })
+        .order('source_id', { ascending: true })
+        .range(from, exact ? to : to + 1)
 
-      const matchesType =
-        typeFilter === 'all' ||
-        receipt.type === typeFilter
+      if (cancelled) return
 
-      const matchesFrom =
-        !fromDate ||
-        receipt.issuedDateKey >= fromDate
+      if (error) {
+        setPageError(`Could not load receipts: ${error.message}`)
+        setRows([])
+        setPageInfo({ total: 0, minimum: 0 })
+      } else if ((data || []).length === 0 && page > 0 && (!exact || (count || 0) > 0)) {
+        goToPage(exact ? pageCount(count) - 1 : page - 1)
+        return
+      } else {
+        const result = interpretPage(data, count, page, exact)
+        setPageError('')
+        setRows(result.rows.map(mapFeedRow))
+        setPageInfo({ total: result.total, minimum: result.minimum })
+      }
+      setLoading(false)
+    }
 
-      const matchesTo =
-        !toDate ||
-        receipt.issuedDateKey <= toDate
+    loadRows()
+    return () => { cancelled = true }
+  }, [scopeKey, page, reloadTick])
 
-      return (
-        matchesSearch &&
-        matchesType &&
-        matchesFrom &&
-        matchesTo
-      )
+  // Card totals for the period being viewed (the month, or the custom range) - computed by the database.
+  const summaryRange = customRange
+    ? { from: customRange.from || EARLIEST, to: customRange.to || LATEST }
+    : monthRange(monthKey)
+  const summaryLabel = customRange
+    ? fromDate && toDate
+      ? fromDate === toDate
+        ? formatDateOnly(fromDate)
+        : `${formatDateOnly(fromDate)} – ${formatDateOnly(toDate)}`
+      : fromDate
+        ? `from ${formatDateOnly(fromDate)}`
+        : `up to ${formatDateOnly(toDate)}`
+    : monthLabel(monthKey)
+
+  useEffect(() => {
+    let cancelled = false
+    setSummary(null)
+
+    supabase
+      .rpc('receipts_period_summary', { p_from: summaryRange.from, p_to: summaryRange.to })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.warn('Could not load receipt totals:', error.message)
+          return
+        }
+        setSummary(Array.isArray(data) ? data[0] || null : data)
+      })
+
+    return () => { cancelled = true }
+  }, [summaryRange.from, summaryRange.to, reloadTick])
+
+  const summaryTotals = summary
+    ? {
+        total: (Number(summary.payment_count) || 0) + (Number(summary.service_count) || 0),
+        paymentCount: Number(summary.payment_count) || 0,
+        serviceCount: Number(summary.service_count) || 0,
+        collected: (Number(summary.dues_collected) || 0) + (Number(summary.service_collected) || 0),
+      }
+    : null
+
+  // Calendar dots: asked for one month at a time, only when the calendar shows it.
+  const loadedMonthsRef = useRef(new Set())
+
+  useEffect(() => {
+    loadedMonthsRef.current = new Set()
+    setActiveDays({})
+  }, [reloadTick])
+
+  async function loadActiveDays(year, month) {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}` // month is 0-based
+    if (loadedMonthsRef.current.has(key)) return
+    loadedMonthsRef.current.add(key)
+
+    const { data, error } = await supabase.rpc('receipt_active_days', {
+      p_month: `${key}-01`,
+      p_include_services: true,
     })
-  }, [
-    filtersActive,
-    fromDate,
-    invalidDateRange,
-    receipts,
-    search,
-    toDate,
-    typeFilter,
-  ])
+
+    if (error) {
+      loadedMonthsRef.current.delete(key)
+      return
+    }
+    setActiveDays((current) => ({ ...current, [key]: new Set(data || []) }))
+  }
 
   const activeDateKeys = useMemo(() => {
     const keys = new Set()
-
-    receipts.forEach((receipt) => {
-      if (receipt.issuedDateKey) {
-        keys.add(receipt.issuedDateKey)
-      }
-    })
-
+    Object.values(activeDays).forEach((days) => days.forEach((day) => keys.add(day)))
     return keys
-  }, [receipts])
+  }, [activeDays])
 
-  const summary = useMemo(() => {
-    const paymentReceipts = receipts.filter(
-      (receipt) => receipt.type === 'payment',
-    )
+  // Open one receipt: fetch its full record (balances, notes, times) just now.
+  async function openReceipt(receipt) {
+    if (openingId) return
+    setOpeningId(receipt.id)
 
-    const serviceReceipts = receipts.filter(
-      (receipt) => receipt.type === 'service',
-    )
+    const table = receipt.type === 'service' ? 'service_transactions' : 'payments'
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('id', receipt.sourceId)
+      .maybeSingle()
 
-    return {
-      total: receipts.length,
-      paymentCount: paymentReceipts.length,
-      serviceCount: serviceReceipts.length,
-      collected: receipts.reduce(
-        (sum, receipt) =>
-          receipt.isVoided ? sum : sum + receipt.amount,
-        0,
-      ),
+    setOpeningId('')
+
+    if (error || !data) {
+      setPageError(`Could not open receipt ${receipt.receiptNumber}: ${error?.message || 'it no longer exists.'}`)
+      return
     }
-  }, [receipts])
+
+    setSelectedReceipt(
+      receipt.type === 'service' ? mapServiceReceipt(data) : mapPaymentReceipt(data),
+    )
+  }
 
   function clearFilters() {
     setSearch('')
     setTypeFilter('all')
     setFromDate('')
     setToDate('')
+    setMonthKey(currentManilaMonthKey())
   }
 
   function handleSelectCalendarDate(dateKey) {
@@ -1041,7 +1115,7 @@ export default function OfficialReceiptsPage() {
               official-receipts-button
               official-receipts-refresh
             "
-            onClick={loadReceipts}
+            onClick={() => setReloadTick((tick) => tick + 1)}
             disabled={loading}
           >
             <RefreshCw size={17} />
@@ -1058,6 +1132,7 @@ export default function OfficialReceiptsPage() {
               activeDateKeys={activeDateKeys}
               onSelectDate={handleSelectCalendarDate}
               onClose={calendar.hide}
+              onViewMonthChange={loadActiveDays}
               />
             </div>
           )}
@@ -1088,14 +1163,14 @@ export default function OfficialReceiptsPage() {
             <small>Total Receipts</small>
 
             <strong>
-              {loading
-                ? '—'
-                : summary.total.toLocaleString(
+              {summaryTotals
+                ? summaryTotals.total.toLocaleString(
                     'en-PH',
-                  )}
+                  )
+                : '—'}
             </strong>
 
-            <p>All permanent records</p>
+            <p>{summaryLabel}</p>
           </div>
         </article>
 
@@ -1113,11 +1188,11 @@ export default function OfficialReceiptsPage() {
             <small>Regular Payments</small>
 
             <strong>
-              {loading
-                ? '—'
-                : summary.paymentCount.toLocaleString(
+              {summaryTotals
+                ? summaryTotals.paymentCount.toLocaleString(
                     'en-PH',
-                  )}
+                  )
+                : '—'}
             </strong>
 
             <p>Dues and other payments</p>
@@ -1138,11 +1213,11 @@ export default function OfficialReceiptsPage() {
             <small>Service Payments</small>
 
             <strong>
-              {loading
-                ? '—'
-                : summary.serviceCount.toLocaleString(
+              {summaryTotals
+                ? summaryTotals.serviceCount.toLocaleString(
                     'en-PH',
-                  )}
+                  )
+                : '—'}
             </strong>
 
             <p>Amenity transactions</p>
@@ -1163,12 +1238,12 @@ export default function OfficialReceiptsPage() {
             <small>Total Collected</small>
 
             <strong className="official-summary-money">
-              {loading
-                ? '—'
-                : peso.format(summary.collected)}
+              {summaryTotals
+                ? peso.format(summaryTotals.collected)
+                : '—'}
             </strong>
 
-            <p>Across all saved receipts</p>
+            <p>Excludes voided receipts</p>
           </div>
         </article>
       </section>
@@ -1181,17 +1256,20 @@ export default function OfficialReceiptsPage() {
             <p>
               {loading
                 ? 'Loading saved transactions...'
-                : !filtersActive
-                  ? `${receipts.length.toLocaleString(
-                      'en-PH',
-                    )} receipts on file — search, filter, or pick a date to view them`
-                  : `${filteredReceipts.length.toLocaleString(
-                      'en-PH',
-                    )} of ${receipts.length.toLocaleString(
-                      'en-PH',
-                    )} receipts shown`}
+                : scopeKind === 'month'
+                  ? `${countLabel(pageInfo, 'receipt', 'receipts')} in ${monthLabel(monthKey)} — search to look through every month`
+                  : scopeKind === 'search'
+                    ? `${countLabel(pageInfo, 'receipt', 'receipts')} found across all months`
+                    : `${countLabel(pageInfo, 'receipt', 'receipts')} in the selected dates`}
             </p>
           </div>
+
+          {scopeKind === 'month' && (
+            <MonthSwitcher monthKey={monthKey} onChange={setMonthKey} disabled={loading} />
+          )}
+          {scopeKind === 'search' && (
+            <span className="scope-note">Searching all months</span>
+          )}
         </div>
 
         <div className="official-receipts-filters">
@@ -1266,7 +1344,7 @@ export default function OfficialReceiptsPage() {
             type="button"
             className="official-clear-button"
             onClick={clearFilters}
-            disabled={!filtersActive}
+            disabled={!filtersActive && monthKey === currentManilaMonthKey()}
           >
             Clear Filters
           </button>
@@ -1295,24 +1373,13 @@ export default function OfficialReceiptsPage() {
             </thead>
 
             <tbody>
-              {loading ? (
+              {loading && rows.length === 0 ? (
                 <tr>
                   <td
                     colSpan="8"
                     className="official-receipts-empty"
                   >
                     Loading payment receipts...
-                  </td>
-                </tr>
-              ) : !filtersActive ? (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="official-receipts-empty"
-                  >
-                    Pick a date from the calendar, or search
-                    by receipt no., homeowner, or property to
-                    view receipts.
                   </td>
                 </tr>
               ) : invalidDateRange ? (
@@ -1324,17 +1391,19 @@ export default function OfficialReceiptsPage() {
                     Fix the date range above to view receipts.
                   </td>
                 </tr>
-              ) : filteredReceipts.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <tr>
                   <td
                     colSpan="8"
                     className="official-receipts-empty"
                   >
-                    No receipts match the selected search and filters.
+                    {scopeKind === 'month'
+                      ? `No receipts were issued in ${monthLabel(monthKey)}. Use the arrows to view another month, or search to look through every month.`
+                      : 'No receipts match the selected search and filters.'}
                   </td>
                 </tr>
               ) : (
-                filteredReceipts.map(
+                rows.map(
                   (receipt) => (
                     <tr key={receipt.id} className={receipt.isVoided ? 'official-row-voided' : ''}>
                       <td>
@@ -1390,13 +1459,12 @@ export default function OfficialReceiptsPage() {
                           type="button"
                           className="official-view-button"
                           onClick={() =>
-                            setSelectedReceipt(
-                              receipt,
-                            )
+                            openReceipt(receipt)
                           }
+                          disabled={openingId === receipt.id}
                         >
                           <Eye size={16} />
-                          View
+                          {openingId === receipt.id ? 'Opening…' : 'View'}
                         </button>
                       </td>
                     </tr>
@@ -1406,6 +1474,8 @@ export default function OfficialReceiptsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pager page={page} total={pageInfo.total} onPageChange={goToPage} disabled={loading} />
       </section>
 
       {selectedReceipt && (

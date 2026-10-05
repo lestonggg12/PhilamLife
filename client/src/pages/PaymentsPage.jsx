@@ -5,6 +5,34 @@ import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
+import useDebouncedValue from '../hooks/useDebouncedValue'
+import { MonthSwitcher, Pager } from '../components/PagerControls'
+import {
+  applySearch,
+  applyTimeRange,
+  countLabel,
+  currentManilaMonthKey,
+  dayRange,
+  ilikeAny,
+  interpretPage,
+  monthLabel,
+  monthRange,
+  pageCount,
+  pageWindow,
+  searchTokens,
+} from '../lib/pagedQuery'
+
+// Columns the payment-history search looks through (every word must match one of them).
+const PAYMENT_SEARCH_COLUMNS = [
+  'receipt_number',
+  'homeowner_name',
+  'block_name',
+  'lot_number',
+  'coverage_period',
+  'payment_method',
+  'reference_number',
+  'status',
+]
 
 const PAYMENT_PURPOSES = [
   'Association Dues',
@@ -91,8 +119,7 @@ function dateKeyOf(year, month, day) {
 }
 
 // Single source of truth for "what Manila calendar date is this JS
-// Date on" — toManilaDateKey (payment timestamps) and manilaToday
-// (the calendar's "today") both read through here.
+// Date on" - the calendar's "today" reads through here.
 function manilaDateParts(date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila',
@@ -112,18 +139,6 @@ function manilaDateParts(date) {
     month: Number(lookup.month) - 1,
     day: Number(lookup.day),
   }
-}
-
-function toManilaDateKey(value) {
-  if (!value) return ''
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) return ''
-
-  const { year, month, day } = manilaDateParts(parsed)
-
-  return dateKeyOf(year, month, day)
 }
 
 function manilaToday() {
@@ -182,6 +197,7 @@ function PaymentCalendar({
   selectedDateKey,
   activeDateKeys,
   onSelectDate,
+  onViewMonthChange,
 }) {
   const manilaAnchor = manilaToday()
 
@@ -206,6 +222,11 @@ function PaymentCalendar({
     () => buildCalendarWeeks(viewYear, viewMonth),
     [viewYear, viewMonth],
   )
+
+  // Tell the page which month is showing so it can fetch just that month's dots.
+  useEffect(() => {
+    if (onViewMonthChange) onViewMonthChange(viewYear, viewMonth)
+  }, [viewYear, viewMonth])
 
   function goToPrevMonth() {
     setViewMonth((month) => {
@@ -333,7 +354,17 @@ function PaymentCalendar({
 export default function PaymentsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
-  const [payments, setPayments] = useState([])
+  // One page (50) of payments at a time, read from the database.
+  const [rows, setRows] = useState([])
+  const [pageInfo, setPageInfo] = useState({ total: 0, minimum: 0 })
+  const [listLoading, setListLoading] = useState(true)
+  const [listError, setListError] = useState('')
+  const [monthKey, setMonthKey] = useState(() => currentManilaMonthKey())
+  const [pageState, setPageState] = useState({ key: '', page: 0 })
+  const [summary, setSummary] = useState(null)
+  const [reloadTick, setReloadTick] = useState(0)
+  const [activeDays, setActiveDays] = useState({})
+  const [openOfType, setOpenOfType] = useState(0)
   const [properties, setProperties] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
@@ -345,7 +376,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [receipt, setReceipt] = useState(null)
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
-  const [charges, setCharges] = useState([])
+  const [chargeRows, setChargeRows] = useState([])
+  const [chargeTotal, setChargeTotal] = useState(0)
+  const [chargesLoading, setChargesLoading] = useState(false)
   const [showCharges, setShowCharges] = useState(false)
   const [chargeSearch, setChargeSearch] = useState('')
   const [voidTarget, setVoidTarget] = useState(null)
@@ -422,11 +455,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [paymentResult, propertyResult, settingsResult, billedResult, chargesResult] = await Promise.all([
-      fetchAll(() => supabase
-        .from('payments')
-        .select('*')
-        .order('paid_at', { ascending: false })),
+    const [propertyResult, settingsResult, billedResult] = await Promise.all([
       fetchAll(() => supabase
         .from('properties')
         .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')
@@ -442,14 +471,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .select('id')
         .eq('billing_month', `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).slice(0, 7)}-01`)
         .limit(1),
-      fetchAll(() => supabase
-        .from('property_charges')
-        .select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at')
-        .is('voided_at', null)
-        .order('created_at', { ascending: false })),
     ])
-
-    if (!chargesResult.error) setCharges(chargesResult.data || [])
 
     if (!settingsResult.error && settingsResult.data) {
       setDuesSettings({
@@ -458,17 +480,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
       })
     }
 
-    if (paymentResult.error) {
-      setPageError(`Could not load payments: ${paymentResult.error.message}`)
-    } else {
-      setPayments(paymentResult.data || [])
-    }
-
     if (propertyResult.error) {
-      setPageError((current) => {
-        const message = `Could not load ledger homeowners: ${propertyResult.error.message}`
-        return current ? `${current} ${message}` : message
-      })
+      setPageError(`Could not load ledger homeowners: ${propertyResult.error.message}`)
     } else {
       setProperties(propertyResult.data || [])
     }
@@ -484,22 +497,51 @@ export default function PaymentsPage({ user: suppliedUser }) {
       : ''
   const isDuesPayment = !purposeType || purposeType === 'Association Dues'
 
-  const openOfType = useMemo(() => {
-    if (!form.propertyId || isDuesPayment) return 0
+  // How much of this homeowner's fee charge is still unpaid. Only this one
+  // homeowner's rows are read, and the formula matches the database trigger that
+  // makes the final decision: charged minus (balance_effect - effect_released).
+  useEffect(() => {
+    if (!form.propertyId || isDuesPayment) {
+      setOpenOfType(0)
+      return undefined
+    }
+
+    let cancelled = false
     const propertyId = Number(form.propertyId)
-    const charged = charges
-      .filter((charge) => Number(charge.property_id) === propertyId && charge.charge_type === purposeType)
-      .reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0)
-    const applied = payments
-      .filter(
-        (payment) =>
-          Number(payment.property_id) === propertyId &&
-          payment.charge_type === purposeType &&
-          payment.status !== 'Voided',
+
+    async function loadOpenAmount() {
+      const [chargeResult, paidResult] = await Promise.all([
+        fetchAll(() => supabase
+          .from('property_charges')
+          .select('amount')
+          .eq('property_id', propertyId)
+          .eq('charge_type', purposeType)
+          .is('voided_at', null)),
+        fetchAll(() => supabase
+          .from('payments')
+          .select('balance_effect, effect_released')
+          .eq('property_id', propertyId)
+          .eq('charge_type', purposeType)
+          .neq('status', 'Voided')),
+      ])
+
+      if (cancelled) return
+      if (chargeResult.error || paidResult.error) {
+        setOpenOfType(0)
+        return
+      }
+
+      const charged = (chargeResult.data || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
+      const applied = (paidResult.data || []).reduce(
+        (sum, row) => sum + (Number(row.balance_effect) || 0) - (Number(row.effect_released) || 0),
+        0,
       )
-      .reduce((sum, payment) => sum + (Number(payment.balance_effect) || 0), 0)
-    return Math.max(Math.round((charged - applied) * 100) / 100, 0)
-  }, [form.propertyId, isDuesPayment, purposeType, charges, payments])
+      setOpenOfType(Math.max(Math.round((charged - applied) * 100) / 100, 0))
+    }
+
+    loadOpenAmount()
+    return () => { cancelled = true }
+  }, [form.propertyId, isDuesPayment, purposeType, reloadTick])
 
   const remainingBalance = useMemo(() => {
     const previous = Number(form.previousBalance) || 0
@@ -508,67 +550,131 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return previous - effect
   }, [form.previousBalance, form.amountPaid, isDuesPayment, openOfType])
 
-  // Like Official Receipts, the payment history table stays empty
-  // until the user actively searches or picks a date — no default
-  // dump of every historical payment on page load.
-  const filtersActive = Boolean(searchTerm || selectedDateKey)
+  // ---- Paged payment history -------------------------------------------------
+  // The table shows one page (50 rows) at a time, read straight from the database.
+  //   * Default view: the selected month (this month when the page opens).
+  //   * Typing a search looks through ALL months.
+  //   * Picking a calendar date shows that one day.
+  const debouncedSearch = useDebouncedValue(searchTerm, 350)
+  const searching = searchTokens(debouncedSearch).length > 0
+  const scopeKind = selectedDateKey ? 'day' : searching ? 'search' : 'month'
+  const listRange = selectedDateKey
+    ? dayRange(selectedDateKey)
+    : searching
+      ? null
+      : monthRange(monthKey)
+  const scopeKey = `${scopeKind}|${monthKey}|${selectedDateKey}|${debouncedSearch}`
 
-  const filteredPayments = useMemo(() => {
-    if (!filtersActive) return []
+  // The page number belongs to one scope; changing month/search/date starts at page 1.
+  const page = pageState.key === scopeKey ? pageState.page : 0
+  function goToPage(nextPage) {
+    setPageState({ key: scopeKey, page: Math.max(0, nextPage) })
+  }
 
-    const query = searchTerm.trim().toLowerCase()
+  useEffect(() => {
+    let cancelled = false
 
-    return payments.filter((payment) => {
-      const matchesSearch =
-        !query ||
-        [
-          payment.receipt_number,
-          payment.homeowner_name,
-          payment.block_name,
-          payment.lot_number,
-          payment.coverage_period,
-          payment.payment_method,
-          payment.status,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-          .includes(query)
+    async function loadRows() {
+      setListLoading(true)
+      const { from, to } = pageWindow(page)
 
-      const matchesDate =
-        !selectedDateKey ||
-        toManilaDateKey(payment.paid_at) === selectedDateKey
+      // Browsing a month or a day gets an exact total (cheap: it uses the date index).
+      // An open-ended search skips the exact count - counting every match in a big
+      // table is slow and unnecessary - and asks for one extra row to learn whether
+      // a next page exists.
+      const exact = scopeKind !== 'search'
+      let query = supabase.from('payments').select('*', exact ? { count: 'exact' } : undefined)
+      query = applyTimeRange(query, 'paid_at', listRange)
+      query = applySearch(query, PAYMENT_SEARCH_COLUMNS, debouncedSearch)
 
-      return matchesSearch && matchesDate
+      // id as a tiebreaker keeps pages stable (matches the paid_at, id index).
+      const { data, error, count } = await query
+        .order('paid_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, exact ? to : to + 1)
+
+      if (cancelled) return
+
+      if (error) {
+        setListError(`Could not load payments: ${error.message}`)
+        setRows([])
+        setPageInfo({ total: 0, minimum: 0 })
+      } else if ((data || []).length === 0 && page > 0 && (!exact || (count || 0) > 0)) {
+        // The page emptied (e.g. after a void): step back to the last page that has rows.
+        goToPage(exact ? pageCount(count) - 1 : page - 1)
+        return
+      } else {
+        const result = interpretPage(data, count, page, exact)
+        setListError('')
+        setRows(result.rows)
+        setPageInfo({ total: result.total, minimum: result.minimum })
+      }
+      setListLoading(false)
+    }
+
+    loadRows()
+    return () => { cancelled = true }
+  }, [scopeKey, page, reloadTick])
+
+  // Totals for the month (or the single day) being viewed - computed by the database.
+  const summaryRange = selectedDateKey ? dayRange(selectedDateKey) : monthRange(monthKey)
+  const summaryLabel = selectedDateKey
+    ? organization.formatDate(`${selectedDateKey}T12:00:00`)
+    : monthLabel(monthKey)
+
+  useEffect(() => {
+    let cancelled = false
+    setSummary(null)
+
+    supabase
+      .rpc('receipts_period_summary', { p_from: summaryRange.from, p_to: summaryRange.to })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.warn('Could not load payment totals:', error.message)
+          return
+        }
+        setSummary(Array.isArray(data) ? data[0] || null : data)
+      })
+
+    return () => { cancelled = true }
+  }, [summaryRange.from, summaryRange.to, reloadTick])
+
+  // Calendar dots: asked for one month at a time, only when the calendar shows it.
+  const loadedMonthsRef = useRef(new Set())
+
+  useEffect(() => {
+    // A payment was added or voided: forget cached dots so they are fetched fresh.
+    loadedMonthsRef.current = new Set()
+    setActiveDays({})
+  }, [reloadTick])
+
+  async function loadActiveDays(year, month) {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}` // month is 0-based
+    if (loadedMonthsRef.current.has(key)) return
+    loadedMonthsRef.current.add(key)
+
+    const { data, error } = await supabase.rpc('receipt_active_days', {
+      p_month: `${key}-01`,
+      p_include_services: false,
     })
-  }, [filtersActive, payments, searchTerm, selectedDateKey])
+
+    if (error) {
+      loadedMonthsRef.current.delete(key)
+      return
+    }
+    setActiveDays((current) => ({ ...current, [key]: new Set(data || []) }))
+  }
 
   const activeDateKeys = useMemo(() => {
     const keys = new Set()
-
-    payments.forEach((payment) => {
-      const key = toManilaDateKey(payment.paid_at)
-      if (key) keys.add(key)
-    })
-
+    Object.values(activeDays).forEach((days) => days.forEach((day) => keys.add(day)))
     return keys
-  }, [payments])
+  }, [activeDays])
 
-  const paymentSummary = useMemo(() => {
-    const completed = payments.filter((payment) => payment.status !== 'Voided')
-    const homeowners = new Set(
-      completed.map((payment) => payment.property_id || `${payment.block_name}-${payment.lot_number}`),
-    )
-
-    return {
-      collected: completed.reduce(
-        (total, payment) => total + (Number(payment.amount_paid ?? payment.amount) || 0),
-        0,
-      ),
-      completed: completed.length,
-      homeowners: homeowners.size,
-    }
-  }, [payments])
+  function handleMonthChange(nextMonthKey) {
+    setMonthKey(nextMonthKey)
+  }
 
   const matchingHomeowners = useMemo(() => {
     const search = form.homeownerName.trim().toLowerCase()
@@ -690,7 +796,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setChargeSaving(true)
     setChargeError('')
 
-    const { data: newCharge, error } = await supabase.from('property_charges').insert({
+    const { error } = await supabase.from('property_charges').insert({
       property_id: property.id,
       charge_type: chargeForm.chargeType,
       description: chargeForm.description.trim() || null,
@@ -718,7 +824,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
           : item,
       ),
     )
-    if (newCharge) setCharges((current) => [newCharge, ...current])
+    setReloadTick((tick) => tick + 1)
     setShowCharge(false)
     setChargeSaving(false)
   }
@@ -730,18 +836,48 @@ export default function PaymentsPage({ user: suppliedUser }) {
     [properties],
   )
 
-  const visibleCharges = useMemo(() => {
-    const term = chargeSearch.trim().toLowerCase()
-    return charges
-      .filter((charge) => {
-        if (!term) return true
-        const owner = propertyById.get(Number(charge.property_id))
-        return `${owner?.homeowner_name || ''} ${charge.charge_type} ${charge.description || ''}`
-          .toLowerCase()
-          .includes(term)
+  // The charges panel reads from the database only while it is open: the 50 most
+  // recent open charges, or the 50 best matches for what was typed. Each typed word
+  // can match the homeowner's name, the charge type or the description.
+  const debouncedChargeSearch = useDebouncedValue(chargeSearch, 350)
+
+  useEffect(() => {
+    if (!showCharges) return undefined
+    let cancelled = false
+
+    async function loadCharges() {
+      setChargesLoading(true)
+
+      let query = supabase
+        .from('property_charges')
+        .select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at', { count: 'exact' })
+        .is('voided_at', null)
+
+      searchTokens(debouncedChargeSearch).forEach((token) => {
+        const lower = token.toLowerCase()
+        const ownerIds = properties
+          .filter((property) => (property.homeowner_name || '').toLowerCase().includes(lower))
+          .map((property) => Number(property.id))
+          .slice(0, 500)
+        const parts = [ilikeAny(['charge_type', 'description'], token)]
+        if (ownerIds.length > 0) parts.push(`property_id.in.(${ownerIds.join(',')})`)
+        query = query.or(parts.join(','))
       })
-      .slice(0, 50)
-  }, [charges, chargeSearch, propertyById])
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .limit(50)
+
+      if (cancelled) return
+      setChargeRows(error ? [] : data || [])
+      setChargeTotal(error ? 0 : count || 0)
+      setChargesLoading(false)
+    }
+
+    loadCharges()
+    return () => { cancelled = true }
+  }, [showCharges, debouncedChargeSearch, reloadTick])
 
   function openVoid(kind, item) {
     setVoidTarget({ kind, item })
@@ -777,11 +913,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       }
 
       const effect = Number(item.balance_effect ?? item.amount_paid ?? item.amount) || 0
-      setPayments((current) =>
-        current.map((payment) =>
-          payment.id === item.id ? { ...payment, status: 'Voided', void_reason: reason } : payment,
-        ),
-      )
+      setReloadTick((tick) => tick + 1)
       setProperties((current) =>
         current.map((property) =>
           Number(property.id) === Number(item.property_id)
@@ -809,7 +941,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       }
 
       const owner = propertyById.get(Number(item.property_id))
-      setCharges((current) => current.filter((charge) => charge.id !== item.id))
+      setReloadTick((tick) => tick + 1)
       setProperties((current) =>
         current.map((property) =>
           Number(property.id) === Number(item.property_id)
@@ -941,7 +1073,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
       )
     }
 
-    setPayments((current) => [data, ...current])
+    goToPage(0)
+    setReloadTick((tick) => tick + 1)
     setProperties((current) =>
       current.map((property) =>
         String(property.id) === String(data.property_id)
@@ -1011,6 +1144,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               selectedDateKey={selectedDateKey}
               activeDateKeys={activeDateKeys}
               onSelectDate={handleSelectCalendarDate}
+              onViewMonthChange={loadActiveDays}
               />
             </div>
           )}
@@ -1018,21 +1152,22 @@ export default function PaymentsPage({ user: suppliedUser }) {
       </header>
 
       {pageError && <p className="payments-error">{pageError}</p>}
+      {listError && <p className="payments-error">{listError}</p>}
 
       <section className="payments-summary" aria-label="Payment overview">
         <article className="payments-summary-card payments-summary-collected">
           <span className="payments-summary-label">Total collected</span>
-          <strong>{peso.format(paymentSummary.collected)}</strong>
-          <small>Excludes voided payments</small>
+          <strong>{summary ? peso.format(Number(summary.dues_collected) || 0) : '—'}</strong>
+          <small>Excludes voided payments · {summaryLabel}</small>
         </article>
         <article className="payments-summary-card payments-summary-records">
           <span className="payments-summary-label">Completed payments</span>
-          <strong>{paymentSummary.completed}</strong>
-          <small>{payments.length} total record{payments.length === 1 ? '' : 's'}</small>
+          <strong>{summary ? summary.completed_count : '—'}</strong>
+          <small>{summary ? summary.payment_count : 0} record{summary?.payment_count === 1 ? '' : 's'} · {summaryLabel}</small>
         </article>
         <article className="payments-summary-card payments-summary-homeowners">
           <span className="payments-summary-label">Homeowners served</span>
-          <strong>{paymentSummary.homeowners}</strong>
+          <strong>{summary ? summary.homeowners_served : '—'}</strong>
           <small>Unique properties collected</small>
         </article>
       </section>
@@ -1042,15 +1177,15 @@ export default function PaymentsPage({ user: suppliedUser }) {
           <div>
             <h2>Payment history</h2>
             <p>
-              {filtersActive
-                ? 'Search and review recorded transactions.'
-                : 'Search a name/receipt or pick a date to view transactions.'}
+              {scopeKind === 'search'
+                ? 'Search results across all months.'
+                : scopeKind === 'day'
+                  ? 'Payments recorded on the selected day.'
+                  : `Payments recorded in ${monthLabel(monthKey)}. Search to look through every month.`}
             </p>
           </div>
           <span className="payments-result-count">
-            {filtersActive
-              ? `${filteredPayments.length} ${filteredPayments.length === 1 ? 'record' : 'records'}`
-              : `${payments.length} on file`}
+            {listLoading ? '…' : countLabel(pageInfo)}
           </span>
         </div>
 
@@ -1075,6 +1210,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
             )}
           </div>
 
+          {!selectedDateKey && !searching && (
+            <MonthSwitcher monthKey={monthKey} onChange={handleMonthChange} disabled={listLoading} />
+          )}
+
+          {!selectedDateKey && searching && (
+            <span className="payments-date-chip">All months</span>
+          )}
+
           {selectedDateKey && (
             <span className="payments-date-chip">
               {organization.formatDate(`${selectedDateKey}T12:00:00`)}
@@ -1097,24 +1240,26 @@ export default function PaymentsPage({ user: suppliedUser }) {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {listLoading && rows.length === 0 ? (
               <tr><td colSpan="6" className="payments-empty">Loading payments...</td></tr>
-            ) : !filtersActive ? (
+            ) : rows.length === 0 ? (
               <tr>
                 <td colSpan="6" className="payments-empty">
-                  <strong>Pick a date or search to view payments</strong>
-                  <span>Use View by Date, or search by receipt, homeowner, or property above.</span>
-                </td>
-              </tr>
-            ) : filteredPayments.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="payments-empty">
-                  <strong>No matching payments</strong>
-                  <span>Try a different receipt, homeowner, payment detail, or date.</span>
+                  {scopeKind === 'month' ? (
+                    <>
+                      <strong>No payments recorded in {monthLabel(monthKey)}</strong>
+                      <span>Use the arrows to view another month, or search to look through every month.</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong>No matching payments</strong>
+                      <span>Try a different receipt, homeowner, payment detail, or date.</span>
+                    </>
+                  )}
                 </td>
               </tr>
             ) : (
-              filteredPayments.map((payment) => (
+              rows.map((payment) => (
                 <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
                   <td data-label="Receipt / Date">
                     <strong className="payments-receipt-number">{payment.receipt_number}</strong>
@@ -1157,6 +1302,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
             )}
           </tbody>
         </table>
+
+        <Pager page={page} total={pageInfo.total} onPageChange={goToPage} disabled={listLoading} />
       </section>
 
       {showForm && canManagePayments && (
@@ -1423,10 +1570,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
             />
 
             <div className="charge-list">
-              {visibleCharges.length === 0 ? (
+              {chargesLoading && chargeRows.length === 0 ? (
+                <p className="charge-list-empty">Loading charges...</p>
+              ) : chargeRows.length === 0 ? (
                 <p className="charge-list-empty">No charges found.</p>
               ) : (
-                visibleCharges.map((charge) => {
+                chargeRows.map((charge) => {
                   const owner = propertyById.get(Number(charge.property_id))
                   return (
                     <div className="charge-list-row" key={charge.id}>
@@ -1444,6 +1593,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
                     </div>
                   )
                 })
+              )}
+              {!chargesLoading && chargeTotal > chargeRows.length && (
+                <p className="charge-list-empty">
+                  Showing the {chargeRows.length} most recent of {chargeTotal.toLocaleString('en-PH')} open charges. Search to narrow the list.
+                </p>
               )}
             </div>
           </section>

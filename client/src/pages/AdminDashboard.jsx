@@ -210,12 +210,9 @@ export default function AdminDashboard() {
     monthlyRows.forEach((row) => {
       const key = String(row.month_start).slice(0, 7)
       if (totals.has(key)) {
-        totals.set(
-          key,
-          totals.get(key) +
-            (Number(row.dues_collected) || 0) +
-            (Number(row.service_collected) || 0),
-        )
+        // Dues only: the monthly target is a dues target, and Payments, Secretary and
+        // Treasurer all count dues only. Amenity/service income is shown separately.
+        totals.set(key, totals.get(key) + (Number(row.dues_collected) || 0))
       }
     })
 
@@ -223,6 +220,12 @@ export default function AdminDashboard() {
       labels: sixMonths.map((month) => month.label),
       values: sixMonths.map((month) => totals.get(month.key) || 0),
     }
+  }, [sixMonths, monthlyRows])
+
+  const servicesThisMonth = useMemo(() => {
+    const currentKey = sixMonths[sixMonths.length - 1]?.key
+    const row = monthlyRows.find((item) => String(item.month_start).slice(0, 7) === currentKey)
+    return Number(row?.service_collected) || 0
   }, [sixMonths, monthlyRows])
 
   const currentMonthLabel = sixMonths[sixMonths.length - 1]?.label || ''
@@ -474,8 +477,10 @@ export default function AdminDashboard() {
       label: `COLLECTED ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
       value: loading ? '—' : peso.format(collectedThisMonth),
       footer: monthlyDuesTarget > 0
-        ? `vs ${peso.format(monthlyDuesTarget)} target`
-        : 'Dues and amenity revenue',
+        ? `vs ${peso.format(monthlyDuesTarget)} target${servicesThisMonth > 0 ? ` · +${peso.format(servicesThisMonth)} services` : ''}`
+        : servicesThisMonth > 0
+          ? `Dues only · +${peso.format(servicesThisMonth)} services`
+          : 'Dues collected',
       trend: collectedTrendPercent === null
         ? null
         : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs last month`,
