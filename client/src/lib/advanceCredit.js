@@ -5,7 +5,6 @@ const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP'
 // dues are billed (1st of the month).
 export function advanceCreditDetails(rawCredit, settings) {
   // Round to whole centavos first: JavaScript decimals like 4999.98 - 3499.98
-  // come out as 1499.9999999999995, which would undercount whole months.
   const credit = Math.round((Number(rawCredit) || 0) * 100) / 100
   if (!settings) return { credit, hasSettings: false }
 

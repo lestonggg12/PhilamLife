@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { advanceCreditDetails, advanceCreditNote } from '../lib/Advancecredit'
+import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import './PaymentsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'

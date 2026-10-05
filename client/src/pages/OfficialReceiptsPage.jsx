@@ -990,11 +990,13 @@ export default function OfficialReceiptsPage() {
     return () => { cancelled = true }
   }, [summaryRange.from, summaryRange.to, reloadTick])
 
+    // Voided receipts are not counted: the cards show active receipts only.
   const summaryTotals = summary
     ? {
-        total: (Number(summary.payment_count) || 0) + (Number(summary.service_count) || 0),
-        paymentCount: Number(summary.payment_count) || 0,
+        total: (Number(summary.completed_count) || 0) + (Number(summary.service_count) || 0),
+        paymentCount: Number(summary.completed_count) || 0,
         serviceCount: Number(summary.service_count) || 0,
+        voidedCount: Number(summary.voided_count) || 0,
         collected: (Number(summary.dues_collected) || 0) + (Number(summary.service_collected) || 0),
       }
     : null
@@ -1170,7 +1172,10 @@ export default function OfficialReceiptsPage() {
                 : '—'}
             </strong>
 
-            <p>{summaryLabel}</p>
+            <p>
+              {summaryLabel}
+              {summaryTotals?.voidedCount > 0 && ` · ${summaryTotals.voidedCount} voided not counted`}
+            </p>
           </div>
         </article>
 
