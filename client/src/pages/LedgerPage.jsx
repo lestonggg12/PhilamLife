@@ -206,7 +206,15 @@ export default function LedgerPage({ user: suppliedUser }) {
       .from('property_payment_allocations')
       .select('payment_id, property_charge_id, allocated_amount')
       .in('payment_id', (paymentResult.data || []).map((payment) => payment.id))
-    const error = paymentResult.error || chargeResult.error || allocationResult.error
+    const adjustmentResult = await supabase
+      .from('moved_account_reconciliations')
+      .select('adjustment_amount, reason')
+      .eq('property_id', entry.id)
+      .maybeSingle()
+    const error = paymentResult.error
+      || chargeResult.error
+      || allocationResult.error
+      || adjustmentResult.error
 
     if (error) {
       setStatementError(`Could not load history: ${error.message}`)
@@ -240,6 +248,8 @@ export default function LedgerPage({ user: suppliedUser }) {
           ...current,
           statementTotals: statement.totals,
           latestStatementPayment: Number(latestPayment?.amount_paid ?? latestPayment?.amount) || 0,
+          closingAdjustment: Number(adjustmentResult.data?.adjustment_amount) || 0,
+          closingAdjustmentReason: adjustmentResult.data?.reason || '',
         }
       : current))
     setStatementLines(statement.lines)
@@ -278,6 +288,9 @@ export default function LedgerPage({ user: suppliedUser }) {
             : '',
           statementAccount.statementTotals?.inferredAllocated
             ? `${peso.format(statementAccount.statementTotals.inferredAllocated)} of applied payments rely on historical balance effects rather than explicit charge allocation records.`
+            : '',
+          statementAccount.closingAdjustment
+            ? `This moved account includes a documented closing adjustment of ${peso.format(statementAccount.closingAdjustment)}. It is reconciliation metadata, not a charge or payment.${statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}`
             : '',
         ].filter(Boolean).join(' '),
         statementLines: rows,
@@ -916,6 +929,12 @@ export default function LedgerPage({ user: suppliedUser }) {
             {(statementAccount.statementTotals?.inferredAllocated || 0) > 0 && (
               <p className="ledger-form-note">
                 {peso.format(statementAccount.statementTotals.inferredAllocated)} of applied payments rely on historical balance effects rather than explicit charge allocation records.
+              </p>
+            )}
+            {statementAccount.closingAdjustment !== 0 && (
+              <p className="ledger-form-note">
+                This moved account includes a documented closing adjustment of {peso.format(statementAccount.closingAdjustment)}. It is reconciliation metadata, not a charge or payment.
+                {statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}
               </p>
             )}
             {statementError && <p className="ledger-form-error">{statementError}</p>}
