@@ -9,7 +9,7 @@ with active as (
 latest as (
   select distinct on (property_id)
          property_id, paid_at, previous_balance,
-         coalesce(amount_paid, amount) as amount_paid,
+         coalesce(amount_paid, amount)::numeric(12,2) as amount_paid,
          remaining_balance
   from active
   order by property_id, paid_at desc, id asc
