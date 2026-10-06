@@ -17,14 +17,8 @@ select
   p.property_id,
   p.paid_at,
   p.charge_type,
-  p.coverage_period,
   p.amount_paid,
   coalesce(p.balance_effect, 0) - coalesce(p.effect_released, 0) as payment_balance_effect,
-  greatest(
-    coalesce(p.amount_paid, p.amount)
-      - greatest(coalesce(p.balance_effect, 0) - coalesce(p.effect_released, 0), 0),
-    0
-  ) as unallocated_amount,
   case
     when lower(coalesce(p.coverage_period, '')) like '%advance%'
       or lower(coalesce(p.coverage_period, '')) like '%adv%'
@@ -55,7 +49,13 @@ select
       greatest(coalesce(p.balance_effect, 0) - coalesce(p.effect_released, 0), 0) + 0.005
       then 'cash_not_fully_applied'
     else null
-  end as issue_type
+  end as issue_type,
+  p.coverage_period,
+  greatest(
+    coalesce(p.amount_paid, p.amount)
+      - greatest(coalesce(p.balance_effect, 0) - coalesce(p.effect_released, 0), 0),
+    0
+  ) as unallocated_amount
 from public.payments p
 left join active_charges ac
   on ac.property_id = p.property_id
