@@ -84,7 +84,7 @@ export default function TreasurerDashboard() {
       supabase.from('payments').select('*').neq('status', 'Voided').order('paid_at', { ascending: false }).limit(8)
         .then(({ data, error }) => ({ table: 'payments', data: data || [], error })),
       optionalRows('expenses', 'expense_date'),
-      supabase.from('service_transactions').select('*').order('paid_at', { ascending: false }).limit(8)
+      supabase.from('service_transactions').select('*').neq('payment_status', 'voided').order('paid_at', { ascending: false }).limit(8)
         .then(({ data, error }) => ({ table: 'service_transactions', data: data || [], error })),
       supabase.from('monthly_collections').select('month_start, dues_collected, service_collected')
         .eq('month_start', `${manilaMonthKey()}-01`).maybeSingle()
