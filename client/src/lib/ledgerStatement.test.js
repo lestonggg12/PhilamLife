@@ -23,6 +23,7 @@ describe('buildLedgerStatement', () => {
     expect(result.lines.at(-1).running_balance).toBe(500)
     expect(result.totals.charges).toBe(1500)
     expect(result.totals.payments).toBe(500)
+    expect(result.totals.unallocated).toBe(0)
   })
 
   it('keeps received payment totals separate from allocated balance effects', () => {
@@ -35,7 +36,20 @@ describe('buildLedgerStatement', () => {
 
     expect(result.totals.payments).toBe(500)
     expect(result.totals.allocated).toBe(0)
+    expect(result.totals.unallocated).toBe(500)
     expect(result.lines.at(-1).running_balance).toBe(1000)
+  })
+
+  it('reports an inferred opening balance instead of hiding incomplete history', () => {
+    const result = buildLedgerStatement({
+      storedBalance: 1000,
+      charges: [{ id: 'charge-1', created_at: '2026-01-01', amount: 1000, charge_type: 'Association Dues' }],
+    })
+
+    expect(result.totals.inferredOpeningBalance).toBe(0)
+
+    const incomplete = buildLedgerStatement({ storedBalance: 1500, charges: [] })
+    expect(incomplete.totals.inferredOpeningBalance).toBe(1500)
   })
 
   it('uses amount when amount_paid is absent', () => {

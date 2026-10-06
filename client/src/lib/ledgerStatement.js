@@ -46,6 +46,12 @@ export function buildLedgerStatement({ payments = [], charges = [], storedBalanc
   const historyDelta = entries.reduce((sum, entry) => sum + entry.delta, 0)
   const opening = cents(storedBalance) - historyDelta
   let running = opening
+  const paymentTotals = entries
+    .filter((entry) => entry.paymentAmount > 0)
+    .reduce((totals, entry) => ({
+      received: totals.received + entry.paymentAmount,
+      allocated: totals.allocated + Math.max(-entry.delta, 0),
+    }), { received: 0, allocated: 0 })
 
   const lines = entries.map((entry) => {
     running += entry.delta
@@ -76,10 +82,10 @@ export function buildLedgerStatement({ payments = [], charges = [], storedBalanc
     lines,
     totals: {
       charges: (Math.max(opening, 0) + entries.reduce((sum, entry) => sum + entry.debit, 0)) / 100,
-      payments: entries.reduce((sum, entry) => sum + entry.paymentAmount, 0) / 100,
-      allocated: entries
-        .filter((entry) => entry.paymentAmount > 0)
-        .reduce((sum, entry) => sum + Math.max(-entry.delta, 0), 0) / 100,
+      payments: paymentTotals.received / 100,
+      allocated: paymentTotals.allocated / 100,
+      unallocated: Math.max(paymentTotals.received - paymentTotals.allocated, 0) / 100,
+      inferredOpeningBalance: opening / 100,
     },
   }
 }

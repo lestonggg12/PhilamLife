@@ -872,6 +872,16 @@ export default function LedgerPage({ user: suppliedUser }) {
               <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
               <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
             </div>
+            {statementAccount.statementTotals?.inferredOpeningBalance !== 0 && (
+              <p className="ledger-form-note">
+                This statement includes a balance brought forward because the available transaction history does not fully explain the stored balance.
+              </p>
+            )}
+            {(statementAccount.statementTotals?.unallocated || 0) > 0 && (
+              <p className="ledger-form-note">
+                {peso.format(statementAccount.statementTotals.unallocated)} of recorded payments did not reduce the property balance and may require reconciliation.
+              </p>
+            )}
             {statementError && <p className="ledger-form-error">{statementError}</p>}
             <div className="ledger-statement-lines">
               <table>
