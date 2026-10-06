@@ -11,7 +11,7 @@ with active_charges as (
   from public.property_charges
   where voided_at is null
   group by property_id, charge_type
-),
+)
 select
   p.id as payment_id,
   p.property_id,
