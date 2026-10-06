@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
 import './TreasurerServiceRevenue.css'
@@ -15,16 +14,6 @@ function statusLabel(status) {
   if (status === 'paid') return 'Paid'
   if (status === 'partial') return 'Partial'
   return status || '—'
-}
-
-function manilaMonthKey(value = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-  }).formatToParts(new Date(value))
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${values.year}-${values.month}`
 }
 
 function manilaDateKey(value) {
@@ -52,7 +41,7 @@ function transactionPaymentStatus(transaction) {
 export default function TreasurerServiceRevenuePage() {
   const { organization } = useOrganization()
   const [transactions, setTransactions] = useState([])
-  const [owedTotal, setOwedTotal] = useState(0)
+  const [totals, setTotals] = useState({ total: 0, month: 0, owed: 0, byService: [] })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -70,7 +59,7 @@ export default function TreasurerServiceRevenuePage() {
 
   useEffect(() => {
     loadTransactions()
-  }, [])
+  }, [fromDate, toDate])
 
   useEffect(() => {
     try {
@@ -84,15 +73,22 @@ export default function TreasurerServiceRevenuePage() {
     setLoading(true)
     setPageError('')
 
-    const { data, error } = await fetchAll(() => supabase
-      .from('service_transactions')
-      .select('*')
-      .order('paid_at', { ascending: false }))
-
-    const balanceResult = await supabase.from('service_balances').select('balance_due')
-    setOwedTotal(
-      (balanceResult.data || []).reduce((sum, row) => sum + (Number(row.balance_due) || 0), 0),
-    )
+    let query = supabase.from('service_transactions').select('*')
+      .order('paid_at', { ascending: false }).limit(500)
+    if (fromDate) query = query.gte('paid_at', `${fromDate}T00:00:00+08:00`)
+    if (toDate) query = query.lte('paid_at', `${toDate}T23:59:59.999+08:00`)
+    const [{ data, error }, summaryResult, balanceResult] = await Promise.all([
+      query,
+      supabase.rpc('service_revenue_summary'),
+      supabase.from('service_balances').select('balance_due'),
+    ])
+    const s = summaryResult.data || {}
+    setTotals({
+      total: Number(s.total_collected) || 0,
+      month: Number(s.collected_this_month) || 0,
+      owed: (balanceResult.data || []).reduce((sum, r) => sum + (Number(r.balance_due) || 0), 0),
+      byService: (s.by_service || []).map((r) => [r.name, Number(r.amount) || 0]),
+    })
 
     if (error) {
       setPageError(`Service revenue could not be loaded: ${error.message}`)
@@ -103,9 +99,8 @@ export default function TreasurerServiceRevenuePage() {
   }
 
   const serviceNames = useMemo(() => {
-    const names = new Set(transactions.map((t) => t.service_name).filter(Boolean))
-    return [...names].sort()
-  }, [transactions])
+    return totals.byService.map(([name]) => name).sort()
+  }, [totals])
 
   const filteredTransactions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -148,33 +143,15 @@ export default function TreasurerServiceRevenuePage() {
     toDate,
   ])
 
-  const summary = useMemo(() => {
-    const currentMonthKey = manilaMonthKey()
-
-    const totalCollected = transactions.reduce(
-      (sum, t) => sum + (Number(t.amount_paid) || 0),
-      0,
-    )
-    const collectedThisMonth = transactions
-      .filter((t) => t.paid_at && manilaMonthKey(t.paid_at) === currentMonthKey)
-      .reduce((sum, t) => sum + (Number(t.amount_paid) || 0), 0)
-
-    const byService = new Map()
-    transactions.forEach((t) => {
-      const key = t.service_name || 'Uncategorized'
-      byService.set(key, (byService.get(key) || 0) + (Number(t.amount_paid) || 0))
-    })
-
-    const topService = [...byService.entries()].sort((a, b) => b[1] - a[1])[0]
-
-    return {
-      totalCollected,
-      collectedThisMonth,
-      outstanding: owedTotal,
-      byService: [...byService.entries()].sort((a, b) => b[1] - a[1]),
-      topService: topService ? { name: topService[0], amount: topService[1] } : null,
-    }
-  }, [transactions, owedTotal])
+  const summary = useMemo(() => ({
+    totalCollected: totals.total,
+    collectedThisMonth: totals.month,
+    outstanding: totals.owed,
+    byService: totals.byService,
+    topService: totals.byService[0]
+      ? { name: totals.byService[0][0], amount: totals.byService[0][1] }
+      : null,
+  }), [totals])
 
   function clearFilters() {
     setSearchTerm('')
@@ -428,7 +405,8 @@ export default function TreasurerServiceRevenuePage() {
           </div>
 
           <p className="tsr-result-count">
-            Showing {filteredTransactions.length} of {transactions.length} transactions
+            Showing {filteredTransactions.length} of {transactions.length}
+            {transactions.length >= 500 ? '+ (latest 500; narrow the dates for older)' : ''} transactions
           </p>
 
           {loading ? (
