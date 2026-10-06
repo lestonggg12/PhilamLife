@@ -34,6 +34,7 @@ export function buildHomeownerStatementPdf({
   blockLotLabel,
   totalCharges,
   paymentsAllocated,
+  paymentsLabel = 'Last payment',
   outstandingBalance,
   availableCredit,
   statementLines = [],
@@ -80,7 +81,7 @@ export function buildHomeownerStatementPdf({
   // ---------- Summary cards ----------
   const cards = [
     { label: 'Previous balance', value: money(totalCharges), tone: NAVY },
-    { label: 'Last payment', value: money(paymentsAllocated), tone: GREEN },
+    { label: paymentsLabel, value: money(paymentsAllocated), tone: GREEN },
     { label: 'Outstanding balance', value: money(outstandingBalance), tone: Number(outstandingBalance) > 0 ? RED : GREEN },
     { label: 'Available credit', value: money(availableCredit), tone: GREEN },
   ]

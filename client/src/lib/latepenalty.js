@@ -33,20 +33,21 @@ function manilaToday() {
  */
 function currentDeadline(dueDay, gracePeriodDays) {
   const { year, month, day } = manilaToday()
-  const safeDueDay = Math.min(Math.max(Number(dueDay) || 1, 1), 28)
+  const safeDueDay = Math.min(Math.max(Number(dueDay) || 1, 1), 31)
+  const grace = Number(gracePeriodDays) || 0
+  const dueOn = (y, m0) => {
+    const lastDay = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate()
+    const date = new Date(Date.UTC(y, m0, Math.min(safeDueDay, lastDay)))
+    date.setUTCDate(date.getUTCDate() + grace)
+    return date
+  }
 
-  // This month's due date, then push it out by the grace period.
-  let deadline = new Date(Date.UTC(year, month - 1, safeDueDay))
-  deadline.setUTCDate(deadline.getUTCDate() + (Number(gracePeriodDays) || 0))
-
+  let deadline = dueOn(year, month - 1)
   const today = new Date(Date.UTC(year, month - 1, day))
 
   // If this month's deadline hasn't arrived yet, the relevant deadline
   // the homeowner could still be behind on is last month's cycle.
-  if (deadline > today) {
-    deadline = new Date(Date.UTC(year, month - 2, safeDueDay))
-    deadline.setUTCDate(deadline.getUTCDate() + (Number(gracePeriodDays) || 0))
-  }
+  if (deadline > today) deadline = dueOn(year, month - 2)
 
   return { deadline, today }
 }

@@ -147,19 +147,21 @@ export default function TreasurerDashboard() {
     const accountRows = finance.properties
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
-      const { balance, isOverdue, daysOverdue } = accountStatus(property, chargesByProperty, finance.settings)
-      return { balance, isOverdue, daysOverdue }
+      const { balance, isOverdue, daysOverdue, overdueAmount } = accountStatus(property, chargesByProperty, finance.settings)
+      return { balance, isOverdue, daysOverdue, overdueAmount }
     })
 
     const outstanding = accountRows.reduce((sum, row) => sum + row.balance, 0)
     const aging = accountRows.reduce(
       (result, row) => {
         if (row.balance <= 0) return result
-        if (!row.isOverdue) return { ...result, current: result.current + row.balance }
-        if (row.daysOverdue <= 30) return { ...result, days1To30: result.days1To30 + row.balance }
-        if (row.daysOverdue <= 60) return { ...result, days31To60: result.days31To60 + row.balance }
-        if (row.daysOverdue <= 90) return { ...result, days61To90: result.days61To90 + row.balance }
-        return { ...result, days90Plus: result.days90Plus + row.balance }
+        const late = row.isOverdue ? Math.min(row.overdueAmount, row.balance) : 0
+        const next = { ...result, current: result.current + (row.balance - late) }
+        if (late <= 0) return next
+        if (row.daysOverdue <= 30) return { ...next, days1To30: next.days1To30 + late }
+        if (row.daysOverdue <= 60) return { ...next, days31To60: next.days31To60 + late }
+        if (row.daysOverdue <= 90) return { ...next, days61To90: next.days61To90 + late }
+        return { ...next, days90Plus: next.days90Plus + late }
       },
       { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
     )

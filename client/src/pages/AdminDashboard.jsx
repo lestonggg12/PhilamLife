@@ -253,7 +253,7 @@ export default function AdminDashboard() {
 
       if (status.isOverdue && status.balance > 0) {
         count += 1
-        outstanding += status.balance
+        outstanding += Math.min(status.overdueAmount, status.balance)
       }
     })
 

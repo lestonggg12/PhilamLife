@@ -60,6 +60,14 @@ describe('overdue rule', () => {
     vi.setSystemTime(new Date('2026-12-01T09:00:00+08:00'))
     expect(computeOverdueFromCharges(args).isOverdue).toBe(true)
   })
+
+  it('uses the month end for legacy balances with a due day of 31', () => {
+    vi.setSystemTime(new Date('2026-11-30T09:00:00+08:00'))
+    const args = { balance: 1000, charges: [], dueDay: 31, gracePeriodDays: 0, latePenalty: 0 }
+    expect(computeOverdueFromCharges(args).isOverdue).toBe(false)
+    vi.setSystemTime(new Date('2026-12-01T09:00:00+08:00'))
+    expect(computeOverdueFromCharges(args).isOverdue).toBe(true)
+  })
 })
 
 describe('accountStatus', () => {
