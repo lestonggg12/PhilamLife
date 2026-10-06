@@ -21,6 +21,9 @@ function paymentEntry(payment) {
   const amountPaid = cents(payment.amount_paid ?? payment.amount)
   const effect = cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount)
   const allocated = voided ? 0 : effect
+  const explicitAllocated = voided
+    ? 0
+    : (payment.allocations || []).reduce((sum, allocation) => sum + cents(allocation.allocated_amount), 0)
 
   return {
     id: `payment-${payment.id}`,
@@ -31,6 +34,7 @@ function paymentEntry(payment) {
     credit: voided ? 0 : amountPaid,
     delta: voided ? allocated : -allocated,
     paymentAmount: voided ? 0 : amountPaid,
+    explicitAllocated,
   }
 }
 
@@ -58,7 +62,8 @@ export function buildLedgerStatement({
     .reduce((totals, entry) => ({
       received: totals.received + entry.paymentAmount,
       allocated: totals.allocated + Math.max(-entry.delta, 0),
-    }), { received: 0, allocated: 0 })
+      explicitlyAllocated: totals.explicitlyAllocated + entry.explicitAllocated,
+    }), { received: 0, allocated: 0, explicitlyAllocated: 0 })
 
   const lines = entries.map((entry) => {
     running += entry.delta
@@ -93,6 +98,7 @@ export function buildLedgerStatement({
       charges: (Math.max(opening, 0) + entries.reduce((sum, entry) => sum + entry.debit, 0)) / 100,
       payments: paymentTotals.received / 100,
       allocated: paymentTotals.allocated / 100,
+      explicitlyAllocated: paymentTotals.explicitlyAllocated / 100,
       unallocated: Math.max(paymentTotals.received - paymentTotals.allocated, 0) / 100,
       inferredOpeningBalance: inferredOpening / 100,
       openingBalance: opening / 100,

@@ -202,7 +202,11 @@ export default function LedgerPage({ user: suppliedUser }) {
         .eq('property_id', entry.id)
         .order('created_at', { ascending: true })),
     ])
-    const error = paymentResult.error || chargeResult.error
+    const allocationResult = await supabase
+      .from('property_payment_allocations')
+      .select('payment_id, property_charge_id, allocated_amount')
+      .in('payment_id', (paymentResult.data || []).map((payment) => payment.id))
+    const error = paymentResult.error || chargeResult.error || allocationResult.error
 
     if (error) {
       setStatementError(`Could not load history: ${error.message}`)
@@ -210,14 +214,24 @@ export default function LedgerPage({ user: suppliedUser }) {
       return
     }
 
+    const allocationsByPayment = new Map()
+    for (const allocation of allocationResult.data || []) {
+      const list = allocationsByPayment.get(allocation.payment_id) || []
+      list.push(allocation)
+      allocationsByPayment.set(allocation.payment_id, list)
+    }
+    const payments = (paymentResult.data || []).map((payment) => ({
+      ...payment,
+      allocations: allocationsByPayment.get(payment.id) || [],
+    }))
     const statement = buildLedgerStatement({
-      payments: paymentResult.data || [],
+      payments,
       charges: chargeResult.data || [],
       storedBalance: entry.stored,
       openingBalance: entry.opening_balance,
       openingBalanceNote: entry.opening_balance_note,
     })
-    const latestPayment = (paymentResult.data || [])
+    const latestPayment = payments
       .filter((payment) => payment.status !== 'Voided')
       .sort((a, b) => new Date(b.paid_at || b.created_at || 0) - new Date(a.paid_at || a.created_at || 0))[0]
 
