@@ -416,18 +416,18 @@ export default function HomeownersPage() {
 
   const duesPayments = useMemo(
     () =>
-      selectedPayments.filter(
+      activePayments.filter(
         (payment) => regularPaymentCategory(payment) === 'dues',
       ),
-    [selectedPayments],
+    [activePayments],
   )
 
   const otherPayments = useMemo(
     () =>
-      selectedPayments.filter(
+      activePayments.filter(
         (payment) => regularPaymentCategory(payment) === 'other',
       ),
-    [selectedPayments],
+    [activePayments],
   )
 
   const history = useMemo(() => {
@@ -485,10 +485,12 @@ export default function HomeownersPage() {
         sum + (Number(payment.amount_paid ?? payment.amount) || 0),
       0,
     )
-    const serviceTotal = selectedServices.reduce(
+    const serviceTotal = selectedServices
+      .filter((transaction) => normalize(transaction.payment_status) !== 'voided')
+      .reduce(
       (sum, transaction) => sum + (Number(transaction.amount_paid) || 0),
       0,
-    )
+      )
     const latestRegularPayment = activePayments[0]
     // Stored balance: positive = owed, negative = advance credit.
     const storedBalance = selectedProperty && selectedProperty.current_balance != null

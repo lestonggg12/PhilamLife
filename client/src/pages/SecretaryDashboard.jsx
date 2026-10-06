@@ -68,6 +68,7 @@ export default function SecretaryDashboard() {
         supabase
           .from('payments')
           .select('*')
+          .neq('status', 'Voided')
           .order('paid_at', { ascending: false })
           .limit(5),
         supabase
