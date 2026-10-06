@@ -600,7 +600,7 @@ export default function LedgerPage({ user: suppliedUser }) {
       const totalPaid = summary ? Number(summary.total_paid) || 0 : 0
       const lastPaidAt = summary?.latest_paid_at || null
       const lateFee = computeOverdueFromCharges({
-        balance: stored,
+        balance,
         charges: chargesByProperty.get(Number(property.id)) || [],
         dueDay: penaltySettings.dueDay,
         gracePeriodDays: penaltySettings.gracePeriodDays,
@@ -664,12 +664,13 @@ export default function LedgerPage({ user: suppliedUser }) {
   const totals = useMemo(() => {
     return ledgerEntries.reduce(
       (result, entry) => ({
-        // billed to date = everything paid + whatever is still owed (minus any credit)
-        totalDue: result.totalDue + entry.totalPaid + entry.stored,
+        // Billed to date excludes advance credit from the amount still owed.
+        totalDue: result.totalDue + entry.totalPaid + entry.balance,
         totalPaid: result.totalPaid + entry.totalPaid,
         totalBalance: result.totalBalance + entry.balance,
+        totalCredit: result.totalCredit + entry.unallocatedCredit,
       }),
-      { totalDue: 0, totalPaid: 0, totalBalance: 0 },
+      { totalDue: 0, totalPaid: 0, totalBalance: 0, totalCredit: 0 },
     )
   }, [ledgerEntries])
 
@@ -754,6 +755,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={20} /></div>
           <div><p className="ledger-summary-label">Outstanding Balance</p><p className="ledger-summary-value">{peso.format(totals.totalBalance)}</p></div>
+          <div><p className="ledger-summary-label">Available Credit</p><p className="ledger-summary-value">{peso.format(totals.totalCredit)}</p></div>
         </div>
       </div>
 

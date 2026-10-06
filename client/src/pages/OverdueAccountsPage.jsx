@@ -157,10 +157,13 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       .map((property) => {
       const latestPayment = summaryByProperty.get(Number(property.id))
       const paidAmount = latestPayment ? Number(latestPayment.latest_amount_paid) || 0 : 0
-      const balance = Number(property.current_balance) || 0
+      const storedBalance = Number(property.current_balance) || 0
+      const balance = Math.max(storedBalance, 0)
+      const credit = Math.max(-storedBalance, 0)
 
       const lateFee = computeOverdueFromCharges({
         balance,
+        credit,
         charges: chargesByProperty.get(Number(property.id)) || [],
         dueDay: penaltySettings.dueDay,
         gracePeriodDays: penaltySettings.gracePeriodDays,
