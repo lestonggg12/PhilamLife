@@ -8,6 +8,7 @@ declare
   payment_row public.payments%rowtype;
   charge_id uuid;
   applied numeric(12,2);
+  payment_previous_balance numeric(12,2);
   inserted_charge boolean;
   before_total numeric;
   after_total numeric;
@@ -48,7 +49,10 @@ begin
       and charge_type = rec.charge_type
       and description = rec.description
       and amount = rec.applied
-      and billing_month = date_trunc('month', payment_row.paid_at at time zone 'Asia/Manila')::date
+      and billing_month = date_trunc(
+  'month',
+  payment_row.paid_at at time zone 'Asia/Manila'
+)::date
       and voided_at is null
     limit 1;
 
@@ -82,15 +86,20 @@ begin
     end if;
 
     applied := rec.applied;
+    -- Charge insertion increases current_balance; this is the payment's
+    -- actual previous balance before its offsetting effect.
+    select current_balance into payment_previous_balance
+    from public.properties
+    where id = rec.property_id
+    for update;
+
     update public.payments
     set balance_effect = applied,
-        previous_balance = payment_row.previous_balance,
-        remaining_balance = payment_row.previous_balance - applied
+        previous_balance = payment_previous_balance,
+        remaining_balance = payment_previous_balance - applied
     where id = rec.payment_id;
 
     if inserted_charge then
-      -- Charge insertion increases the property balance; applying the
-      -- confirmed payment offsets exactly the same amount.
       update public.properties
       set current_balance = current_balance - applied
       where id = rec.property_id;
