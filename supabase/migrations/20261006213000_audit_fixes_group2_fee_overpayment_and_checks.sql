@@ -1,19 +1,6 @@
--- Audit fixes:
---   1. Reject new non-positive payment, charge, and service amounts.
---   2. Prevent a typed fee payment from exceeding the unpaid active charge.
--- Existing invalid rows are left untouched until the constraints are validated.
-
-alter table public.payments
-  add constraint payments_amount_paid_positive
-  check (amount_paid is not null and amount_paid > 0) not valid;
-
-alter table public.property_charges
-  add constraint property_charges_amount_positive
-  check (amount is not null and amount > 0) not valid;
-
-alter table public.service_transactions
-  add constraint service_transactions_amount_due_positive
-  check (amount_due is not null and amount_due > 0) not valid;
+-- Audit fix: prevent a typed fee payment from exceeding the unpaid active charge.
+-- Positive amount checks already exist on payments, property_charges, and
+-- service_transactions in the deployed database.
 
 create or replace function public.prepare_payment_record()
 returns trigger
@@ -100,8 +87,3 @@ begin
   return new;
 end;
 $$;
-
--- Validate only after the audit queries confirm there are no existing violations:
--- alter table public.payments validate constraint payments_amount_paid_positive;
--- alter table public.property_charges validate constraint property_charges_amount_positive;
--- alter table public.service_transactions validate constraint service_transactions_amount_due_positive;
