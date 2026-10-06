@@ -70,7 +70,7 @@ export function buildLedgerStatement({ payments = [], charges = [], storedBalanc
     lines.unshift({
       id: 'opening',
       transaction_date: entries[0]?.date || null,
-      description: 'Balance brought forward',
+      description: 'Opening balance brought forward (history incomplete)',
       reference_number: '',
       debit: opening > 0 ? opening / 100 : 0,
       credit: opening < 0 ? -opening / 100 : 0,

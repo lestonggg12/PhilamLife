@@ -15,7 +15,7 @@ describe('buildLedgerStatement', () => {
     })
 
     expect(result.lines.map((line) => line.description)).toEqual([
-      'Balance brought forward',
+      'Opening balance brought forward (history incomplete)',
       'Association Dues',
       'Payment',
       'Special Assessment (Voided)',

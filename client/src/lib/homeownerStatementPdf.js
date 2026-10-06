@@ -37,6 +37,7 @@ export function buildHomeownerStatementPdf({
   paymentsLabel = 'Last payment',
   outstandingBalance,
   availableCredit,
+  reconciliationNote = '',
   statementLines = [],
   preparedBy,
   datePrepared,
@@ -103,6 +104,19 @@ export function buildHomeownerStatementPdf({
     doc.text(card.value, x + 3.5, y + cardH - 5)
   })
   y += cardH + 10
+
+  if (reconciliationNote) {
+    doc.setFillColor(...GRAY_LIGHT)
+    doc.setDrawColor(...BORDER)
+    const noteLines = doc.splitTextToSize(reconciliationNote, PAGE_W - MARGIN * 2 - 8)
+    const noteH = Math.max(12, noteLines.length * 4 + 6)
+    doc.roundedRect(MARGIN, y, PAGE_W - MARGIN * 2, noteH, 2, 2, 'FD')
+    doc.setTextColor(...GRAY)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.text(noteLines, MARGIN + 4, y + 5)
+    y += noteH + 8
+  }
 
   // ---------- Statement lines table ----------
   const rows = statementLines.length

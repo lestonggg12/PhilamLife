@@ -255,6 +255,9 @@ export default function LedgerPage({ user: suppliedUser }) {
         paymentsLabel: 'Total payments',
         outstandingBalance: statementAccount.balance,
         availableCredit: statementAccount.unallocatedCredit || 0,
+        reconciliationNote: statementAccount.statementTotals?.inferredOpeningBalance
+          ? 'Opening balance is inferred from the stored balance and available transaction history. Older charges or payments may not be present in this statement.'
+          : '',
         statementLines: rows,
         preparedBy: actorName,
         datePrepared: organization.formatDate(now),
