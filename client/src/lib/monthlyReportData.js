@@ -69,7 +69,8 @@ export function computeMonthlyReportData(raw) {
   }
 
   const monthlyPayments = payments.filter((p) => inRange(p.paid_at))
-  const monthlyServices = serviceTransactions.filter((t) => inRange(t.paid_at))
+  const monthlyServices = serviceTransactions.filter((t) =>
+    inRange(t.paid_at) && String(t.payment_status || 'paid').toLowerCase() !== 'voided')
   const monthlyExpenses = expenses
     .filter((e) => inRange(`${e.expense_date}T12:00:00+08:00`))
     .sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date))

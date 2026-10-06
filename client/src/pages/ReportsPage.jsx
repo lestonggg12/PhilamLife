@@ -145,7 +145,8 @@ export default function ReportsPage({ user: suppliedUser }) {
         .order('paid_at', { ascending: false })),
       fetchAll(() => supabase
         .from('service_transactions')
-        .select('id, receipt_number, customer_name, block_name, lot_number, service_name, amount_paid, payment_method, paid_at')
+        .select('id, receipt_number, customer_name, block_name, lot_number, service_name, amount_paid, payment_method, paid_at, payment_status')
+        .neq('payment_status', 'voided')
         .gte('paid_at', range.start)
         .lt('paid_at', range.end)
         .order('paid_at', { ascending: false })),
