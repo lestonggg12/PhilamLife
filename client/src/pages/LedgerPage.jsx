@@ -271,10 +271,15 @@ export default function LedgerPage({ user: suppliedUser }) {
         paymentsLabel: 'Total payments',
         outstandingBalance: statementAccount.balance,
         availableCredit: statementAccount.unallocatedCredit || 0,
-        reconciliationNote: statementAccount.statementTotals?.openingBalanceNote
-          || (statementAccount.statementTotals?.inferredOpeningBalance
+        reconciliationNote: [
+          statementAccount.statementTotals?.openingBalanceNote,
+          statementAccount.statementTotals?.inferredOpeningBalance
             ? 'Opening balance is inferred from the stored balance and available transaction history. Older charges or payments may not be present in this statement.'
-            : ''),
+            : '',
+          statementAccount.statementTotals?.inferredAllocated
+            ? `${peso.format(statementAccount.statementTotals.inferredAllocated)} of applied payments rely on historical balance effects rather than explicit charge allocation records.`
+            : '',
+        ].filter(Boolean).join(' '),
         statementLines: rows,
         preparedBy: actorName,
         datePrepared: organization.formatDate(now),
@@ -906,6 +911,11 @@ export default function LedgerPage({ user: suppliedUser }) {
             {(statementAccount.statementTotals?.unallocated || 0) > 0 && (
               <p className="ledger-form-note">
                 {peso.format(statementAccount.statementTotals.unallocated)} of recorded payments did not reduce the property balance and may require reconciliation.
+              </p>
+            )}
+            {(statementAccount.statementTotals?.inferredAllocated || 0) > 0 && (
+              <p className="ledger-form-note">
+                {peso.format(statementAccount.statementTotals.inferredAllocated)} of applied payments rely on historical balance effects rather than explicit charge allocation records.
               </p>
             )}
             {statementError && <p className="ledger-form-error">{statementError}</p>}

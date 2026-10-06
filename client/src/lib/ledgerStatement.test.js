@@ -60,4 +60,22 @@ describe('buildLedgerStatement', () => {
 
     expect(result.totals.payments).toBe(250)
   })
+
+  it('separates explicit allocations from inferred payment effects', () => {
+    const result = buildLedgerStatement({
+      storedBalance: 0,
+      payments: [{
+        id: 'payment-1',
+        paid_at: '2026-01-01',
+        amount_paid: 100,
+        balance_effect: 100,
+        status: 'Completed',
+        allocations: [{ allocated_amount: 40 }],
+      }],
+    })
+
+    expect(result.totals.allocated).toBe(100)
+    expect(result.totals.explicitlyAllocated).toBe(40)
+    expect(result.totals.inferredAllocated).toBe(60)
+  })
 })

@@ -99,6 +99,7 @@ export function buildLedgerStatement({
       payments: paymentTotals.received / 100,
       allocated: paymentTotals.allocated / 100,
       explicitlyAllocated: paymentTotals.explicitlyAllocated / 100,
+      inferredAllocated: Math.max(paymentTotals.allocated - paymentTotals.explicitlyAllocated, 0) / 100,
       unallocated: Math.max(paymentTotals.received - paymentTotals.allocated, 0) / 100,
       inferredOpeningBalance: inferredOpening / 100,
       openingBalance: opening / 100,
