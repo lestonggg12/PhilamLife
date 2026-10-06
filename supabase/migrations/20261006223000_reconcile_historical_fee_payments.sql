@@ -48,7 +48,7 @@ begin
       and charge_type = rec.charge_type
       and description = rec.description
       and amount = rec.applied
-      and billing_month = payment_row.paid_at::date
+      and billing_month = date_trunc('month', payment_row.paid_at at time zone 'Asia/Manila')::date
       and voided_at is null
     limit 1;
 
@@ -73,7 +73,7 @@ begin
         rec.charge_type,
         rec.description,
         rec.applied,
-        payment_row.paid_at::date,
+        date_trunc('month', payment_row.paid_at at time zone 'Asia/Manila')::date,
         'Historical reconciliation',
         payment_row.paid_at
       )
