@@ -56,24 +56,40 @@ full outer join svc s on d.month_start = s.month_start;
 create or replace view public.official_receipts_feed
 with (security_invoker = true) as
 select
-  'payment'::text, p.id::text, coalesce(p.receipt_number, ''), p.paid_at,
-  coalesce(p.homeowner_name, ''), coalesce(p.block_name, ''), coalesce(p.lot_number, ''),
-  concat_ws(', ', nullif(p.block_name, ''), nullif(p.lot_number, '')),
-  coalesce(p.coverage_period, ''), coalesce(p.amount_paid, p.amount, 0),
-  coalesce(p.payment_method, ''), coalesce(p.reference_number, ''),
-  coalesce(p.recorded_by_name, ''), (coalesce(p.status, '') = 'Voided')
+  'payment'::text as kind,
+  p.id::text as source_id,
+  coalesce(p.receipt_number, '') as receipt_number,
+  p.paid_at as paid_at,
+  coalesce(p.homeowner_name, '') as payer,
+  coalesce(p.block_name, '') as block_name,
+  coalesce(p.lot_number, '') as lot_number,
+  concat_ws(', ', nullif(p.block_name, ''), nullif(p.lot_number, '')) as property_label,
+  coalesce(p.coverage_period, '') as description,
+  coalesce(p.amount_paid, p.amount, 0) as amount_paid,
+  coalesce(p.payment_method, '') as payment_method,
+  coalesce(p.reference_number, '') as reference_number,
+  coalesce(p.recorded_by_name, '') as recorded_by_name,
+  (coalesce(p.status, '') = 'Voided') as is_voided
 from public.payments p
 union all
 select
-  'service'::text, s.id::text, coalesce(s.receipt_number, ''), s.paid_at,
-  coalesce(s.customer_name, ''), coalesce(s.block_name, ''), coalesce(s.lot_number, ''),
+  'service'::text as kind,
+  s.id::text as source_id,
+  coalesce(s.receipt_number, '') as receipt_number,
+  s.paid_at as paid_at,
+  coalesce(s.customer_name, '') as payer,
+  coalesce(s.block_name, '') as block_name,
+  coalesce(s.lot_number, '') as lot_number,
   concat_ws(', ', nullif(s.block_name, ''),
     case when nullif(s.lot_number, '') is null then null
          when s.lot_number ~* '^lot\s' then s.lot_number
-         else 'Lot ' || s.lot_number end),
-  coalesce(s.service_name, ''), coalesce(s.amount_paid, 0),
-  coalesce(s.payment_method, ''), coalesce(s.reference_number, ''),
-  coalesce(s.recorded_by_name, ''), lower(coalesce(s.payment_status, 'paid')) = 'voided'
+         else 'Lot ' || s.lot_number end) as property_label,
+  coalesce(s.service_name, '') as description,
+  coalesce(s.amount_paid, 0) as amount_paid,
+  coalesce(s.payment_method, '') as payment_method,
+  coalesce(s.reference_number, '') as reference_number,
+  coalesce(s.recorded_by_name, '') as recorded_by_name,
+  lower(coalesce(s.payment_status, 'paid')) = 'voided' as is_voided
 from public.service_transactions s;
 
 create or replace function public.receipts_period_summary(p_from timestamptz, p_to timestamptz)
