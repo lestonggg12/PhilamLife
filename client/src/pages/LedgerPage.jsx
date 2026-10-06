@@ -138,7 +138,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         supabase.from('blocks').select('id, name').order('name'),
         fetchAll(() => supabase
           .from('properties')
-          .select('id, block, lot_number, homeowner_name, created_at, homeowner_status, current_balance')
+          .select('id, block, lot_number, homeowner_name, created_at, homeowner_status, current_balance, opening_balance, opening_balance_as_of, opening_balance_note')
           .order('homeowner_name')),
         // One small row per homeowner (totals + latest payment) computed by the database,
         // instead of downloading every payment ever recorded.
@@ -214,6 +214,8 @@ export default function LedgerPage({ user: suppliedUser }) {
       payments: paymentResult.data || [],
       charges: chargeResult.data || [],
       storedBalance: entry.stored,
+      openingBalance: entry.opening_balance,
+      openingBalanceNote: entry.opening_balance_note,
     })
     const latestPayment = (paymentResult.data || [])
       .filter((payment) => payment.status !== 'Voided')
@@ -255,9 +257,10 @@ export default function LedgerPage({ user: suppliedUser }) {
         paymentsLabel: 'Total payments',
         outstandingBalance: statementAccount.balance,
         availableCredit: statementAccount.unallocatedCredit || 0,
-        reconciliationNote: statementAccount.statementTotals?.inferredOpeningBalance
-          ? 'Opening balance is inferred from the stored balance and available transaction history. Older charges or payments may not be present in this statement.'
-          : '',
+        reconciliationNote: statementAccount.statementTotals?.openingBalanceNote
+          || (statementAccount.statementTotals?.inferredOpeningBalance
+            ? 'Opening balance is inferred from the stored balance and available transaction history. Older charges or payments may not be present in this statement.'
+            : ''),
         statementLines: rows,
         preparedBy: actorName,
         datePrepared: organization.formatDate(now),
@@ -627,6 +630,9 @@ export default function LedgerPage({ user: suppliedUser }) {
         paidAmount,
         totalPaid,
         stored,
+        opening_balance: property.opening_balance,
+        opening_balance_as_of: property.opening_balance_as_of,
+        opening_balance_note: property.opening_balance_note,
         balance,
         unallocatedCredit: credit,
         penaltyAmount: lateFee.penaltyAmount,
@@ -877,9 +883,10 @@ export default function LedgerPage({ user: suppliedUser }) {
               <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
               <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
             </div>
-            {statementAccount.statementTotals?.inferredOpeningBalance !== 0 && (
+            {statementAccount.statementTotals?.openingBalance !== 0 && (
               <p className="ledger-form-note">
-                This statement includes a balance brought forward because the available transaction history does not fully explain the stored balance.
+                {statementAccount.statementTotals?.openingBalanceNote
+                  || 'This statement includes a balance brought forward because the available transaction history does not fully explain the stored balance.'}
               </p>
             )}
             {(statementAccount.statementTotals?.unallocated || 0) > 0 && (

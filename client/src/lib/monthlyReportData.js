@@ -78,7 +78,7 @@ export function computeMonthlyReportData(raw) {
   const paymentCents = new Map()
   monthlyPayments.forEach((p) => {
     const category = paymentCategory(p)
-    paymentCents.set(category, (paymentCents.get(category) || 0) + toCents(p.amount_paid))
+    paymentCents.set(category, (paymentCents.get(category) || 0) + toCents(p.amount_paid ?? p.amount))
   })
   const duesCents = paymentCents.get(DUES_LABEL) || 0
   const feeEntries = Array.from(paymentCents.entries())

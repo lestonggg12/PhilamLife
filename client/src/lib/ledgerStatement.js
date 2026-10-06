@@ -34,7 +34,13 @@ function paymentEntry(payment) {
   }
 }
 
-export function buildLedgerStatement({ payments = [], charges = [], storedBalance = 0 }) {
+export function buildLedgerStatement({
+  payments = [],
+  charges = [],
+  storedBalance = 0,
+  openingBalance = null,
+  openingBalanceNote = '',
+}) {
   const entries = [
     ...charges.map(chargeEntry),
     ...payments.map(paymentEntry),
@@ -44,7 +50,8 @@ export function buildLedgerStatement({ payments = [], charges = [], storedBalanc
   })
 
   const historyDelta = entries.reduce((sum, entry) => sum + entry.delta, 0)
-  const opening = cents(storedBalance) - historyDelta
+  const inferredOpening = cents(storedBalance) - historyDelta
+  const opening = openingBalance == null ? inferredOpening : cents(openingBalance)
   let running = opening
   const paymentTotals = entries
     .filter((entry) => entry.paymentAmount > 0)
@@ -70,7 +77,9 @@ export function buildLedgerStatement({ payments = [], charges = [], storedBalanc
     lines.unshift({
       id: 'opening',
       transaction_date: entries[0]?.date || null,
-      description: 'Opening balance brought forward (history incomplete)',
+      description: openingBalance == null
+        ? 'Opening balance brought forward (history incomplete)'
+        : `Opening balance brought forward${openingBalanceNote ? ` (${openingBalanceNote})` : ''}`,
       reference_number: '',
       debit: opening > 0 ? opening / 100 : 0,
       credit: opening < 0 ? -opening / 100 : 0,
@@ -85,7 +94,9 @@ export function buildLedgerStatement({ payments = [], charges = [], storedBalanc
       payments: paymentTotals.received / 100,
       allocated: paymentTotals.allocated / 100,
       unallocated: Math.max(paymentTotals.received - paymentTotals.allocated, 0) / 100,
-      inferredOpeningBalance: opening / 100,
+      inferredOpeningBalance: inferredOpening / 100,
+      openingBalance: opening / 100,
+      openingBalanceNote,
     },
   }
 }
