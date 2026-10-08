@@ -29,14 +29,16 @@ function manilaDateKey(value) {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-function transactionPaymentStatus(transaction) {
-  const amountDue = Number(transaction.amount_due) || 0
-  const amountPaid = Number(transaction.amount_paid) || 0
-
-  return transaction.payment_status === 'paid' || amountPaid >= amountDue
-    ? 'paid'
-    : 'outstanding'
-}
+  function transactionPaymentStatus(transaction, owedIds) {
+    if (transaction.payment_status === 'partial') {
+      return owedIds.has(transaction.id) ? 'outstanding' : 'paid'
+    }
+    const amountDue = Number(transaction.amount_due) || 0
+    const amountPaid = Number(transaction.amount_paid) || 0
+    return transaction.payment_status === 'paid' || amountPaid >= amountDue
+      ? 'paid'
+      : 'outstanding'
+  }
 
 export default function TreasurerServiceRevenuePage() {
   const { organization } = useOrganization()
@@ -107,7 +109,7 @@ export default function TreasurerServiceRevenuePage() {
 
     return transactions.filter((transaction) => {
       const paymentDate = manilaDateKey(transaction.paid_at)
-      const paymentStatus = transactionPaymentStatus(transaction)
+      const paymentStatus = transactionPaymentStatus(transaction, owedIds)
       const searchableValues = [
         transaction.receipt_number,
         transaction.customer_name,
@@ -134,8 +136,9 @@ export default function TreasurerServiceRevenuePage() {
         && matchesFromDate
         && matchesToDate
     })
-  }, [
+    }, [
     transactions,
+    owedIds,
     searchTerm,
     serviceFilter,
     statusFilter,
