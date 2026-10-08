@@ -3,7 +3,6 @@ import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { computeOverdueFromCharges } from '../lib/latepenalty'
 import { buildLedgerStatement } from '../lib/ledgerStatement'
 import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 import { useOrganization } from '../context/OrganizationContext'
@@ -69,7 +68,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
   const [paymentSummaries, setPaymentSummaries] = useState([])
-  const [charges, setCharges] = useState([])
+  const [overdueSummaries, setOverdueSummaries] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
@@ -133,7 +132,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [blockResult, propertyResult, paymentResult, settingsResult, chargesResult] =
+    const [blockResult, propertyResult, paymentResult, settingsResult, overdueResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         fetchAll(() => supabase
@@ -145,12 +144,12 @@ export default function LedgerPage({ user: suppliedUser }) {
         fetchAll(() => supabase.from('property_payment_summary').select('*').order('property_id'), { tiebreaker: null }),
         supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         fetchAll(() => supabase
-          .from('property_charges')
-          .select('property_id, amount, billing_month, created_at, charge_type')
-          .is('voided_at', null)),
+          .from('property_overdue_summary')
+          .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+          .order('property_id'), { tiebreaker: null }),
       ])
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error, chargesResult.error]
+    const errors = [blockResult.error, propertyResult.error, paymentResult.error, overdueResult.error]
       .filter(Boolean)
       .map((error) => error.message)
 
@@ -161,7 +160,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     setBlocks(blockResult.data || [])
     setProperties(propertyResult.data || [])
     setPaymentSummaries(paymentResult.data || [])
-    setCharges(chargesResult.data || [])
+    setOverdueSummaries(overdueResult.data || [])
     setOrgSettings(settingsResult.data || null)
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
@@ -611,16 +610,10 @@ export default function LedgerPage({ user: suppliedUser }) {
     [paymentSummaries],
   )
 
-  const chargesByProperty = useMemo(() => {
-    const grouped = new Map()
-    for (const charge of charges) {
-      const key = Number(charge.property_id)
-      const list = grouped.get(key)
-      if (list) list.push(charge)
-      else grouped.set(key, [charge])
-    }
-    return grouped
-  }, [charges])
+  const overdueByProperty = useMemo(
+    () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
+    [overdueSummaries],
+  )
 
   const ledgerEntries = useMemo(() => {
     return properties
@@ -637,16 +630,16 @@ export default function LedgerPage({ user: suppliedUser }) {
       const paidAmount = summary ? Number(summary.latest_amount_paid) || 0 : 0
       const totalPaid = summary ? Number(summary.total_paid) || 0 : 0
       const lastPaidAt = summary?.latest_paid_at || null
-      const lateFee = computeOverdueFromCharges({
-        balance,
-        charges: chargesByProperty.get(Number(property.id)) || [],
-        dueDay: penaltySettings.dueDay,
-        gracePeriodDays: penaltySettings.gracePeriodDays,
-        latePenalty: penaltySettings.latePenalty,
-      })
+      const lateFee = overdueByProperty.get(Number(property.id)) || {
+        is_overdue: false,
+        penalty_amount: 0,
+        total_due: balance,
+        days_overdue: 0,
+        overdue_amount: 0,
+      }
       const status = stored <= 0
         ? 'Paid'
-        : lateFee.isOverdue
+        : lateFee.is_overdue
           ? 'Overdue'
           : paidAmount > 0
             ? 'Partial'
@@ -667,8 +660,10 @@ export default function LedgerPage({ user: suppliedUser }) {
         opening_balance_note: property.opening_balance_note,
         balance,
         unallocatedCredit: credit,
-        penaltyAmount: lateFee.penaltyAmount,
-        totalDue: lateFee.totalDue,
+        penaltyAmount: Number(lateFee.penalty_amount) || 0,
+        totalDue: Number(lateFee.total_due) || balance,
+        daysOverdue: Number(lateFee.days_overdue) || 0,
+        overdueAmount: Number(lateFee.overdue_amount) || 0,
         lastPayment: lastPaidAt
           ? organization.formatDate(lastPaidAt)
           : '—',
@@ -676,7 +671,7 @@ export default function LedgerPage({ user: suppliedUser }) {
         status,
       }
     })
-  }, [properties, summaryByProperty, chargesByProperty, penaltySettings])
+  }, [properties, summaryByProperty, overdueByProperty])
 
   const filtered = useMemo(() => {
     const term = normalize(search)

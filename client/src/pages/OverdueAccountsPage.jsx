@@ -4,7 +4,6 @@ import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
-import { computeOverdueFromCharges } from '../lib/latepenalty'
 import './OverdueAccountsPage.css'
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
@@ -54,7 +53,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [pageError, setPageError] = useState('')
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('All')
-  const [charges, setCharges] = useState([])
+  const [overdueSummaries, setOverdueSummaries] = useState([])
   const [statusFilter, setStatusFilter] = useState('Overdue')
   const [agingFilter, setAgingFilter] = useState('All')
   const [logTarget, setLogTarget] = useState(null)
@@ -87,7 +86,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     isRefresh ? setRefreshing(true) : setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, settingsResult, actionsResult, chargesResult] = await Promise.all([
+    const [propertyResult, paymentResult, settingsResult, actionsResult, overdueResult] = await Promise.all([
       fetchAll(() => supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance')),
       // One small row per homeowner (latest payment) computed by the database.
       fetchAll(() => supabase.from('property_payment_summary').select('property_id, latest_paid_at, latest_amount_paid').order('property_id'), { tiebreaker: null }),
@@ -101,12 +100,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         .select('id, property_id, action_type, action_date, details, document_reference, created_by')
         .order('action_date', { ascending: false })),
       fetchAll(() => supabase
-        .from('property_charges')
-        .select('property_id, amount, billing_month, created_at, charge_type')
-        .is('voided_at', null)),
+        .from('property_overdue_summary')
+        .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+        .order('property_id'), { tiebreaker: null }),
     ])
 
-    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, actionsResult.error, chargesResult.error].filter(Boolean)
+    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, actionsResult.error, overdueResult.error].filter(Boolean)
     if (errors.length > 0) {
       setPageError(`Some records could not be loaded: ${errors.map((e) => e.message).join(' ')}`)
     }
@@ -114,7 +113,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setProperties(propertyResult.data || [])
     setPaymentSummaries(paymentResult.data || [])
     setCollectionActions(actionsResult.data || [])
-    setCharges(chargesResult.data || [])
+    setOverdueSummaries(overdueResult.data || [])
     setPenaltySettings({
       duesAmount: Number(settingsResult.data?.dues_amount) || 0,
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -140,16 +139,10 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     [paymentSummaries],
   )
 
-  const chargesByProperty = useMemo(() => {
-    const grouped = new Map()
-    for (const charge of charges) {
-      const key = Number(charge.property_id)
-      const list = grouped.get(key)
-      if (list) list.push(charge)
-      else grouped.set(key, [charge])
-    }
-    return grouped
-  }, [charges])
+  const overdueByProperty = useMemo(
+    () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
+    [overdueSummaries],
+  )
 
   const accounts = useMemo(() => {
     return properties
@@ -159,20 +152,17 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       const paidAmount = latestPayment ? Number(latestPayment.latest_amount_paid) || 0 : 0
       const storedBalance = Number(property.current_balance) || 0
       const balance = Math.max(storedBalance, 0)
-      const credit = Math.max(-storedBalance, 0)
-
-      const lateFee = computeOverdueFromCharges({
-        balance,
-        credit,
-        charges: chargesByProperty.get(Number(property.id)) || [],
-        dueDay: penaltySettings.dueDay,
-        gracePeriodDays: penaltySettings.gracePeriodDays,
-        latePenalty: penaltySettings.latePenalty,
-      })
+      const lateFee = overdueByProperty.get(Number(property.id)) || {
+        is_overdue: false,
+        overdue_amount: 0,
+        penalty_amount: 0,
+        total_due: balance,
+        days_overdue: 0,
+      }
 
       const status = balance <= 0
         ? 'Paid'
-        : lateFee.isOverdue
+        : lateFee.is_overdue
           ? 'Overdue'
           : paidAmount > 0
             ? 'Partial'
@@ -189,10 +179,10 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         phone: property.contact_phone || '',
         email: property.contact_email || '',
         balance,
-        penaltyAmount: lateFee.penaltyAmount,
-        totalDue: lateFee.totalDue,
-        daysOverdue: lateFee.daysOverdue,
-        agingTier: status === 'Overdue' ? agingTierOf(lateFee.daysOverdue) : null,
+        penaltyAmount: Number(lateFee.penalty_amount) || 0,
+        totalDue: Number(lateFee.total_due) || balance,
+        daysOverdue: Number(lateFee.days_overdue) || 0,
+        agingTier: status === 'Overdue' ? agingTierOf(Number(lateFee.days_overdue) || 0) : null,
         lastPaymentAt: latestPayment?.latest_paid_at || null,
         status,
         lastAction,
@@ -200,7 +190,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         actions: propertyActions,
       }
     })
-  }, [properties, summaryByProperty, chargesByProperty, penaltySettings, actionsByProperty])
+  }, [properties, summaryByProperty, overdueByProperty, actionsByProperty])
 
   const blocks = useMemo(
     () => ['All', ...new Set(properties.map((p) => p.block).filter(Boolean))].sort(),

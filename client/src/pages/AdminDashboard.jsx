@@ -15,7 +15,6 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { accountStatus as getAccountStatus, groupChargesByProperty } from '../lib/latepenalty'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate } from '../config/organization'
@@ -103,7 +102,7 @@ export default function AdminDashboard() {
   const [properties, setProperties] = useState([])
   const [monthlyRows, setMonthlyRows] = useState([])
   const [paidPropertyIds, setPaidPropertyIds] = useState(new Set())
-  const [charges, setCharges] = useState([])
+  const [overdueSummaries, setOverdueSummaries] = useState([])
   const [activities, setActivities] = useState([])
   const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
@@ -131,7 +130,7 @@ export default function AdminDashboard() {
       serviceResult,
       activityResult,
       settingsResult,
-      chargesResult,
+      overdueResult,
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -161,9 +160,9 @@ export default function AdminDashboard() {
         .eq('id', 1)
         .maybeSingle(),
       fetchAll(() => supabase
-        .from('property_charges')
-        .select('property_id, amount, billing_month, created_at, charge_type')
-        .is('voided_at', null)),
+        .from('property_overdue_summary')
+        .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+        .order('property_id'), { tiebreaker: null }),
     ])
 
     const errors = [
@@ -172,6 +171,7 @@ export default function AdminDashboard() {
       paymentResult.error,
       serviceResult.error,
       activityResult.error,
+      overdueResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -186,7 +186,7 @@ export default function AdminDashboard() {
     setProperties(propertyResult.data || [])
     setMonthlyRows(paymentResult.data || [])
     setPaidPropertyIds(new Set((serviceResult.data || []).map((row) => Number(row.property_id))))
-    setCharges(chargesResult.data || [])
+    setOverdueSummaries(overdueResult.data || [])
     setActivities(activityResult.data || [])
     setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
@@ -236,29 +236,27 @@ export default function AdminDashboard() {
     : null
 
   const monthlyDuesTarget = activeProperties.length * duesAmount
+  const overdueByProperty = useMemo(
+    () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
+    [overdueSummaries],
+  )
 
   const overdueSummary = useMemo(() => {
     let count = 0
     let outstanding = 0
 
-    const chargesByProperty = groupChargesByProperty(charges)
-    const settings = {
-      due_day: penaltySettings.dueDay,
-      grace_period_days: penaltySettings.gracePeriodDays,
-      late_penalty: penaltySettings.latePenalty,
-    }
-
     activeProperties.forEach((property) => {
-      const status = getAccountStatus(property, chargesByProperty, settings)
+      const status = overdueByProperty.get(Number(property.id))
+      const balance = Math.max(Number(property.current_balance) || 0, 0)
 
-      if (status.isOverdue && status.balance > 0) {
+      if (status?.is_overdue && balance > 0) {
         count += 1
-        outstanding += Math.min(status.overdueAmount, status.balance)
+        outstanding += Math.min(Number(status.overdue_amount) || 0, balance)
       }
     })
 
     return { count, outstanding }
-  }, [activeProperties, charges, penaltySettings])
+  }, [activeProperties, overdueByProperty])
 
   const accountStatus = useMemo(() => {
     let paid = 0
