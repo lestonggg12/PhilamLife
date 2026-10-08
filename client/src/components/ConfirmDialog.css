@@ -1,0 +1,173 @@
+/* ==========================================================================
+   ConfirmDialog — same frosted-glass language as the Ledger page.
+   Uses the app's existing tokens: --primary, --danger, --text-dark,
+   --text-muted, --font-display.
+   z-index sits above .ledger-modal-backdrop (1000) so it can open on top of
+   other modals.
+   ========================================================================== */
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 63, 106, 0.38);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: confirm-fade 0.14s ease-out;
+}
+
+.confirm-dialog {
+  width: min(420px, 100%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 16px;
+  row-gap: 22px;
+  padding: 24px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  -webkit-backdrop-filter: blur(26px) saturate(190%);
+  backdrop-filter: blur(26px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 30px 70px -20px rgba(15, 63, 106, 0.45), 0 2px 10px rgba(20, 100, 160, 0.1);
+  animation: confirm-pop 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.confirm-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 100, 160, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(20, 100, 160, 0.16);
+}
+
+.confirm-dialog-danger .confirm-icon {
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--danger);
+  border-color: rgba(192, 57, 43, 0.2);
+}
+
+.confirm-copy {
+  min-width: 0;
+  align-self: center;
+}
+
+.confirm-copy h2 {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.confirm-copy p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm-button {
+  min-height: 42px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.confirm-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.35);
+}
+
+.confirm-button-cancel {
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-dark);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 4px 10px -4px rgba(15, 63, 106, 0.25);
+}
+
+.confirm-button-cancel:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.confirm-button-primary,
+.confirm-button-danger {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.confirm-button-primary {
+  background: var(--primary);
+  box-shadow: 0 12px 24px -12px rgba(20, 100, 160, 0.55);
+}
+
+.confirm-button-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.confirm-button-danger {
+  background: var(--danger);
+  box-shadow: 0 12px 24px -12px rgba(192, 57, 43, 0.6);
+}
+
+.confirm-button-danger:hover {
+  filter: brightness(0.92);
+  transform: translateY(-1px);
+}
+
+.confirm-button-danger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.35);
+}
+
+@keyframes confirm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes confirm-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 480px) {
+  .confirm-dialog {
+    grid-template-columns: 1fr;
+    row-gap: 16px;
+    padding: 22px;
+  }
+  .confirm-actions {
+    flex-direction: column-reverse;
+  }
+  .confirm-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-backdrop,
+  .confirm-dialog {
+    animation: none;
+  }
+  .confirm-button {
+    transition: none;
+  }
+}

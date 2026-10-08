@@ -134,7 +134,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     const monthStartDate = range.start.slice(0, 10)
     const monthEndDate = range.end.slice(0, 10)
 
-    const [paymentResult, serviceResult, expenseResult, documentResult, eventResult, upcomingResult] = await Promise.all([
+    const [paymentResult, serviceResult, expenseResult, documentResult, eventResult] = await Promise.all([
       fetchAll(() => supabase
         .from('payments')
         // charge_type tells the report whether a payment was dues or a fee.
@@ -169,12 +169,6 @@ export default function ReportsPage({ user: suppliedUser }) {
         .gte('event_date', monthStartDate)
         .lt('event_date', monthEndDate)
         .order('event_date', { ascending: true })),
-      supabase
-        .from('events')
-        .select('id, title, description, event_date, location')
-        .gte('event_date', monthEndDate)
-        .order('event_date', { ascending: true })
-        .limit(6),
     ])
 
     if (token !== monthLoadToken.current) return
@@ -185,10 +179,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     setServiceTransactions(serviceResult.error ? [] : serviceResult.data || [])
     setExpenses(expenseResult.error ? [] : expenseResult.data || [])
     setDocuments(documentResult.error ? [] : documentResult.data || [])
-    setEvents([
-      ...(eventResult.error ? [] : eventResult.data || []),
-      ...(upcomingResult.error ? [] : upcomingResult.data || []),
-    ])
+    setEvents(eventResult.error ? [] : eventResult.data || [])
     setLoading(false)
   }
 
@@ -344,16 +335,6 @@ export default function ReportsPage({ user: suppliedUser }) {
               />
             ) : (
               <p className="monthly-paragraph monthly-note">No community events were held during this period.</p>
-            )}
-
-            {report.events.upcoming.length > 0 && (
-              <>
-                <h3 className="monthly-subheading">Upcoming Events</h3>
-                <SimpleTable
-                  head={['Date', 'Event', 'Location']}
-                  rows={report.events.upcoming.map((e) => [shortDate(`${e.event_date}T12:00:00+08:00`, organization.dateFormat), e.title, e.location || '—'])}
-                />
-              </>
             )}
           </Section>
 

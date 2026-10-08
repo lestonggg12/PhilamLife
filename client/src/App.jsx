@@ -6,22 +6,26 @@ import {
   Route,
   useNavigate,
 } from 'react-router-dom'
-import { supabase } from './lib/supabaseClient'
+import { supabase, clearRememberMePreference } from './lib/supabaseClient'
 import Layout from './components/Layout'
+import ProtectedRoute from './components/ProtectedRoute'
+import Loader from './components/Loader'
+import { ConfirmProvider } from './components/ConfirmDialog'
+import { OrganizationProvider } from './context/OrganizationContext'
 import LandingPage from './pages/LandingPage'
-import GuidePage from './pages/Guidepage'
+import GuidePage from './pages/GuidePage'
 import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import AdminDashboard from './pages/AdminDashboard'
 import TreasurerDashboard from './pages/TreasurerDashboard'
 import TreasurerExpensesPage from './pages/TreasurerExpensesPage'
+import TreasurerServiceRevenuePage from './pages/TreasurerServiceRevenuePage'
 import SecretaryDashboard from './pages/SecretaryDashboard'
 import ServicesManagementPage from './pages/ServicesManagementPage'
 import OfficialReceiptsPage from './pages/OfficialReceiptsPage'
 import PaymentsPage from './pages/PaymentsPage'
 import ReportsPage from './pages/ReportsPage'
-import TreasurerServiceRevenuePage from './pages/TreasurerServiceRevenuePage'
 import LedgerPage from './pages/LedgerPage'
 import ActivityLogPage from './pages/ActivityLogPage'
 import DocumentLibraryPage from './pages/DocumentLibraryPage'
@@ -30,12 +34,6 @@ import ContactManagerPage from './pages/ContactManagerPage'
 import HomeownersPage from './pages/HomeownersPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import OverdueAccountsPage from './pages/OverdueAccountsPage'
-import ProtectedRoute from './components/ProtectedRoute'
-import Loader from './components/Loader'
-import { OrganizationProvider } from './context/OrganizationContext'
-import {
-  clearRememberMePreference,
-} from './lib/supabaseClient'
 import './App.css'
 
 function AppContent() {
@@ -45,11 +43,12 @@ function AppContent() {
 
   const navigate = useNavigate()
 
-  const dashboardForRole = (role) => ({
-    admin: '/admin/dashboard',
-    treasurer: '/treasurer/dashboard',
-    secretary: '/secretary/dashboard',
-  })[role] || '/login'
+  const dashboardForRole = (role) =>
+    ({
+      admin: '/admin/dashboard',
+      treasurer: '/treasurer/dashboard',
+      secretary: '/secretary/dashboard',
+    })[role] || '/login'
 
   const completeAuthentication = (profile) => {
     setUser(profile)
@@ -120,277 +119,157 @@ function AppContent() {
     return <Loader variant="fullscreen" />
   }
 
+  // Wraps a page in the role check so each route below stays one line.
+  const guarded = (allowedRoles, page) => (
+    <ProtectedRoute
+      isAuthenticated={isAuthenticated}
+      user={user}
+      allowedRoles={allowedRoles}
+    >
+      {page}
+    </ProtectedRoute>
+  )
+
   return (
     <OrganizationProvider enabled={isAuthenticated}>
-      <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/guide" element={<GuidePage />} />
-
-      <Route
-  path="*"
-  element={
-    <Navigate
-      to={
-        isAuthenticated
-          ? dashboardForRole(user?.role)
-          : '/login'
-      }
-      replace
-    />
-  }
-/>
-
-
-
-      <Route
-        path="/login"
-        element={
-          <LoginPage
-            onAuthenticated={completeAuthentication}
-          />
-        }
-      />
-
-      <Route
-        path="/forgot-password"
-        element={<ForgotPasswordPage />}
-      />
-
-      <Route
-        path="/reset-password"
-        element={<ResetPasswordPage />}
-      />
-
-      <Route
-        element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <Layout user={user} onLogout={handleLogout} />
-          </ProtectedRoute>
-        }
-      >
-        <Route
-          path="/admin/dashboard"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin']}
-            >
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/treasurer/dashboard"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['treasurer']}
-            >
-              <TreasurerDashboard />
-            </ProtectedRoute>
-          }
-        />
+      <ConfirmProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/guide" element={<GuidePage />} />
           <Route
-          path="/treasurer/expenses"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['treasurer']}
-            >
-              <TreasurerExpensesPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-           <Route
-              path="/treasurer/service-revenue"
-              element={
-                <ProtectedRoute
-                  isAuthenticated={isAuthenticated}
-                  user={user}
-                  allowedRoles={['treasurer']}
-                >
-                  <TreasurerServiceRevenuePage />
-                </ProtectedRoute>
-              }
+            path="/login"
+            element={<LoginPage onAuthenticated={completeAuthentication} />}
+          />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+          {/* Signed-in routes (inside the app layout) */}
+          <Route
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <Layout user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              path="/admin/dashboard"
+              element={guarded(['admin'], <AdminDashboard />)}
             />
 
+            <Route
+              path="/treasurer/dashboard"
+              element={guarded(['treasurer'], <TreasurerDashboard />)}
+            />
+            <Route
+              path="/treasurer/expenses"
+              element={guarded(
+                ['treasurer'],
+                <TreasurerExpensesPage user={user} />
+              )}
+            />
+            <Route
+              path="/treasurer/service-revenue"
+              element={guarded(['treasurer'], <TreasurerServiceRevenuePage />)}
+            />
 
+            <Route
+              path="/secretary/dashboard"
+              element={guarded(['secretary'], <SecretaryDashboard />)}
+            />
+            <Route
+              path="/secretary/services"
+              element={guarded(
+                ['secretary'],
+                <ServicesManagementPage user={user} />
+              )}
+            />
+            <Route
+              path="/secretary/receipts"
+              element={guarded(['secretary'], <OfficialReceiptsPage />)}
+            />
 
-        <Route
-          path="/secretary/dashboard"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['secretary']}
-            >
-              <SecretaryDashboard />
-            </ProtectedRoute>
-          }
-        />
+            <Route
+              path="/ledger"
+              element={guarded(
+                ['admin', 'treasurer', 'secretary'],
+                <LedgerPage user={user} />
+              )}
+            />
+            <Route
+              path="/payments"
+              element={guarded(
+                ['admin', 'secretary', 'treasurer'],
+                <PaymentsPage user={user} />
+              )}
+            />
+            <Route
+              path="/reports"
+              element={guarded(
+                ['admin', 'treasurer'],
+                <ReportsPage user={user} />
+              )}
+            />
+            <Route
+              path="/activity-log"
+              element={guarded(
+                ['admin', 'secretary', 'treasurer'],
+                <ActivityLogPage />
+              )}
+            />
+            <Route
+              path="/documents"
+              element={guarded(
+                ['admin', 'secretary', 'treasurer'],
+                <DocumentLibraryPage />
+              )}
+            />
+            <Route
+              path="/calendar"
+              element={guarded(
+                ['admin', 'treasurer', 'secretary'],
+                <EventCalendarPage user={user} />
+              )}
+            />
+            <Route
+              path="/contacts"
+              element={guarded(
+                ['admin', 'secretary', 'treasurer'],
+                <ContactManagerPage user={user} />
+              )}
+            />
+            <Route
+              path="/homeowners/:homeownerId?"
+              element={guarded(
+                ['admin', 'secretary', 'treasurer'],
+                <HomeownersPage />
+              )}
+            />
+            <Route
+              path="/overdue-accounts"
+              element={guarded(
+                ['admin', 'secretary', 'treasurer'],
+                <OverdueAccountsPage user={user} />
+              )}
+            />
+            <Route
+              path="/system-settings"
+              element={guarded(['admin'], <SystemSettingsPage user={user} />)}
+            />
+          </Route>
 
-
-        <Route
-          path="/secretary/services"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['secretary']}
-            >
-              <ServicesManagementPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/secretary/receipts"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['secretary']}
-            >
-              <OfficialReceiptsPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/ledger"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'treasurer', 'secretary']}
-            >
-              <LedgerPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/payments"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary', 'treasurer']}
-            >
-              <PaymentsPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'treasurer']}
-            >
-              <ReportsPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-       <Route
-        path="/activity-log"
-        element={
-          <ProtectedRoute
-            isAuthenticated={isAuthenticated}
-            user={user}
-            allowedRoles={['admin', 'secretary', 'treasurer']}
-          >
-            <ActivityLogPage />
-          </ProtectedRoute>
-        }
-      />
-
-        <Route
-          path="/documents"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary', 'treasurer']}
-            >
-              <DocumentLibraryPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/calendar"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'treasurer', 'secretary']}
-            >
-              <EventCalendarPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/contacts"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary', 'treasurer']}
-            >
-              <ContactManagerPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/homeowners/:homeownerId?"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary', 'treasurer']}
-            >
-              <HomeownersPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/overdue-accounts"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin', 'secretary', 'treasurer']}
-            >
-              <OverdueAccountsPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/system-settings"
-          element={
-            <ProtectedRoute
-              isAuthenticated={isAuthenticated}
-              user={user}
-              allowedRoles={['admin']}
-            >
-              <SystemSettingsPage user={user} />
-            </ProtectedRoute>
-          }
-        />
-      </Route>
-    </Routes>
+          {/* Anything else goes to the right home page */}
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={isAuthenticated ? dashboardForRole(user?.role) : '/login'}
+                replace
+              />
+            }
+          />
+        </Routes>
+      </ConfirmProvider>
     </OrganizationProvider>
   )
 }

@@ -411,6 +411,7 @@
   color: var(--text-muted);
   font-size: 0.84rem;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Search prompt / empty state ---------- */
@@ -464,6 +465,9 @@
    stacked card, so the page never needs a horizontal scrollbar.
    Selectors are prefixed with .ledger-page to win over the global
    `.ledger-table` rules in HomeownerLedgerModal.css.
+
+   Columns: 1 Homeowner, 2 Block / Lot, 3 Previous Balance, 4 Last Paid,
+   5 Balance, 6 Last Payment, 7 Credit, 8 Status, 9 Actions.
    ---------------------------------------------------------------------- */
 
 .ledger-table-wrap {
@@ -515,6 +519,14 @@
 .ledger-page .ledger-table th:first-child { border-top-left-radius: 14px; border-bottom-left-radius: 14px; }
 .ledger-page .ledger-table th:last-child { border-top-right-radius: 14px; border-bottom-right-radius: 14px; }
 
+/* Money columns: right-aligned so decimals line up (headers match). */
+.ledger-page .ledger-table th:nth-child(3),
+.ledger-page .ledger-table th:nth-child(4),
+.ledger-page .ledger-table th:nth-child(5),
+.ledger-page .ledger-table th:nth-child(7) {
+  text-align: right;
+}
+
 .ledger-th-sortable {
   cursor: pointer;
   user-select: none;
@@ -524,7 +536,18 @@
   color: #fff9db;
 }
 
+.ledger-page .ledger-table th.ledger-th-sortable:hover {
+  background: linear-gradient(135deg, #6f99cc, #5d86bd);
+}
+
+.ledger-th-sortable:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
+}
+
 .ledger-sort-arrow {
+  display: inline-block;
+  min-width: 0.8em;
   margin-left: 4px;
   font-size: 0.65rem;
 }
@@ -539,9 +562,24 @@
   word-break: normal;
 }
 
-/* Charges, Allocated, Balance, Last Payment, Credit, Status: keep each value on one line */
+/* Homeowner name anchors the row */
+.ledger-page .ledger-table td:nth-child(1) {
+  color: var(--text-dark);
+  font-weight: 700;
+}
+
+/* Previous Balance, Last Paid, Balance, Last Payment, Credit, Status: keep each value on one line */
 .ledger-page .ledger-table td:nth-child(n + 3):nth-child(-n + 8) {
   white-space: nowrap;
+}
+
+/* Money columns: right-aligned, fixed-width digits */
+.ledger-page .ledger-table td:nth-child(3),
+.ledger-page .ledger-table td:nth-child(4),
+.ledger-page .ledger-table td:nth-child(5),
+.ledger-page .ledger-table td:nth-child(7) {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .ledger-page .ledger-table tr:last-child td {
@@ -564,6 +602,7 @@
   min-width: 210px;
   padding: 8px 10px;
   vertical-align: middle;
+  text-align: left;
 }
 
 .ledger-page .ledger-table th.ledger-actions-heading {
@@ -595,6 +634,7 @@
 }
 
 .ledger-statement-button {
+  min-height: 34px;
   border: 1px solid rgba(20, 100, 160, 0.24);
   border-radius: 9px;
   padding: 6px 11px;
@@ -619,6 +659,7 @@
 }
 
 .ledger-icon-button {
+  min-height: 34px;
   border: 1px solid rgba(20, 100, 160, 0.2);
   border-radius: 9px;
   padding: 6px 11px;
@@ -643,10 +684,34 @@
   cursor: not-allowed;
 }
 
-.ledger-icon-button-danger { color: var(--danger); }
-.ledger-icon-button-danger:hover:not(:disabled) {
+/* Destructive action: clearer outline, set apart from Edit, solid on hover */
+.ledger-icon-button-danger {
+  margin-left: 4px;
   color: var(--danger);
-  background: rgba(192, 57, 43, 0.1);
+  border-color: rgba(192, 57, 43, 0.35);
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.ledger-icon-button-danger:hover:not(:disabled) {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Visible keyboard focus */
+.ledger-statement-button:focus-visible,
+.ledger-icon-button:focus-visible,
+.ledger-refresh-button:focus-visible,
+.ledger-secondary-action:focus-visible,
+.ledger-add-homeowner-button:focus-visible,
+.ledger-save-button:focus-visible,
+.ledger-cancel-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.ledger-icon-button-danger:focus-visible {
+  outline-color: var(--danger);
 }
 
 .ledger-badge {
@@ -656,6 +721,18 @@
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* Dot so status isn't conveyed by colour alone */
+.ledger-badge::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
 }
 
 .ledger-badge-paid { background: rgba(26, 138, 96, 0.14); color: var(--success); }
@@ -714,8 +791,8 @@
 
   .ledger-page .ledger-table td:nth-child(1)::before { content: 'Homeowner'; }
   .ledger-page .ledger-table td:nth-child(2)::before { content: 'Block / Lot'; }
-  .ledger-page .ledger-table td:nth-child(3)::before { content: 'Charges'; }
-  .ledger-page .ledger-table td:nth-child(4)::before { content: 'Allocated'; }
+  .ledger-page .ledger-table td:nth-child(3)::before { content: 'Previous balance'; }
+  .ledger-page .ledger-table td:nth-child(4)::before { content: 'Last paid'; }
   .ledger-page .ledger-table td:nth-child(5)::before { content: 'Balance'; }
   .ledger-page .ledger-table td:nth-child(6)::before { content: 'Last Payment'; }
   .ledger-page .ledger-table td:nth-child(7)::before { content: 'Credit'; }
@@ -1009,4 +1086,23 @@
   .ledger-statement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ledger-result-count { margin-left: 0; }
   .ledger-search-prompt { padding: 40px 16px; }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger-summary-card,
+  .ledger-add-homeowner-button,
+  .ledger-save-button,
+  .ledger-refresh-button {
+    transition: none;
+  }
+  .ledger-summary-card:hover,
+  .ledger-add-homeowner-button:hover,
+  .ledger-save-button:hover:not(:disabled) {
+    transform: none;
+  }
+  .ledger-spin {
+    animation: none;
+  }
 }

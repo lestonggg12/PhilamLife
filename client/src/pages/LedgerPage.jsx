@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
+import { useConfirm } from '../components/ConfirmDialog'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
@@ -60,6 +61,7 @@ function compareEntries(a, b, key, direction) {
 
 export default function LedgerPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
+  const confirm = useConfirm()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('all')
@@ -433,9 +435,13 @@ export default function LedgerPage({ user: suppliedUser }) {
       return
     }
 
-    const confirmed = window.confirm(
-      `Remove ${entry.name} (${entry.block}, ${entry.lot})? They have no payments or charges. This cannot be undone.`,
-    )
+    const confirmed = await confirm({
+      title: `Delete ${entry.name}?`,
+      message: `${entry.block}, ${entry.lot} has no payments or charges on record. This can't be undone.`,
+      confirmLabel: 'Delete homeowner',
+      cancelLabel: 'Keep homeowner',
+      tone: 'danger',
+    })
     if (!confirmed) return
 
     const { error } = await supabase.from('properties').delete().eq('id', entry.id)
@@ -581,7 +587,13 @@ export default function LedgerPage({ user: suppliedUser }) {
       return
     }
 
-    const confirmed = window.confirm(`Delete block "${block.name}"? This cannot be undone.`)
+    const confirmed = await confirm({
+      title: `Delete ${block.name}?`,
+      message: "No homeowners are assigned to this block. This can't be undone.",
+      confirmLabel: 'Delete block',
+      cancelLabel: 'Keep block',
+      tone: 'danger',
+    })
     if (!confirmed) return
 
     setBlockActionBusyId(block.id)
@@ -791,6 +803,9 @@ export default function LedgerPage({ user: suppliedUser }) {
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={20} /></div>
           <div><p className="ledger-summary-label">Outstanding Balance</p><p className="ledger-summary-value">{peso.format(totals.totalBalance)}</p></div>
+        </div>
+        <div className="ledger-summary-card glass-card">
+          <div className="ledger-summary-icon ledger-summary-icon-paid"><CreditCard size={20} /></div>
           <div><p className="ledger-summary-label">Available Credit</p><p className="ledger-summary-value">{peso.format(totals.totalCredit)}</p></div>
         </div>
       </div>
@@ -821,7 +836,11 @@ export default function LedgerPage({ user: suppliedUser }) {
           <option value="Overdue">Overdue</option>
         </select>
         {hasActiveQuery && (
-          <span className="ledger-result-count">{Math.min(sorted.length, MAX_VISIBLE_ROWS)} of {sorted.length} match{sorted.length === 1 ? '' : 'es'}</span>
+          <span className="ledger-result-count">
+            {sorted.length <= MAX_VISIBLE_ROWS
+              ? `${sorted.length} match${sorted.length === 1 ? '' : 'es'}`
+              : `${MAX_VISIBLE_ROWS} of ${sorted.length} matches`}
+          </span>
         )}
       </div>
 
