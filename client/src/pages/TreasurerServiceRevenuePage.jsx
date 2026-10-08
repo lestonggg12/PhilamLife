@@ -29,21 +29,22 @@ function manilaDateKey(value) {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-  function transactionPaymentStatus(transaction, owedIds) {
-    if (transaction.payment_status === 'partial') {
-      return owedIds.has(transaction.id) ? 'outstanding' : 'paid'
-    }
-    const amountDue = Number(transaction.amount_due) || 0
-    const amountPaid = Number(transaction.amount_paid) || 0
-    return transaction.payment_status === 'paid' || amountPaid >= amountDue
-      ? 'paid'
-      : 'outstanding'
+function transactionPaymentStatus(transaction, owedIds) {
+  if (transaction.payment_status === 'partial') {
+    return owedIds.has(transaction.id) ? 'outstanding' : 'paid'
   }
+  const amountDue = Number(transaction.amount_due) || 0
+  const amountPaid = Number(transaction.amount_paid) || 0
+  return transaction.payment_status === 'paid' || amountPaid >= amountDue
+    ? 'paid'
+    : 'outstanding'
+}
 
 export default function TreasurerServiceRevenuePage() {
   const { organization } = useOrganization()
   const [transactions, setTransactions] = useState([])
   const [totals, setTotals] = useState({ total: 0, month: 0, owed: 0, byService: [] })
+  const [owedIds, setOwedIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -82,7 +83,7 @@ export default function TreasurerServiceRevenuePage() {
     const [{ data, error }, summaryResult, balanceResult] = await Promise.all([
       query,
       supabase.rpc('service_revenue_summary'),
-      supabase.from('service_balances').select('balance_due'),
+      supabase.from('service_balances').select('id, balance_due'),
     ])
     const s = summaryResult.data || {}
     setTotals({
@@ -91,6 +92,7 @@ export default function TreasurerServiceRevenuePage() {
       owed: (balanceResult.data || []).reduce((sum, r) => sum + (Number(r.balance_due) || 0), 0),
       byService: (s.by_service || []).map((r) => [r.name, Number(r.amount) || 0]),
     })
+    setOwedIds(new Set((balanceResult.data || []).map((r) => r.id)))
 
     if (error) {
       setPageError(`Service revenue could not be loaded: ${error.message}`)
@@ -136,7 +138,7 @@ export default function TreasurerServiceRevenuePage() {
         && matchesFromDate
         && matchesToDate
     })
-    }, [
+  }, [
     transactions,
     owedIds,
     searchTerm,

@@ -452,7 +452,7 @@ export default function HomeownersPage() {
     })
 
     const services = selectedServices.map((transaction) => {
-            const collectedLater = selectedServices
+      const collectedLater = selectedServices
         .filter((x) => x.balance_of === transaction.id && normalize(x.payment_status) !== 'voided')
         .reduce((sum, x) => sum + (Number(x.amount_paid) || 0), 0)
       const remaining = Math.max(
