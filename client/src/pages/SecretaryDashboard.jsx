@@ -112,6 +112,11 @@ export default function SecretaryDashboard() {
     setLoading(false)
   }
 
+  const activeProperties = useMemo(
+    () => properties.filter((property) => (property.homeowner_status || 'active') === 'active'),
+    [properties],
+  )
+
   const summary = useMemo(() => {
     const { year, month } = manilaDateParts()
     const currentKey = `${year}-${month}`
@@ -125,10 +130,8 @@ export default function SecretaryDashboard() {
     )
     const monthlyCollections = Number(thisMonth?.dues_collected) || 0
 
-    const outstandingAccounts = properties.filter(
-      (property) =>
-        (property.homeowner_status || 'active') === 'active' &&
-        (Number(property.current_balance) || 0) > 0,
+    const outstandingAccounts = activeProperties.filter(
+      (property) => (Number(property.current_balance) || 0) > 0,
     ).length
 
     return {
@@ -137,7 +140,7 @@ export default function SecretaryDashboard() {
       outstandingAccounts,
       receiptsThisMonth: Number(thisMonth?.dues_receipts) || 0,
     }
-  }, [monthlyRows, properties])
+  }, [monthlyRows, activeProperties])
 
   return (
     <div className="sec-secretary-dashboard">
@@ -171,9 +174,9 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value">
-            {loading ? '—' : properties.length.toLocaleString('en-PH')}
+            {loading ? '—' : activeProperties.length.toLocaleString('en-PH')}
           </strong>
-          <p className="sec-stat-footer">Registered lots in the ledger</p>
+          <p className="sec-stat-footer">Active homeowners in the ledger</p>
         </article>
 
         <article className="sec-stat-card">
@@ -260,7 +263,9 @@ export default function SecretaryDashboard() {
                       </td>
                       <td>
                         {payment.block_name || '—'}
-                        {payment.lot_number ? `, ${payment.lot_number}` : ''}
+                        {payment.lot_number
+                          ? `, ${String(payment.lot_number).toLowerCase().startsWith('lot') ? payment.lot_number : `Lot ${payment.lot_number}`}`
+                          : ''}
                       </td>
                       <td className="sec-amount">
                         {peso.format(Number(payment.amount_paid) || 0)}
@@ -353,8 +358,8 @@ export default function SecretaryDashboard() {
       <section className="sec-panel sec-activity-panel">
         <div className="sec-panel-heading">
           <div>
-            <h2>Recent Secretary Activities</h2>
-            <p>Your latest actions recorded by the system</p>
+            <h2>Recent Activities</h2>
+            <p>Latest actions recorded by the system</p>
           </div>
           <button type="button" onClick={() => navigate('/activity-log')}>
             View activity log
@@ -365,7 +370,7 @@ export default function SecretaryDashboard() {
           {loading ? (
             <p className="sec-empty">Loading activities...</p>
           ) : activities.length === 0 ? (
-            <p className="sec-empty">No Secretary activities recorded yet.</p>
+            <p className="sec-empty">No activities recorded yet.</p>
           ) : (
             activities.map((activity) => (
               <div className="sec-activity-row" key={activity.id}>

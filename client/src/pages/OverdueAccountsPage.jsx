@@ -203,7 +203,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       .filter((a) => statusFilter === 'All' || a.status === statusFilter)
       .filter((a) => agingFilter === 'All' || a.agingTier === agingFilter)
       .filter((a) => blockFilter === 'All' || a.block === blockFilter)
-      .filter((a) => !term || normalize(a.name).includes(term) || normalize(a.lot).includes(term))
+      .filter((a) => !term || normalize(a.name).includes(term) || normalize(a.lot).includes(term) || normalize(a.block).includes(term))
       .sort((a, b) => b.daysOverdue - a.daysOverdue || b.balance - a.balance)
   }, [accounts, search, blockFilter, statusFilter, agingFilter])
 
@@ -337,7 +337,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           <Search size={16} />
           <input
             type="search"
-            placeholder="Search by name or lot..."
+            placeholder="Search by name, block, or lot..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search homeowners"
