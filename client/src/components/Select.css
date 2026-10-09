@@ -1,0 +1,85 @@
+/* Select — styled single-select (components/Select.jsx).
+   Matches DateField's trigger and popup so every filter looks the same. */
+
+.sel-root { position: relative; width: 100%; min-width: 0; }
+
+.sel-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid #d0e4f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sel-trigger:hover:not(:disabled) { border-color: #9cc3de; }
+.sel-trigger:focus-visible,
+.sel-trigger.is-open { outline: none; border-color: #1464a0; box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12); }
+.sel-trigger:disabled { opacity: 0.55; cursor: not-allowed; }
+.sel-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-text.is-placeholder { color: #7f98ab; }
+.sel-chevron { display: inline-flex; flex-shrink: 0; color: #5a7a92; transition: transform 0.18s ease; }
+.sel-trigger.is-open .sel-chevron { color: #1464a0; transform: rotate(180deg); }
+
+.sel-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 100%;
+  width: max-content;
+  max-width: 300px;
+  max-height: 260px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -14px rgba(15, 63, 106, 0.35), 0 2px 8px rgba(15, 63, 106, 0.08);
+  transform-origin: top left;
+  animation: sel-pop 0.14s ease-out;
+}
+
+.sel-popover.open-up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom left; }
+
+@keyframes sel-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.sel-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sel-option.is-active { background: #eef5fb; }
+.sel-option.is-selected { color: #1464a0; font-weight: 700; }

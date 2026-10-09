@@ -1,0 +1,131 @@
+/* DateField — custom calendar popup. Imported by components/DateField.jsx,
+   so it works on every page that uses the component. */
+.tsr-date { position: relative; width: 100%; min-width: 0; }
+
+.tsr-date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid #d0e4f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tsr-date-trigger svg { flex-shrink: 0; color: #5a7a92; }
+.tsr-date-trigger:hover { border-color: #9cc3de; }
+.tsr-date-trigger:focus-visible,
+.tsr-date-trigger.is-open { outline: none; border-color: #1464a0; box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12); }
+.tsr-date-trigger.is-open svg { color: #1464a0; }
+.tsr-date-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsr-date-text.is-placeholder { color: #7f98ab; }
+
+.tsr-date-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: 272px;
+  box-sizing: border-box;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -14px rgba(15, 63, 106, 0.35), 0 2px 8px rgba(15, 63, 106, 0.08);
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
+  transform-origin: top left;
+  animation: tsr-date-pop 0.14s ease-out;
+}
+
+.tsr-date-popover.align-right { left: auto; right: 0; transform-origin: top right; }
+
+@keyframes tsr-date-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.tsr-date-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tsr-date-head strong { font-size: 13px; color: #071e30; }
+
+.tsr-date-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #2a5470;
+  cursor: pointer;
+}
+
+.tsr-date-nav:hover { background: #eef5fb; color: #1464a0; }
+.tsr-date-prev svg { transform: rotate(180deg); }
+
+.tsr-date-weekdays,
+.tsr-date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+
+.tsr-date-weekdays span {
+  padding: 4px 0 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #5a7a92;
+}
+
+.tsr-date-day {
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.tsr-date-day:hover:not(:disabled):not(.is-selected) { background: #eef5fb; }
+.tsr-date-day.is-outside { color: #9db2c2; }
+.tsr-date-day.is-today:not(.is-selected) { box-shadow: inset 0 0 0 1.5px #9cc3de; font-weight: 700; }
+.tsr-date-day.is-selected { background: #1464a0; color: #fff; font-weight: 700; }
+.tsr-date-day:disabled { color: #c3d2dd; cursor: not-allowed; }
+.tsr-date-day:focus-visible { outline: 2px solid #1464a0; outline-offset: 1px; }
+
+.tsr-date-foot { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e3eef6; }
+
+.tsr-date-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1464a0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tsr-date-link:hover:not(:disabled) { background: #eef5fb; }
+.tsr-date-link:disabled { color: #9db2c2; cursor: not-allowed; }

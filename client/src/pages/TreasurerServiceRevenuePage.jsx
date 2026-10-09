@@ -3,6 +3,8 @@ import { AlertCircle, DollarSign, TrendingUp, Clock, Search } from '../component
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
+import DateField from '../components/DateField'
+import Select from '../components/Select'
 import './TreasurerServiceRevenue.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -354,50 +356,42 @@ export default function TreasurerServiceRevenuePage() {
               </div>
             </label>
 
-            <label className="tsr-control">
+            <div className="tsr-control">
               <span>Service</span>
-              <select
+              <Select
+                ariaLabel="Filter by service"
                 value={serviceFilter}
-                onChange={(e) => setServiceFilter(e.target.value)}
-              >
-                <option value="all">All Services</option>
-                {serviceNames.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </label>
+                onChange={setServiceFilter}
+                options={[
+                  { value: 'all', label: 'All Services' },
+                  ...serviceNames.map((name) => ({ value: name, label: name })),
+                ]}
+              />
+            </div>
 
-            <label className="tsr-control">
+            <div className="tsr-control">
               <span>Payment Status</span>
-              <select
+              <Select
+                ariaLabel="Filter by payment status"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All Statuses</option>
-                <option value="paid">Fully Paid</option>
-                <option value="outstanding">Partial / Outstanding</option>
-              </select>
-            </label>
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'all', label: 'All Statuses' },
+                  { value: 'paid', label: 'Fully Paid' },
+                  { value: 'outstanding', label: 'Partial / Outstanding' },
+                ]}
+              />
+            </div>
 
-            <label className="tsr-control">
+            <div className="tsr-control">
               <span>From Date</span>
-              <input
-                type="date"
-                value={fromDate}
-                max={toDate || undefined}
-                onChange={(e) => setFromDate(e.target.value)}
-              />
-            </label>
+              <DateField ariaLabel="From date" value={fromDate} max={toDate || undefined} onChange={setFromDate} />
+            </div>
 
-            <label className="tsr-control">
+            <div className="tsr-control">
               <span>To Date</span>
-              <input
-                type="date"
-                value={toDate}
-                min={fromDate || undefined}
-                onChange={(e) => setToDate(e.target.value)}
-              />
-            </label>
+              <DateField ariaLabel="To date" value={toDate} min={fromDate || undefined} onChange={setToDate} />
+            </div>
 
             <button
               type="button"

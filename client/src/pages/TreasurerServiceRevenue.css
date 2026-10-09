@@ -181,7 +181,7 @@
   min-width: 0;
 }
 
-.tsr-control span {
+.tsr-control > span {
   color: #5a7a92;
   font-size: 10px;
   font-weight: 700;
@@ -202,6 +202,14 @@
   font-size: 12px;
   padding: 9px 10px;
   outline: none;
+  accent-color: #1464a0;
+  color-scheme: light;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tsr-control input:hover,
+.tsr-control select:hover {
+  border-color: #9cc3de;
 }
 
 .tsr-control input:focus,
@@ -209,6 +217,234 @@
   border-color: #1464a0;
   box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.1);
 }
+
+/* SELECT — fallback for browsers without customizable selects:
+   own chevron instead of the OS arrow. */
+.tsr-control select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a7a92' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+/* SELECT — Chrome/Edge 135+: the open list itself can be styled. */
+@supports (appearance: base-select) {
+  .tsr-control select,
+  .tsr-control select::picker(select) {
+    appearance: base-select;
+  }
+
+  .tsr-control select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 10px 9px 12px;
+    background-image: none;
+  }
+
+  .tsr-control select::picker-icon {
+    content: '';
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a7a92' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / 16px no-repeat;
+    transition: rotate 0.18s ease;
+  }
+
+  .tsr-control select:open::picker-icon {
+    rotate: 180deg;
+  }
+
+  .tsr-control select:open {
+    border-color: #1464a0;
+    box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
+  }
+
+  .tsr-control select::picker(select) {
+    box-sizing: border-box;
+    min-width: anchor-size(width);
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid #d0e4f0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 18px 40px -14px rgba(15, 63, 106, 0.35), 0 2px 8px rgba(15, 63, 106, 0.08);
+    font-family: 'DM Sans', sans-serif;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.14s ease, transform 0.14s ease, display 0.14s allow-discrete, overlay 0.14s allow-discrete;
+  }
+
+  .tsr-control select::picker(select):popover-open {
+    opacity: 1;
+    transform: none;
+  }
+
+  @starting-style {
+    .tsr-control select::picker(select):popover-open {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  .tsr-control select option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    color: #071e30;
+    font-size: 12.5px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .tsr-control select option:hover,
+  .tsr-control select option:focus-visible {
+    background: #eef5fb;
+    outline: none;
+  }
+
+  .tsr-control select option:checked {
+    color: #1464a0;
+    font-weight: 700;
+  }
+
+  /* Check mark sits at the right edge of the selected option. */
+  .tsr-control select option::checkmark {
+    order: 1;
+    color: #1464a0;
+  }
+}
+
+/* DATE FIELD — custom calendar (components/DateField.jsx) */
+.tsr-date { position: relative; width: 100%; min-width: 0; }
+
+.tsr-date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid #d0e4f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tsr-date-trigger svg { flex-shrink: 0; color: #5a7a92; }
+.tsr-date-trigger:hover { border-color: #9cc3de; }
+.tsr-date-trigger:focus-visible,
+.tsr-date-trigger.is-open { outline: none; border-color: #1464a0; box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12); }
+.tsr-date-trigger.is-open svg { color: #1464a0; }
+.tsr-date-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsr-date-text.is-placeholder { color: #7f98ab; }
+
+.tsr-date-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: 272px;
+  box-sizing: border-box;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -14px rgba(15, 63, 106, 0.35), 0 2px 8px rgba(15, 63, 106, 0.08);
+  transform-origin: top left;
+  animation: tsr-date-pop 0.14s ease-out;
+}
+
+.tsr-date-popover.align-right { left: auto; right: 0; transform-origin: top right; }
+
+@keyframes tsr-date-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.tsr-date-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tsr-date-head strong { font-size: 13px; color: #071e30; }
+
+.tsr-date-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #2a5470;
+  cursor: pointer;
+}
+
+.tsr-date-nav:hover { background: #eef5fb; color: #1464a0; }
+.tsr-date-prev svg { transform: rotate(180deg); }
+
+.tsr-date-weekdays,
+.tsr-date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+
+.tsr-date-weekdays span {
+  padding: 4px 0 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #5a7a92;
+}
+
+.tsr-date-day {
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #071e30;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.tsr-date-day:hover:not(:disabled):not(.is-selected) { background: #eef5fb; }
+.tsr-date-day.is-outside { color: #9db2c2; }
+.tsr-date-day.is-today:not(.is-selected) { box-shadow: inset 0 0 0 1.5px #9cc3de; font-weight: 700; }
+.tsr-date-day.is-selected { background: #1464a0; color: #fff; font-weight: 700; }
+.tsr-date-day:disabled { color: #c3d2dd; cursor: not-allowed; }
+.tsr-date-day:focus-visible { outline: 2px solid #1464a0; outline-offset: 1px; }
+
+.tsr-date-foot { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e3eef6; }
+
+.tsr-date-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1464a0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tsr-date-link:hover:not(:disabled) { background: #eef5fb; }
+.tsr-date-link:disabled { color: #9db2c2; cursor: not-allowed; }
 
 .tsr-search-control input {
   min-width: 220px;
