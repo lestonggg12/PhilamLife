@@ -41,6 +41,9 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
+import { ReceiptDialog } from '../components/ReceiptSheet'
+import { buildReceiptModel } from '../lib/receiptModel'
+import { printReceipt } from '../lib/printReceipt'
 import './ServicesManagementPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
@@ -245,151 +248,6 @@ const monthTitleFormat = new Intl.DateTimeFormat('en-PH', {
 })
 
 const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-
-const escapePrintText = (value) =>
-  String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-
-function printServiceReceipt(receipt, associationName, onPopupBlocked) {
-  const printWindow = window.open('', '_blank', 'width=900,height=700')
-
-  if (!printWindow) {
-    onPopupBlocked?.('Please allow pop-ups to print the service receipt.')
-    return
-  }
-
-  const rows = [
-    ['Received from', receipt.customer_name],
-    ['Property', `${receipt.block_name}, Lot ${receipt.lot_number}`],
-    ['Service', receipt.service_name],
-    ['Service date', receipt.service_date],
-    ['Amount paid', peso.format(Number(receipt.amount_paid) || 0)],
-    ['Payment method', receipt.payment_method],
-    ['Date issued', dateTime.format(new Date(receipt.paid_at))],
-    ['Processed by', receipt.recorded_by_name],
-  ]
-  if (receipt.notes) rows.push(['Notes', receipt.notes])
-
-  const receiptRows = rows
-    .map(
-      ([label, value]) => `
-        <div class="receipt-row">
-          <span>${escapePrintText(label)}</span>
-          <strong>${escapePrintText(value)}</strong>
-        </div>
-      `,
-    )
-    .join('')
-
-  printWindow.addEventListener(
-    'load',
-    () => {
-      printWindow.focus()
-      printWindow.print()
-    },
-    { once: true },
-  )
-
-  printWindow.document.write(`
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${escapePrintText(receipt.receipt_number)} - Official Service Receipt</title>
-        <style>
-          @page { size: A4 portrait; margin: 16mm; }
-          * { box-sizing: border-box; }
-          html, body {
-            margin: 0;
-            padding: 0;
-            background: #fff;
-            color: #17324a;
-            font-family: Arial, Helvetica, sans-serif;
-          }
-          .receipt {
-            width: 100%;
-            max-width: 700px;
-            margin: 0 auto;
-            padding: 22px 28px;
-            border: 1px solid #dce8f0;
-          }
-          .check {
-            display: grid;
-            width: 44px;
-            height: 44px;
-            margin: 0 auto 12px;
-            place-items: center;
-            border-radius: 50%;
-            background: #dcfce7;
-            color: #15803d;
-            font-size: 28px;
-            font-weight: 700;
-          }
-          .association {
-            margin: 0 0 6px;
-            color: #5d7d98;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: .06em;
-            text-align: center;
-            text-transform: uppercase;
-          }
-          h1 {
-            margin: 0;
-            color: #071e30;
-            font-size: 24px;
-            text-align: center;
-          }
-          .number {
-            display: block;
-            margin: 12px 0 24px;
-            color: #1464a0;
-            font-size: 17px;
-            text-align: right;
-          }
-          .receipt-details { border-top: 1px solid #dce8f0; }
-          .receipt-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 24px;
-            padding: 12px 0;
-            border-bottom: 1px solid #e7eff4;
-          }
-          .receipt-row span { color: #5d7d98; }
-          .receipt-row strong {
-            color: #071e30;
-            text-align: right;
-          }
-          .note {
-            margin: 20px 0 0;
-            color: #7890a2;
-            font-size: 11px;
-            line-height: 1.5;
-            text-align: center;
-          }
-        </style>
-      </head>
-      <body>
-        <main class="receipt">
-          <div class="check">✓</div>
-          <p class="association">${escapePrintText(associationName)}</p>
-          <h1>Official Service Receipt</h1>
-          <strong class="number">${escapePrintText(receipt.receipt_number)}</strong>
-          <section class="receipt-details">${receiptRows}</section>
-          <p class="note">
-            This receipt is a permanent transaction record and cannot be deleted
-            from the Services Management page.
-          </p>
-        </main>
-      </body>
-    </html>
-  `)
-  printWindow.document.close()
-}
 
 const today = () =>
   new Intl.DateTimeFormat('en-CA', {
@@ -1581,37 +1439,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {receipt && (
-        <div className="services-modal-backdrop" role="presentation">
-          <article className="service-receipt receipt-card">
-            <div className="receipt-success"><CheckCircle size={24} /></div>
-            <p className="receipt-kicker">{organization.associationName}</p>
-            <h2>Official Service Receipt</h2>
-            <strong className="receipt-number">{receipt.receipt_number}</strong>
-            <dl>
-              <div><dt>Received from</dt><dd>{receipt.customer_name}</dd></div>
-              <div><dt>Property</dt><dd>{receipt.block_name}, Lot {receipt.lot_number}</dd></div>
-              <div><dt>Service</dt><dd>{receipt.service_name}</dd></div>
-              <div><dt>Service date</dt><dd>{receipt.service_date}</dd></div>
-              <div><dt>Amount paid</dt><dd>{peso.format(Number(receipt.amount_paid) || 0)}</dd></div>
-              <div><dt>Payment method</dt><dd>{receipt.payment_method}</dd></div>
-              <div><dt>Date issued</dt><dd>{dateTime.format(new Date(receipt.paid_at))}</dd></div>
-              <div><dt>Processed by</dt><dd>{receipt.recorded_by_name}</dd></div>
-              {receipt.notes && <div><dt>Notes</dt><dd>{receipt.notes}</dd></div>}
-            </dl>
-            <p className="receipt-note">
-              This receipt is a permanent transaction record and cannot be deleted
-              from the Services Management page.
-            </p>
-            <div className="services-modal-actions">
-              <button type="button" onClick={() => setReceipt(null)}>Close</button>
-              <button type="button" onClick={() => printServiceReceipt(receipt, organization.associationName, setPopupNotice)}>
-                Print Receipt
-              </button>
-            </div>
-          </article>
-        </div>
-      )}
+      {receipt && (() => {
+        const receiptModel = buildReceiptModel('service', receipt, organization)
+        return (
+          <ReceiptDialog
+            model={receiptModel}
+            dismissOnBackdrop={false}
+            onClose={() => setReceipt(null)}
+            onPrint={() => printReceipt(receiptModel, setPopupNotice)}
+          />
+        )
+      })()}
 
       {dayModalDate && (
         <div className="services-modal-backdrop" role="presentation">

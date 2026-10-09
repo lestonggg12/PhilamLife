@@ -3,6 +3,10 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
+import ActionDialog from '../components/ActionDialog'
+import { ReceiptDialog } from '../components/ReceiptSheet'
+import { buildReceiptModel } from '../lib/receiptModel'
+import { printReceipt } from '../lib/printReceipt'
 import './PaymentsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import useDebouncedValue from '../hooks/useDebouncedValue'
@@ -374,6 +378,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
+  const [popupNotice, setPopupNotice] = useState('')
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
   const [chargeRows, setChargeRows] = useState([])
@@ -1714,70 +1719,42 @@ export default function PaymentsPage({ user: suppliedUser }) {
         )
       })()}
 
-      {receipt && (
-        <div className="payments-overlay receipt-overlay" onMouseDown={() => setReceipt(null)}>
-          <article className="receipt receipt-card" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="receipt-copy">
-              <header className="receipt-header">
-                <div>
-                  <h2>{organization.associationName}</h2>
-                  <p>Official Payment Receipt</p>
-                </div>
-                <div className="receipt-number"><span>Receipt No.</span><strong>{receipt.receipt_number}</strong></div>
-              </header>
+      {receipt && (() => {
+        const receiptModel = buildReceiptModel('payment', receipt, organization, {
+          advanceNote:
+            Number(receipt.remaining_balance) < 0 && (!receipt.charge_type || receipt.charge_type === 'Association Dues')
+              ? advanceCreditNote(-Number(receipt.remaining_balance), duesSettings)
+              : '',
+        })
+        return (
+          <ReceiptDialog
+            model={receiptModel}
+            onClose={() => setReceipt(null)}
+            onPrint={() => printReceipt(receiptModel, setPopupNotice)}
+          >
+            {canVoidPayments && receipt.status !== 'Voided' && (
+              <button
+                type="button"
+                className="rcpt-btn rcpt-btn-danger"
+                onClick={() => {
+                  const target = receipt
+                  setReceipt(null)
+                  openVoid('payment', target)
+                }}
+              >
+                Void this payment
+              </button>
+            )}
+          </ReceiptDialog>
+        )
+      })()}
 
-              <dl className="receipt-details">
-                <div><dt>Date and time</dt><dd>{organization.formatDate(receipt.paid_at, { withTime: true })}</dd></div>
-                <div><dt>Received from</dt><dd>{receipt.homeowner_name}</dd></div>
-                <div><dt>Property</dt><dd>{receipt.block_name}, {receipt.lot_number}</dd></div>
-                <div><dt>Payment for</dt><dd>{receipt.coverage_period}</dd></div>
-                <div><dt>Payment method</dt><dd>{receipt.payment_method}</dd></div>
-                {receipt.reference_number && <div><dt>Reference no.</dt><dd>{receipt.reference_number}</dd></div>}
-              </dl>
-
-              <div className="receipt-totals">
-                <div><span>Previous balance</span><span>{peso.format(receipt.previous_balance)}</span></div>
-                <div className="receipt-paid"><strong>Amount paid</strong><strong>{peso.format(receipt.amount_paid)}</strong></div>
-                <div><span>{Number(receipt.remaining_balance) < 0 ? 'Advance credit' : 'Remaining balance'}</span><strong>{peso.format(Math.abs(Number(receipt.remaining_balance) || 0))}</strong></div>
-              </div>
-
-              {Number(receipt.remaining_balance) < 0 && (!receipt.charge_type || receipt.charge_type === 'Association Dues') && (
-                <p className="receipt-note">
-                  <strong>Advance credit:</strong> {advanceCreditNote(-Number(receipt.remaining_balance), duesSettings)}
-                </p>
-              )}
-
-              {receipt.note && <p className="receipt-note"><strong>Note:</strong> {receipt.note}</p>}
-              {receipt.status === 'Voided' && receipt.void_reason && (
-                <p className="receipt-note"><strong>Voided:</strong> {receipt.void_reason}</p>
-              )}
-
-              <footer className="receipt-footer">
-                <div><span>Recorded by</span><strong>{receipt.recorded_by_name}</strong></div>
-                <p>This computer-generated receipt is based on the payment saved in the system.</p>
-              </footer>
-            </div>
-
-            <div className="receipt-actions">
-              <button type="button" className="payments-secondary" onClick={() => setReceipt(null)}>Close</button>
-              {canVoidPayments && receipt.status !== 'Voided' && (
-                <button
-                  type="button"
-                  className="payments-secondary payments-link-danger"
-                  onClick={() => {
-                    const target = receipt
-                    setReceipt(null)
-                    openVoid('payment', target)
-                  }}
-                >
-                  Void this payment
-                </button>
-              )}
-              <button type="button" className="payments-primary" onClick={() => window.print()}>Print / Save as PDF</button>
-            </div>
-          </article>
-        </div>
-      )}
+      <ActionDialog
+        open={!!popupNotice}
+        title="Pop-up Blocked"
+        message={popupNotice}
+        onConfirm={() => setPopupNotice('')}
+      />
     </div>
   )
 }
