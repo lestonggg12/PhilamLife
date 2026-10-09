@@ -3,6 +3,8 @@ import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import ActionDialog from '../components/ActionDialog'
+import DateField from '../components/DateField'
+import Select from '../components/Select'
 import { useOrganization } from '../context/OrganizationContext'
 import './TreasurerExpenses.css'
 
@@ -53,6 +55,9 @@ const CATEGORIES = [
   'Professional Fees',
   'Other',
 ]
+
+// Shape expected by the custom <Select /> component.
+const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: c }))
 
 function todayISO() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
@@ -134,12 +139,15 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     }
   }, [monthMenuMounted])
 
+  // Close the month menu when clicking outside of it.
+  // (Renamed from closeMonthPicker: the old name shadowed the real function
+  // and made it call itself with no event.)
   useEffect(() => {
-    function closeMonthPicker(event) {
+    function handleOutsideClick(event) {
       if (!monthPickerRef.current?.contains(event.target)) closeMonthPicker()
     }
-    document.addEventListener('mousedown', closeMonthPicker)
-    return () => document.removeEventListener('mousedown', closeMonthPicker)
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [])
 
   function openMonthPicker() {
@@ -280,6 +288,10 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     }
     if (!form.expense_date) {
       setFormError('Please select a date.')
+      return
+    }
+    if (!form.category) {
+      setFormError('Please select a category.')
       return
     }
 
@@ -572,27 +584,28 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
 
             <form onSubmit={handleSubmit} className="tex-form">
               <div className="tex-form-row">
-                <label>
-                  Date
-                  <input
-                    type="date"
+                {/* Custom controls are NOT wrapped in <label>: a click inside
+                    the popup would be forwarded to the trigger button and
+                    reopen it right after picking a value. */}
+                <div className="tex-field">
+                  <span className="tex-field-label">Date</span>
+                  <DateField
                     value={form.expense_date}
-                    onChange={(e) => updateForm('expense_date', e.target.value)}
-                    required
+                    onChange={(key) => updateForm('expense_date', key)}
+                    placeholder="Select date"
+                    ariaLabel="Expense date"
                   />
-                </label>
+                </div>
 
-                <label>
-                  Category
-                  <select
+                <div className="tex-field">
+                  <span className="tex-field-label">Category</span>
+                  <Select
                     value={form.category}
-                    onChange={(e) => updateForm('category', e.target.value)}
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </label>
+                    options={CATEGORY_OPTIONS}
+                    onChange={(value) => updateForm('category', value)}
+                    ariaLabel="Category"
+                  />
+                </div>
               </div>
 
               <label>

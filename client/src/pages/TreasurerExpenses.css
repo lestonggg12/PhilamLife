@@ -559,10 +559,16 @@
   gap: 14px;
 }
 
-.tex-form label {
+.tex-form label,
+.tex-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+}
+
+.tex-form label,
+.tex-field-label {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.3px;
@@ -570,8 +576,7 @@
   color: #5a7a92;
 }
 
-.tex-form input,
-.tex-form select {
+.tex-form input {
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   font-weight: 400;
@@ -584,8 +589,7 @@
   background: #f8fbfd;
 }
 
-.tex-form input:focus,
-.tex-form select:focus {
+.tex-form input:focus {
   outline: none;
   border-color: #1464a0;
   background: #fff;
