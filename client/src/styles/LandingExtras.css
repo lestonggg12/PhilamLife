@@ -1,0 +1,102 @@
+/* ========================================
+   LANDING PAGE EXTRAS
+   About section + anchor offsets for the
+   fixed navbar (Features / About links)
+   ======================================== */
+
+.lp-features,
+.lp-about {
+  scroll-margin-top: 68px;
+}
+
+.lp-about {
+  position: relative;
+  z-index: 1;
+  padding: 0 56px 110px;
+  background: transparent;
+}
+
+.lp-about-card {
+  max-width: 1020px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.28);
+  border: 0.5px solid rgba(255, 255, 255, 0.60);
+  border-radius: 18px;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  padding: 44px 44px 40px;
+}
+
+.lp-about-eyebrow {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1766a0;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.lp-about-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 34px;
+  font-weight: 600;
+  color: #061624;
+  margin: 0 0 16px;
+  line-height: 1.25;
+}
+
+.lp-about-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  color: #1e3d56;
+  line-height: 1.75;
+  margin: 0 0 14px;
+  max-width: 720px;
+}
+
+.lp-about-list {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 28px;
+}
+
+.lp-about-list li {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  color: #1e3d56;
+  line-height: 1.5;
+  padding-left: 22px;
+  position: relative;
+}
+
+.lp-about-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1f9e6e;
+}
+
+@media (max-width: 1024px) {
+  .lp-about { padding: 0 40px 90px; }
+}
+
+@media (max-width: 768px) {
+  .lp-about { padding: 0 24px 70px; }
+  .lp-about-card { padding: 32px 24px 28px; }
+  .lp-about-title { font-size: 28px; }
+}
+
+@media (max-width: 480px) {
+  .lp-about { padding: 0 16px 50px; }
+  .lp-about-card { padding: 24px 18px 22px; }
+  .lp-about-title { font-size: 24px; }
+  .lp-about-text { font-size: 13px; }
+}

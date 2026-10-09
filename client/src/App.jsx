@@ -13,6 +13,7 @@ import Loader from './components/Loader'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { OrganizationProvider } from './context/OrganizationContext'
 import LandingPage from './pages/LandingPage'
+import LegalPage from './pages/LegalPage2'
 import GuidePage from './pages/GuidePage'
 import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
@@ -137,6 +138,9 @@ function AppContent() {
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/guide" element={<GuidePage />} />
+          <Route path="/privacy" element={<LegalPage page="privacy" />} />
+          <Route path="/terms" element={<LegalPage page="terms" />} />
+          <Route path="/security" element={<LegalPage page="security" />} />
           <Route
             path="/login"
             element={<LoginPage onAuthenticated={completeAuthentication} />}

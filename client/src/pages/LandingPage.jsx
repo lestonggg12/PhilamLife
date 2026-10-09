@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useOrganization } from '../context/OrganizationContext';
 import '../styles/LandingPage.css';
+import '../styles/LandingExtras.css';
 
 const ROLE_CHOICES = [
   {
@@ -36,6 +37,11 @@ const ROLE_CHOICES = [
     ),
   },
 ]
+
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -119,7 +125,7 @@ export default function LandingPage() {
       </section>
 
       {/* Feature Cards */}
-      <section className="lp-features">
+      <section className="lp-features" id="features">
         <div className="lp-cards-container">
           {/* Card 1 */}
           <div className="lp-card">
@@ -166,6 +172,28 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* About */}
+      <section className="lp-about" id="about">
+        <div className="lp-about-card">
+          <div className="lp-about-eyebrow">ABOUT</div>
+          <h2 className="lp-about-title">Built for how {organization.hoaName} actually runs</h2>
+          <p className="lp-about-text">
+            The Ledger & Payment System replaces scattered notebooks and spreadsheets with one organized place for the association's records. Officers can bill dues, record payments, issue official receipts, and follow up on overdue accounts, while every action is logged for transparency.
+          </p>
+          <p className="lp-about-text">
+            Each officer signs in to a portal made for their role, so everyone sees what they need and nothing more.
+          </p>
+          <ul className="lp-about-list">
+            <li>Homeowner and property records</li>
+            <li>Dues, charges, and payment allocation</li>
+            <li>Official receipts and financial reports</li>
+            <li>Documents, events, and community records</li>
+            <li>Activity log for every officer action</li>
+            <li>Role-based access for Admin, Secretary, and Treasurer</li>
+          </ul>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="lp-footer">
         <div className="lp-footer-content">
@@ -179,8 +207,8 @@ export default function LandingPage() {
           <div className="lp-footer-column">
             <h5 className="lp-footer-col-title">PLATFORM</h5>
             <button onClick={() => setRolePickerIntent('login')} className="lp-footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>Portal Login</button>
-            <a href="#" className="lp-footer-link" onClick={(e) => e.preventDefault()}>Features</a>
-            <a href="#" className="lp-footer-link" onClick={(e) => e.preventDefault()}>About</a>
+            <a href="#features" className="lp-footer-link" onClick={(e) => { e.preventDefault(); scrollToSection('features'); }}>Features</a>
+            <a href="#about" className="lp-footer-link" onClick={(e) => { e.preventDefault(); scrollToSection('about'); }}>About</a>
           </div>
 
           {/* Portals Column */}
@@ -194,9 +222,9 @@ export default function LandingPage() {
           {/* Legal Column */}
           <div className="lp-footer-column">
             <h5 className="lp-footer-col-title">LEGAL</h5>
-            <a href="#" className="lp-footer-link">Privacy Policy</a>
-            <a href="#" className="lp-footer-link">Terms of Service</a>
-            <a href="#" className="lp-footer-link">Security</a>
+            <Link to="/privacy" className="lp-footer-link">Privacy Policy</Link>
+            <Link to="/terms" className="lp-footer-link">Terms of Service</Link>
+            <Link to="/security" className="lp-footer-link">Security</Link>
           </div>
         </div>
 
