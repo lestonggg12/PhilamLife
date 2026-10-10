@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // Content-Security-Policy for the production build. It is injected only at
 // build time so the Vite dev server (inline HMR scripts) keeps working.
@@ -21,7 +22,40 @@ const securityMeta = () => ({
 })
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), securityMeta()],
+  plugins: [
+    react(),
+    securityMeta(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      // External registerSW.js (no inline script) so the strict CSP still passes.
+      injectRegister: 'script',
+      includeAssets: ['icons/apple-touch-icon.png'],
+      manifest: {
+        name: 'PHILAM Life - Homeowners Ledger System',
+        short_name: 'PHILAM Life',
+        description: 'PHILAM Village HOA management system',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        orientation: 'any',
+        background_color: '#e6f0fa',
+        theme_color: '#1464a0',
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // Cache only the app shell (JS/CSS/icons). Supabase data and auth calls
+        // are never cached, so records and balances are always live.
+        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+      },
+    }),
+  ],
   root: '.',
   publicDir: 'public',
   build: {
