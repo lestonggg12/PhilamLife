@@ -1,8 +1,9 @@
 /* ============================================
    LAYOUT - FIXED NAVBAR + SIDEBAR
    Liquid-glass backdrop: a soft gradient wash plus two blurred
-   color blobs sitting behind the frosted navbar/sidebar/cards,
-   so their backdrop-filter has something to actually refract.
+   color blobs sitting behind the frosted navbar/sidebar/cards.
+   Blobs and backdrop blur are switched off on phones/tablets
+   (see styles/mobile.css) because they make scrolling lag.
    ============================================ */
 
 .layout {
@@ -10,6 +11,7 @@
   flex-direction: column;
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(135deg, #e6f0fa 0%, #f0f5fa 100%);
   position: relative;
   overflow-x: hidden;
@@ -47,6 +49,7 @@
   flex: 1;
   margin-top: 56px;
   height: calc(100vh - 56px);
+  height: calc(100dvh - 56px);
   position: relative;
 }
 
@@ -60,36 +63,74 @@
   box-sizing: border-box;
 }
 
+/* Drawer backdrop (only used when the sidebar is a drawer) */
+.nav-backdrop {
+  display: none;
+}
+
 /* ============================================
    RESPONSIVE DESIGN
+   <= 1024px: sidebar becomes a drawer, the page scrolls as a
+   normal document (smoother momentum + collapsing browser bars)
    ============================================ */
 
 @media (max-width: 1024px) {
+  .layout::before,
+  .layout::after {
+    display: none;
+  }
+
+  .layout-container {
+    display: block;
+    height: auto;
+    min-height: calc(100vh - 56px);
+    min-height: calc(100dvh - 56px);
+  }
+
   .page-content {
-    margin-left: 260px;
-    padding: 20px 24px;
+    margin-left: 0;
+    height: auto;
+    overflow-y: visible;
+    padding: 16px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1090;
+    background: rgba(15, 63, 106, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .nav-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
 @media (max-width: 768px) {
   .layout-container {
-    flex-direction: column;
-    height: auto;
-    min-height: calc(100vh - 52px);
     margin-top: 52px;
+    min-height: calc(100vh - 52px);
+    min-height: calc(100dvh - 52px);
   }
 
   .page-content {
-    margin-left: 0;
-    margin-top: 0;
-    height: auto;
-    overflow-y: visible;
-    padding: 16px 18px;
+    padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @media (max-width: 480px) {
+  .layout-container {
+    margin-top: 48px;
+    min-height: calc(100vh - 48px);
+    min-height: calc(100dvh - 48px);
+  }
+
   .page-content {
-    padding: 12px 14px;
+    padding: 12px 14px calc(20px + env(safe-area-inset-bottom, 0px));
   }
 }

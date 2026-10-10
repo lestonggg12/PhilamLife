@@ -1,0 +1,43 @@
+/* ============================================
+   MOBILE / TOUCH PERFORMANCE
+   Imported LAST in main.jsx so it overrides page CSS.
+   ============================================ */
+
+/* Backdrop blur + big blurred blobs are the main cause of scroll lag on
+   phones and tablets. Drop them on small screens and on any touch device
+   (covers iPad landscape too). Surfaces are already near-opaque white. */
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+  *,
+  *::before,
+  *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .layout::before,
+  .layout::after {
+    display: none !important;
+  }
+
+  .sidebar {
+    background: #f4f8fc !important;
+  }
+}
+
+/* Removes the 300ms tap delay and double-tap zoom on controls. */
+button,
+a,
+select,
+label,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body.nav-locked {
+  overflow: hidden;
+}

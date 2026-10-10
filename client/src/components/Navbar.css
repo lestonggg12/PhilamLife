@@ -321,3 +321,53 @@
   .modal-footer { padding: 15px 20px; gap: 8px; }
   .modal-footer .btn { padding: 8px 12px; font-size: 12px; }
 }
+
+/* ============================================
+   MOBILE / TABLET - hamburger + solid bar (no blur)
+   ============================================ */
+
+.navbar-menu {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .navbar {
+    background: #f4f8fc;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .navbar-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    margin: 0 8px 0 -10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-dark);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .navbar-menu:active {
+    background: rgba(20, 100, 160, 0.12);
+  }
+
+  .navbar-signout {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .breadcrumb-sep {
+    display: none;
+  }
+
+  .navbar-menu {
+    margin-left: -8px;
+  }
+}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import './Navbar.css'
-import { LogOut } from './Icons'
+import { LogOut, Menu } from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
 
 const PAGE_LABELS = {
@@ -30,7 +30,7 @@ function pageLabelFor(pathname) {
   return match ? PAGE_LABELS[match] : 'Dashboard'
 }
 
-export default function Navbar({ user, onLogout }) {
+export default function Navbar({ user, onLogout, menuOpen = false, onMenuToggle }) {
   const { organization } = useOrganization()
   const location = useLocation()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
@@ -59,6 +59,15 @@ export default function Navbar({ user, onLogout }) {
     <>
       <nav className="navbar">
         <div className="navbar-left">
+          <button
+            type="button"
+            className="navbar-menu"
+            onClick={onMenuToggle}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+          >
+            <Menu size={22} />
+          </button>
           <div className="breadcrumb">
             <span className="breadcrumb-item">{roleLabel}</span>
             <span className="breadcrumb-sep">›</span>

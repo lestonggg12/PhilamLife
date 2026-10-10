@@ -4,7 +4,7 @@ import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, 
 import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
-export default function Sidebar({ user, onLogout }) {
+export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
   const { organization } = useOrganization()
   const role = user?.role?.trim().toLowerCase()
   const displayName = user?.full_name?.trim() || user?.email || 'User'
@@ -121,6 +121,7 @@ export default function Sidebar({ user, onLogout }) {
         key={item.path}
         to={item.path}
         end={item.path === '/' || item.path.endsWith('/dashboard')}
+        onClick={onNavigate}
         className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
       >
         <span className="nav-icon"><item.icon size={18} /></span>
@@ -129,7 +130,7 @@ export default function Sidebar({ user, onLogout }) {
     ))
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-header">
         <div className="logo">
           <span className="logo-badge"><Home size={18} /></span>
