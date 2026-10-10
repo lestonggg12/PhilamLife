@@ -666,3 +666,16 @@
     align-items: flex-start;
   }
 }
+
+/* ---------- Mobile: keep chart title and target badge apart ---------- */
+@media (max-width: 640px) {
+  .dash-chart-card {
+    padding: 18px 16px;
+  }
+
+  .dash-target-badge {
+    position: static;
+    display: inline-block;
+    margin: 10px 0 6px;
+  }
+}
