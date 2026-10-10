@@ -35,6 +35,8 @@ import ContactManagerPage from './pages/ContactManagerPage'
 import HomeownersPage from './pages/HomeownersPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import OverdueAccountsPage from './pages/OverdueAccountsPage'
+import NotFoundPage from './pages/NotFoundPage'
+import NetworkStatus from './components/NetworkStatus'
 import './App.css'
 
 function AppContent() {
@@ -262,13 +264,13 @@ function AppContent() {
             />
           </Route>
 
-          {/* Anything else goes to the right home page */}
+          {/* Unknown URLs show a proper 404 */}
           <Route
             path="*"
             element={
-              <Navigate
-                to={isAuthenticated ? dashboardForRole(user?.role) : '/login'}
-                replace
+              <NotFoundPage
+                homePath={isAuthenticated ? dashboardForRole(user?.role) : '/login'}
+                homeLabel={isAuthenticated ? 'Back to dashboard' : 'Go to sign in'}
               />
             }
           />
@@ -286,6 +288,7 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
+      <NetworkStatus />
       <AppContent />
     </BrowserRouter>
   )

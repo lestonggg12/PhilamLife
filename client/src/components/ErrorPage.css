@@ -1,0 +1,124 @@
+.error-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(135deg, #e6f0fa 0%, #f0f5fa 100%);
+}
+
+.error-page--inline {
+  min-height: 60vh;
+  min-height: 60dvh;
+  padding: 24px 0;
+  background: transparent;
+}
+
+.error-card {
+  width: 100%;
+  max-width: 460px;
+  padding: 36px 28px 30px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #d0e4f0;
+  border-radius: 20px;
+  box-shadow: 0 18px 40px -22px rgba(15, 63, 106, 0.35);
+}
+
+.error-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: rgba(20, 100, 160, 0.1);
+  color: var(--primary, #1464a0);
+}
+
+.error-page--warning .error-icon {
+  background: rgba(212, 146, 6, 0.14);
+  color: var(--warning, #d49206);
+}
+
+.error-page--danger .error-icon {
+  background: rgba(192, 57, 43, 0.12);
+  color: var(--danger, #c0392b);
+}
+
+.error-code {
+  margin: 0 0 4px;
+  font-family: var(--font-display, serif);
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--primary-dark, #0f3f6a);
+}
+
+.error-title {
+  margin: 0 0 10px;
+  font-family: var(--font-display, serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-dark, #071e30);
+}
+
+.error-message {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-light, #2a5470);
+}
+
+.error-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted, #5a7a92);
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.error-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 22px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.error-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (max-width: 480px) {
+  .error-card {
+    padding: 30px 20px 24px;
+  }
+
+  .error-code {
+    font-size: 48px;
+  }
+
+  .error-actions {
+    flex-direction: column;
+  }
+
+  .error-btn {
+    width: 100%;
+  }
+}
