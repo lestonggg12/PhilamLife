@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '../context/OrganizationContext';
 import { supabase } from '../lib/supabaseClient';
@@ -12,6 +13,8 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const turnstileRef = useRef(null);
 
   const handleSendResetLink = async (e) => {
     e.preventDefault();
@@ -23,12 +26,24 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    if (!captchaToken) {
+      setError('Please wait for the security check to finish.');
+      return;
+    }
+
     setLoading(true);
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
-      { redirectTo: `${window.location.origin}/reset-password` },
+      {
+        redirectTo: `${window.location.origin}/reset-password`,
+        captchaToken,
+      },
     );
+
+    // Turnstile tokens are single-use; get a fresh one for any next attempt.
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
 
     setLoading(false);
 
@@ -107,13 +122,26 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
+          {/* Security check */}
+          {!submitted && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                onSuccess={setCaptchaToken}
+                onExpire={() => setCaptchaToken(null)}
+                onError={() => setCaptchaToken(null)}
+              />
+            </div>
+          )}
+
           {/* Messages */}
           {error && <div className="forgot-error-message">{error}</div>}
           {message && <div className="forgot-success-message">{message}</div>}
 
           {/* Submit Button */}
           {!submitted && (
-            <button type="submit" className="forgot-submit-btn" disabled={loading}>
+            <button type="submit" className="forgot-submit-btn" disabled={loading || !captchaToken}>
               {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
           )}
