@@ -6,7 +6,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // build time so the Vite dev server (inline HMR scripts) keeps working.
 // frame-ancestors can't be set from a <meta> tag; it is sent as a header by
 // public/_headers (Netlify / Cloudflare Pages) or vercel.json (Vercel).
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' blob: https://*.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+// challenges.cloudflare.com is allowed for the Cloudflare Turnstile captcha.
+const CSP = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com; frame-src 'self' blob: https://*.supabase.co https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
 
 const securityMeta = () => ({
   name: 'security-meta',
