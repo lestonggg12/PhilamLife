@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
@@ -27,7 +28,9 @@ export default function LoginPage({ onAuthenticated }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
   const failedAttempts = useRef(0);
+  const turnstileRef = useRef(null);
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
@@ -39,10 +42,21 @@ export default function LoginPage({ onAuthenticated }) {
     setShowPassword(!showPassword);
   };
 
+  const resetCaptcha = () => {
+    // Turnstile tokens are single-use, so always get a fresh one after a sign-in attempt.
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     if (loading) return;
     setError('');
+
+    if (!captchaToken) {
+      setError('Please wait for the security check to finish.');
+      return;
+    }
 
     const lockedUntil = Number(sessionStorage.getItem(LOCKOUT_KEY)) || 0;
     if (Date.now() < lockedUntil) {
@@ -57,7 +71,10 @@ export default function LoginPage({ onAuthenticated }) {
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
+      options: { captchaToken },
     });
+
+    resetCaptcha();
 
     if (authError) {
       failedAttempts.current += 1;
@@ -211,13 +228,21 @@ export default function LoginPage({ onAuthenticated }) {
             </a>
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+              onSuccess={setCaptchaToken}
+              onExpire={() => setCaptchaToken(null)}
+              onError={() => setCaptchaToken(null)}
+            />
+          </div>
+
           {error && <p style={{ color: '#c0392b', fontSize: '14px', marginTop: '8px' }}>{error}</p>}
 
-          <button type="submit" className="login-submit-btn" id="signinbtn" disabled={loading}>
+          <button type="submit" className="login-submit-btn" id="signinbtn" disabled={loading || !captchaToken}>
             {loading ? 'Signing in...' : `Sign In To ${selectedRole} Portal`}
           </button>
-
-          
         </form>
       </div>
     </div>
