@@ -1,11 +1,16 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { setRememberMePreference, supabase } from '../lib/supabaseClient';
 import { useOrganization } from '../context/OrganizationContext';
 
 const VALID_ROLES = ['Admin', 'Secretary', 'Treasurer'];
+
+// Public Turnstile site key (safe to expose). Env var wins if set.
+const TURNSTILE_SITE_KEY =
+  import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAFT0_eur9ECXzVDx';
 
 // Client-side brake against password guessing. Real rate limiting is enforced
 // by Supabase Auth on the server; this just slows down casual abuse.
@@ -27,7 +32,16 @@ export default function LoginPage({ onAuthenticated }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaError, setCaptchaError] = useState(false);
   const failedAttempts = useRef(0);
+  const turnstileRef = useRef(null);
+
+  // Turnstile tokens are single-use, so reset after every sign-in attempt.
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
+  };
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
@@ -51,20 +65,29 @@ export default function LoginPage({ onAuthenticated }) {
       return;
     }
 
+    if (!captchaToken) {
+      setError('Please complete the verification first.');
+      return;
+    }
+
     setLoading(true);
     setRememberMePreference(rememberMe);
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
+      options: { captchaToken },
     });
 
     if (authError) {
+      resetCaptcha();
       failedAttempts.current += 1;
       if (failedAttempts.current >= MAX_FAILED_ATTEMPTS) {
         sessionStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
         failedAttempts.current = 0;
         setError('Too many failed attempts. Please wait a minute before trying again.');
+      } else if (/captcha/i.test(authError.message || '')) {
+        setError('Verification failed. Please try again.');
       } else {
         setError('Invalid email or password');
       }
@@ -82,6 +105,7 @@ export default function LoginPage({ onAuthenticated }) {
       .single();
 
     if (profileError || !profile) {
+      resetCaptcha();
       setError('Account exists but has no profile. Contact an admin.');
       setLoading(false);
       return;
@@ -89,6 +113,7 @@ export default function LoginPage({ onAuthenticated }) {
 
     // Verify the tab they picked matches their actual role
     if (profile.role !== selectedRole.toLowerCase()) {
+      resetCaptcha();
       setError(`This account is registered as ${profile.role}, not ${selectedRole}. Please select the correct portal.`);
       await supabase.auth.signOut();
       setLoading(false);
@@ -232,13 +257,43 @@ export default function LoginPage({ onAuthenticated }) {
             </a>
           </div>
 
+          <div
+            className="login-turnstile"
+            style={{ display: 'flex', justifyContent: 'center', minHeight: 65, marginTop: 12 }}
+          >
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              options={{ theme: 'light', size: 'flexible' }}
+              onSuccess={(token) => {
+                setCaptchaToken(token);
+                setCaptchaError(false);
+              }}
+              onExpire={() => setCaptchaToken(null)}
+              onError={(code) => {
+                console.error('Turnstile error:', code);
+                setCaptchaToken(null);
+                setCaptchaError(true);
+              }}
+            />
+          </div>
+
+          {captchaError && (
+            <p style={{ color: '#c0392b', fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
+              Verification could not load. Disable ad blockers or extensions for this site, then refresh.
+            </p>
+          )}
+
           {error && <p style={{ color: '#c0392b', fontSize: '14px', marginTop: '8px' }}>{error}</p>}
 
-          <button type="submit" className="login-submit-btn" id="signinbtn" disabled={loading}>
+          <button
+            type="submit"
+            className="login-submit-btn"
+            id="signinbtn"
+            disabled={loading || !captchaToken}
+          >
             {loading ? 'Signing in...' : `Sign In To ${selectedRole} Portal`}
           </button>
-
-          
         </form>
       </div>
     </div>
