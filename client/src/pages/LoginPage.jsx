@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import { Turnstile } from '@marsidev/react-turnstile';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
@@ -28,9 +27,7 @@ export default function LoginPage({ onAuthenticated }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState(null);
   const failedAttempts = useRef(0);
-  const turnstileRef = useRef(null);
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
@@ -39,24 +36,13 @@ export default function LoginPage({ onAuthenticated }) {
   };
 
   const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const resetCaptcha = () => {
-    // Turnstile tokens are single-use, so always get a fresh one after a sign-in attempt.
-    setCaptchaToken(null);
-    turnstileRef.current?.reset();
+    setShowPassword((prev) => !prev);
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     if (loading) return;
     setError('');
-
-    if (!captchaToken) {
-      setError('Please wait for the security check to finish.');
-      return;
-    }
 
     const lockedUntil = Number(sessionStorage.getItem(LOCKOUT_KEY)) || 0;
     if (Date.now() < lockedUntil) {
@@ -71,10 +57,7 @@ export default function LoginPage({ onAuthenticated }) {
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
-      options: { captchaToken },
     });
-
-    resetCaptcha();
 
     if (authError) {
       failedAttempts.current += 1;
@@ -199,14 +182,35 @@ export default function LoginPage({ onAuthenticated }) {
                 <Lock size={18} />
               </span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 className="login-input"
                 id="pwfield"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                style={{ paddingRight: 48 }}
                 required
               />
+              <button
+                type="button"
+                className="login-eye-toggle"
+                onClick={togglePasswordVisibility}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                tabIndex={0}
+              >
+                {showPassword ? (
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
 
@@ -228,21 +232,13 @@ export default function LoginPage({ onAuthenticated }) {
             </a>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
-              onSuccess={setCaptchaToken}
-              onExpire={() => setCaptchaToken(null)}
-              onError={() => setCaptchaToken(null)}
-            />
-          </div>
-
           {error && <p style={{ color: '#c0392b', fontSize: '14px', marginTop: '8px' }}>{error}</p>}
 
-          <button type="submit" className="login-submit-btn" id="signinbtn" disabled={loading || !captchaToken}>
+          <button type="submit" className="login-submit-btn" id="signinbtn" disabled={loading}>
             {loading ? 'Signing in...' : `Sign In To ${selectedRole} Portal`}
           </button>
+
+          
         </form>
       </div>
     </div>
