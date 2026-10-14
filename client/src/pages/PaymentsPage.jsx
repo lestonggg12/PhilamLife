@@ -1035,13 +1035,51 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
-    if (form.paymentMethod !== 'Cash' && !reference) {
-      setFormError('A reference number is required for non-cash payments.')
-      return
-    }
+    ```jsx
+if (form.paymentMethod !== 'Cash' && !reference) {
+  setFormError('A reference number is required for non-cash payments.')
+  return
+}
 
-    setSaving(true)
-    setFormError('')
+// Check whether this reference has already been used.
+// The database trigger is the final protection against concurrent submissions.
+if (form.paymentMethod !== 'Cash' && reference) {
+  const normalizedReference = reference.toLowerCase().replace(/\s+/g, '')
+
+  const { data: existingReferences, error: referenceCheckError } =
+    await supabase
+      .from('payments')
+      .select('id, reference_number')
+      .neq('payment_method', 'Cash')
+      .not('reference_number', 'is', null)
+      .ilike('reference_number', reference)
+      .limit(100)
+
+  if (referenceCheckError) {
+    setFormError(
+      'Could not verify this reference number. Please try again before saving.'
+    )
+    return
+  }
+
+  const exactDuplicate = (existingReferences || []).some(
+    (payment) =>
+      String(payment.reference_number || '')
+        .toLowerCase()
+        .replace(/\s+/g, '') === normalizedReference
+  )
+
+  if (exactDuplicate) {
+    setFormError(
+      'This reference number has already been used for a non-cash payment. Verify it or ask an administrator to review it.'
+    )
+    return
+  }
+}
+
+setSaving(true)
+setFormError('')
+```
 
     const payload = {
       property_id: Number(form.propertyId),
