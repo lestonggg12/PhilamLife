@@ -116,8 +116,8 @@ function trackerStatus(records) {
 }
 
 function regularPaymentCategory(payment) {
-  const coverage = normalize(payment.coverage_period)
-  return coverage.includes('association dues') ? 'dues' : 'other'
+  const type = String(payment.charge_type || 'Association Dues').trim()
+  return type === 'Association Dues' ? 'dues' : 'other'
 }
 
 function homeownerStatus(activePaymentCount, property) {
@@ -470,8 +470,8 @@ export default function HomeownersPage() {
         amount: Number(transaction.amount_paid) || 0,
         remaining,
         method: transaction.payment_method || '—',
-        statusKey: normalize(transaction.payment_status),
-        status: storedStatusLabel(transaction.payment_status),
+        statusKey: normalize(transaction.payment_status) === 'partial' && remaining <= 0 ? 'paid' : normalize(transaction.payment_status),
+        status: normalize(transaction.payment_status) === 'partial' && remaining <= 0 ? 'Paid' : storedStatusLabel(transaction.payment_status),
         paidAt: transaction.paid_at,
       }
     })

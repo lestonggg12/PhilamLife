@@ -102,7 +102,7 @@ export default function TreasurerDashboard() {
     const criticalError = results.find(
       (result) =>
         result.error &&
-        ['payments', 'expenses', 'properties', 'monthly_collections'].includes(result.table),
+        ['payments', 'expenses', 'properties', 'monthly_collections', 'property_charges', 'system_settings'].includes(result.table),
     )
 
     if (criticalError) {
@@ -239,7 +239,7 @@ export default function TreasurerDashboard() {
   }, [finance.expenses, finance.payments, finance.services])
 
   const statCards = [
-    { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Allocated homeowner payments', icon: TrendingUp, tone: 'green' },
+    { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Dues and fees collected', icon: TrendingUp, tone: 'green' },
     { label: 'Outstanding receivables', value: summary.outstanding, note: `${summary.overdueAccounts} overdue account${summary.overdueAccounts === 1 ? '' : 's'}`, icon: FileText, tone: 'blue' },
     { label: 'Overdue balance', value: summary.overdue, note: 'Across all aging buckets', icon: AlertCircle, tone: 'red' },
     { label: 'Net cash activity', value: summary.netThisMonth, note: 'Dues + amenities − expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
@@ -261,7 +261,7 @@ export default function TreasurerDashboard() {
       {pageError && <div className="treasurer-error"><AlertCircle size={17} />{pageError}</div>}
 
       <section className="treasurer-actions" aria-label="Treasurer actions">
-        <Link to="/payments"><CreditCard size={18} /><span><strong>Record payment</strong><small>Post and allocate FIFO</small></span></Link>
+        <Link to="/payments"><CreditCard size={18} /><span><strong>Record payment</strong><small>Save a payment and issue a receipt</small></span></Link>
         <Link to="/ledger"><FileText size={18} /><span><strong>Open ledger</strong><small>Balances and statements</small></span></Link>
         <Link to="/treasurer/expenses"><DollarSign size={18} /><span><strong>Record expense</strong><small>Maintain audit details</small></span></Link>
         <Link to="/reports"><Bank size={18} /><span><strong>Financial reports</strong><small>Collections and cash review</small></span></Link>

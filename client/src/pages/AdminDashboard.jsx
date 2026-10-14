@@ -142,7 +142,7 @@ export default function AdminDashboard() {
       // computed by the database - a few dozen rows instead of every payment.
       fetchAll(() => supabase
         .from('monthly_collections')
-        .select('month_start, dues_collected, service_collected')
+        .select('month_start, dues_only_collected, service_collected')
         .gte('month_start', `${sixMonthsAgoKey}-01`)
         .order('month_start'), { tiebreaker: null }),
       fetchAll(() => supabase
@@ -172,6 +172,7 @@ export default function AdminDashboard() {
       serviceResult.error,
       activityResult.error,
       overdueResult.error,
+      settingsResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -210,9 +211,8 @@ export default function AdminDashboard() {
     monthlyRows.forEach((row) => {
       const key = String(row.month_start).slice(0, 7)
       if (totals.has(key)) {
-        // Dues only: the monthly target is a dues target, and Payments, Secretary and
-        // Treasurer all count dues only. Amenity/service income is shown separately.
-        totals.set(key, totals.get(key) + (Number(row.dues_collected) || 0))
+        // Association dues only: the monthly target is a dues target. Fees and amenity/service income are not included.
+        totals.set(key, totals.get(key) + (Number(row.dues_only_collected) || 0))
       }
     })
 

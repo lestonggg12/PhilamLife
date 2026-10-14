@@ -19,11 +19,13 @@ const TABLES = [
   'documents',
   'events',
   'expenses',
+  'moved_account_reconciliations',
   'payment_allocations',
   'payments',
   'profiles',
   'properties',
   'property_charges',
+  'property_payment_allocations',
   'service_transactions',
   'system_settings',
   'user_management_logs',
@@ -225,9 +227,9 @@ export default function SystemSettingsPage({ user }) {
     if (error) setMessage({ type: 'error', text: `Unable to export ledger: ${error.message}` })
     else {
       const rows = [
-        ...(payments.data || []).map((row) => ({ transaction_type: 'Payment', transaction_date: row.paid_at || row.payment_date || row.created_at, description: `${row.homeowner_name || ''} ${row.coverage_period || ''}`.trim(), amount: row.amount_paid ?? row.amount, reference_number: row.receipt_number || row.reference_number, recorded_by: row.recorded_by_name, ...row })),
-        ...(services.data || []).map((row) => ({ transaction_type: 'Amenity/Service Revenue', transaction_date: row.paid_at || row.service_date || row.created_at, description: `${row.service_name || ''} — ${row.customer_name || ''}`.trim(), amount: row.amount_paid, reference_number: row.receipt_number, recorded_by: row.recorded_by_name, ...row })),
-        ...(expenses.data || []).map((row) => ({ transaction_type: 'Expense', transaction_date: row.expense_date || row.created_at, description: row.description, amount: row.amount, reference_number: row.reference_number, recorded_by: row.recorded_by_name, ...row })),
+        ...(payments.data || []).filter((row) => String(row.status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Payment', transaction_date: row.paid_at || row.payment_date || row.created_at, description: `${row.homeowner_name || ''} ${row.coverage_period || ''}`.trim(), amount: row.amount_paid ?? row.amount, reference_number: row.receipt_number || row.reference_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by, payment_reference: row.reference_number })),
+        ...(services.data || []).filter((row) => String(row.payment_status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Amenity/Service Revenue', transaction_date: row.paid_at || row.service_date || row.created_at, description: `${row.service_name || ''} — ${row.customer_name || ''}`.trim(), amount: row.amount_paid, reference_number: row.receipt_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by, payment_reference: row.reference_number })),
+        ...(expenses.data || []).filter((row) => String(row.status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Expense', transaction_date: row.expense_date || row.created_at, description: row.description, amount: row.amount, reference_number: row.reference_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by })),
       ].sort((a, b) => String(b.transaction_date || '').localeCompare(String(a.transaction_date || '')))
       const filename = `combined-ledger-${stamp()}.csv`
       downloadFile('\uFEFF' + rowsToCsv(rows), filename, 'text/csv;charset=utf-8')
@@ -301,11 +303,11 @@ export default function SystemSettingsPage({ user }) {
       {activeTab === 'backup' && <div className="ss-backup-layout">
         <SettingsCard title="Export system data" subtitle="Download the records your Admin account is allowed to read." full>
           <div className="ss-export-feature">
-            <div><span className="ss-export-icon"><Icon name="backup" size={22} /></span><div><strong>Full system data</strong><p>All eight public application tables in one JSON file.</p></div></div>
+            <div><span className="ss-export-icon"><Icon name="backup" size={22} /></span><div><strong>Full system data</strong><p>Every application data table in one JSON file.</p></div></div>
             <button type="button" className="ss-primary" onClick={exportAll} disabled={!!exporting}><Icon name="download" />{exporting === 'all' ? 'Preparing…' : 'Download JSON'}</button>
           </div>
           <div className="ss-export-feature compact">
-            <div><span className="ss-export-icon"><Icon name="backup" size={22} /></span><div><strong>Combined ledger</strong><p>Payments and expenses combined in date order.</p></div></div>
+            <div><span className="ss-export-icon"><Icon name="backup" size={22} /></span><div><strong>Combined ledger</strong><p>Payments, amenity revenue and expenses in date order. Voided records are excluded.</p></div></div>
             <button type="button" className="ss-secondary" onClick={exportLedger} disabled={!!exporting}>{exporting === 'ledger' ? 'Preparing…' : 'Export CSV'}</button>
           </div>
           <div className="ss-export-grid">
