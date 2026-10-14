@@ -13,9 +13,11 @@ export default function Layout({ user, onLogout }) {
   const [timedOut, setTimedOut] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
-  const handleTimeout = useCallback(() => {
-    setTimedOut(true)
-  }, [])
+  
+const handleTimeout = useCallback(() => {
+  void onLogout()
+}, [onLogout])
+
 
   const toggleNav = useCallback(() => setNavOpen((open) => !open), [])
   const closeNav = useCallback(() => setNavOpen(false), [])

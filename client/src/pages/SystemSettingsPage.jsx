@@ -75,11 +75,25 @@ function readHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] }
 }
 
+
 function csvCell(value) {
   if (value === null || value === undefined) return ''
-  const text = typeof value === 'object' ? JSON.stringify(value) : String(value)
-  return `"${text.replace(/"/g, '""')}"`
+
+  const text =
+    typeof value === 'object' ? JSON.stringify(value) : String(value)
+
+  // Neutralize formula-like text without converting ordinary negative
+  // numeric values (such as -200.00) into text.
+  const startsWithFormula = /^[\u0000-\u0020]*[=+\-@]/.test(text)
+  const isNumericValue =
+    text.trim() !== '' && Number.isFinite(Number(text))
+
+  const safeText =
+    startsWithFormula && !isNumericValue ? `'${text}` : text
+
+  return `"${safeText.replace(/"/g, '""')}"`
 }
+
 
 function rowsToCsv(rows) {
   if (!rows.length) return ''
