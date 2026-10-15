@@ -395,6 +395,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [chargeForm, setChargeForm] = useState(EMPTY_CHARGE)
   const [chargeError, setChargeError] = useState('')
   const [chargeSaving, setChargeSaving] = useState(false)
+  // Type-to-search homeowner field in the Add Charge dialog.
+  const [chargeHomeownerText, setChargeHomeownerText] = useState('')
+  const [chargeMenuOpen, setChargeMenuOpen] = useState(false)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
   const [selectedDateKey, setSelectedDateKey] = useState('')
   const calendar = useAnimatedPopover()
@@ -715,6 +718,28 @@ export default function PaymentsPage({ user: suppliedUser }) {
       .slice(0, 8)
   }, [form.homeownerName, properties])
 
+  // Same idea as above, for the Add Charge dialog's type-to-search homeowner field.
+  const matchingChargeHomeowners = useMemo(() => {
+    const search = chargeHomeownerText.trim().toLowerCase()
+
+    return properties
+      .filter((property) => (property.homeowner_status || 'active') === 'active')
+      .filter((property) => {
+        if (!search) return true
+
+        const searchableValue = [
+          property.homeowner_name,
+          property.block,
+          `Lot ${property.lot_number}`,
+        ]
+          .join(' ')
+          .toLowerCase()
+
+        return searchableValue.includes(search)
+      })
+      .slice(0, 8)
+  }, [chargeHomeownerText, properties])
+
   function updateField(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
@@ -775,6 +800,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   function openChargeForm() {
     if (!canManageCharges) return
     setChargeForm(EMPTY_CHARGE)
+    setChargeHomeownerText('')
+    setChargeMenuOpen(false)
     setChargeError('')
     setShowCharge(true)
   }
@@ -787,6 +814,21 @@ export default function PaymentsPage({ user: suppliedUser }) {
   function updateChargeField(event) {
     const { name, value } = event.target
     setChargeForm((current) => ({ ...current, [name]: value }))
+    setChargeError('')
+  }
+
+  function updateChargeHomeownerSearch(event) {
+    setChargeHomeownerText(event.target.value)
+    // Typing clears the previous pick, so a homeowner must be chosen from the list.
+    setChargeForm((current) => ({ ...current, propertyId: '' }))
+    setChargeMenuOpen(true)
+    setChargeError('')
+  }
+
+  function selectChargeHomeowner(property) {
+    setChargeForm((current) => ({ ...current, propertyId: String(property.id) }))
+    setChargeHomeownerText(property.homeowner_name)
+    setChargeMenuOpen(false)
     setChargeError('')
   }
 
@@ -1589,18 +1631,56 @@ export default function PaymentsPage({ user: suppliedUser }) {
             </div>
 
             <div className="payment-form-grid">
-              <label className="payment-span-2">Homeowner
-                <select name="propertyId" value={chargeForm.propertyId} onChange={updateChargeField} required>
-                  <option value="">Select homeowner</option>
-                  {properties
-                    .filter((property) => property.homeowner_status === 'active')
-                    .map((property) => (
-                      <option key={property.id} value={property.id}>
-                        {property.homeowner_name} — {property.block}, Lot {property.lot_number}
-                      </option>
-                    ))}
-                </select>
-              </label>
+              <div className="payment-homeowner-field payment-span-2">
+                <label htmlFor="charge-homeowner-search">Homeowner</label>
+                <div className="payment-homeowner-combobox">
+                  <input
+                    id="charge-homeowner-search"
+                    type="search"
+                    value={chargeHomeownerText}
+                    onChange={updateChargeHomeownerSearch}
+                    onFocus={() => setChargeMenuOpen(true)}
+                    onBlur={() => window.setTimeout(() => setChargeMenuOpen(false), 120)}
+                    placeholder="Search homeowner name, block, or lot..."
+                    maxLength="120"
+                    autoComplete="off"
+                    role="combobox"
+                    aria-expanded={chargeMenuOpen}
+                    aria-controls="charge-homeowner-options"
+                    required
+                  />
+
+                  {chargeMenuOpen && (
+                    <div className="payment-homeowner-options" id="charge-homeowner-options" role="listbox">
+                      {loading ? (
+                        <p className="payment-homeowner-empty">Loading ledger homeowners...</p>
+                      ) : matchingChargeHomeowners.length === 0 ? (
+                        <p className="payment-homeowner-empty">No matching homeowner found in the ledger.</p>
+                      ) : (
+                        matchingChargeHomeowners.map((property) => (
+                          <button
+                            type="button"
+                            className={`payment-homeowner-option ${
+                              String(property.id) === chargeForm.propertyId ? 'is-selected' : ''
+                            }`}
+                            key={property.id}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectChargeHomeowner(property)}
+                            role="option"
+                            aria-selected={String(property.id) === chargeForm.propertyId}
+                          >
+                            <span>{property.homeowner_name}</span>
+                            <small>{property.block} · Lot {property.lot_number}</small>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <small className="payment-homeowner-help">
+                  Type a name, block, or lot, then pick a homeowner from the list.
+                </small>
+              </div>
 
               <label>Charge Type
                 <select name="chargeType" value={chargeForm.chargeType} onChange={updateChargeField}>
