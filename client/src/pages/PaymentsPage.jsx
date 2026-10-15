@@ -403,6 +403,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const role = currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
     role === 'admin' || role === 'secretary' || role === 'treasurer'
+  // Adding or voiding a charge changes a homeowner's balance directly, so treasurers are excluded.
+  const canManageCharges = role === 'admin' || role === 'secretary'
   const recorderName =
     currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
@@ -771,7 +773,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }
 
   function openChargeForm() {
-    if (!canManagePayments) return
+    if (!canManageCharges) return
     setChargeForm(EMPTY_CHARGE)
     setChargeError('')
     setShowCharge(true)
@@ -791,8 +793,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   async function addCharge(event) {
     event.preventDefault()
 
-    if (!canManagePayments || !currentUser?.id) {
-      setChargeError('Only an Admin, Secretary, or Treasurer can add charges.')
+    if (!canManageCharges || !currentUser?.id) {
+      setChargeError('Only an Admin or Secretary can add charges.')
       return
     }
 
@@ -845,7 +847,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setChargeSaving(false)
   }
 
-  const canVoidPayments = role === 'secretary' || role === 'treasurer'
+  // Treasurers can record new payments but cannot void payments.
+  const canVoidPayments = role === 'secretary'
 
   const propertyById = useMemo(
     () => new Map(properties.map((property) => [Number(property.id), property])),
@@ -1183,13 +1186,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
             View by Date
           </button>
 
-          {canManagePayments && (
+          {canManageCharges && (
             <button className="payments-secondary" type="button" onClick={openChargeForm}>
               Add Charge
             </button>
           )}
 
-          {canManagePayments && (
+          {canManageCharges && (
             <button className="payments-secondary" type="button" onClick={() => { setChargeSearch(''); setShowCharges(true) }}>
               View Charges
             </button>
@@ -1574,7 +1577,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {showCharge && canManagePayments && (
+      {showCharge && canManageCharges && (
         <div className="payments-overlay" onMouseDown={closeChargeForm}>
           <form className="payment-form" onSubmit={addCharge} onMouseDown={(e) => e.stopPropagation()} autoComplete="off">
             <div className="payment-modal-heading">
@@ -1638,7 +1641,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {showCharges && canManagePayments && (
+      {showCharges && canManageCharges && (
         <div className="payments-overlay" onMouseDown={() => setShowCharges(false)}>
           <section className="payment-form charge-list-dialog" onMouseDown={(e) => e.stopPropagation()}>
             <div className="payment-modal-heading">
