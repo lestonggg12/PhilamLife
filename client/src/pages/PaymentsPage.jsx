@@ -1042,18 +1042,20 @@ if (form.paymentMethod !== 'Cash' && !reference) {
 }
 
 // Check whether this reference has already been used.
-// The database trigger is the final protection against concurrent submissions.
+// The database trigger remains the final protection against duplicates.
 if (form.paymentMethod !== 'Cash' && reference) {
-  const normalizedReference = reference.toLowerCase().replace(/\s+/g, '')
+  const normalizeReference = (value) =>
+    String(value || '').toLowerCase().replace(/\s+/g, '')
+
+  const normalizedReference = normalizeReference(reference)
 
   const { data: existingReferences, error: referenceCheckError } =
-    await supabase
-      .from('payments')
-      .select('id, reference_number')
-      .neq('payment_method', 'Cash')
-      .not('reference_number', 'is', null)
-      .ilike('reference_number', reference)
-      .limit(100)
+    await fetchAll(() =>
+      supabase
+        .from('payments')
+        .select('payment_method, reference_number')
+        .not('reference_number', 'is', null)
+    )
 
   if (referenceCheckError) {
     setFormError(
@@ -1061,6 +1063,20 @@ if (form.paymentMethod !== 'Cash' && reference) {
     )
     return
   }
+
+  const exactDuplicate = (existingReferences || []).some(
+    (payment) =>
+      String(payment.payment_method || '').trim().toLowerCase() !== 'cash' &&
+      normalizeReference(payment.reference_number) === normalizedReference
+  )
+
+  if (exactDuplicate) {
+    setFormError(
+      'This reference number has already been used for a non-cash payment. Verify it or ask an administrator to review it.'
+    )
+    return
+  }
+}
 
   const exactDuplicate = (existingReferences || []).some(
     (payment) =>
