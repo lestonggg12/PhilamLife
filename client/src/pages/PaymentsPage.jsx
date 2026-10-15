@@ -1035,67 +1035,54 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
-    ```jsx
-if (form.paymentMethod !== 'Cash' && !reference) {
-  setFormError('A reference number is required for non-cash payments.')
-  return
-}
+ 
+    if (form.paymentMethod !== 'Cash' && !reference) {
+      setFormError('A reference number is required for non-cash payments.')
+      return
+    }
 
-// Check whether this reference has already been used.
-// The database trigger remains the final protection against duplicates.
-if (form.paymentMethod !== 'Cash' && reference) {
-  const normalizeReference = (value) =>
-    String(value || '').toLowerCase().replace(/\s+/g, '')
+    // Check whether this reference has already been used.
+    // The database trigger remains the final protection against duplicates.
+    if (form.paymentMethod !== 'Cash' && reference) {
+      const normalizeReference = (value) =>
+        String(value || '').toLowerCase().replace(/\s+/g, '')
 
-  const normalizedReference = normalizeReference(reference)
+      const normalizedReference = normalizeReference(reference)
 
-  const { data: existingReferences, error: referenceCheckError } =
-    await fetchAll(() =>
-      supabase
-        .from('payments')
-        .select('payment_method, reference_number')
-        .not('reference_number', 'is', null)
-    )
+      const {
+        data: existingReferences,
+        error: referenceCheckError,
+      } = await fetchAll(() =>
+        supabase
+          .from('payments')
+          .select('payment_method, reference_number')
+          .not('reference_number', 'is', null)
+      )
 
-  if (referenceCheckError) {
-    setFormError(
-      'Could not verify this reference number. Please try again before saving.'
-    )
-    return
-  }
+      if (referenceCheckError) {
+        setFormError(
+          'Could not verify this reference number. Please try again before saving.'
+        )
+        return
+      }
 
-  const exactDuplicate = (existingReferences || []).some(
-    (payment) =>
-      String(payment.payment_method || '').trim().toLowerCase() !== 'cash' &&
-      normalizeReference(payment.reference_number) === normalizedReference
-  )
+      const exactDuplicate = (existingReferences || []).some(
+        (payment) =>
+          String(payment.payment_method || '').trim().toLowerCase() !== 'cash' &&
+          normalizeReference(payment.reference_number) === normalizedReference
+      )
 
-  if (exactDuplicate) {
-    setFormError(
-      'This reference number has already been used for a non-cash payment. Verify it or ask an administrator to review it.'
-    )
-    return
-  }
-}
+      if (exactDuplicate) {
+        setFormError(
+          'This reference number has already been used for a non-cash payment. Verify it or ask an administrator to review it.'
+        )
+        return
+      }
+    }
 
-  const exactDuplicate = (existingReferences || []).some(
-    (payment) =>
-      String(payment.reference_number || '')
-        .toLowerCase()
-        .replace(/\s+/g, '') === normalizedReference
-  )
+    setSaving(true)
+    setFormError('')
 
-  if (exactDuplicate) {
-    setFormError(
-      'This reference number has already been used for a non-cash payment. Verify it or ask an administrator to review it.'
-    )
-    return
-  }
-}
-
-setSaving(true)
-setFormError('')
-```
 
     const payload = {
       property_id: Number(form.propertyId),
