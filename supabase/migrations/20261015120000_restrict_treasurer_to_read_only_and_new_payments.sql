@@ -12,28 +12,83 @@
 
 -- 1. Payments: only the Secretary may update (void) existing payments.
 --    Admin had no UPDATE policy before and still has none. INSERT/SELECT policies untouched.
-alter policy "Secretary and Treasurer can update payments" on public.payments
-  using ((select public.current_user_role()) = 'secretary'::text)
-  with check ((select public.current_user_role()) = 'secretary'::text);
-alter policy "Secretary and Treasurer can update payments" on public.payments
-  rename to "Secretary can update payments";
+--    Replay-safe: renames the old policy if present, updates the new one if already renamed,
+--    and creates it if neither exists.
+do $$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'payments'
+             and policyname = 'Secretary and Treasurer can update payments') then
+    alter policy "Secretary and Treasurer can update payments" on public.payments
+      using ((select public.current_user_role()) = 'secretary'::text)
+      with check ((select public.current_user_role()) = 'secretary'::text);
+    alter policy "Secretary and Treasurer can update payments" on public.payments
+      rename to "Secretary can update payments";
+  elsif exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'payments'
+                and policyname = 'Secretary can update payments') then
+    alter policy "Secretary can update payments" on public.payments
+      using ((select public.current_user_role()) = 'secretary'::text)
+      with check ((select public.current_user_role()) = 'secretary'::text);
+  else
+    create policy "Secretary can update payments" on public.payments
+      for update to authenticated
+      using ((select public.current_user_role()) = 'secretary'::text)
+      with check ((select public.current_user_role()) = 'secretary'::text);
+  end if;
+end $$;
 
 -- 2. Charges: adding or voiding a charge changes a homeowner's balance directly.
-alter policy "Staff can add manual charges" on public.property_charges
-  with check (
-    ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
-    and (created_by = (select auth.uid()))
-    and (billing_month is null)
-    and (voided_at is null)
-  );
-alter policy "Staff can add manual charges" on public.property_charges
-  rename to "Admin and Secretary can add manual charges";
+do $$
+begin
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'property_charges'
+             and policyname = 'Staff can add manual charges') then
+    alter policy "Staff can add manual charges" on public.property_charges
+      with check (
+        ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
+        and (created_by = (select auth.uid()))
+        and (billing_month is null)
+        and (voided_at is null)
+      );
+    alter policy "Staff can add manual charges" on public.property_charges
+      rename to "Admin and Secretary can add manual charges";
+  elsif exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'property_charges'
+                and policyname = 'Admin and Secretary can add manual charges') then
+    alter policy "Admin and Secretary can add manual charges" on public.property_charges
+      with check (
+        ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
+        and (created_by = (select auth.uid()))
+        and (billing_month is null)
+        and (voided_at is null)
+      );
+  else
+    create policy "Admin and Secretary can add manual charges" on public.property_charges
+      for insert to authenticated
+      with check (
+        ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
+        and (created_by = (select auth.uid()))
+        and (billing_month is null)
+        and (voided_at is null)
+      );
+  end if;
 
-alter policy "Staff can void charges" on public.property_charges
-  using ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
-  with check ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]));
-alter policy "Staff can void charges" on public.property_charges
-  rename to "Admin and Secretary can void charges";
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'property_charges'
+             and policyname = 'Staff can void charges') then
+    alter policy "Staff can void charges" on public.property_charges
+      using ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
+      with check ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]));
+    alter policy "Staff can void charges" on public.property_charges
+      rename to "Admin and Secretary can void charges";
+  elsif exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'property_charges'
+                and policyname = 'Admin and Secretary can void charges') then
+    alter policy "Admin and Secretary can void charges" on public.property_charges
+      using ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
+      with check ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]));
+  else
+    create policy "Admin and Secretary can void charges" on public.property_charges
+      for update to authenticated
+      using ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]))
+      with check ((select public.current_user_role()) = any (array['admin'::text, 'secretary'::text]));
+  end if;
+end $$;
 
 -- 3. SECURITY DEFINER RPCs callable by any authenticated user: remove treasurer from the allow-lists.
 create or replace function public.restore_voided_charge(p_charge_id uuid)
