@@ -44,7 +44,7 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       name: 'Homeowners',
       path: '/homeowners',
       icon: Users,
-      roles: ['admin', 'secretary'],
+      roles: ['admin', 'secretary', 'treasurer'],
     },
     {
       name: 'Overdue Accounts',

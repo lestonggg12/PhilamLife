@@ -201,7 +201,9 @@ export default function HomeownersPage() {
   }, [])
 
   const userRole = currentUser?.role?.trim().toLowerCase()
-  const canVoidPayments = userRole === 'secretary' || userRole === 'treasurer'
+  // Treasurers are read-only here: they can view history but cannot void payments or edit contacts.
+  const canVoidPayments = userRole === 'secretary'
+  const canEditContact = userRole === 'admin' || userRole === 'secretary'
 
   function openVoid(item) {
     const payment = payments.find((row) => `payment-${row.id}` === item.id)
@@ -756,9 +758,11 @@ export default function HomeownersPage() {
                 </div>
               </div>
               <div className="homeowner-profile-actions">
-                <button type="button" onClick={() => navigate(`/contacts?edit=${selectedProperty.id}`)}>
-                  Edit Contact
-                </button>
+                {canEditContact && (
+                  <button type="button" onClick={() => navigate(`/contacts?edit=${selectedProperty.id}`)}>
+                    Edit Contact
+                  </button>
+                )}
                 <button type="button" onClick={() => navigate('/payments')}>
                   <CreditCard size={16} /> Record Payment
                 </button>
