@@ -924,7 +924,10 @@ export default function LedgerPage({ user: suppliedUser }) {
               <button type="button" className="ledger-modal-close" onClick={() => setStatementAccount(null)} aria-label="Close">×</button>
             </div>
             <div className="ledger-statement-summary">
-              <div><span>Previous balance</span><strong>{formatMoney(statementAccount.dueAmount)}</strong></div>
+              <div>
+            <span>Previous balance (at last payment)</span>
+            <strong>{formatMoney(statementAccount.dueAmount)}</strong>
+          </div>
               <div><span>Total payments</span><strong>{peso.format(statementAccount.statementTotals?.payments ?? statementAccount.totalPaid ?? 0)}</strong></div>
               <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
               <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
