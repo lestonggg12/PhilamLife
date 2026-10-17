@@ -3,7 +3,10 @@ const cents = (value) => Math.round((Number(value) || 0) * 100)
 
 function chargeEntries(charge) {
   const amount = cents(charge.amount)
-  const description = charge.description || charge.charge_type || 'Charge'
+  const baseDescription = charge.description || charge.charge_type || 'Charge'
+const description = charge.voided_at
+  ? `${baseDescription} (Voided — original charge)`
+  : baseDescription
   const referenceNumber = charge.billing_month
     ? String(charge.billing_month).slice(0, 7)
     : ''
@@ -25,7 +28,7 @@ function chargeEntries(charge) {
     entries.push({
       id: `charge-void-${charge.id}`,
       date: charge.voided_at,
-      description: `${description} (Voided)`,
+      description: `${baseDescription} (Charge Reversal)`,
       reference_number: referenceNumber,
       debit: 0,
       credit: amount,
