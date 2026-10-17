@@ -21,12 +21,13 @@ function paymentEntry(payment) {
   const voided = payment.status === 'Voided'
   const amountPaid = cents(payment.amount_paid ?? payment.amount)
 
-  // Only the unreleased portion still affects the property's balance.
+  
+  // Use the original payment balance effect.
   const effect = Math.max(
-    cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount)
-      - cents(payment.effect_released),
+    cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount),
     0,
   )
+
 
   const explicitAllocated = voided
     ? 0
