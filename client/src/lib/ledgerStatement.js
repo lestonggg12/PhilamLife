@@ -64,7 +64,7 @@ function paymentEntry(payment) {
   return {
     id: `payment-${payment.id}`,
     date: payment.paid_at || payment.created_at,
-    description: `${payment.description || payment.coverage_period || 'Payment'}${voided ? ' (Voided)' : ''}`,
+    description: `${payment.coverage_period || payment.description || 'Payment'}${voided ? ' (Voided)' : ''}`,
     reference_number: payment.reference_number || payment.receipt_number,
     debit: voided ? effect : 0,
     credit: voided ? 0 : amountPaid,
