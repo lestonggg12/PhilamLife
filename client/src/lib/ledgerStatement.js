@@ -1,20 +1,42 @@
 const cents = (value) => Math.round((Number(value) || 0) * 100)
 
-function chargeEntry(charge) {
-  const amount = cents(charge.amount)
-  const voided = Boolean(charge.voided_at)
 
-  return {
+function chargeEntries(charge) {
+  const amount = cents(charge.amount)
+  const description = charge.description || charge.charge_type || 'Charge'
+  const referenceNumber = charge.billing_month
+    ? String(charge.billing_month).slice(0, 7)
+    : ''
+
+  const entries = [{
     id: `charge-${charge.id}`,
-    date: voided ? charge.voided_at : charge.created_at,
-    description: `${charge.description || charge.charge_type || 'Charge'}${voided ? ' (Voided)' : ''}`,
-    reference_number: charge.billing_month ? String(charge.billing_month).slice(0, 7) : '',
-    debit: voided ? 0 : amount,
-    credit: voided ? amount : 0,
-    delta: voided ? -amount : amount,
+    date: charge.created_at,
+    description,
+    reference_number: referenceNumber,
+    debit: amount,
+    credit: 0,
+    delta: amount,
     paymentAmount: 0,
+  }]
+
+  // Preserve the original charge and record the void
+  // as a separate credit reversal.
+  if (charge.voided_at) {
+    entries.push({
+      id: `charge-void-${charge.id}`,
+      date: charge.voided_at,
+      description: `${description} (Voided)`,
+      reference_number: referenceNumber,
+      debit: 0,
+      credit: amount,
+      delta: -amount,
+      paymentAmount: 0,
+    })
   }
+
+  return entries
 }
+
 
 
 function paymentEntry(payment) {
@@ -58,7 +80,7 @@ export function buildLedgerStatement({
   openingBalanceNote = '',
 }) {
   const entries = [
-    ...charges.map(chargeEntry),
+    ...charges.flatMap(chargeEntries),
     ...payments.map(paymentEntry),
   ].sort((a, b) => {
     const dateDifference = new Date(a.date || 0) - new Date(b.date || 0)
