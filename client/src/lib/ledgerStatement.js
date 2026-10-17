@@ -16,27 +16,38 @@ function chargeEntry(charge) {
   }
 }
 
+
 function paymentEntry(payment) {
   const voided = payment.status === 'Voided'
   const amountPaid = cents(payment.amount_paid ?? payment.amount)
-  const effect = cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount)
-  const allocated = voided ? 0 : effect
+
+  // Only the unreleased portion still affects the property's balance.
+  const effect = Math.max(
+    cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount)
+      - cents(payment.effect_released),
+    0,
+  )
+
   const explicitAllocated = voided
     ? 0
-    : (payment.allocations || []).reduce((sum, allocation) => sum + cents(allocation.allocated_amount), 0)
+    : (payment.allocations || []).reduce(
+        (sum, allocation) => sum + cents(allocation.allocated_amount),
+        0,
+      )
 
   return {
     id: `payment-${payment.id}`,
     date: payment.paid_at || payment.created_at,
     description: `${payment.coverage_period || 'Payment'}${voided ? ' (Voided)' : ''}`,
     reference_number: payment.reference_number || payment.receipt_number,
-    debit: voided ? allocated : 0,
+    debit: voided ? effect : 0,
     credit: voided ? 0 : amountPaid,
-    delta: voided ? allocated : -allocated,
+    delta: voided ? effect : -effect,
     paymentAmount: voided ? 0 : amountPaid,
     explicitAllocated,
   }
 }
+
 
 export function buildLedgerStatement({
   payments = [],

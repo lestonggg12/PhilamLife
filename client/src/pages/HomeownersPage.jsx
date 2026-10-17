@@ -238,7 +238,11 @@ export default function HomeownersPage() {
       return
     }
 
-    const effect = Number(voidTarget.balance_effect ?? voidTarget.amount_paid ?? voidTarget.amount) || 0
+    const effect = Math.max(
+  (Number(voidTarget.balance_effect ?? voidTarget.amount_paid ?? voidTarget.amount) || 0)
+    - (Number(voidTarget.effect_released) || 0),
+  0,
+)
     setPayments((current) =>
       current.map((row) =>
         row.id === voidTarget.id ? { ...row, status: 'Voided', void_reason: reason } : row,

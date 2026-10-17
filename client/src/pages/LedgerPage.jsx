@@ -194,7 +194,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     const [paymentResult, chargeResult] = await Promise.all([
       fetchAll(() => supabase
         .from('payments')
-        .select('id, paid_at, created_at, status, coverage_period, reference_number, receipt_number, amount, amount_paid, balance_effect')
+        .select('id, paid_at, created_at, status, coverage_period, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released')
         .eq('property_id', entry.id)
         .order('paid_at', { ascending: true })),
       fetchAll(() => supabase
