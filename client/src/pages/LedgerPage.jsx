@@ -957,7 +957,7 @@ export default function LedgerPage({ user: suppliedUser }) {
             {statementError && <p className="ledger-form-error">{statementError}</p>}
             <div className="ledger-statement-lines">
               <table>
-                <thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+                <thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Added Charge</th><th>Credit</th><th>Balance</th></tr></thead>
                 <tbody>
                   {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No statement entries found.</td></tr> : statementLines.map((line, index) => (
                     <tr key={line.id || `${line.transaction_date}-${index}`}>
