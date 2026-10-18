@@ -80,8 +80,15 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [statementError, setStatementError] = useState('')
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const actorName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
+const canManageHomeowners =
+  role === 'admin' || role === 'secretary'
+
+const actorName =
+  currentUser?.full_name ||
+  currentUser?.name ||
+  currentUser?.email ||
+  'Staff member'
   useEffect(() => {
     loadLedger()
     resolveCurrentUser()

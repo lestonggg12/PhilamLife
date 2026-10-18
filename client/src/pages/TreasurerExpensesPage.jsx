@@ -19,12 +19,17 @@ function manilaMonthKey(value = new Date()) {
     year: 'numeric',
     month: '2-digit',
   }).formatToParts(new Date(value))
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  )
+
   return `${values.year}-${values.month}`
 }
 
 function monthLabel(monthKey) {
   if (!monthKey) return ''
+
   return new Intl.DateTimeFormat('en-PH', {
     month: 'long',
     year: 'numeric',
@@ -35,7 +40,10 @@ function monthLabel(monthKey) {
 function shiftMonth(monthKey, offset) {
   const [year, month] = monthKey.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1 + offset, 1))
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+
+  return `${date.getUTCFullYear()}-${String(
+    date.getUTCMonth() + 1,
+  ).padStart(2, '0')}`
 }
 
 const MONTHS = [
@@ -56,11 +64,15 @@ const CATEGORIES = [
   'Other',
 ]
 
-// Shape expected by the custom <Select /> component.
-const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: c }))
+const CATEGORY_OPTIONS = CATEGORIES.map((category) => ({
+  value: category,
+  label: category,
+}))
 
 function todayISO() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+  }).format(new Date())
 }
 
 function emptyForm() {
@@ -73,36 +85,52 @@ function emptyForm() {
   }
 }
 
-// Money is stored in whole centavos; round typed/calculated amounts the same way
-// so what staff see on screen is exactly what gets saved.
-const toCents = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
+const toCents = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 100) / 100
 
 export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
+
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [expenses, setExpenses] = useState([])
   const [selectedMonth, setSelectedMonth] = useState(manilaMonthKey())
+
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const [monthMenuMounted, setMonthMenuMounted] = useState(false)
   const [monthMenuVisible, setMonthMenuVisible] = useState(false)
   const [monthMenuPosition, setMonthMenuPosition] = useState(null)
+
   const monthPickerRef = useRef(null)
+
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm())
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+
   const [voidingId, setVoidingId] = useState(null)
   const [pendingVoid, setPendingVoid] = useState(null)
   const [voidError, setVoidError] = useState('')
 
+  const role = String(currentUser?.role || '').trim().toLowerCase()
+
+  const canRecordExpenses = role === 'treasurer'
+  const canVoidExpenses = role === 'treasurer'
+  const isReadOnly = !canRecordExpenses && !canVoidExpenses
+
   const recorderName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+    currentUser?.full_name ||
+    currentUser?.name ||
+    currentUser?.email ||
+    'Staff member'
 
   useEffect(() => {
     loadExpenses()
     resolveCurrentUser()
+    // Initial load only; loadExpenses and resolveCurrentUser are
+    // intentionally invoked once when this page mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -119,35 +147,46 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
       const menuWidth = 242
       const menuHeight = 270
       const gap = 8
-      const left = Math.max(12, Math.min(
-        rect.right - 36 - menuWidth,
-        window.innerWidth - menuWidth - 12,
-      ))
-      const top = rect.bottom + gap + menuHeight > window.innerHeight
-        ? Math.max(12, rect.top - menuHeight - gap)
-        : rect.bottom + gap
+
+      const left = Math.max(
+        12,
+        Math.min(
+          rect.right - 36 - menuWidth,
+          window.innerWidth - menuWidth - 12,
+        ),
+      )
+
+      const top =
+        rect.bottom + gap + menuHeight > window.innerHeight
+          ? Math.max(12, rect.top - menuHeight - gap)
+          : rect.bottom + gap
 
       setMonthMenuPosition({ left, top })
     }
 
     positionMonthMenu()
+
     window.addEventListener('resize', positionMonthMenu)
     window.addEventListener('scroll', positionMonthMenu, true)
+
     return () => {
       window.removeEventListener('resize', positionMonthMenu)
       window.removeEventListener('scroll', positionMonthMenu, true)
     }
   }, [monthMenuMounted])
 
-  // Close the month menu when clicking outside of it.
-  // (Renamed from closeMonthPicker: the old name shadowed the real function
-  // and made it call itself with no event.)
   useEffect(() => {
     function handleOutsideClick(event) {
-      if (!monthPickerRef.current?.contains(event.target)) closeMonthPicker()
+      if (!monthPickerRef.current?.contains(event.target)) {
+        closeMonthPicker()
+      }
     }
+
     document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
   }, [])
 
   function openMonthPicker() {
@@ -161,18 +200,25 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   }
 
   useEffect(() => {
-    if (monthPickerOpen) return undefined
-    if (monthMenuVisible) return undefined
-    if (!monthMenuMounted) return undefined
+    if (monthPickerOpen || monthMenuVisible || !monthMenuMounted) {
+      return undefined
+    }
 
-    const timer = window.setTimeout(() => setMonthMenuMounted(false), 180)
+    const timer = window.setTimeout(
+      () => setMonthMenuMounted(false),
+      180,
+    )
+
     return () => window.clearTimeout(timer)
   }, [monthPickerOpen, monthMenuVisible, monthMenuMounted])
 
   useEffect(() => {
     if (!monthMenuMounted) return undefined
 
-    const frame = requestAnimationFrame(() => setMonthMenuVisible(monthPickerOpen))
+    const frame = requestAnimationFrame(() => {
+      setMonthMenuVisible(monthPickerOpen)
+    })
+
     return () => cancelAnimationFrame(frame)
   }, [monthMenuMounted, monthPickerOpen])
 
@@ -195,18 +241,22 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
       .eq('id', authUser.id)
       .single()
 
-    if (!profileError) setCurrentUser(profile)
+    if (!profileError && profile) {
+      setCurrentUser(profile)
+    }
   }
 
   async function loadExpenses() {
     setLoading(true)
     setPageError('')
 
-    const { data, error } = await fetchAll(() => supabase
-      .from('expenses')
-      .select('*')
-      .order('expense_date', { ascending: false })
-      .order('created_at', { ascending: false }))
+    const { data, error } = await fetchAll(() =>
+      supabase
+        .from('expenses')
+        .select('*')
+        .order('expense_date', { ascending: false })
+        .order('created_at', { ascending: false }),
+    )
 
     if (error) {
       setPageError(`Expenses could not be loaded: ${error.message}`)
@@ -217,31 +267,56 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   }
 
   const summary = useMemo(() => {
-    const activeExpenses = expenses.filter((e) => e.status !== 'Voided')
-    const selectedMonthExpenses = activeExpenses.filter((e) => (e.expense_date || '').startsWith(selectedMonth))
+    const activeExpenses = expenses.filter(
+      (expense) => expense.status !== 'Voided',
+    )
 
-    const totalAllTime = activeExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
-    const totalSelectedMonth = selectedMonthExpenses
-      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+    const selectedMonthExpenses = activeExpenses.filter(
+      (expense) =>
+        (expense.expense_date || '').startsWith(selectedMonth),
+    )
+
+    const totalAllTime = activeExpenses.reduce(
+      (sum, expense) => sum + (Number(expense.amount) || 0),
+      0,
+    )
+
+    const totalSelectedMonth = selectedMonthExpenses.reduce(
+      (sum, expense) => sum + (Number(expense.amount) || 0),
+      0,
+    )
 
     const byCategory = new Map()
-    selectedMonthExpenses.forEach((e) => {
-      const key = e.category || 'Uncategorized'
-      byCategory.set(key, (byCategory.get(key) || 0) + (Number(e.amount) || 0))
+
+    selectedMonthExpenses.forEach((expense) => {
+      const category = expense.category || 'Uncategorized'
+
+      byCategory.set(
+        category,
+        (byCategory.get(category) || 0) +
+          (Number(expense.amount) || 0),
+      )
     })
 
-    const topCategory = [...byCategory.entries()].sort((a, b) => b[1] - a[1])[0]
+    const topCategory = [...byCategory.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0]
 
     return {
       totalAllTime,
       totalSelectedMonth,
       count: selectedMonthExpenses.length,
-      topCategory: topCategory ? { name: topCategory[0], amount: topCategory[1] } : null,
+      topCategory: topCategory
+        ? { name: topCategory[0], amount: topCategory[1] }
+        : null,
     }
   }, [expenses, selectedMonth])
 
   const visibleExpenses = useMemo(
-    () => expenses.filter((expense) => (expense.expense_date || '').startsWith(selectedMonth)),
+    () =>
+      expenses.filter((expense) =>
+        (expense.expense_date || '').startsWith(selectedMonth),
+      ),
     [expenses, selectedMonth],
   )
 
@@ -249,7 +324,9 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const selectedMonthIndex = Number(selectedMonth.slice(5, 7)) - 1
 
   function selectMonth(year, monthIndex) {
-    setSelectedMonth(`${year}-${String(monthIndex + 1).padStart(2, '0')}`)
+    setSelectedMonth(
+      `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+    )
     closeMonthPicker()
   }
 
@@ -258,6 +335,8 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   }
 
   function openForm() {
+    if (!canRecordExpenses) return
+
     setForm(emptyForm())
     setFormError('')
     setShowForm(true)
@@ -272,24 +351,35 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     event.preventDefault()
     setFormError('')
 
+    if (!canRecordExpenses) {
+      setFormError('You do not have permission to record expenses.')
+      return
+    }
+
     if (!currentUser?.id) {
-      setFormError('Your user profile could not be verified. Please sign in again.')
+      setFormError(
+        'Your user profile could not be verified. Please sign in again.',
+      )
       return
     }
 
     const amount = toCents(form.amount)
+
     if (!form.description.trim()) {
       setFormError('Please enter a description.')
       return
     }
+
     if (!amount || amount <= 0) {
       setFormError('Please enter a valid amount greater than zero.')
       return
     }
+
     if (!form.expense_date) {
       setFormError('Please select a date.')
       return
     }
+
     if (!form.category) {
       setFormError('Please select a category.')
       return
@@ -323,24 +413,48 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
     setExpenses((current) => [data, ...current])
     setShowForm(false)
 
-    const { error: activityError } = await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: 'Expense Recorded',
-      target: `${data.category} — ${peso.format(data.amount)} (${recorderName})`,
-    })
+    const { error: activityError } = await supabase
+      .from('activity_log')
+      .insert({
+        user_id: currentUser.id,
+        action: 'Expense Recorded',
+        target: `${data.category} — ${peso.format(data.amount)} (${recorderName})`,
+      })
 
     if (activityError) {
-      console.warn('Expense saved, but activity logging failed:', activityError.message)
+      console.warn(
+        'Expense saved, but activity logging failed:',
+        activityError.message,
+      )
     }
   }
 
   function requestVoid(expense) {
-    if (expense.status === 'Voided') return
+    if (
+      !canVoidExpenses ||
+      !expense ||
+      expense.status === 'Voided'
+    ) {
+      return
+    }
+
     setPendingVoid(expense)
   }
 
   async function handleVoid(expense) {
+    if (
+      !canVoidExpenses ||
+      !expense ||
+      expense.status === 'Voided'
+    ) {
+      setPendingVoid(null)
+      return
+    }
+
+    if (voidingId) return
+
     setPendingVoid(null)
+    setVoidError('')
     setVoidingId(expense.id)
 
     const { data, error } = await supabase
@@ -357,21 +471,37 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
       return
     }
 
-    setExpenses((current) => current.map((e) => (e.id === expense.id ? data : e)))
+    setExpenses((current) =>
+      current.map((item) => (item.id === expense.id ? data : item)),
+    )
 
     if (currentUser?.id) {
-      await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Expense Voided',
-        target: `${expense.category} — ${peso.format(expense.amount)} (${recorderName})`,
-      })
+      const { error: activityError } = await supabase
+        .from('activity_log')
+        .insert({
+          user_id: currentUser.id,
+          action: 'Expense Voided',
+          target: `${expense.category} — ${peso.format(expense.amount)} (${recorderName})`,
+        })
+
+      if (activityError) {
+        console.warn(
+          'Expense was voided, but activity logging failed:',
+          activityError.message,
+        )
+      }
     }
   }
 
-  const recordedExpenses = visibleExpenses.filter((expense) => expense.status !== 'Voided')
-  const voidedExpenses = visibleExpenses.filter((expense) => expense.status === 'Voided')
+  const recordedExpenses = visibleExpenses.filter(
+    (expense) => expense.status !== 'Voided',
+  )
 
-  function renderExpenseTable(records, includeActions = true) {
+  const voidedExpenses = visibleExpenses.filter(
+    (expense) => expense.status === 'Voided',
+  )
+
+  function renderExpenseTable(records, includeActions = false) {
     return (
       <div className="tex-table-wrap">
         <table className="tex-table">
@@ -384,30 +514,63 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
               <th>Recorded By</th>
               <th>Status</th>
               <th className="tex-amount-col">Amount</th>
-              {includeActions && <th></th>}
+              {includeActions && <th>Actions</th>}
             </tr>
           </thead>
+
           <tbody>
             {records.map((expense) => (
-              <tr key={expense.id} className={expense.status === 'Voided' ? 'tex-row-voided' : ''}>
-                <td>{expense.expense_date ? organization.formatDate(expense.expense_date) : '—'}</td>
-                <td><span className="tex-category-pill">{expense.category}</span></td>
+              <tr
+                key={expense.id}
+                className={
+                  expense.status === 'Voided' ? 'tex-row-voided' : ''
+                }
+              >
+                <td>
+                  {expense.expense_date
+                    ? organization.formatDate(expense.expense_date)
+                    : '—'}
+                </td>
+
+                <td>
+                  <span className="tex-category-pill">
+                    {expense.category}
+                  </span>
+                </td>
+
                 <td>{expense.description}</td>
                 <td>{expense.reference_number || '—'}</td>
                 <td>{expense.recorded_by_name || '—'}</td>
+
                 <td>
-                  <span className={`tex-status-pill ${expense.status === 'Voided' ? 'tex-status-voided' : 'tex-status-completed'}`}>
+                  <span
+                    className={`tex-status-pill ${
+                      expense.status === 'Voided'
+                        ? 'tex-status-voided'
+                        : 'tex-status-completed'
+                    }`}
+                  >
                     {expense.status}
                   </span>
                 </td>
-                <td className="tex-amount-col tex-amount">{peso.format(Number(expense.amount) || 0)}</td>
+
+                <td className="tex-amount-col tex-amount">
+                  {peso.format(Number(expense.amount) || 0)}
+                </td>
+
                 {includeActions && (
                   <td>
                     <button
+                      type="button"
                       className="tex-void-btn"
                       onClick={() => requestVoid(expense)}
-                      disabled={expense.status === 'Voided' || voidingId === expense.id}
+                      disabled={
+                        !canVoidExpenses ||
+                        expense.status === 'Voided' ||
+                        voidingId === expense.id
+                      }
                       title="Void expense"
+                      aria-label={`Void expense: ${expense.description}`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -426,11 +589,23 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
       <div className="tex-page-header">
         <div>
           <h1 className="tex-page-title">Expenses</h1>
-          <p className="tex-page-subtitle">Record and track association operating expenses.</p>
+
+          <p className="tex-page-subtitle">
+            {isReadOnly
+              ? 'View and track association operating expenses.'
+              : 'Record and track association operating expenses.'}
+          </p>
         </div>
-        <button className="tex-add-btn" onClick={openForm}>
-          <Plus size={16} /> Record Expense
-        </button>
+
+        {canRecordExpenses && (
+          <button
+            type="button"
+            className="tex-add-btn"
+            onClick={openForm}
+          >
+            <Plus size={16} /> Record Expense
+          </button>
+        )}
       </div>
 
       {pageError && (
@@ -441,21 +616,36 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
 
       <div className="tex-stats-grid">
         <div className="tex-stat-card">
-          <span className="tex-stat-label">Total {monthLabel(selectedMonth)}</span>
-          <h3 className="tex-stat-value">{loading ? '—' : peso.format(summary.totalSelectedMonth)}</h3>
+          <span className="tex-stat-label">
+            Total {monthLabel(selectedMonth)}
+          </span>
+          <h3 className="tex-stat-value">
+            {loading ? '—' : peso.format(summary.totalSelectedMonth)}
+          </h3>
         </div>
+
         <div className="tex-stat-card">
           <span className="tex-stat-label">Total Recorded</span>
-          <h3 className="tex-stat-value">{loading ? '—' : peso.format(summary.totalAllTime)}</h3>
+          <h3 className="tex-stat-value">
+            {loading ? '—' : peso.format(summary.totalAllTime)}
+          </h3>
         </div>
+
         <div className="tex-stat-card">
-          <span className="tex-stat-label">{monthLabel(selectedMonth)} Entries</span>
-          <h3 className="tex-stat-value">{loading ? '—' : summary.count}</h3>
+          <span className="tex-stat-label">
+            {monthLabel(selectedMonth)} Entries
+          </span>
+          <h3 className="tex-stat-value">
+            {loading ? '—' : summary.count}
+          </h3>
         </div>
+
         <div className="tex-stat-card">
           <span className="tex-stat-label">Top Category</span>
           <h3 className="tex-stat-value tex-stat-value-sm">
-            {loading || !summary.topCategory ? '—' : summary.topCategory.name}
+            {loading || !summary.topCategory
+              ? '—'
+              : summary.topCategory.name}
           </h3>
         </div>
       </div>
@@ -464,77 +654,131 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
         <div className="tex-history-header">
           <div>
             <h3 className="tex-section-title">Expense History</h3>
-            <p className="tex-history-caption">Select a month to view its archived expense records.</p>
+            <p className="tex-history-caption">
+              Select a month to view its archived expense records.
+            </p>
           </div>
+
           <div className="tex-month-picker" ref={monthPickerRef}>
             <button
               type="button"
               className="tex-month-nav"
-              onClick={() => setSelectedMonth((month) => shiftMonth(month, -1))}
+              onClick={() =>
+                setSelectedMonth((month) => shiftMonth(month, -1))
+              }
               aria-label="View previous month"
             >
               ‹
             </button>
+
             <button
               type="button"
-              className={`tex-month-trigger ${monthPickerOpen ? 'is-open' : ''}`}
-              onClick={() => (monthPickerOpen ? closeMonthPicker() : openMonthPicker())}
+              className={`tex-month-trigger ${
+                monthPickerOpen ? 'is-open' : ''
+              }`}
+              onClick={() =>
+                monthPickerOpen
+                  ? closeMonthPicker()
+                  : openMonthPicker()
+              }
               aria-expanded={monthPickerOpen}
               aria-haspopup="dialog"
             >
-              <span className="tex-month-trigger-icon" aria-hidden="true">▣</span>
-              <span>{MONTHS[selectedMonthIndex]} {selectedYear}</span>
+              <span className="tex-month-trigger-icon" aria-hidden="true">
+                ▣
+              </span>
+
+              <span>
+                {MONTHS[selectedMonthIndex]} {selectedYear}
+              </span>
+
               <span
                 className="tex-month-trigger-chevron"
-                role="button"
-                tabIndex={0}
-                aria-label={monthPickerOpen ? 'Close month selector' : 'Open month selector'}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  monthPickerOpen ? closeMonthPicker() : openMonthPicker()
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    monthPickerOpen ? closeMonthPicker() : openMonthPicker()
-                  }
-                }}
+                aria-hidden="true"
               />
             </button>
+
             <button
               type="button"
               className="tex-month-nav"
-              onClick={() => setSelectedMonth((month) => shiftMonth(month, 1))}
+              onClick={() =>
+                setSelectedMonth((month) => shiftMonth(month, 1))
+              }
               aria-label="View next month"
             >
               ›
             </button>
+
             {monthMenuMounted && (
               <div
-                className={`tex-month-menu ${monthMenuVisible ? 'is-visible' : ''}`}
+                className={`tex-month-menu ${
+                  monthMenuVisible ? 'is-visible' : ''
+                }`}
                 role="dialog"
                 aria-label="Select expense history month"
                 style={monthMenuPosition || undefined}
               >
                 <div className="tex-month-menu-header">
-                  <button type="button" className="tex-year-nav" onClick={() => setSelectedMonth(`${selectedYear - 1}-${String(selectedMonthIndex + 1).padStart(2, '0')}`)} aria-label="Previous year">‹</button>
+                  <button
+                    type="button"
+                    className="tex-year-nav"
+                    onClick={() =>
+                      setSelectedMonth(
+                        `${selectedYear - 1}-${String(
+                          selectedMonthIndex + 1,
+                        ).padStart(2, '0')}`,
+                      )
+                    }
+                    aria-label="Previous year"
+                  >
+                    ‹
+                  </button>
+
                   <strong>{selectedYear}</strong>
-                  <button type="button" className="tex-year-nav" onClick={() => setSelectedMonth(`${selectedYear + 1}-${String(selectedMonthIndex + 1).padStart(2, '0')}`)} aria-label="Next year">›</button>
+
+                  <button
+                    type="button"
+                    className="tex-year-nav"
+                    onClick={() =>
+                      setSelectedMonth(
+                        `${selectedYear + 1}-${String(
+                          selectedMonthIndex + 1,
+                        ).padStart(2, '0')}`,
+                      )
+                    }
+                    aria-label="Next year"
+                  >
+                    ›
+                  </button>
                 </div>
+
                 <div className="tex-month-grid">
                   {MONTHS.map((name, index) => (
                     <button
                       key={name}
                       type="button"
-                      className={index === selectedMonthIndex ? 'is-selected' : ''}
+                      className={
+                        index === selectedMonthIndex ? 'is-selected' : ''
+                      }
                       onClick={() => selectMonth(selectedYear, index)}
                     >
                       {name.slice(0, 3)}
                     </button>
                   ))}
                 </div>
-                <button type="button" className="tex-current-month" onClick={() => selectMonth(Number(manilaMonthKey().slice(0, 4)), Number(manilaMonthKey().slice(5, 7)) - 1)}>
+
+                <button
+                  type="button"
+                  className="tex-current-month"
+                  onClick={() => {
+                    const currentMonth = manilaMonthKey()
+                    const [year, month] = currentMonth
+                      .split('-')
+                      .map(Number)
+
+                    selectMonth(year, month - 1)
+                  }}
+                >
                   Jump to current month
                 </button>
               </div>
@@ -547,22 +791,39 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
         ) : visibleExpenses.length === 0 ? (
           <div className="tex-state">
             {expenses.length === 0
-              ? 'No expenses recorded yet. Click "Record Expense" to add one.'
-              : `No expenses were recorded in ${monthLabel(selectedMonth)}. Choose another month to view archived history.`}
+              ? canRecordExpenses
+                ? 'No expenses recorded yet. Click "Record Expense" to add one.'
+                : 'No expenses have been recorded yet.'
+              : `No expenses were recorded in ${monthLabel(
+                  selectedMonth,
+                )}. Choose another month to view archived history.`}
           </div>
         ) : (
           <>
             {recordedExpenses.length > 0 && (
               <>
-                <h4 className="tex-history-subtitle">Recorded Expenses</h4>
-                {renderExpenseTable(recordedExpenses)}
+                <h4 className="tex-history-subtitle">
+                  Recorded Expenses
+                </h4>
+
+                {renderExpenseTable(
+                  recordedExpenses,
+                  canVoidExpenses,
+                )}
               </>
             )}
 
             {voidedExpenses.length > 0 && (
               <>
-                <h4 className="tex-history-subtitle tex-history-subtitle-voided">Voided Expenses</h4>
-                <p className="tex-history-note">Voided expenses are kept for audit history and excluded from totals.</p>
+                <h4 className="tex-history-subtitle tex-history-subtitle-voided">
+                  Voided Expenses
+                </h4>
+
+                <p className="tex-history-note">
+                  Voided expenses are kept for audit history and excluded
+                  from totals.
+                </p>
+
                 {renderExpenseTable(voidedExpenses, false)}
               </>
             )}
@@ -570,10 +831,19 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
         )}
       </div>
 
-      {showForm && (
+      {showForm && canRecordExpenses && (
         <div className="tex-modal-overlay" onClick={closeForm}>
-          <div className="tex-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="tex-modal-close" onClick={closeForm} disabled={saving}>
+          <div
+            className="tex-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="tex-modal-close"
+              onClick={closeForm}
+              disabled={saving}
+              aria-label="Close expense form"
+            >
               <X size={20} />
             </button>
 
@@ -584,14 +854,13 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
 
             <form onSubmit={handleSubmit} className="tex-form">
               <div className="tex-form-row">
-                {/* Custom controls are NOT wrapped in <label>: a click inside
-                    the popup would be forwarded to the trigger button and
-                    reopen it right after picking a value. */}
                 <div className="tex-field">
                   <span className="tex-field-label">Date</span>
                   <DateField
                     value={form.expense_date}
-                    onChange={(key) => updateForm('expense_date', key)}
+                    onChange={(key) =>
+                      updateForm('expense_date', key)
+                    }
                     placeholder="Select date"
                     ariaLabel="Expense date"
                   />
@@ -602,7 +871,9 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                   <Select
                     value={form.category}
                     options={CATEGORY_OPTIONS}
-                    onChange={(value) => updateForm('category', value)}
+                    onChange={(value) =>
+                      updateForm('category', value)
+                    }
                     ariaLabel="Category"
                   />
                 </div>
@@ -614,7 +885,9 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                   type="text"
                   placeholder="e.g. Electricity bill for clubhouse"
                   value={form.description}
-                  onChange={(e) => updateForm('description', e.target.value)}
+                  onChange={(event) =>
+                    updateForm('description', event.target.value)
+                  }
                   required
                 />
               </label>
@@ -629,7 +902,9 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                     placeholder="0.00"
                     value={form.amount}
                     onWheel={(event) => event.currentTarget.blur()}
-                    onChange={(e) => updateForm('amount', e.target.value)}
+                    onChange={(event) =>
+                      updateForm('amount', event.target.value)
+                    }
                     required
                   />
                 </label>
@@ -640,18 +915,35 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
                     type="text"
                     placeholder="OR / invoice number"
                     value={form.reference_number}
-                    onChange={(e) => updateForm('reference_number', e.target.value)}
+                    onChange={(event) =>
+                      updateForm(
+                        'reference_number',
+                        event.target.value,
+                      )
+                    }
                   />
                 </label>
               </div>
 
-              {formError && <p className="tex-form-error">{formError}</p>}
+              {formError && (
+                <p className="tex-form-error">{formError}</p>
+              )}
 
               <div className="tex-form-footer">
-                <button type="button" className="tex-btn tex-btn-secondary" onClick={closeForm} disabled={saving}>
+                <button
+                  type="button"
+                  className="tex-btn tex-btn-secondary"
+                  onClick={closeForm}
+                  disabled={saving}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="tex-btn tex-btn-primary" disabled={saving}>
+
+                <button
+                  type="submit"
+                  className="tex-btn tex-btn-primary"
+                  disabled={saving}
+                >
                   {saving ? 'Saving...' : 'Save Expense'}
                 </button>
               </div>
@@ -661,16 +953,22 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
       )}
 
       <ActionDialog
-        open={!!pendingVoid}
+        open={canVoidExpenses && !!pendingVoid}
         title="Void This Expense?"
         message={
           pendingVoid
-            ? `${pendingVoid.category} — ${peso.format(pendingVoid.amount)}\n${pendingVoid.description}\n\nVoided expenses stay on record but are excluded from totals.`
+            ? `${pendingVoid.category} — ${peso.format(
+                pendingVoid.amount,
+              )}\n${pendingVoid.description}\n\nVoided expenses stay on record but are excluded from totals.`
             : ''
         }
         confirmLabel="Void Expense"
         tone="danger"
-        onConfirm={() => handleVoid(pendingVoid)}
+        onConfirm={() => {
+          if (canVoidExpenses && pendingVoid) {
+            handleVoid(pendingVoid)
+          }
+        }}
         onCancel={() => setPendingVoid(null)}
       />
 
