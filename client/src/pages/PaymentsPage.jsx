@@ -581,7 +581,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   // ---- Paged payment history -------------------------------------------------
   // The table shows one day at a time (50 rows per page), read straight from the database.
   //   * Default view: today's payments.
-  //   * Use the arrows or View by Date to look at another day.
+  //   * Use the arrows or the calendar button to look at another day.
   //   * Typing a search looks through ALL dates.
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
   const searching = searchTokens(debouncedSearch).length > 0
@@ -1216,20 +1216,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
           </div>
         </div>
 
-        <div className="payments-header-actions" ref={calendarAnchorRef}>
-          <button
-            type="button"
-            className={`payments-date-toggle ${!isToday ? 'is-active' : ''}`}
-            onClick={calendar.toggle}
-            aria-expanded={calendar.open}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              <rect x="3" y="5" width="18" height="16" rx="2" />
-              <path d="M3 10h18M8 3v4M16 3v4" />
-            </svg>
-            View by Date
-          </button>
-
+        <div className="payments-header-actions">
           {canManageCharges && (
             <button className="payments-secondary" type="button" onClick={openChargeForm}>
               Add Charge
@@ -1247,17 +1234,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
               <span aria-hidden="true">+</span>
               Record Payment
             </button>
-          )}
-
-          {calendar.mounted && (
-            <div className={`payments-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
-              <PaymentCalendar
-              selectedDateKey={selectedDateKey}
-              activeDateKeys={activeDateKeys}
-              onSelectDate={handleSelectCalendarDate}
-              onViewMonthChange={loadActiveDays}
-              />
-            </div>
           )}
         </div>
       </header>
@@ -1291,7 +1267,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               {scopeKind === 'search'
                 ? 'Search results across all dates.'
                 : isToday
-                  ? "Today's payments. Use the arrows or View by Date for other days, or search all dates."
+                  ? "Today's payments. Use the arrows or the calendar button for other days, or search all dates."
                   : `Payments recorded on ${dayLabel}.`}
             </p>
           </div>
@@ -1322,7 +1298,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
           </div>
 
           {!searching && (
-            <div className="payments-day-switcher">
+            <div className="payments-day-switcher" ref={calendarAnchorRef}>
               <button
                 type="button"
                 aria-label="Previous day"
@@ -1331,9 +1307,19 @@ export default function PaymentsPage({ user: suppliedUser }) {
               >
                 ‹
               </button>
-              <span className="payments-day-label">
+              <button
+                type="button"
+                className={`payments-day-label-btn ${calendar.open ? 'is-open' : ''}`}
+                onClick={calendar.toggle}
+                aria-expanded={calendar.open}
+                aria-label="Choose a date"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M3 10h18M8 3v4M16 3v4" />
+                </svg>
                 {isToday ? `Today · ${dayLabel}` : dayLabel}
-              </span>
+              </button>
               <button
                 type="button"
                 aria-label="Next day"
@@ -1346,6 +1332,17 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 <button type="button" className="payments-day-today" onClick={goToToday}>
                   Today
                 </button>
+              )}
+
+              {calendar.mounted && (
+                <div className={`payments-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
+                  <PaymentCalendar
+                    selectedDateKey={selectedDateKey}
+                    activeDateKeys={activeDateKeys}
+                    onSelectDate={handleSelectCalendarDate}
+                    onViewMonthChange={loadActiveDays}
+                  />
+                </div>
               )}
             </div>
           )}
@@ -1373,7 +1370,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
                   {scopeKind === 'day' ? (
                     <>
                       <strong>No payments recorded {isToday ? 'today' : `on ${dayLabel}`}</strong>
-                      <span>Use the arrows or View by Date to check another day, or search to look through every date.</span>
+                      <span>Use the arrows or the calendar button to check another day, or search to look through every date.</span>
                     </>
                   ) : (
                     <>
@@ -1897,4 +1894,4 @@ export default function PaymentsPage({ user: suppliedUser }) {
       />
     </div>
   )
-}
+} 

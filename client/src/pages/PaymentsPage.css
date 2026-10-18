@@ -1513,7 +1513,17 @@
 
 /* ---------- Day switcher (payment history is shown one day at a time) ---------- */
 
+/* Let the calendar popover hang below the card instead of being clipped. */
+.payments-page .payments-table-card {
+  overflow: visible;
+}
+
+.payments-page .payments-table-card::before {
+  border-radius: inherit;
+}
+
 .payments-day-switcher {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1525,7 +1535,7 @@
   box-shadow: 0 2px 6px rgba(15, 63, 106, 0.08), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
 }
 
-.payments-day-switcher button {
+.payments-day-switcher > button {
   display: grid;
   min-width: 32px;
   height: 32px;
@@ -1540,30 +1550,48 @@
   cursor: pointer;
 }
 
-.payments-day-switcher button:hover:not(:disabled) {
+.payments-day-switcher > button:hover:not(:disabled) {
   background: rgba(20, 100, 160, 0.1);
 }
 
-.payments-day-switcher button:disabled {
+.payments-day-switcher > button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.payments-day-switcher .payments-day-today {
+/* Calendar button: shows the selected date and opens the date picker. */
+.payments-day-switcher > .payments-day-label-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--text-dark);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.payments-day-label-btn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+}
+
+.payments-day-switcher > .payments-day-label-btn.is-open {
+  background: var(--primary);
+  color: #fff;
+}
+
+.payments-day-label-btn.is-open svg {
+  color: #fff;
+}
+
+.payments-day-switcher > .payments-day-today {
   padding: 0 10px;
   background: var(--primary);
   color: #fff;
   font-size: 0.74rem;
 }
 
-.payments-day-switcher .payments-day-today:hover:not(:disabled) {
+.payments-day-switcher > .payments-day-today:hover:not(:disabled) {
   background: var(--primary-dark);
-}
-
-.payments-day-label {
-  padding: 0 6px;
-  color: var(--text-dark);
-  font-size: 0.8rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
