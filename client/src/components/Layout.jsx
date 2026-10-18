@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
@@ -13,16 +14,22 @@ export default function Layout({ user, onLogout }) {
   const [timedOut, setTimedOut] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
-  
-const handleTimeout = useCallback(() => {
-  void onLogout()
-}, [onLogout])
+  const handleTimeout = useCallback(() => {
+    void onLogout()
+  }, [onLogout])
 
+  const toggleNav = useCallback(() => {
+    setNavOpen((open) => !open)
+  }, [])
 
-  const toggleNav = useCallback(() => setNavOpen((open) => !open), [])
-  const closeNav = useCallback(() => setNavOpen(false), [])
+  const closeNav = useCallback(() => {
+    setNavOpen(false)
+  }, [])
 
-  useSessionTimeout(organization.sessionTimeoutMinutes, handleTimeout)
+  useSessionTimeout(
+    organization.sessionTimeoutMinutes,
+    handleTimeout
+  )
 
   // Close the drawer after navigating.
   useEffect(() => {
@@ -32,12 +39,17 @@ const handleTimeout = useCallback(() => {
   // Escape closes the drawer; lock page scroll while it is open.
   useEffect(() => {
     document.body.classList.toggle('nav-locked', navOpen)
+
     if (!navOpen) return undefined
 
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') setNavOpen(false)
+      if (event.key === 'Escape') {
+        setNavOpen(false)
+      }
     }
+
     window.addEventListener('keydown', onKeyDown)
+
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       document.body.classList.remove('nav-locked')
@@ -52,6 +64,7 @@ const handleTimeout = useCallback(() => {
         menuOpen={navOpen}
         onMenuToggle={toggleNav}
       />
+
       <div className="layout-container">
         <Sidebar
           user={user}
@@ -59,6 +72,7 @@ const handleTimeout = useCallback(() => {
           open={navOpen}
           onNavigate={closeNav}
         />
+
         <div
           className={`nav-backdrop${navOpen ? ' show' : ''}`}
           onClick={closeNav}
@@ -74,6 +88,7 @@ const handleTimeout = useCallback(() => {
             onLogout()
           }}
         />
+
         <div className="page-content">
           <Outlet />
         </div>
