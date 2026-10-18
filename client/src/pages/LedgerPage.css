@@ -355,6 +355,8 @@
   flex-wrap: wrap;
   padding: 16px 18px;
   border-radius: 20px;
+  /* Light blue tint so the white inputs stand out */
+  background: linear-gradient(160deg, rgba(220, 234, 250, 0.75), rgba(220, 234, 250, 0.5));
 }
 
 .ledger-search-wrap {
@@ -367,43 +369,56 @@
 
 .ledger-search-icon {
   position: absolute;
-  left: 13px;
-  color: var(--text-muted);
+  left: 14px;
+  z-index: 2;
+  color: var(--primary);
   pointer-events: none;
 }
 
 .ledger-search {
   width: 100%;
-  padding: 11px 15px 11px 38px;
+  padding: 12px 16px 12px 42px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.62);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(20, 100, 160, 0.35);
+  background: #fff;
   color: var(--text-dark);
   font: inherit;
-  box-shadow: 0 10px 22px -12px rgba(15, 63, 106, 0.26);
+  font-size: 0.95rem;
+  box-shadow: 0 2px 6px rgba(15, 63, 106, 0.08), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ledger-search::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.ledger-search:hover {
+  border-color: rgba(20, 100, 160, 0.55);
 }
 
 .ledger-select {
   flex: 0 0 auto;
   width: 180px;
-  padding: 11px 14px;
+  padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.62);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(20, 100, 160, 0.35);
+  background: #fff;
   color: var(--text-dark);
   font: inherit;
-  box-shadow: 0 10px 22px -12px rgba(15, 63, 106, 0.26);
+  box-shadow: 0 2px 6px rgba(15, 63, 106, 0.08), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
+  cursor: pointer;
+}
+
+.ledger-select:hover {
+  border-color: rgba(20, 100, 160, 0.55);
 }
 
 .ledger-search:focus,
 .ledger-select:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.18);
+  box-shadow: 0 0 0 4px rgba(20, 100, 160, 0.18), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
 }
 
 .ledger-result-count {
