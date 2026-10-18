@@ -4,7 +4,6 @@ import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Ico
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { buildLedgerStatement } from '../lib/ledgerStatement'
-import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 import { useOrganization } from '../context/OrganizationContext'
 
 const SORT_COLUMNS = [
@@ -241,9 +240,8 @@ setStatementLines(statement.lines)
 
     setStatementLoading(false)
   }
-
-  function downloadStatementPdf() {
-    if (!statementAccount) return
+async function downloadStatementPdf() {
+      if (!statementAccount) return
     setStatementPdfGenerating(true)
 
     try {
@@ -256,7 +254,8 @@ setStatementLines(statement.lines)
         credit: Number(line.credit) || 0,
         balance: Number(line.running_balance) || 0,
       }))
-
+      
+      const { buildHomeownerStatementPdf } = await import('../lib/homeownerStatementPdf')
       const doc = buildHomeownerStatementPdf({
         hoaName: orgSettings?.hoa_name || 'Homeowners Association',
         hoaAddress: orgSettings?.address || '',

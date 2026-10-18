@@ -14,7 +14,6 @@ import {
   periodLabel,
   reportText,
 } from '../lib/monthlyReportData'
-import { buildMonthlyReportPdf } from '../lib/monthlyReportPdf'
 import './ReportsPage.css'
 
 const todayInManila = () => {
@@ -266,6 +265,7 @@ export default function ReportsPage({ user: suppliedUser }) {
       setLoading(false)
       if (community.failure || monthly.failure) return
 
+         const { buildMonthlyReportPdf } = await import('../lib/monthlyReportPdf')
       const doc = buildMonthlyReportPdf({
         monthLabel: monthName(month),
         hoaName: community.settings?.hoa_name || 'Homeowners Association',
