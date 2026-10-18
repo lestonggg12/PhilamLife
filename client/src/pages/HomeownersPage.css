@@ -1370,3 +1370,285 @@
   background: #b3261e;
   color: #fff;
 }
+
+
+/* ==========================================================================
+   HOD-PATCH: Manage Blocks / Add-Edit Homeowner dialogs and the extra buttons on
+   the Homeowners page. Every class is prefixed "hod-" so it cannot clash with the
+   Ledger or Contact Manager styles.
+   ========================================================================== */
+
+.hod-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Same size and shape as the existing Refresh button, filled with the primary colour. */
+.homeowners-refresh.hod-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.homeowners-refresh.hod-primary:hover:not(:disabled) {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  color: #fff;
+}
+
+.homeowner-profile-actions button.hod-danger {
+  color: var(--danger);
+  border-color: rgba(192, 57, 43, 0.35);
+}
+
+.homeowner-profile-actions button.hod-danger:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.hod-notice {
+  margin: 0;
+  padding: 11px 16px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  color: var(--success);
+  background: rgba(26, 138, 96, 0.1);
+  border: 1px solid rgba(26, 138, 96, 0.25);
+}
+
+.hod-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 63, 106, 0.35);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.hod-modal {
+  box-sizing: border-box;
+  width: min(480px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 26px;
+  background: rgba(255, 255, 255, 0.94);
+  -webkit-backdrop-filter: blur(26px) saturate(190%);
+  backdrop-filter: blur(26px) saturate(190%);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 30px 70px -20px rgba(15, 63, 106, 0.4);
+}
+
+.hod-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.hod-heading h2 {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+.hod-heading p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.87rem;
+}
+
+.hod-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.hod-modal label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.hod-modal input,
+.hod-modal select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(120, 162, 210, 0.4);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-dark);
+  font: inherit;
+}
+
+.hod-modal input:focus,
+.hod-modal select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
+}
+
+.hod-modal > input {
+  margin-bottom: 16px;
+}
+
+.hod-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: end;
+}
+
+.hod-row-inline {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.hod-note {
+  margin: 14px 0 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.hod-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: 0.86rem;
+}
+
+.hod-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.hod-cancel {
+  border: 1px solid rgba(120, 162, 210, 0.45);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-dark);
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hod-cancel:hover:not(:disabled) {
+  background: #fff;
+}
+
+.hod-save {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 12px 24px -12px rgba(20, 100, 160, 0.55);
+}
+
+.hod-save:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.hod-save:disabled,
+.hod-cancel:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.hod-blocks-list {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.hod-block-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid rgba(120, 162, 210, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.hod-block-row span {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.hod-block-row input {
+  flex: 1;
+  padding: 7px 10px;
+}
+
+.hod-icon-btn {
+  border: 1px solid rgba(20, 100, 160, 0.2);
+  border-radius: 9px;
+  padding: 6px 11px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-light);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hod-icon-btn:hover:not(:disabled) {
+  color: var(--primary);
+  background: #fff;
+}
+
+.hod-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.hod-icon-btn-danger {
+  color: var(--danger);
+}
+
+.hod-icon-btn-danger:hover:not(:disabled) {
+  color: var(--danger);
+  background: rgba(192, 57, 43, 0.1);
+}
+
+.hod-add-block {
+  padding-top: 14px;
+  border-top: 1px solid rgba(120, 162, 210, 0.2);
+}
+
+.hod-add-block label {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+  .hod-row,
+  .hod-row-inline {
+    grid-template-columns: 1fr;
+  }
+}

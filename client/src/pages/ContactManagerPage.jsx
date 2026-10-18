@@ -1,18 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Edit, FileArchive, Mail, Phone, RefreshCw, UserPlus, Trash2, Settings, Search } from '../components/Icons'
+import { Edit, FileArchive, Mail, Phone, RefreshCw, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
-import ActionDialog from '../components/ActionDialog'
+import { Pager } from '../components/PagerControls'
+import useDebouncedValue from '../hooks/useDebouncedValue'
+import { ilikeAny, pageWindow, searchTokens } from '../lib/pagedQuery'
 import './ContactManagerPage.css'
 
 const EMPTY_FORM = {
   phone: '',
   email: '',
-}
-
-const EMPTY_BLOCK_FORM = {
-  name: '',
 }
 
 const manilaDate = () =>
@@ -29,72 +26,103 @@ const EMPTY_TRANSFER_FORM = {
   reason: '',
 }
 
-const ADD_BLOCK_OPTION = '__add_block__'
+const MIN_SEARCH_LENGTH = 2
 
-const PAGE_SIZE = 24
+const CONTACT_COLUMNS =
+  'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at'
+
+// Text columns searched for every typed word. lot_number is an INTEGER column, so it is
+// matched separately with .eq (never ilike).
+const SEARCH_COLUMNS = [
+  'homeowner_name',
+  'block',
+  'contact_phone',
+  'contact_email',
+  'homeowner_status',
+  'status_reason',
+]
+
+// Words that describe a field instead of matching one ("Block C Lot 12").
+const IGNORED_WORDS = new Set(['lot'])
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
-  const [contacts, setContacts] = useState([])
-  const [blocks, setBlocks] = useState([])
+  const [rows, setRows] = useState([])
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState({ active: 0, moved: 0, transferred: 0 })
+  const [countsLoading, setCountsLoading] = useState(true)
+  const [listLoading, setListLoading] = useState(false)
+  const [countError, setCountError] = useState('')
+  const [listError, setListError] = useState('')
+  const [reloadTick, setReloadTick] = useState(0)
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [pageError, setPageError] = useState('')
+  const [statusFilter, setStatusFilter] = useState('active')
+  const [pageState, setPageState] = useState({ key: '', page: 0 })
   const [notice, setNotice] = useState('')
-  const [showAddHomeowner, setShowAddHomeowner] = useState(false)
-  const [homeownerForm, setHomeownerForm] = useState({
-    homeownerName: '',
-    blockName: '',
-    lotNumber: '',
-  })
-  const [homeownerFormError, setHomeownerFormError] = useState('')
-  const [savingHomeowner, setSavingHomeowner] = useState(false)
-  const [showAddBlock, setShowAddBlock] = useState(false)
-  const [blockForm, setBlockForm] = useState(EMPTY_BLOCK_FORM)
-  const [blockFormError, setBlockFormError] = useState('')
-  const [savingBlock, setSavingBlock] = useState(false)
   const [selectedContact, setSelectedContact] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [statusFilter, setStatusFilter] = useState('active')
   const [pendingTransferContact, setPendingTransferContact] = useState(null)
   const [transferForm, setTransferForm] = useState(EMPTY_TRANSFER_FORM)
   const [transferringContactId, setTransferringContactId] = useState(null)
   const [transferError, setTransferError] = useState('')
-  const [showManageBlocks, setShowManageBlocks] = useState(false)
-  const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null)
-  const [deletingBlockId, setDeletingBlockId] = useState(null)
-  const [deleteBlockError, setDeleteBlockError] = useState('')
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageContacts = role === 'admin' || role === 'secretary'
-
-  // Arriving from a homeowner profile ("/contacts?edit=<id>") opens that
-  // homeowner's Contact Details dialog straight away.
-  const [searchParams, setSearchParams] = useSearchParams()
-  useEffect(() => {
-    const editId = searchParams.get('edit')
-    if (!editId || loading || !role) return
-
-    const contact = contacts.find((item) => String(item.id) === editId)
-    if (contact && canManageContacts) openContactForm(contact)
-    setSearchParams({}, { replace: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, loading, role, contacts])
   const actorName =
     currentUser?.full_name ||
     currentUser?.name ||
     currentUser?.email ||
     'Staff member'
 
+  // The homeowner list is never loaded up front. It is read from the database only for a
+  // search of 2+ characters (or the small Moved / Transferred lists), one page at a time.
+  const debouncedSearch = useDebouncedValue(search, 350)
+  const tokens = searchTokens(debouncedSearch).filter(
+    (token) => !IGNORED_WORDS.has(normalize(token)),
+  )
+  const hasSearch = debouncedSearch.trim().length >= MIN_SEARCH_LENGTH && tokens.length > 0
+  const listsByStatus = statusFilter === 'moved' || statusFilter === 'transferred'
+  const shouldList = hasSearch || listsByStatus
+  const scopeKey = `${statusFilter}|${debouncedSearch.trim()}`
+  const page = pageState.key === scopeKey ? pageState.page : 0
+
+  function goToPage(nextPage) {
+    setPageState({ key: scopeKey, page: Math.max(0, nextPage) })
+  }
+
+  // Arriving from a homeowner profile ("/contacts?edit=<id>") opens that
+  // homeowner's Contact Details dialog straight away. Only that one record is loaded.
+  const [searchParams, setSearchParams] = useSearchParams()
   useEffect(() => {
-    loadContacts()
+    const editId = searchParams.get('edit')
+    if (!editId || !role) return undefined
+
+    let cancelled = false
+
+    async function openFromLink() {
+      if (canManageContacts && /^\d+$/.test(editId)) {
+        const { data } = await supabase
+          .from('properties')
+          .select(CONTACT_COLUMNS)
+          .eq('id', Number(editId))
+          .maybeSingle()
+        if (!cancelled && data) openContactForm(data)
+      }
+      if (!cancelled) setSearchParams({}, { replace: true })
+    }
+
+    openFromLink()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, role])
+
+  useEffect(() => {
     resolveCurrentUser()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function resolveCurrentUser() {
@@ -119,238 +147,91 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     if (!profileError) setCurrentUser(profile)
   }
 
-  async function loadContacts(isRefresh = false) {
-    if (isRefresh) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
+  // Header counts: three tiny count queries, no homeowner rows are downloaded.
+  useEffect(() => {
+    let cancelled = false
 
-    setPageError('')
-    setNotice('')
-
-    const [contactsResult, blocksResult] = await Promise.all([
-      fetchAll(() => supabase
-        .from('properties')
-        .select(
-          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
-        )
-        .order('homeowner_name')),
-      supabase.from('blocks').select('id, name').order('name'),
-    ])
-
-    if (contactsResult.error) {
-      setContacts([])
-      setPageError(`Contact directory could not be loaded: ${contactsResult.error.message}`)
-    } else {
-      setContacts(contactsResult.data || [])
-    }
-
-    if (blocksResult.error) {
-      setBlocks([])
-      setPageError((current) =>
-        current
-          ? `${current} Block list could not be loaded: ${blocksResult.error.message}`
-          : `Block list could not be loaded: ${blocksResult.error.message}`,
+    async function loadCounts() {
+      setCountsLoading(true)
+      const results = await Promise.all(
+        ['active', 'moved', 'transferred'].map((status) =>
+          supabase
+            .from('properties')
+            .select('id', { count: 'exact', head: true })
+            .eq('homeowner_status', status),
+        ),
       )
-    } else {
-      setBlocks(blocksResult.data || [])
+      if (cancelled) return
+
+      const failed = results.find((result) => result.error)
+      setCountError(
+        failed ? `Homeowner counts could not be loaded: ${failed.error.message}` : '',
+      )
+      setCounts({
+        active: results[0].count || 0,
+        moved: results[1].count || 0,
+        transferred: results[2].count || 0,
+      })
+      setCountsLoading(false)
     }
 
-    setLoading(false)
-    setRefreshing(false)
-  }
+    loadCounts()
+    return () => { cancelled = true }
+  }, [reloadTick])
 
-  function openHomeownerForm() {
-    setHomeownerForm({
-      homeownerName: '',
-      blockName: '',
-      lotNumber: '',
-    })
-    setHomeownerFormError('')
-    setNotice('')
-    setShowAddHomeowner(true)
-  }
-
-  function closeHomeownerForm() {
-    if (savingHomeowner) return
-    setShowAddHomeowner(false)
-    setHomeownerFormError('')
-  }
-
-  function openBlockForm() {
-    setBlockForm(EMPTY_BLOCK_FORM)
-    setBlockFormError('')
-    setShowAddBlock(true)
-  }
-
-  function closeBlockForm() {
-    if (savingBlock) return
-    setShowAddBlock(false)
-    setBlockFormError('')
-  }
-
-  function updateHomeownerField(event) {
-    const { name, value } = event.target
-
-    if (name === 'blockName' && value === ADD_BLOCK_OPTION) {
-      setHomeownerForm((current) => ({ ...current, blockName: '' }))
-      setHomeownerFormError('')
-      openBlockForm()
-      return
+  // One page of results, read straight from the database.
+  useEffect(() => {
+    if (!shouldList) {
+      setRows([])
+      setTotal(0)
+      setListError('')
+      setListLoading(false)
+      return undefined
     }
 
-    setHomeownerForm((current) => ({ ...current, [name]: value }))
-    setHomeownerFormError('')
-  }
+    let cancelled = false
 
-  function updateBlockField(event) {
-    const { value } = event.target
-    setBlockForm({ name: value })
-    setBlockFormError('')
-  }
+    async function loadRows() {
+      setListLoading(true)
+      const { from, to } = pageWindow(page)
 
-  async function saveBlock(event) {
-    event.preventDefault()
+      let query = supabase.from('properties').select(CONTACT_COLUMNS, { count: 'exact' })
+      if (statusFilter !== 'all') query = query.eq('homeowner_status', statusFilter)
 
-    if (!canManageContacts) {
-      setBlockFormError('Only an Admin or Secretary can add blocks.')
-      return
-    }
-
-    const name = blockForm.name.trim().replace(/\s+/g, ' ')
-
-    if (!name) {
-      setBlockFormError('Enter a block name.')
-      return
-    }
-
-    if (blocks.some((block) => normalize(block.name) === normalize(name))) {
-      setBlockFormError('That block already exists.')
-      return
-    }
-
-    setSavingBlock(true)
-    setBlockFormError('')
-
-    const { data, error } = await supabase
-      .from('blocks')
-      .insert({ name })
-      .select('id, name')
-      .single()
-
-    if (error) {
-      setBlockFormError(error.code === '23505' ? 'That block already exists.' : error.message)
-      setSavingBlock(false)
-      return
-    }
-
-    setBlocks((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)))
-    setSavingBlock(false)
-    setShowAddBlock(false)
-    setBlockForm(EMPTY_BLOCK_FORM)
-    setHomeownerForm((current) => ({ ...current, blockName: data.name }))
-
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Block Added',
-        target: `${data.name} (by ${actorName})`,
+      // Every typed word must match something. Small numbers also match the lot number.
+      tokens.forEach((token) => {
+        const parts = [ilikeAny(SEARCH_COLUMNS, token)]
+        if (/^\d{1,6}$/.test(token)) parts.push(`lot_number.eq.${token}`)
+        query = query.or(parts.join(','))
       })
 
-      if (activityError) {
-        console.warn('Block saved, but activity logging failed:', activityError.message)
+      const { data, error, count } = await query
+        .order('homeowner_name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+
+      if (cancelled) return
+
+      if (error) {
+        setListError(`Contact directory could not be loaded: ${error.message}`)
+        setRows([])
+        setTotal(0)
+      } else if ((data || []).length === 0 && page > 0 && (count || 0) > 0) {
+        // The page emptied (for example after a status change): step back one page.
+        goToPage(page - 1)
+        return
+      } else {
+        setListError('')
+        setRows(data || [])
+        setTotal(count || 0)
       }
+      setListLoading(false)
     }
 
-    setNotice(`Block ${name} was added.`)
-  }
-
-  async function saveHomeowner(event) {
-    event.preventDefault()
-
-    if (!canManageContacts) {
-      setHomeownerFormError('Only an Admin or Secretary can add homeowners.')
-      return
-    }
-
-    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
-    const blockName = homeownerForm.blockName
-    const lotNumber = Number(homeownerForm.lotNumber)
-
-    if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
-      setHomeownerFormError('Homeowner name, block, and lot number are required.')
-      return
-    }
-
-    if (!Number.isInteger(lotNumber) || lotNumber <= 0) {
-      setHomeownerFormError('Lot number must be a whole number greater than zero.')
-      return
-    }
-
-    // Only currently-active occupants block a lot from being reused. Once a
-    // homeowner has been marked Moved/Transferred, the lot is vacant again
-    // and should be assignable to a new homeowner.
-    const lotIsOccupied = contacts.some(
-      (contact) =>
-        normalize(contact.block) === normalize(blockName) &&
-        Number(contact.lot_number) === lotNumber &&
-        normalize(contact.homeowner_status || 'active') === 'active',
-    )
-
-    if (lotIsOccupied) {
-      setHomeownerFormError('That block and lot already has an active homeowner.')
-      return
-    }
-
-    setSavingHomeowner(true)
-    setHomeownerFormError('')
-
-    const { data, error } = await supabase
-      .from('properties')
-      .insert({
-        homeowner_name: homeownerName,
-        block: blockName,
-        lot_number: lotNumber,
-      })
-      .select(
-        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
-      )
-      .single()
-
-    if (error) {
-      setHomeownerFormError(
-        error.code === '23505'
-          ? 'That block and lot already has a homeowner record. Check Manage Blocks or search all statuses.'
-          : error.message,
-      )
-      setSavingHomeowner(false)
-      return
-    }
-
-    setContacts((current) =>
-      [...current, data].sort((a, b) =>
-        (a.homeowner_name || '').localeCompare(b.homeowner_name || ''),
-      ),
-    )
-    setShowAddHomeowner(false)
-    setHomeownerForm({ homeownerName: '', blockName: '', lotNumber: '' })
-    setSavingHomeowner(false)
-
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Homeowner Added',
-        target: `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
-      })
-
-      if (activityError) {
-        console.warn('Homeowner saved, but activity logging failed:', activityError.message)
-      }
-    }
-
-    setNotice(`Homeowner ${homeownerName} was added.`)
-  }
+    loadRows()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, page, reloadTick, shouldList])
 
   function openContactForm(contact) {
     setSelectedContact(contact)
@@ -408,9 +289,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         contact_updated_at: contactUpdatedAt,
       })
       .eq('id', selectedContact.id)
-      .select(
-        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
-      )
+      .select(CONTACT_COLUMNS)
       .single()
 
     if (error) {
@@ -419,13 +298,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       return
     }
 
-    setContacts((current) =>
-      current
-        .map((contact) => (contact.id === data.id ? data : contact))
-        .sort((a, b) =>
-          (a.homeowner_name || '').localeCompare(b.homeowner_name || ''),
-        ),
-    )
+    // Re-read the current page and the header counts from the database.
+    setReloadTick((tick) => tick + 1)
 
     if (currentUser?.id) {
       const { error: activityError } = await supabase
@@ -488,7 +362,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setTransferError('')
 
     const statusUpdatedAt = new Date().toISOString()
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('properties')
       .update({
         homeowner_status: transferForm.status,
@@ -508,9 +382,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       return
     }
 
-    setContacts((current) =>
-      current.map((item) => (item.id === data.id ? data : item)),
-    )
+    setReloadTick((tick) => tick + 1)
 
     if (currentUser?.id) {
       const { error: activityError } = await supabase.from('activity_log').insert({
@@ -536,106 +408,10 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     )
   }
 
-  function requestDeleteBlock(block) {
-    if (!canManageContacts) return
-    setDeleteBlockError('')
-
-    const homeownersInBlock = contacts.filter(
-      (contact) => normalize(contact.block) === normalize(block.name),
-    ).length
-
-    if (homeownersInBlock > 0) {
-      setDeleteBlockError(
-        `${block.name} cannot be deleted — ${homeownersInBlock} homeowner record(s) (active or historical) are still assigned to it. Delete or reassign them first.`,
-      )
-      return
-    }
-
-    setPendingDeleteBlock(block)
-  }
-
-  async function deleteBlock(block) {
-    setPendingDeleteBlock(null)
-    setDeletingBlockId(block.id)
-    setDeleteBlockError('')
-
-    const { error } = await supabase.from('blocks').delete().eq('id', block.id)
-
-    setDeletingBlockId(null)
-
-    if (error) {
-      setDeleteBlockError(`Could not delete block: ${error.message}`)
-      return
-    }
-
-    setBlocks((current) => current.filter((item) => item.id !== block.id))
-
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Block Deleted',
-        target: `${block.name} (by ${actorName})`,
-      })
-
-      if (activityError) {
-        console.warn('Block deleted, but activity logging failed:', activityError.message)
-      }
-    }
-  }
-
-  const filteredContacts = useMemo(() => {
-    const term = normalize(search)
-
-    return contacts.filter((contact) => {
-      const property = `${contact.block} lot ${contact.lot_number}`
-
-      const contactStatus = normalize(contact.homeowner_status || 'active')
-      const matchesStatus = statusFilter === 'all' || contactStatus === statusFilter
-      if (!matchesStatus) return false
-
-      if (!term) return true
-
-      return [
-        contact.homeowner_name,
-        property,
-        contact.contact_phone,
-        contact.contact_email,
-        contactStatus,
-        contact.status_reason,
-      ].some((value) => normalize(value).includes(term))
-    })
-  }, [contacts, search, statusFilter])
-
-  // Whenever the search term (or the underlying contact list) changes, the
-  // previously selected page may no longer exist — jump back to page 1 so
-  // search results always start from the top, same as before pagination.
-  useEffect(() => {
-    setPage(1)
-  }, [search, statusFilter, contacts])
-
-  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageStartIndex = (safePage - 1) * PAGE_SIZE
-  const pagedContacts = filteredContacts.slice(
-    pageStartIndex,
-    pageStartIndex + PAGE_SIZE,
-  )
-  const rangeStart = filteredContacts.length === 0 ? 0 : pageStartIndex + 1
-  const rangeEnd = Math.min(pageStartIndex + PAGE_SIZE, filteredContacts.length)
-
-  const goToPage = (nextPage) => {
-    setPage(Math.min(Math.max(nextPage, 1), totalPages))
-  }
-
-  const activeContactCount = contacts.filter(
-    (contact) => normalize(contact.homeowner_status || 'active') === 'active',
-  ).length
-  const movedContactCount = contacts.filter(
-    (contact) => normalize(contact.homeowner_status) === 'moved',
-  ).length
-  const transferredContactCount = contacts.filter(
-    (contact) => normalize(contact.homeowner_status) === 'transferred',
-  ).length
+  const { from: pageFrom } = pageWindow(page)
+  const rangeStart = total === 0 ? 0 : pageFrom + 1
+  const rangeEnd = pageFrom + rows.length
+  const pageError = [countError, listError].filter(Boolean).join(' ')
 
   return (
     <div className="contact-page">
@@ -647,49 +423,29 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
 
         <div className="contact-header-actions">
-          {canManageContacts && (
-            <button
-              type="button"
-              className="contact-manage-blocks-button"
-              onClick={() => setShowManageBlocks(true)}
-            >
-              <Settings size={17} />
-              Manage Blocks
-            </button>
-          )}
-          {canManageContacts && (
-            <button
-              type="button"
-              className="contact-add-homeowner-button"
-              onClick={openHomeownerForm}
-            >
-              <UserPlus size={17} />
-              Add New Homeowner
-            </button>
-          )}
           <button
             type="button"
             className="contact-refresh-button"
-            onClick={() => loadContacts(true)}
-            disabled={refreshing}
+            onClick={() => setReloadTick((tick) => tick + 1)}
+            disabled={countsLoading || listLoading}
           >
-            <RefreshCw size={17} className={refreshing ? 'contact-spin' : ''} />
-            {refreshing ? 'Refreshing...' : 'Refresh'}
+            <RefreshCw size={17} className={countsLoading || listLoading ? 'contact-spin' : ''} />
+            Refresh
           </button>
         </div>
       </div>
 
       <div className="contact-summary">
         <div className="contact-summary-item is-active">
-          <strong>{loading ? '—' : String(activeContactCount).padStart(2, '0')}</strong>
+          <strong>{countsLoading ? '—' : String(counts.active).padStart(2, '0')}</strong>
           <span>Active homeowners</span>
         </div>
         <div className="contact-summary-item is-moved">
-          <strong>{loading ? '—' : String(movedContactCount).padStart(2, '0')}</strong>
+          <strong>{countsLoading ? '—' : String(counts.moved).padStart(2, '0')}</strong>
           <span>Moved homeowners</span>
         </div>
         <div className="contact-summary-item is-transferred">
-          <strong>{loading ? '—' : String(transferredContactCount).padStart(2, '0')}</strong>
+          <strong>{countsLoading ? '—' : String(counts.transferred).padStart(2, '0')}</strong>
           <span>Transferred homeowners</span>
         </div>
       </div>
@@ -717,9 +473,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           <option value="transferred">Transferred</option>
           <option value="all">All statuses</option>
         </select>
-        <span className="contact-result-count">
-          Showing {rangeStart}-{rangeEnd} of {filteredContacts.length}
-        </span>
+        {shouldList && (
+          <span className="contact-result-count">
+            Showing {rangeStart}-{rangeEnd} of {total}
+          </span>
+        )}
       </div>
 
       {pageError && (
@@ -738,17 +496,31 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </p>
       )}
 
-      {loading ? (
-        <div className="contact-empty glass-card">Loading contacts...</div>
-      ) : filteredContacts.length === 0 ? (
+      {!shouldList ? (
         <div className="contact-empty glass-card">
-          {contacts.length === 0
-            ? 'No homeowners are available in the ledger.'
-            : 'No contacts match your search.'}
+          <span style={{ display: 'inline-flex', opacity: 0.6 }}>
+            <Search size={30} aria-hidden="true" />
+          </span>
+          <h3 style={{ margin: '10px 0 6px', color: 'var(--text-dark)', fontSize: '1.05rem', fontWeight: 600 }}>
+            Search for a homeowner
+          </h3>
+          <p style={{ margin: '0 auto', maxWidth: 460, fontSize: '0.88rem', lineHeight: 1.5 }}>
+            Type at least {MIN_SEARCH_LENGTH} characters of a name, block, lot, phone, or email — or
+            choose Moved or Transferred — to see homeowners. They aren't listed by default so the
+            page stays fast as the roster grows.
+          </p>
+        </div>
+      ) : listLoading && rows.length === 0 ? (
+        <div className="contact-empty glass-card">Loading contacts...</div>
+      ) : rows.length === 0 ? (
+        <div className="contact-empty glass-card">
+          {hasSearch
+            ? 'No contacts match your search.'
+            : `No ${statusFilter} homeowners.`}
         </div>
       ) : (
         <div className="contact-grid">
-          {pagedContacts.map((contact) => {
+          {rows.map((contact) => {
             const hasContactDetails =
               contact.contact_phone || contact.contact_email
             const homeownerStatus = normalize(contact.homeowner_status || 'active')
@@ -853,28 +625,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {!loading && filteredContacts.length > PAGE_SIZE && (
-        <div className="contact-pagination">
-          <button
-            type="button"
-            className="contact-page-button"
-            onClick={() => goToPage(safePage - 1)}
-            disabled={safePage === 1}
-          >
-            Previous
-          </button>
-          <span className="contact-page-indicator">
-            Page {safePage} of {totalPages}
-          </span>
-          <button
-            type="button"
-            className="contact-page-button"
-            onClick={() => goToPage(safePage + 1)}
-            disabled={safePage === totalPages}
-          >
-            Next
-          </button>
-        </div>
+      {shouldList && total > 0 && (
+        <Pager page={page} total={total} onPageChange={goToPage} disabled={listLoading} />
       )}
 
       {pendingTransferContact && (
@@ -989,258 +741,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 disabled={Boolean(transferringContactId)}
               >
                 {transferringContactId ? 'Saving...' : 'Confirm Status'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {showManageBlocks && (
-        <div
-          className="contact-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowManageBlocks(false)
-          }}
-        >
-          <div
-            className="contact-modal glass-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="manage-blocks-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="contact-modal-heading">
-              <div>
-                <h2 id="manage-blocks-title">Manage Blocks</h2>
-                <p>Blocks with homeowners still assigned to them can't be deleted.</p>
-              </div>
-              <button
-                type="button"
-                className="contact-modal-close"
-                onClick={() => setShowManageBlocks(false)}
-                aria-label="Close manage blocks"
-              >
-                ×
-              </button>
-            </div>
-
-            {deleteBlockError && <p className="contact-form-error">{deleteBlockError}</p>}
-
-            {blocks.length === 0 ? (
-              <p className="contact-form-note">No blocks have been added yet.</p>
-            ) : (
-              <ul className="contact-blocks-list">
-                {blocks.map((block) => (
-                  <li key={block.id} className="contact-blocks-list-item">
-                    <span>{block.name}</span>
-                    <button
-                      type="button"
-                      className="contact-delete-button"
-                      onClick={() => requestDeleteBlock(block)}
-                      disabled={deletingBlockId === block.id}
-                      aria-label={`Delete ${block.name}`}
-                      title="Delete this block"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="contact-modal-actions">
-              <button
-                type="button"
-                className="contact-cancel-button"
-                onClick={() => setShowManageBlocks(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ActionDialog
-        open={!!pendingDeleteBlock}
-        title="Delete Block?"
-        message={pendingDeleteBlock ? `Delete "${pendingDeleteBlock.name}"? This cannot be undone.` : ''}
-        confirmLabel="Delete"
-        tone="danger"
-        onConfirm={() => deleteBlock(pendingDeleteBlock)}
-        onCancel={() => setPendingDeleteBlock(null)}
-      />
-
-      {showAddHomeowner && (
-        <div
-          className="contact-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeHomeownerForm()
-          }}
-        >
-          <form
-            className="contact-modal glass-card"
-            onSubmit={saveHomeowner}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-homeowner-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="contact-modal-heading">
-              <div>
-                <h2 id="add-homeowner-title">Add New Homeowner</h2>
-                <p>Add the homeowner and assign an available block and lot.</p>
-              </div>
-              <button
-                type="button"
-                className="contact-modal-close"
-                onClick={closeHomeownerForm}
-                aria-label="Close homeowner form"
-              >
-                ×
-              </button>
-            </div>
-
-            <label htmlFor="homeowner-name">Homeowner full name</label>
-            <input
-              id="homeowner-name"
-              name="homeownerName"
-              value={homeownerForm.homeownerName}
-              onChange={updateHomeownerField}
-              maxLength={120}
-              autoFocus
-              required
-            />
-
-            <div className="contact-form-row">
-              <div>
-                <label htmlFor="homeowner-block">Block</label>
-                <select
-                  id="homeowner-block"
-                  name="blockName"
-                  value={homeownerForm.blockName}
-                  onChange={updateHomeownerField}
-                  required
-                >
-                  <option value="">Select block</option>
-                  {blocks.map((block) => (
-                    <option key={block.id} value={block.name}>
-                      {block.name}
-                    </option>
-                  ))}
-                  <option value={ADD_BLOCK_OPTION}>+ Add Block</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="homeowner-lot">Lot number</label>
-                <input
-                  id="homeowner-lot"
-                  name="lotNumber"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={homeownerForm.lotNumber}
-                  onChange={updateHomeownerField}
-                  placeholder="e.g. 12"
-                  required
-                />
-              </div>
-            </div>
-
-            {homeownerFormError && (
-              <p className="contact-form-error">{homeownerFormError}</p>
-            )}
-
-            {blocks.length === 0 && !homeownerFormError && (
-              <p className="contact-form-note">
-                No blocks exist yet — use "+ Add Block" in the dropdown above to create one.
-              </p>
-            )}
-
-            <div className="contact-modal-actions">
-              <button
-                type="button"
-                className="contact-cancel-button"
-                onClick={closeHomeownerForm}
-                disabled={savingHomeowner}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="contact-save-button"
-                disabled={savingHomeowner || blocks.length === 0}
-              >
-                {savingHomeowner ? 'Saving...' : 'Save Homeowner'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {showAddBlock && (
-        <div
-          className="contact-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeBlockForm()
-          }}
-        >
-          <form
-            className="contact-modal glass-card"
-            onSubmit={saveBlock}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-block-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="contact-modal-heading">
-              <div>
-                <h2 id="add-block-title">Add Block</h2>
-                <p>Create a new block before assigning homeowners to it.</p>
-              </div>
-              <button
-                type="button"
-                className="contact-modal-close"
-                onClick={closeBlockForm}
-                aria-label="Close block form"
-              >
-                ×
-              </button>
-            </div>
-
-            <label htmlFor="block-name">Block name</label>
-            <input
-              id="block-name"
-              value={blockForm.name}
-              onChange={updateBlockField}
-              placeholder="e.g. Block F"
-              maxLength={50}
-              autoFocus
-              required
-            />
-
-            {blockFormError && (
-              <p className="contact-form-error">{blockFormError}</p>
-            )}
-
-            <div className="contact-modal-actions">
-              <button
-                type="button"
-                className="contact-cancel-button"
-                onClick={closeBlockForm}
-                disabled={savingBlock}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="contact-save-button"
-                disabled={savingBlock}
-              >
-                {savingBlock ? 'Saving...' : 'Save Block'}
               </button>
             </div>
           </form>

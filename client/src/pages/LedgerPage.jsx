@@ -1,18 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './LedgerPage.css'
-import { useConfirm } from '../components/ConfirmDialog'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { buildLedgerStatement } from '../lib/ledgerStatement'
 import { buildHomeownerStatementPdf } from '../lib/homeownerStatementPdf'
 import { useOrganization } from '../context/OrganizationContext'
-
-const EMPTY_HOMEOWNER = {
-  homeownerName: '',
-  blockName: '',
-  lotNumber: '',
-}
 
 const SORT_COLUMNS = [
   { key: 'name', label: 'Homeowner' },
@@ -61,7 +54,6 @@ function compareEntries(a, b, key, direction) {
 
 export default function LedgerPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
-  const confirm = useConfirm()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('all')
@@ -79,24 +71,8 @@ export default function LedgerPage({ user: suppliedUser }) {
   })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
-  const [logNotice, setLogNotice] = useState('')
   const [orgSettings, setOrgSettings] = useState(null)
   const [statementPdfGenerating, setStatementPdfGenerating] = useState(false)
-
-  const [showAddHomeowner, setShowAddHomeowner] = useState(false)
-  const [homeownerForm, setHomeownerForm] = useState(EMPTY_HOMEOWNER)
-  const [editingHomeownerId, setEditingHomeownerId] = useState(null)
-  const [formError, setFormError] = useState('')
-  const [savingHomeowner, setSavingHomeowner] = useState(false)
-
-  const [showManageBlocks, setShowManageBlocks] = useState(false)
-  const [newBlockName, setNewBlockName] = useState('')
-  const [blockError, setBlockError] = useState('')
-  const [savingBlock, setSavingBlock] = useState(false)
-  const [editingBlockId, setEditingBlockId] = useState(null)
-  const [editingBlockName, setEditingBlockName] = useState('')
-  const [blockActionError, setBlockActionError] = useState('')
-  const [blockActionBusyId, setBlockActionBusyId] = useState(null)
 
   const [statementAccount, setStatementAccount] = useState(null)
   const [statementLines, setStatementLines] = useState([])
@@ -104,7 +80,6 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [statementError, setStatementError] = useState('')
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageHomeowners = role === 'admin' || role === 'secretary'
   const actorName = currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
   useEffect(() => {
@@ -173,18 +148,6 @@ export default function LedgerPage({ user: suppliedUser }) {
     setLoading(false)
   }
 
-  async function logActivity(action, target, fallbackNotice) {
-    const { error } = await supabase.from('activity_log').insert({
-      user_id: currentUser?.id || null,
-      action,
-      target,
-    })
-    if (error) {
-      console.warn(`${action} succeeded, but activity logging failed:`, error.message)
-      setLogNotice(fallbackNotice)
-    }
-  }
-
   async function openStatement(entry) {
     setStatementAccount(entry)
     setStatementError('')
@@ -244,16 +207,31 @@ export default function LedgerPage({ user: suppliedUser }) {
       .filter((payment) => payment.status !== 'Voided')
       .sort((a, b) => new Date(b.paid_at || b.created_at || 0) - new Date(a.paid_at || a.created_at || 0))[0]
 
-    setStatementAccount((current) => (current
-      ? {
-          ...current,
-          statementTotals: statement.totals,
-          latestStatementPayment: Number(latestPayment?.amount_paid ?? latestPayment?.amount) || 0,
-          closingAdjustment: Number(adjustmentResult.data?.adjustment_amount) || 0,
-          closingAdjustmentReason: adjustmentResult.data?.reason || '',
-        }
-      : current))
-    setStatementLines(statement.lines)
+    
+const finalBalance = Number(statement.totals.finalBalance) || 0
+
+setStatementAccount((current) =>
+  current
+    ? {
+        ...current,
+        statementTotals: statement.totals,
+        balance: Math.max(finalBalance, 0),
+        unallocatedCredit: Math.max(-finalBalance, 0),
+        latestStatementPayment:
+          Number(
+            latestPayment?.amount_paid ??
+            latestPayment?.amount
+          ) || 0,
+        closingAdjustment:
+          Number(adjustmentResult.data?.adjustment_amount) || 0,
+        closingAdjustmentReason:
+          adjustmentResult.data?.reason || '',
+      }
+    : current
+)
+
+setStatementLines(statement.lines)
+
     setStatementLoading(false)
   }
 
@@ -304,317 +282,6 @@ export default function LedgerPage({ user: suppliedUser }) {
     } finally {
       setStatementPdfGenerating(false)
     }
-  }
-
-  function openHomeownerForm() {
-    setHomeownerForm(EMPTY_HOMEOWNER)
-    setEditingHomeownerId(null)
-    setFormError('')
-    setShowAddHomeowner(true)
-  }
-
-  function openEditHomeowner(entry) {
-    setHomeownerForm({
-      homeownerName: entry.name,
-      blockName: entry.block,
-      lotNumber: String(entry.lotNumberRaw),
-    })
-    setEditingHomeownerId(entry.id)
-    setFormError('')
-    setShowAddHomeowner(true)
-  }
-
-  function closeHomeownerForm() {
-    if (savingHomeowner) return
-    setShowAddHomeowner(false)
-    setEditingHomeownerId(null)
-    setFormError('')
-  }
-
-  function updateHomeownerField(event) {
-    const { name, value } = event.target
-    setHomeownerForm((current) => ({ ...current, [name]: value }))
-    setFormError('')
-  }
-
-  async function handleSaveHomeowner(event) {
-    event.preventDefault()
-
-    if (!canManageHomeowners) {
-      setFormError('Only an Admin or Secretary can manage homeowners.')
-      return
-    }
-
-    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
-    const blockName = homeownerForm.blockName
-    const lotNumber = Number(homeownerForm.lotNumber)
-
-    if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
-      setFormError('Homeowner name, block, and lot number are required.')
-      return
-    }
-
-    if (!Number.isInteger(lotNumber) || lotNumber <= 0) {
-      setFormError('Lot number must be a whole number greater than zero.')
-      return
-    }
-
-    const lotIsOccupied = properties.some(
-      (property) =>
-        property.id !== editingHomeownerId &&
-        normalize(property.block) === normalize(blockName) &&
-        Number(property.lot_number) === lotNumber,
-    )
-
-    if (lotIsOccupied) {
-      setFormError('That block and lot already has a homeowner.')
-      return
-    }
-
-    setSavingHomeowner(true)
-    setFormError('')
-
-    const payload = {
-      homeowner_name: homeownerName,
-      block: blockName,
-      lot_number: lotNumber,
-    }
-
-    const { error } = editingHomeownerId
-      ? await supabase.from('properties').update(payload).eq('id', editingHomeownerId)
-      : await supabase.from('properties').insert(payload)
-
-    if (error) {
-      setFormError(error.code === '23505'
-        ? 'That block and lot already has a homeowner.'
-        : error.message)
-      setSavingHomeowner(false)
-      return
-    }
-
-    await loadLedger()
-    setBlockFilter(blockName)
-    setShowAddHomeowner(false)
-    setHomeownerForm(EMPTY_HOMEOWNER)
-    setSavingHomeowner(false)
-
-    const wasEditing = Boolean(editingHomeownerId)
-    setEditingHomeownerId(null)
-
-    await logActivity(
-      wasEditing ? 'Homeowner Updated' : 'Homeowner Added',
-      `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
-      wasEditing
-        ? 'Homeowner updated, but the activity log entry failed to record.'
-        : 'Homeowner saved, but the activity log entry failed to record.',
-    )
-  }
-
-  async function handleDeleteHomeowner(entry) {
-    if (!canManageHomeowners) return
-
-    setPageError('')
-
-    // Never delete a homeowner who has money history - it must stay on record.
-    const [paymentCount, chargeCount] = await Promise.all([
-      supabase.from('payments').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
-      supabase.from('property_charges').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
-    ])
-    const records = (paymentCount.count || 0) + (chargeCount.count || 0)
-
-    if (paymentCount.error || chargeCount.error) {
-      setPageError('Could not check this homeowner\'s records. Please try again.')
-      return
-    }
-
-    if (records > 0) {
-      setPageError(
-        `${entry.name} can't be removed because they have ${records} receipt/charge record${records > 1 ? 's' : ''} on file. ` +
-        'Use Move / Transfer in Contact Manager instead, so their payment history is kept.',
-      )
-      return
-    }
-
-    const confirmed = await confirm({
-      title: `Delete ${entry.name}?`,
-      message: `${entry.block}, ${entry.lot} has no payments or charges on record. This can't be undone.`,
-      confirmLabel: 'Delete homeowner',
-      cancelLabel: 'Keep homeowner',
-      tone: 'danger',
-    })
-    if (!confirmed) return
-
-    const { error } = await supabase.from('properties').delete().eq('id', entry.id)
-
-    if (error) {
-      setPageError(`Could not remove homeowner: ${error.message}`)
-      return
-    }
-
-    await loadLedger()
-    await logActivity(
-      'Homeowner Removed',
-      `${entry.name} — ${entry.block}, ${entry.lot} (by ${actorName})`,
-      'Homeowner removed, but the activity log entry failed to record.',
-    )
-  }
-
-  function openManageBlocks() {
-    setBlockError('')
-    setBlockActionError('')
-    setNewBlockName('')
-    setEditingBlockId(null)
-    setShowManageBlocks(true)
-  }
-
-  async function handleAddBlock(event) {
-    event.preventDefault()
-
-    if (!canManageHomeowners) {
-      setBlockError('Only an Admin or Secretary can add blocks.')
-      return
-    }
-
-    const name = newBlockName.trim().replace(/\s+/g, ' ')
-
-    if (!name) {
-      setBlockError('Enter a block name.')
-      return
-    }
-
-    if (blocks.some((block) => normalize(block.name) === normalize(name))) {
-      setBlockError('That block already exists.')
-      return
-    }
-
-    setSavingBlock(true)
-    setBlockError('')
-
-    const { error } = await supabase.from('blocks').insert({ name })
-
-    if (error) {
-      setBlockError(error.code === '23505' ? 'That block already exists.' : error.message)
-      setSavingBlock(false)
-      return
-    }
-
-    await loadLedger()
-    setNewBlockName('')
-    setSavingBlock(false)
-
-    await logActivity(
-      'Block Added',
-      `${name} (by ${actorName})`,
-      'Block saved, but the activity log entry failed to record.',
-    )
-  }
-
-  function startEditBlock(block) {
-    setEditingBlockId(block.id)
-    setEditingBlockName(block.name)
-    setBlockActionError('')
-  }
-
-  function cancelEditBlock() {
-    setEditingBlockId(null)
-    setEditingBlockName('')
-  }
-
-  async function handleRenameBlock(block) {
-    const newName = editingBlockName.trim().replace(/\s+/g, ' ')
-
-    if (!newName) {
-      setBlockActionError('Enter a block name.')
-      return
-    }
-
-    if (
-      normalize(newName) !== normalize(block.name) &&
-      blocks.some((existing) => normalize(existing.name) === normalize(newName))
-    ) {
-      setBlockActionError('That block name is already in use.')
-      return
-    }
-
-    if (normalize(newName) === normalize(block.name)) {
-      cancelEditBlock()
-      return
-    }
-
-    setBlockActionBusyId(block.id)
-    setBlockActionError('')
-
-    const { error: renameError } = await supabase
-      .from('blocks')
-      .update({ name: newName })
-      .eq('id', block.id)
-
-    if (renameError) {
-      setBlockActionError(renameError.message)
-      setBlockActionBusyId(null)
-      return
-    }
-
-    const { error: cascadeError } = await supabase
-      .from('properties')
-      .update({ block: newName })
-      .eq('block', block.name)
-
-    if (cascadeError) {
-      setBlockActionError(
-        `Block renamed, but existing homeowner records could not be updated: ${cascadeError.message}`,
-      )
-    }
-
-    await loadLedger()
-    setBlockActionBusyId(null)
-    cancelEditBlock()
-
-    await logActivity(
-      'Block Renamed',
-      `${block.name} → ${newName} (by ${actorName})`,
-      'Block renamed, but the activity log entry failed to record.',
-    )
-  }
-
-  async function handleDeleteBlock(block) {
-    const hasHomeowners = properties.some(
-      (property) => normalize(property.block) === normalize(block.name),
-    )
-
-    if (hasHomeowners) {
-      setBlockActionError('Reassign or remove the homeowners in this block first.')
-      return
-    }
-
-    const confirmed = await confirm({
-      title: `Delete ${block.name}?`,
-      message: "No homeowners are assigned to this block. This can't be undone.",
-      confirmLabel: 'Delete block',
-      cancelLabel: 'Keep block',
-      tone: 'danger',
-    })
-    if (!confirmed) return
-
-    setBlockActionBusyId(block.id)
-    setBlockActionError('')
-
-    const { error } = await supabase.from('blocks').delete().eq('id', block.id)
-
-    if (error) {
-      setBlockActionError(error.message)
-      setBlockActionBusyId(null)
-      return
-    }
-
-    await loadLedger()
-    setBlockActionBusyId(null)
-
-    await logActivity(
-      'Block Removed',
-      `${block.name} (by ${actorName})`,
-      'Block removed, but the activity log entry failed to record.',
-    )
   }
 
   const summaryByProperty = useMemo(
@@ -749,24 +416,6 @@ export default function LedgerPage({ user: suppliedUser }) {
         </div>
 
         <div className="ledger-header-actions">
-          {canManageHomeowners && (
-            <>
-              <button
-                className="ledger-secondary-action"
-                type="button"
-                onClick={openManageBlocks}
-              >
-                Manage Blocks
-              </button>
-              <button
-                className="ledger-add-homeowner-button"
-                type="button"
-                onClick={openHomeownerForm}
-              >
-                + Add New Homeowner
-              </button>
-            </>
-          )}
           <button
             className="ledger-refresh-button"
             type="button"
@@ -783,13 +432,6 @@ export default function LedgerPage({ user: suppliedUser }) {
       </div>
 
       {pageError && <p className="ledger-load-error">{pageError}</p>}
-
-      {logNotice && (
-        <div className="ledger-log-notice">
-          <span>{logNotice}</span>
-          <button type="button" onClick={() => setLogNotice('')}>Dismiss</button>
-        </div>
-      )}
 
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
@@ -901,12 +543,6 @@ export default function LedgerPage({ user: suppliedUser }) {
                   <td className="ledger-row-actions">
                     <div className="ledger-actions-card">
                       <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>
-                      {canManageHomeowners && (
-                        <>
-                          <button className="ledger-icon-button" type="button" onClick={() => openEditHomeowner(entry)}>Edit</button>
-                          <button className="ledger-icon-button ledger-icon-button-danger" type="button" onClick={() => handleDeleteHomeowner(entry)}>Delete</button>
-                        </>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -977,136 +613,6 @@ export default function LedgerPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {showAddHomeowner && canManageHomeowners && (
-        <div className="ledger-modal-backdrop" onMouseDown={closeHomeownerForm}>
-          <form className="ledger-modal glass-card" onSubmit={handleSaveHomeowner} onMouseDown={(event) => event.stopPropagation()}>
-            <div className="ledger-modal-heading">
-              <div>
-                <h2>{editingHomeownerId ? 'Edit Homeowner' : 'Add New Homeowner'}</h2>
-                <p>{editingHomeownerId ? 'Update the homeowner or their block and lot.' : 'Add the homeowner and assign an available block and lot.'}</p>
-              </div>
-              <button type="button" className="ledger-modal-close" onClick={closeHomeownerForm} aria-label="Close">×</button>
-            </div>
-
-            <label htmlFor="homeowner-name">Homeowner full name</label>
-            <input id="homeowner-name" name="homeownerName" value={homeownerForm.homeownerName} onChange={updateHomeownerField} maxLength="120" autoFocus required />
-
-            <div className="ledger-form-row">
-              <div>
-                <label htmlFor="homeowner-block">Block</label>
-                <select id="homeowner-block" name="blockName" value={homeownerForm.blockName} onChange={updateHomeownerField} required>
-                  <option value="">Select block</option>
-                  {blocks.map((block) => <option key={block.id} value={block.name}>{block.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="homeowner-lot">Lot number</label>
-                <input id="homeowner-lot" name="lotNumber" type="number" min="1" step="1" value={homeownerForm.lotNumber} onChange={updateHomeownerField} placeholder="e.g., 12" required />
-              </div>
-            </div>
-
-            {blocks.length === 0 && <p className="ledger-form-note">No blocks are available. Add a block first.</p>}
-            {formError && <p className="ledger-form-error">{formError}</p>}
-
-            <div className="ledger-modal-actions">
-              <button type="button" className="ledger-cancel-button" onClick={closeHomeownerForm} disabled={savingHomeowner}>Cancel</button>
-              <button type="submit" className="ledger-save-button" disabled={savingHomeowner || blocks.length === 0}>
-                {savingHomeowner ? 'Saving...' : editingHomeownerId ? 'Save Changes' : 'Save Homeowner'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {showManageBlocks && canManageHomeowners && (
-        <div
-          className="ledger-modal-backdrop"
-          onMouseDown={() => !savingBlock && !blockActionBusyId && setShowManageBlocks(false)}
-        >
-          <div className="ledger-modal glass-card" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="ledger-modal-heading">
-              <div>
-                <h2>Manage Blocks</h2>
-                <p>Rename or remove existing blocks, or add a new one.</p>
-              </div>
-              <button
-                type="button"
-                className="ledger-modal-close"
-                onClick={() => setShowManageBlocks(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            {blockActionError && <p className="ledger-form-error">{blockActionError}</p>}
-
-            <ul className="ledger-manage-blocks-list">
-              {blocks.length === 0 && <li className="ledger-form-note">No blocks yet.</li>}
-              {blocks.map((block) => (
-                <li key={block.id} className="ledger-manage-block-row">
-                  {editingBlockId === block.id ? (
-                    <>
-                      <input
-                        value={editingBlockName}
-                        onChange={(event) => setEditingBlockName(event.target.value)}
-                        maxLength="50"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        className="ledger-icon-button"
-                        onClick={() => handleRenameBlock(block)}
-                        disabled={blockActionBusyId === block.id}
-                      >
-                        {blockActionBusyId === block.id ? 'Saving...' : 'Save'}
-                      </button>
-                      <button type="button" className="ledger-icon-button" onClick={cancelEditBlock}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <span>{block.name}</span>
-                      <button type="button" className="ledger-icon-button" onClick={() => startEditBlock(block)}>Edit</button>
-                      <button
-                        type="button"
-                        className="ledger-icon-button ledger-icon-button-danger"
-                        onClick={() => handleDeleteBlock(block)}
-                        disabled={blockActionBusyId === block.id}
-                      >
-                        {blockActionBusyId === block.id ? 'Removing...' : 'Delete'}
-                      </button>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-
-            <form className="ledger-add-block-form" onSubmit={handleAddBlock}>
-              <label htmlFor="block-name">Add a block</label>
-              <div className="ledger-form-row">
-                <input
-                  id="block-name"
-                  value={newBlockName}
-                  onChange={(event) => {
-                    setNewBlockName(event.target.value)
-                    setBlockError('')
-                  }}
-                  placeholder="e.g., Block F"
-                  maxLength="50"
-                />
-                <button type="submit" className="ledger-save-button" disabled={savingBlock}>
-                  {savingBlock ? 'Saving...' : 'Add Block'}
-                </button>
-              </div>
-              {blockError && <p className="ledger-form-error">{blockError}</p>}
-            </form>
-
-            <div className="ledger-modal-actions">
-              <button type="button" className="ledger-cancel-button" onClick={() => setShowManageBlocks(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

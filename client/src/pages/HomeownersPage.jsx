@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
+import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -35,6 +36,14 @@ const monthNames = Array.from({ length: 12 }, (_, month) =>
 )
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
+
+const EMPTY_HOMEOWNER = {
+  homeownerName: '',
+  blockName: '',
+  lotNumber: '',
+}
+
+const ADD_BLOCK_OPTION = '__add_block__'
 
 // Homeowners marked Moved or Transferred (in Contact Manager) are excluded
 // from this page entirely — they should not appear in the directory, in
@@ -135,6 +144,9 @@ export default function HomeownersPage() {
   const { organization } = useOrganization()
   const navigate = useNavigate()
   const { homeownerId } = useParams()
+  const confirm = useConfirm()
+  const [adminDialog, setAdminDialog] = useState(null)
+  const [notice, setNotice] = useState('')
   const [properties, setProperties] = useState([])
   // `payments` / `serviceTransactions` hold ONLY the selected homeowner's records,
   // loaded when a homeowner is opened. The directory uses small per-homeowner counts.
@@ -203,6 +215,9 @@ export default function HomeownersPage() {
   const userRole = currentUser?.role?.trim().toLowerCase()
   // Treasurers are read-only here: they can view history but cannot void payments or edit contacts.
   const canVoidPayments = userRole === 'secretary'
+  const canManageHomeowners = userRole === 'admin' || userRole === 'secretary'
+  const actorName =
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
   const canEditContact = userRole === 'admin' || userRole === 'secretary'
 
   function openVoid(item) {
@@ -269,6 +284,65 @@ export default function HomeownersPage() {
 
     setVoiding(false)
     setVoidTarget(null)
+  }
+
+  function handleAdminChanged(result) {
+    setNotice(result?.message || '')
+    loadHomeowners(true)
+  }
+
+  async function handleDeleteHomeowner() {
+    if (!canManageHomeowners || !selectedProperty) return
+
+    const entry = selectedProperty
+    setPageError('')
+    setNotice('')
+
+    // Never delete a homeowner who has money history - it must stay on record.
+    const [paymentCount, chargeCount] = await Promise.all([
+      supabase.from('payments').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
+      supabase.from('property_charges').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
+    ])
+    const records = (paymentCount.count || 0) + (chargeCount.count || 0)
+
+    if (paymentCount.error || chargeCount.error) {
+      setPageError("Could not check this homeowner's records. Please try again.")
+      return
+    }
+
+    if (records > 0) {
+      setPageError(
+        `${entry.homeowner_name} can't be removed because they have ${records} receipt/charge record${records > 1 ? 's' : ''} on file. ` +
+        'Use Move / Transfer in Contact Manager instead, so their payment history is kept.',
+      )
+      return
+    }
+
+    const confirmed = await confirm({
+      title: `Delete ${entry.homeowner_name}?`,
+      message: `${entry.block}, Lot ${entry.lot_number} has no payments or charges on record. This can't be undone.`,
+      confirmLabel: 'Delete homeowner',
+      cancelLabel: 'Keep homeowner',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
+    const { error } = await supabase.from('properties').delete().eq('id', entry.id)
+
+    if (error) {
+      setPageError(`Could not remove homeowner: ${error.message}`)
+      return
+    }
+
+    navigate('/homeowners')
+    setNotice(`Homeowner ${entry.homeowner_name} was removed.`)
+    loadHomeowners(true)
+
+    await logAdminActivity(
+      currentUser,
+      'Homeowner Removed',
+      `${entry.homeowner_name} — ${entry.block}, Lot ${entry.lot_number} (by ${actorName})`,
+    )
   }
 
   async function loadHomeowners(isRefresh = false) {
@@ -629,18 +703,39 @@ export default function HomeownersPage() {
           <h1>Homeowners</h1>
           <p>Search for a homeowner to view their profile, property, balances, and complete payment history.</p>
         </div>
-        <button
-          type="button"
-          className="homeowners-refresh"
-          onClick={() => loadHomeowners(true)}
-          disabled={refreshing}
-        >
-          <RefreshCw size={17} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="hod-header-actions">
+          {canManageHomeowners && (
+            <>
+              <button
+                type="button"
+                className="homeowners-refresh"
+                onClick={() => setAdminDialog({ type: 'blocks' })}
+              >
+                Manage Blocks
+              </button>
+              <button
+                type="button"
+                className="homeowners-refresh hod-primary"
+                onClick={() => setAdminDialog({ type: 'homeowner', property: null })}
+              >
+                + Add New Homeowner
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="homeowners-refresh"
+            onClick={() => loadHomeowners(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw size={17} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </header>
 
       {pageError && <p className="homeowners-error">{pageError}</p>}
+      {notice && <p className="hod-notice" role="status">{notice}</p>}
 
       <section className="homeowners-finder">
         <div className="homeowners-finder-heading">
@@ -779,6 +874,19 @@ export default function HomeownersPage() {
                 >
                 <Calendar size={16} /> {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
                 </button>
+                {canManageHomeowners && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}
+                    >
+                      Edit Homeowner
+                    </button>
+                    <button type="button" className="hod-danger" onClick={handleDeleteHomeowner}>
+                      Delete Homeowner
+                    </button>
+                  </>
+                )}
               </div>
             </section>
 
@@ -1063,6 +1171,661 @@ export default function HomeownersPage() {
           </form>
         </div>
       )}
+      <HomeownerAdminDialogs
+        dialog={adminDialog}
+        currentUser={currentUser}
+        canManage={canManageHomeowners}
+        onClose={() => setAdminDialog(null)}
+        onChanged={handleAdminChanged}
+      />
     </div>
+  )
+}
+// ---------------------------------------------------------------------------
+// Manage Blocks + Add/Edit Homeowner dialogs (moved here from Ledger and Contact Manager).
+// Only Admin and Secretary ever see the buttons that open them; the database enforces the
+// same rule, so a Treasurer could not save a change even if the dialog were opened.
+// ---------------------------------------------------------------------------
+
+// Writes one activity-log row. A logging failure never blocks the action that just succeeded.
+async function logAdminActivity(user, action, target) {
+  if (!user?.id) return
+  const { error } = await supabase.from('activity_log').insert({
+    user_id: user.id,
+    action,
+    target,
+  })
+  if (error) {
+    console.warn(`${action} succeeded, but activity logging failed:`, error.message)
+  }
+}
+
+// dialog:    null | { type: 'blocks' } | { type: 'homeowner', property: null | { id, homeowner_name, block, lot_number } }
+// canManage: true only for Admin or Secretary
+// onChanged: called after a change the page should reload for; receives { message }
+function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChanged }) {
+  const confirm = useConfirm()
+  const actorName =
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+
+  const [blocks, setBlocks] = useState([])
+  const [blocksLoading, setBlocksLoading] = useState(false)
+  const [blocksLoadError, setBlocksLoadError] = useState('')
+
+  const [homeownerForm, setHomeownerForm] = useState(EMPTY_HOMEOWNER)
+  const [editingHomeownerId, setEditingHomeownerId] = useState(null)
+  const [formError, setFormError] = useState('')
+  const [savingHomeowner, setSavingHomeowner] = useState(false)
+
+  const [newBlockName, setNewBlockName] = useState('')
+  const [blockError, setBlockError] = useState('')
+  const [savingBlock, setSavingBlock] = useState(false)
+  const [editingBlockId, setEditingBlockId] = useState(null)
+  const [editingBlockName, setEditingBlockName] = useState('')
+  const [blockActionError, setBlockActionError] = useState('')
+  const [blockActionBusyId, setBlockActionBusyId] = useState(null)
+
+  // Small "Add Block" dialog opened from the "+ Add Block" option inside the Add Homeowner form.
+  const [showQuickBlock, setShowQuickBlock] = useState(false)
+  const [quickBlockName, setQuickBlockName] = useState('')
+  const [quickBlockError, setQuickBlockError] = useState('')
+  const [savingQuickBlock, setSavingQuickBlock] = useState(false)
+
+  const dialogType = dialog?.type || null
+
+  async function loadBlocks() {
+    setBlocksLoading(true)
+    setBlocksLoadError('')
+
+    const { data, error } = await supabase.from('blocks').select('id, name').order('name')
+
+    if (error) {
+      setBlocks([])
+      setBlocksLoadError(`Block list could not be loaded: ${error.message}`)
+    } else {
+      setBlocks(data || [])
+    }
+
+    setBlocksLoading(false)
+  }
+
+  // Every time a dialog is opened: reset the forms and load the current block list.
+  useEffect(() => {
+    if (!dialog) return
+
+    setFormError('')
+    setBlockError('')
+    setBlockActionError('')
+    setNewBlockName('')
+    setEditingBlockId(null)
+    setEditingBlockName('')
+    setShowQuickBlock(false)
+
+    if (dialog.type === 'homeowner') {
+      const property = dialog.property
+      setHomeownerForm(
+        property
+          ? {
+              homeownerName: property.homeowner_name || '',
+              blockName: property.block || '',
+              lotNumber: String(property.lot_number ?? ''),
+            }
+          : EMPTY_HOMEOWNER,
+      )
+      setEditingHomeownerId(property ? property.id : null)
+    }
+
+    loadBlocks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialog])
+
+  // ---------------------------------------------------------------- Homeowner
+
+  function closeHomeownerForm() {
+    if (savingHomeowner) return
+    setFormError('')
+    onClose()
+  }
+
+  function updateHomeownerField(event) {
+    const { name, value } = event.target
+
+    if (name === 'blockName' && value === ADD_BLOCK_OPTION) {
+      setHomeownerForm((current) => ({ ...current, blockName: '' }))
+      setFormError('')
+      setQuickBlockName('')
+      setQuickBlockError('')
+      setShowQuickBlock(true)
+      return
+    }
+
+    setHomeownerForm((current) => ({ ...current, [name]: value }))
+    setFormError('')
+  }
+
+  async function handleSaveHomeowner(event) {
+    event.preventDefault()
+
+    if (!canManage) {
+      setFormError('Only an Admin or Secretary can manage homeowners.')
+      return
+    }
+
+    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
+    const blockName = homeownerForm.blockName
+    const lotNumber = Number(homeownerForm.lotNumber)
+
+    if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
+      setFormError('Homeowner name, block, and lot number are required.')
+      return
+    }
+
+    if (!Number.isInteger(lotNumber) || lotNumber <= 0) {
+      setFormError('Lot number must be a whole number greater than zero.')
+      return
+    }
+
+    setSavingHomeowner(true)
+    setFormError('')
+
+    // Only a currently active homeowner occupies a lot. Once a homeowner is marked
+    // Moved/Transferred the lot is vacant again. Checked in the database so it stays
+    // correct (and fast) no matter how many homeowners exist.
+    let occupiedQuery = supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .eq('block', blockName)
+      .eq('lot_number', lotNumber)
+      .eq('homeowner_status', 'active')
+    if (editingHomeownerId) occupiedQuery = occupiedQuery.neq('id', editingHomeownerId)
+
+    const { count: occupiedCount, error: occupiedError } = await occupiedQuery
+
+    if (occupiedError) {
+      setFormError(`Could not check the lot: ${occupiedError.message}`)
+      setSavingHomeowner(false)
+      return
+    }
+
+    if ((occupiedCount || 0) > 0) {
+      setFormError('That block and lot already has an active homeowner.')
+      setSavingHomeowner(false)
+      return
+    }
+
+    const payload = {
+      homeowner_name: homeownerName,
+      block: blockName,
+      lot_number: lotNumber,
+    }
+
+    const { error } = editingHomeownerId
+      ? await supabase.from('properties').update(payload).eq('id', editingHomeownerId)
+      : await supabase.from('properties').insert(payload)
+
+    if (error) {
+      setFormError(
+        error.code === '23505'
+          ? 'That block and lot already has a homeowner record.'
+          : error.message,
+      )
+      setSavingHomeowner(false)
+      return
+    }
+
+    const wasEditing = Boolean(editingHomeownerId)
+    setSavingHomeowner(false)
+    setHomeownerForm(EMPTY_HOMEOWNER)
+    setEditingHomeownerId(null)
+    onClose()
+    if (onChanged) {
+      onChanged({
+        message: wasEditing
+          ? `Homeowner ${homeownerName} was updated.`
+          : `Homeowner ${homeownerName} was added.`,
+      })
+    }
+
+    await logAdminActivity(
+      currentUser,
+      wasEditing ? 'Homeowner Updated' : 'Homeowner Added',
+      `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
+    )
+  }
+
+  // ------------------------------------------------------------ Quick add block
+
+  function closeQuickBlock() {
+    if (savingQuickBlock) return
+    setShowQuickBlock(false)
+    setQuickBlockError('')
+  }
+
+  async function saveQuickBlock(event) {
+    event.preventDefault()
+
+    if (!canManage) {
+      setQuickBlockError('Only an Admin or Secretary can add blocks.')
+      return
+    }
+
+    const name = quickBlockName.trim().replace(/\s+/g, ' ')
+
+    if (!name) {
+      setQuickBlockError('Enter a block name.')
+      return
+    }
+
+    if (blocks.some((block) => normalize(block.name) === normalize(name))) {
+      setQuickBlockError('That block already exists.')
+      return
+    }
+
+    setSavingQuickBlock(true)
+    setQuickBlockError('')
+
+    const { data, error } = await supabase
+      .from('blocks')
+      .insert({ name })
+      .select('id, name')
+      .single()
+
+    if (error) {
+      setQuickBlockError(error.code === '23505' ? 'That block already exists.' : error.message)
+      setSavingQuickBlock(false)
+      return
+    }
+
+    setBlocks((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)))
+    setSavingQuickBlock(false)
+    setShowQuickBlock(false)
+    setQuickBlockName('')
+    setHomeownerForm((current) => ({ ...current, blockName: data.name }))
+
+    await logAdminActivity(currentUser, 'Block Added', `${data.name} (by ${actorName})`)
+  }
+
+  // ------------------------------------------------------------- Manage Blocks
+
+  async function handleAddBlock(event) {
+    event.preventDefault()
+
+    if (!canManage) {
+      setBlockError('Only an Admin or Secretary can add blocks.')
+      return
+    }
+
+    const name = newBlockName.trim().replace(/\s+/g, ' ')
+
+    if (!name) {
+      setBlockError('Enter a block name.')
+      return
+    }
+
+    if (blocks.some((block) => normalize(block.name) === normalize(name))) {
+      setBlockError('That block already exists.')
+      return
+    }
+
+    setSavingBlock(true)
+    setBlockError('')
+
+    const { error } = await supabase.from('blocks').insert({ name })
+
+    if (error) {
+      setBlockError(error.code === '23505' ? 'That block already exists.' : error.message)
+      setSavingBlock(false)
+      return
+    }
+
+    await loadBlocks()
+    setNewBlockName('')
+    setSavingBlock(false)
+
+    await logAdminActivity(currentUser, 'Block Added', `${name} (by ${actorName})`)
+  }
+
+  function startEditBlock(block) {
+    setEditingBlockId(block.id)
+    setEditingBlockName(block.name)
+    setBlockActionError('')
+  }
+
+  function cancelEditBlock() {
+    setEditingBlockId(null)
+    setEditingBlockName('')
+  }
+
+  async function handleRenameBlock(block) {
+    const newName = editingBlockName.trim().replace(/\s+/g, ' ')
+
+    if (!newName) {
+      setBlockActionError('Enter a block name.')
+      return
+    }
+
+    if (
+      normalize(newName) !== normalize(block.name) &&
+      blocks.some((existing) => normalize(existing.name) === normalize(newName))
+    ) {
+      setBlockActionError('That block name is already in use.')
+      return
+    }
+
+    if (normalize(newName) === normalize(block.name)) {
+      cancelEditBlock()
+      return
+    }
+
+    setBlockActionBusyId(block.id)
+    setBlockActionError('')
+
+    const { error: renameError } = await supabase
+      .from('blocks')
+      .update({ name: newName })
+      .eq('id', block.id)
+
+    if (renameError) {
+      setBlockActionError(renameError.message)
+      setBlockActionBusyId(null)
+      return
+    }
+
+    const { error: cascadeError } = await supabase
+      .from('properties')
+      .update({ block: newName })
+      .eq('block', block.name)
+
+    if (cascadeError) {
+      setBlockActionError(
+        `Block renamed, but existing homeowner records could not be updated: ${cascadeError.message}`,
+      )
+    }
+
+    await loadBlocks()
+    setBlockActionBusyId(null)
+    cancelEditBlock()
+
+    if (onChanged) {
+      onChanged({ message: `Block ${block.name} was renamed to ${newName}.` })
+    }
+
+    await logAdminActivity(
+      currentUser,
+      'Block Renamed',
+      `${block.name} → ${newName} (by ${actorName})`,
+    )
+  }
+
+  async function handleDeleteBlock(block) {
+    setBlockActionError('')
+    setBlockActionBusyId(block.id)
+
+    // Checked in the database: any homeowner record (active or historical) blocks the delete.
+    const { count, error: countError } = await supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .eq('block', block.name)
+
+    if (countError) {
+      setBlockActionError(`Could not check this block: ${countError.message}`)
+      setBlockActionBusyId(null)
+      return
+    }
+
+    if ((count || 0) > 0) {
+      setBlockActionError(
+        `${block.name} cannot be deleted — ${count} homeowner record(s) (active or historical) are still assigned to it. Delete or reassign them first.`,
+      )
+      setBlockActionBusyId(null)
+      return
+    }
+
+    setBlockActionBusyId(null)
+
+    const confirmed = await confirm({
+      title: `Delete ${block.name}?`,
+      message: "No homeowners are assigned to this block. This can't be undone.",
+      confirmLabel: 'Delete block',
+      cancelLabel: 'Keep block',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
+    setBlockActionBusyId(block.id)
+
+    const { error } = await supabase.from('blocks').delete().eq('id', block.id)
+
+    if (error) {
+      setBlockActionError(`Could not delete block: ${error.message}`)
+      setBlockActionBusyId(null)
+      return
+    }
+
+    await loadBlocks()
+    setBlockActionBusyId(null)
+
+    await logAdminActivity(currentUser, 'Block Removed', `${block.name} (by ${actorName})`)
+  }
+
+  if (!dialog) return null
+
+  return (
+    <>
+      {dialogType === 'homeowner' && canManage && (
+        <div className="hod-backdrop" onMouseDown={closeHomeownerForm}>
+          <form
+            className="hod-modal"
+            onSubmit={handleSaveHomeowner}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="hod-heading">
+              <div>
+                <h2>{editingHomeownerId ? 'Edit Homeowner' : 'Add New Homeowner'}</h2>
+                <p>
+                  {editingHomeownerId
+                    ? 'Update the homeowner or their block and lot.'
+                    : 'Add the homeowner and assign an available block and lot.'}
+                </p>
+              </div>
+              <button type="button" className="hod-close" onClick={closeHomeownerForm} aria-label="Close">×</button>
+            </div>
+
+            <label htmlFor="hod-homeowner-name">Homeowner full name</label>
+            <input
+              id="hod-homeowner-name"
+              name="homeownerName"
+              value={homeownerForm.homeownerName}
+              onChange={updateHomeownerField}
+              maxLength="120"
+              autoFocus
+              required
+            />
+
+            <div className="hod-row">
+              <div>
+                <label htmlFor="hod-homeowner-block">Block</label>
+                <select
+                  id="hod-homeowner-block"
+                  name="blockName"
+                  value={homeownerForm.blockName}
+                  onChange={updateHomeownerField}
+                  required
+                >
+                  <option value="">Select block</option>
+                  {blocks.map((block) => (
+                    <option key={block.id} value={block.name}>{block.name}</option>
+                  ))}
+                  <option value={ADD_BLOCK_OPTION}>+ Add Block</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="hod-homeowner-lot">Lot number</label>
+                <input
+                  id="hod-homeowner-lot"
+                  name="lotNumber"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={homeownerForm.lotNumber}
+                  onChange={updateHomeownerField}
+                  placeholder="e.g., 12"
+                  required
+                />
+              </div>
+            </div>
+
+            {blocksLoadError && <p className="hod-error">{blocksLoadError}</p>}
+            {!blocksLoading && !blocksLoadError && blocks.length === 0 && (
+              <p className="hod-note">
+                No blocks are available. Use "+ Add Block" in the Block dropdown to create one.
+              </p>
+            )}
+            {formError && <p className="hod-error">{formError}</p>}
+
+            <div className="hod-actions">
+              <button type="button" className="hod-cancel" onClick={closeHomeownerForm} disabled={savingHomeowner}>
+                Cancel
+              </button>
+              <button type="submit" className="hod-save" disabled={savingHomeowner || blocks.length === 0}>
+                {savingHomeowner
+                  ? 'Saving...'
+                  : editingHomeownerId
+                    ? 'Save Changes'
+                    : 'Save Homeowner'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {dialogType === 'blocks' && canManage && (
+        <div
+          className="hod-backdrop"
+          onMouseDown={() => !savingBlock && !blockActionBusyId && onClose()}
+        >
+          <div className="hod-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="hod-heading">
+              <div>
+                <h2>Manage Blocks</h2>
+                <p>Rename or remove existing blocks, or add a new one. Blocks with homeowners still assigned to them can't be deleted.</p>
+              </div>
+              <button type="button" className="hod-close" onClick={onClose} aria-label="Close">×</button>
+            </div>
+
+            {blocksLoadError && <p className="hod-error">{blocksLoadError}</p>}
+            {blockActionError && <p className="hod-error">{blockActionError}</p>}
+
+            <ul className="hod-blocks-list">
+              {blocksLoading && blocks.length === 0 && <li className="hod-note">Loading blocks...</li>}
+              {!blocksLoading && blocks.length === 0 && <li className="hod-note">No blocks yet.</li>}
+              {blocks.map((block) => (
+                <li key={block.id} className="hod-block-row">
+                  {editingBlockId === block.id ? (
+                    <>
+                      <input
+                        value={editingBlockName}
+                        onChange={(event) => setEditingBlockName(event.target.value)}
+                        maxLength="50"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="hod-icon-btn"
+                        onClick={() => handleRenameBlock(block)}
+                        disabled={blockActionBusyId === block.id}
+                      >
+                        {blockActionBusyId === block.id ? 'Saving...' : 'Save'}
+                      </button>
+                      <button type="button" className="hod-icon-btn" onClick={cancelEditBlock}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span>{block.name}</span>
+                      <button type="button" className="hod-icon-btn" onClick={() => startEditBlock(block)}>Edit</button>
+                      <button
+                        type="button"
+                        className="hod-icon-btn hod-icon-btn-danger"
+                        onClick={() => handleDeleteBlock(block)}
+                        disabled={blockActionBusyId === block.id}
+                      >
+                        {blockActionBusyId === block.id ? 'Working...' : 'Delete'}
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            <form className="hod-add-block" onSubmit={handleAddBlock}>
+              <label htmlFor="hod-block-name">Add a block</label>
+              <div className="hod-row hod-row-inline">
+                <input
+                  id="hod-block-name"
+                  value={newBlockName}
+                  onChange={(event) => {
+                    setNewBlockName(event.target.value)
+                    setBlockError('')
+                  }}
+                  placeholder="e.g., Block F"
+                  maxLength="50"
+                />
+                <button type="submit" className="hod-save" disabled={savingBlock}>
+                  {savingBlock ? 'Saving...' : 'Add Block'}
+                </button>
+              </div>
+              {blockError && <p className="hod-error">{blockError}</p>}
+            </form>
+
+            <div className="hod-actions">
+              <button type="button" className="hod-cancel" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQuickBlock && canManage && (
+        <div className="hod-backdrop" onMouseDown={closeQuickBlock}>
+          <form
+            className="hod-modal"
+            onSubmit={saveQuickBlock}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="hod-heading">
+              <div>
+                <h2>Add Block</h2>
+                <p>Create a new block before assigning homeowners to it.</p>
+              </div>
+              <button type="button" className="hod-close" onClick={closeQuickBlock} aria-label="Close">×</button>
+            </div>
+
+            <label htmlFor="hod-quick-block-name">Block name</label>
+            <input
+              id="hod-quick-block-name"
+              value={quickBlockName}
+              onChange={(event) => {
+                setQuickBlockName(event.target.value)
+                setQuickBlockError('')
+              }}
+              placeholder="e.g., Block F"
+              maxLength="50"
+              autoFocus
+              required
+            />
+
+            {quickBlockError && <p className="hod-error">{quickBlockError}</p>}
+
+            <div className="hod-actions">
+              <button type="button" className="hod-cancel" onClick={closeQuickBlock} disabled={savingQuickBlock}>
+                Cancel
+              </button>
+              <button type="submit" className="hod-save" disabled={savingQuickBlock}>
+                {savingQuickBlock ? 'Saving...' : 'Save Block'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </>
   )
 }
