@@ -1,4 +1,4 @@
-
+```jsx
 import React, { Suspense, lazy, useEffect, useState } from 'react'
 import {
   BrowserRouter,
@@ -31,19 +31,15 @@ const ResetPasswordPage = lazy(
 
 // Lazy-loaded dashboard pages
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
-
 const TreasurerDashboard = lazy(
   () => import('./pages/TreasurerDashboard')
 )
-
 const TreasurerExpensesPage = lazy(
   () => import('./pages/TreasurerExpensesPage')
 )
-
 const TreasurerServiceRevenuePage = lazy(
   () => import('./pages/TreasurerServiceRevenuePage')
 )
-
 const SecretaryDashboard = lazy(
   () => import('./pages/SecretaryDashboard')
 )
@@ -52,38 +48,29 @@ const SecretaryDashboard = lazy(
 const ServicesManagementPage = lazy(
   () => import('./pages/ServicesManagementPage')
 )
-
 const OfficialReceiptsPage = lazy(
   () => import('./pages/OfficialReceiptsPage')
 )
-
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'))
-
 const DocumentLibraryPage = lazy(
   () => import('./pages/DocumentLibraryPage')
 )
-
 const EventCalendarPage = lazy(
   () => import('./pages/EventCalendarPage')
 )
-
 const ContactManagerPage = lazy(
   () => import('./pages/ContactManagerPage')
 )
-
 const HomeownersPage = lazy(() => import('./pages/HomeownersPage'))
-
 const SystemSettingsPage = lazy(
   () => import('./pages/SystemSettingsPage')
 )
-
 const OverdueAccountsPage = lazy(
   () => import('./pages/OverdueAccountsPage')
 )
-
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 function AppContent() {
@@ -134,10 +121,7 @@ function AppContent() {
             .single()
 
           if (error) {
-            console.error(
-              'Unable to restore the user profile:',
-              error
-            )
+            console.error('Unable to restore the user profile:', error)
             await supabase.auth.signOut()
           } else if (profile?.is_active === false) {
             await supabase.auth.signOut()
@@ -147,10 +131,7 @@ function AppContent() {
           }
         }
       } catch (restoreError) {
-        console.error(
-          'Unable to restore the session:',
-          restoreError
-        )
+        console.error('Unable to restore the session:', restoreError)
         await supabase.auth.signOut()
       } finally {
         if (isMounted) {
@@ -213,12 +194,10 @@ function AppContent() {
               path="/privacy"
               element={<LegalPage page="privacy" />}
             />
-
             <Route
               path="/terms"
               element={<LegalPage page="terms" />}
             />
-
             <Route
               path="/security"
               element={<LegalPage page="security" />}
@@ -230,12 +209,10 @@ function AppContent() {
                 <LoginPage onAuthenticated={completeAuthentication} />
               }
             />
-
             <Route
               path="/forgot-password"
               element={<ForgotPasswordPage />}
             />
-
             <Route
               path="/reset-password"
               element={<ResetPasswordPage />}
@@ -256,14 +233,6 @@ function AppContent() {
               />
 
               <Route
-                path="/admin/expenses"
-                element={guarded(
-                  ['admin'],
-                  <TreasurerExpensesPage user={user} />
-                )}
-              />
-
-              <Route
                 path="/system-settings"
                 element={guarded(
                   ['admin'],
@@ -280,6 +249,7 @@ function AppContent() {
                 )}
               />
 
+              {/* Legacy treasurer expenses URL */}
               <Route
                 path="/treasurer/expenses"
                 element={guarded(
@@ -304,15 +274,6 @@ function AppContent() {
                   <SecretaryDashboard />
                 )}
               />
-
-              <Route
-                path="/secretary/expenses"
-                element={guarded(
-                  ['secretary'],
-                  <TreasurerExpensesPage user={user} />
-                )}
-              />
-
               <Route
                 path="/secretary/services"
                 element={guarded(
@@ -320,12 +281,20 @@ function AppContent() {
                   <ServicesManagementPage user={user} />
                 )}
               />
-
               <Route
                 path="/secretary/receipts"
                 element={guarded(
                   ['secretary'],
                   <OfficialReceiptsPage />
+                )}
+              />
+
+              {/* Shared expenses page */}
+              <Route
+                path="/expenses"
+                element={guarded(
+                  ['admin', 'secretary', 'treasurer'],
+                  <TreasurerExpensesPage user={user} />
                 )}
               />
 
@@ -337,7 +306,6 @@ function AppContent() {
                   <LedgerPage user={user} />
                 )}
               />
-
               <Route
                 path="/payments"
                 element={guarded(
@@ -345,7 +313,6 @@ function AppContent() {
                   <PaymentsPage user={user} />
                 )}
               />
-
               <Route
                 path="/reports"
                 element={guarded(
@@ -353,7 +320,6 @@ function AppContent() {
                   <ReportsPage user={user} />
                 )}
               />
-
               <Route
                 path="/activity-log"
                 element={guarded(
@@ -361,7 +327,6 @@ function AppContent() {
                   <ActivityLogPage />
                 )}
               />
-
               <Route
                 path="/documents"
                 element={guarded(
@@ -369,7 +334,6 @@ function AppContent() {
                   <DocumentLibraryPage />
                 )}
               />
-
               <Route
                 path="/calendar"
                 element={guarded(
@@ -377,7 +341,6 @@ function AppContent() {
                   <EventCalendarPage user={user} />
                 )}
               />
-
               <Route
                 path="/contacts"
                 element={guarded(
@@ -385,7 +348,6 @@ function AppContent() {
                   <ContactManagerPage user={user} />
                 )}
               />
-
               <Route
                 path="/homeowners/:homeownerId?"
                 element={guarded(
@@ -393,7 +355,6 @@ function AppContent() {
                   <HomeownersPage />
                 )}
               />
-
               <Route
                 path="/overdue-accounts"
                 element={guarded(
@@ -443,3 +404,4 @@ function App() {
 }
 
 export default App
+```

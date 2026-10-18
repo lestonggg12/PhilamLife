@@ -80,18 +80,14 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       icon: CreditCard,
       roles: ['admin', 'treasurer', 'secretary'],
     },
+    
     {
       name: 'Expenses',
-      path: '/treasurer/expenses',
+      path: '/expenses',
       icon: DollarSign,
-      roles: ['treasurer'],
+      roles: ['admin', 'secretary', 'treasurer'],
     },
-    {
-      name: 'Services',
-      path: '/secretary/services',
-      icon: DollarSign,
-      roles: ['secretary'],
-    },
+
     {
       name: 'Reports',
       path: '/reports',
