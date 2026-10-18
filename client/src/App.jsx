@@ -1,4 +1,3 @@
-```jsx
 import React, { Suspense, lazy, useEffect, useState } from 'react'
 import {
   BrowserRouter,
@@ -404,4 +403,3 @@ function App() {
 }
 
 export default App
-```

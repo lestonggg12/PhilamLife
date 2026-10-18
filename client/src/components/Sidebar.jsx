@@ -1,19 +1,40 @@
+
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CreditCard, FileText, DollarSign, Home, Settings, Activity, Users, Zap, Calendar, FileArchive, Phone, AlertCircle } from './Icons'
+import {
+  BarChart3,
+  CreditCard,
+  FileText,
+  DollarSign,
+  Home,
+  Settings,
+  Activity,
+  Users,
+  Zap,
+  Calendar,
+  FileArchive,
+  Phone,
+  AlertCircle,
+} from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
 import './Sidebar.css'
 
-export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
+export default function Sidebar({
+  user,
+  onLogout,
+  open = false,
+  onNavigate,
+}) {
   const { organization } = useOrganization()
   const role = user?.role?.trim().toLowerCase()
   const displayName = user?.full_name?.trim() || user?.email || 'User'
 
-  const dashboardPath = role === 'admin'
-    ? '/admin/dashboard'
-    : role === 'treasurer'
-    ? '/treasurer/dashboard'
-    : '/secretary/dashboard'
+  const dashboardPath =
+    role === 'admin'
+      ? '/admin/dashboard'
+      : role === 'treasurer'
+        ? '/treasurer/dashboard'
+        : '/secretary/dashboard'
 
   const overviewItems = [
     {
@@ -26,7 +47,7 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       name: 'Activity Log',
       path: '/activity-log',
       icon: Activity,
-      roles: ['admin', 'secretary', 'treasurer']
+      roles: ['admin', 'secretary', 'treasurer'],
     },
     {
       name: 'Event Calendar',
@@ -68,7 +89,6 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       roles: ['admin', 'treasurer', 'secretary'],
     },
     {
-  
       name: 'Amenity Revenue',
       path: '/treasurer/service-revenue',
       icon: Zap,
@@ -80,19 +100,23 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       icon: CreditCard,
       roles: ['admin', 'treasurer', 'secretary'],
     },
-    
     {
       name: 'Expenses',
       path: '/expenses',
       icon: DollarSign,
       roles: ['admin', 'secretary', 'treasurer'],
     },
-
     {
       name: 'Reports',
       path: '/reports',
       icon: BarChart3,
       roles: ['admin', 'treasurer'],
+    },
+    {
+      name: 'Services',
+      path: '/secretary/services',
+      icon: Zap,
+      roles: ['secretary'],
     },
     {
       name: 'Official Receipts',
@@ -118,9 +142,13 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
         to={item.path}
         end={item.path === '/' || item.path.endsWith('/dashboard')}
         onClick={onNavigate}
-        className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+        className={({ isActive }) =>
+          `nav-item${isActive ? ' active' : ''}`
+        }
       >
-        <span className="nav-icon"><item.icon size={18} /></span>
+        <span className="nav-icon">
+          <item.icon size={18} />
+        </span>
         <span className="nav-text">{item.name}</span>
       </NavLink>
     ))
@@ -129,10 +157,19 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-header">
         <div className="logo">
-          <span className="logo-badge"><Home size={18} /></span>
+          <span className="logo-badge">
+            <Home size={18} />
+          </span>
+
           <span className="logo-text-group">
             <span className="logo-text">{organization.hoaName}</span>
-            <span className="logo-subtext">{user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1).toLowerCase()} Portal` : 'Portal'}</span>
+            <span className="logo-subtext">
+              {user?.role
+                ? `${user.role.charAt(0).toUpperCase()}${user.role
+                    .slice(1)
+                    .toLowerCase()} Portal`
+                : 'Portal'}
+            </span>
           </span>
         </div>
       </div>
@@ -140,20 +177,26 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       <nav className="sidebar-nav">
         <div className="nav-section">
           <h3 className="nav-section-title">OVERVIEW</h3>
-          <div className="nav-items">{renderNavItems(overviewItems)}</div>
+          <div className="nav-items">
+            {renderNavItems(overviewItems)}
+          </div>
         </div>
 
         {financeItems.length > 0 && (
           <div className="nav-section">
             <h3 className="nav-section-title">FINANCE</h3>
-            <div className="nav-items">{renderNavItems(financeItems)}</div>
+            <div className="nav-items">
+              {renderNavItems(financeItems)}
+            </div>
           </div>
         )}
 
         {systemItems.length > 0 && (
           <div className="nav-section">
             <h3 className="nav-section-title">SYSTEM</h3>
-            <div className="nav-items">{renderNavItems(systemItems)}</div>
+            <div className="nav-items">
+              {renderNavItems(systemItems)}
+            </div>
           </div>
         )}
       </nav>
@@ -161,8 +204,13 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       <div className="sidebar-footer">
         <div className="user-section">
           <div className="user-avatar">
-            {(user?.full_name?.trim()?.charAt(0) || user?.email?.charAt(0) || 'U').toUpperCase()}
+            {(
+              user?.full_name?.trim()?.charAt(0) ||
+              user?.email?.charAt(0) ||
+              'U'
+            ).toUpperCase()}
           </div>
+
           <div className="user-info">
             <div className="user-name">{displayName}</div>
             <div className="user-role">{user?.role || 'Admin'}</div>
