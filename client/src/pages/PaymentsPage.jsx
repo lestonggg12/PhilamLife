@@ -10,17 +10,14 @@ import { printReceipt } from '../lib/printReceipt'
 import './PaymentsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import useDebouncedValue from '../hooks/useDebouncedValue'
-import { MonthSwitcher, Pager } from '../components/PagerControls'
+import { Pager } from '../components/PagerControls'
 import {
   applySearch,
   applyTimeRange,
   countLabel,
-  currentManilaMonthKey,
   dayRange,
   ilikeAny,
   interpretPage,
-  monthLabel,
-  monthRange,
   pageCount,
   pageWindow,
   searchTokens,
@@ -147,6 +144,17 @@ function manilaDateParts(date) {
 
 function manilaToday() {
   return manilaDateParts(new Date())
+}
+
+function todayDateKey() {
+  const { year, month, day } = manilaToday()
+  return dateKeyOf(year, month, day)
+}
+
+function shiftDateKey(key, delta) {
+  const [year, month, day] = key.split('-').map(Number)
+  const date = new Date(year, month - 1, day + delta)
+  return dateKeyOf(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
 function buildCalendarWeeks(viewYear, viewMonth) {
@@ -363,7 +371,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [pageInfo, setPageInfo] = useState({ total: 0, minimum: 0 })
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState('')
-  const [monthKey, setMonthKey] = useState(() => currentManilaMonthKey())
   const [pageState, setPageState] = useState({ key: '', page: 0 })
   const [summary, setSummary] = useState(null)
   const [reloadTick, setReloadTick] = useState(0)
@@ -399,7 +406,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [chargeHomeownerText, setChargeHomeownerText] = useState('')
   const [chargeMenuOpen, setChargeMenuOpen] = useState(false)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
-  const [selectedDateKey, setSelectedDateKey] = useState('')
+  const [selectedDateKey, setSelectedDateKey] = useState(() => todayDateKey())
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
@@ -572,21 +579,19 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }, [form.previousBalance, form.amountPaid, isDuesPayment, openOfType])
 
   // ---- Paged payment history -------------------------------------------------
-  // The table shows one page (50 rows) at a time, read straight from the database.
-  //   * Default view: the selected month (this month when the page opens).
-  //   * Typing a search looks through ALL months.
-  //   * Picking a calendar date shows that one day.
+  // The table shows one day at a time (50 rows per page), read straight from the database.
+  //   * Default view: today's payments.
+  //   * Use the arrows or View by Date to look at another day.
+  //   * Typing a search looks through ALL dates.
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
   const searching = searchTokens(debouncedSearch).length > 0
-  const scopeKind = selectedDateKey ? 'day' : searching ? 'search' : 'month'
-  const listRange = selectedDateKey
-    ? dayRange(selectedDateKey)
-    : searching
-      ? null
-      : monthRange(monthKey)
-  const scopeKey = `${scopeKind}|${monthKey}|${selectedDateKey}|${debouncedSearch}`
+  const todayKey = todayDateKey()
+  const isToday = selectedDateKey === todayKey
+  const scopeKind = searching ? 'search' : 'day'
+  const listRange = searching ? null : dayRange(selectedDateKey)
+  const scopeKey = `${scopeKind}|${selectedDateKey}|${debouncedSearch}`
 
-  // The page number belongs to one scope; changing month/search/date starts at page 1.
+  // The page number belongs to one scope; changing day/search starts at page 1.
   const page = pageState.key === scopeKey ? pageState.page : 0
   function goToPage(nextPage) {
     setPageState({ key: scopeKey, page: Math.max(0, nextPage) })
@@ -599,7 +604,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       setListLoading(true)
       const { from, to } = pageWindow(page)
 
-      // Browsing a month or a day gets an exact total (cheap: it uses the date index).
+      // Browsing a day gets an exact total (cheap: it uses the date index).
       // An open-ended search skips the exact count - counting every match in a big
       // table is slow and unnecessary - and asks for one extra row to learn whether
       // a next page exists.
@@ -637,11 +642,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return () => { cancelled = true }
   }, [scopeKey, page, reloadTick])
 
-  // Totals for the month (or the single day) being viewed - computed by the database.
-  const summaryRange = selectedDateKey ? dayRange(selectedDateKey) : monthRange(monthKey)
-  const summaryLabel = selectedDateKey
-    ? organization.formatDate(`${selectedDateKey}T12:00:00`)
-    : monthLabel(monthKey)
+  // Totals for the single day being viewed - computed by the database.
+  const dayLabel = organization.formatDate(`${selectedDateKey}T12:00:00`)
+  const summaryRange = dayRange(selectedDateKey)
+  const summaryLabel = isToday ? 'Today' : dayLabel
 
   useEffect(() => {
     let cancelled = false
@@ -692,10 +696,6 @@ export default function PaymentsPage({ user: suppliedUser }) {
     Object.values(activeDays).forEach((days) => days.forEach((day) => keys.add(day)))
     return keys
   }, [activeDays])
-
-  function handleMonthChange(nextMonthKey) {
-    setMonthKey(nextMonthKey)
-  }
 
   const matchingHomeowners = useMemo(() => {
     const search = form.homeownerName.trim().toLowerCase()
@@ -793,8 +793,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
     calendar.hide()
   }
 
-  function clearDateFilter() {
-    setSelectedDateKey('')
+  function goToToday() {
+    setSelectedDateKey(todayDateKey())
   }
 
   function openChargeForm() {
@@ -1176,6 +1176,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
 
     goToPage(0)
+    // Jump to today so the new receipt is visible even if another day was open.
+    setSelectedDateKey(todayDateKey())
     setReloadTick((tick) => tick + 1)
     setProperties((current) =>
       current.map((property) =>
@@ -1217,7 +1219,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         <div className="payments-header-actions" ref={calendarAnchorRef}>
           <button
             type="button"
-            className={`payments-date-toggle ${selectedDateKey ? 'is-active' : ''}`}
+            className={`payments-date-toggle ${!isToday ? 'is-active' : ''}`}
             onClick={calendar.toggle}
             aria-expanded={calendar.open}
           >
@@ -1287,10 +1289,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
             <h2>Payment history</h2>
             <p>
               {scopeKind === 'search'
-                ? 'Search results across all months.'
-                : scopeKind === 'day'
-                  ? 'Payments recorded on the selected day.'
-                  : `Payments recorded in ${monthLabel(monthKey)}. Search to look through every month.`}
+                ? 'Search results across all dates.'
+                : isToday
+                  ? "Today's payments. Use the arrows or View by Date for other days, or search all dates."
+                  : `Payments recorded on ${dayLabel}.`}
             </p>
           </div>
           <span className="payments-result-count">
@@ -1319,22 +1321,36 @@ export default function PaymentsPage({ user: suppliedUser }) {
             )}
           </div>
 
-          {!selectedDateKey && !searching && (
-            <MonthSwitcher monthKey={monthKey} onChange={handleMonthChange} disabled={listLoading} />
-          )}
-
-          {!selectedDateKey && searching && (
-            <span className="payments-date-chip">All months</span>
-          )}
-
-          {selectedDateKey && (
-            <span className="payments-date-chip">
-              {organization.formatDate(`${selectedDateKey}T12:00:00`)}
-              <button type="button" onClick={clearDateFilter} aria-label="Clear date filter">
-                ×
+          {!searching && (
+            <div className="payments-day-switcher">
+              <button
+                type="button"
+                aria-label="Previous day"
+                disabled={listLoading}
+                onClick={() => setSelectedDateKey(shiftDateKey(selectedDateKey, -1))}
+              >
+                ‹
               </button>
-            </span>
+              <span className="payments-day-label">
+                {isToday ? `Today · ${dayLabel}` : dayLabel}
+              </span>
+              <button
+                type="button"
+                aria-label="Next day"
+                disabled={listLoading || selectedDateKey >= todayKey}
+                onClick={() => setSelectedDateKey(shiftDateKey(selectedDateKey, 1))}
+              >
+                ›
+              </button>
+              {!isToday && (
+                <button type="button" className="payments-day-today" onClick={goToToday}>
+                  Today
+                </button>
+              )}
+            </div>
           )}
+
+          {searching && <span className="payments-date-chip">All dates</span>}
         </div>
 
         <table className="payments-table">
@@ -1354,10 +1370,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan="6" className="payments-empty">
-                  {scopeKind === 'month' ? (
+                  {scopeKind === 'day' ? (
                     <>
-                      <strong>No payments recorded in {monthLabel(monthKey)}</strong>
-                      <span>Use the arrows to view another month, or search to look through every month.</span>
+                      <strong>No payments recorded {isToday ? 'today' : `on ${dayLabel}`}</strong>
+                      <span>Use the arrows or View by Date to check another day, or search to look through every date.</span>
                     </>
                   ) : (
                     <>

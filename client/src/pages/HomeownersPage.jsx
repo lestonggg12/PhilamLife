@@ -875,18 +875,13 @@ export default function HomeownersPage() {
                 <Calendar size={16} /> {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
                 </button>
                 {canManageHomeowners && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}
-                    >
-                      Edit Homeowner
-                    </button>
-                    <button type="button" className="hod-danger" onClick={handleDeleteHomeowner}>
-                      Delete Homeowner
-                    </button>
-                  </>
-                )}
+  <button
+    type="button"
+    onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}
+  >
+    Edit Homeowner
+  </button>
+)}
               </div>
             </section>
 

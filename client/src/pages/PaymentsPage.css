@@ -345,31 +345,35 @@
   position: absolute;
   top: 50%;
   left: 14px;
-  width: 15px;
-  height: 15px;
-  color: var(--text-muted);
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
   pointer-events: none;
   transform: translateY(-50%);
 }
 
 .payments-search-input {
   width: 100%;
-  height: 42px;
-  padding: 9px 62px 9px 38px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  height: 44px;
+  padding: 9px 62px 9px 42px;
+  border: 1.5px solid rgba(20, 100, 160, 0.35);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.62);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: #fff;
   color: var(--text-dark);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   transition: 0.18s ease;
-  box-shadow: 0 10px 22px -12px rgba(15, 63, 106, 0.26);
+  box-shadow: 0 2px 6px rgba(15, 63, 106, 0.08), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
 }
 
 .payments-search-input::placeholder {
   color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.payments-search-input:hover {
+  border-color: rgba(20, 100, 160, 0.55);
 }
 
 .payments-search-input::-webkit-search-cancel-button {
@@ -378,8 +382,8 @@
 
 .payments-search-input:focus {
   outline: none;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(120, 162, 210, 0.22);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(20, 100, 160, 0.18), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
 }
 
 .payments-search-clear {
@@ -399,7 +403,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 42px;
+  height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 12px;
   padding: 0 8px 0 14px;
@@ -1505,4 +1509,61 @@
   font-size: 1rem;
   font-weight: 800;
   line-height: 0.8;
+}
+
+/* ---------- Day switcher (payment history is shown one day at a time) ---------- */
+
+.payments-day-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 6px;
+  border: 1.5px solid rgba(20, 100, 160, 0.35);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 63, 106, 0.08), 0 10px 22px -12px rgba(15, 63, 106, 0.3);
+}
+
+.payments-day-switcher button {
+  display: grid;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.payments-day-switcher button:hover:not(:disabled) {
+  background: rgba(20, 100, 160, 0.1);
+}
+
+.payments-day-switcher button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.payments-day-switcher .payments-day-today {
+  padding: 0 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.74rem;
+}
+
+.payments-day-switcher .payments-day-today:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.payments-day-label {
+  padding: 0 6px;
+  color: var(--text-dark);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
