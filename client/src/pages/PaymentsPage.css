@@ -1018,27 +1018,20 @@
 }
 
 /* ============================================================
-   View-by-date calendar dropdown, opened from the header
-   "View by Date" toggle beside Record Payment.
+   Date picker calendar (opened from the calendar button in the
+   payment-history toolbar). Same layout as the Activity Log calendar.
    ============================================================ */
 
-.payments-calendar-popover {
-  position: relative;
-  z-index: 40;
-  width: 300px;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.95);
-  -webkit-backdrop-filter: blur(26px) saturate(190%);
-  backdrop-filter: blur(26px) saturate(190%);
-  box-shadow: 0 22px 44px -14px rgba(15, 63, 106, 0.32);
+/* Keep the toolbar (and the calendar hanging from it) above the table. */
+.payments-page .payments-table-card > .payments-table-toolbar {
+  z-index: 30;
 }
 
 .payments-calendar-animation {
   position: absolute;
   top: calc(100% + 10px);
   left: 0;
+  z-index: 50;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1055,154 +1048,201 @@
   transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0s;
 }
 
+.payments-calendar-popover {
+  position: relative;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 18px;
+  border: 1px solid rgba(120, 162, 210, 0.3);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 22px 44px -14px rgba(15, 63, 106, 0.32), 0 2px 10px rgba(20, 100, 160, 0.1);
+  text-align: left;
+}
+
 .payments-calendar-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.payments-calendar-nav-button {
   display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--primary);
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 3px 8px -3px rgba(15, 63, 106, 0.2);
-}
-
-.payments-calendar-nav-button:hover {
-  color: var(--primary-dark);
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
 }
 
 .payments-calendar-title {
   color: var(--text-dark);
+  text-align: center;
+  font-size: 15px;
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+}
+
+.payments-calendar-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(120, 162, 210, 0.35);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--text-light);
+  cursor: pointer;
+  box-shadow: 0 3px 8px -3px rgba(15, 63, 106, 0.2);
+}
+
+.payments-calendar-nav-button.previous svg {
+  transform: rotate(180deg);
+}
+
+.payments-calendar-nav-button:hover:not(:disabled) {
+  color: var(--primary);
+  border-color: var(--primary-light);
+}
+
+.payments-calendar-nav-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 
 .payments-calendar-weekdays,
 .payments-calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .payments-calendar-weekdays span {
-  display: block;
-  padding: 4px 0;
+  padding: 4px 0 9px;
   color: var(--text-muted);
+  text-align: center;
   font-size: 10px;
   font-weight: 800;
-  text-align: center;
   text-transform: uppercase;
+}
+
+.payments-calendar-grid {
+  gap: 5px;
 }
 
 .payments-calendar-day {
   position: relative;
-  display: grid;
-  place-items: center;
-  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 0;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 11px;
   background: transparent;
   color: var(--text-dark);
+  cursor: pointer;
+  font: inherit;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-.payments-calendar-day:hover {
-  background: rgba(255, 255, 255, 0.7);
+.payments-calendar-day:hover:not(:disabled):not(.payments-calendar-day-selected) {
+  border-color: rgba(120, 162, 210, 0.4);
+  background: rgba(120, 162, 210, 0.12);
 }
 
 .payments-calendar-day-outside {
-  color: #c3d1dc;
+  color: #c0c8d0;
+}
+
+.payments-calendar-day-future {
+  cursor: not-allowed;
+  color: #d3d8de;
 }
 
 .payments-calendar-day-today {
   border-color: var(--primary-light);
+  background: rgba(120, 162, 210, 0.16);
   color: var(--primary);
-  font-weight: 800;
 }
 
 .payments-calendar-day-selected {
+  border-color: var(--primary);
   background: var(--primary);
   color: #fff;
+  box-shadow: 0 4px 9px rgba(20, 100, 160, 0.3);
 }
 
-.payments-calendar-day-selected:hover {
-  background: var(--primary-dark);
-}
-
+/* Dot under the number: this day has recorded payments. */
 .payments-calendar-day-dot::after {
   content: '';
   position: absolute;
-  bottom: 3px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
+  bottom: 4px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
   background: var(--warning);
+  transform: translateX(-50%);
 }
 
 .payments-calendar-day-selected.payments-calendar-day-dot::after {
-  background: #fff;
+  background: #fff4bf;
+}
+
+.payments-calendar-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(120, 162, 210, 0.18);
 }
 
 .payments-calendar-legend {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(120, 162, 210, 0.2);
+  flex-wrap: wrap;
+  gap: 13px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .payments-calendar-legend span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
-.payments-calendar-legend-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
+.payments-calendar-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.payments-calendar-key-today {
+  border: 2px solid var(--primary-light);
+  background: rgba(120, 162, 210, 0.16);
+}
+
+.payments-calendar-key-dot {
   background: var(--warning);
 }
 
-.payments-calendar-legend-today {
-  width: 7px;
-  height: 7px;
-  border: 2px solid var(--primary);
-  border-radius: 999px;
-}
-
-.payments-calendar-jump {
-  width: 100%;
-  margin-top: 12px;
-  padding: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.6);
+.payments-calendar-today-link {
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
 }
 
-.payments-calendar-jump:hover {
-  background: rgba(255, 255, 255, 0.85);
+.payments-calendar-today-link:disabled {
+  color: #b7c2cd;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 /* ---------- Responsive ---------- */

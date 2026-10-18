@@ -270,34 +270,46 @@ function PaymentCalendar({
     onSelectDate(dateKeyOf(year, month, day))
   }
 
+  const atCurrentMonth =
+    viewYear > manilaAnchor.year ||
+    (viewYear === manilaAnchor.year && viewMonth >= manilaAnchor.month)
+  const onTodayAlready = selectedDateKey === todayKey && atCurrentMonth
+
+  const chevron = (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  )
+
   return (
     <div
       className="payments-calendar-popover"
       role="dialog"
-      aria-label="View payments by date"
+      aria-label="Choose a payment date"
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className="payments-calendar-nav">
         <button
           type="button"
-          className="payments-calendar-nav-button"
+          className="payments-calendar-nav-button previous"
           onClick={goToPrevMonth}
           aria-label="Previous month"
         >
-          ‹
+          {chevron}
         </button>
 
-        <span className="payments-calendar-title">
+        <strong className="payments-calendar-title">
           {CALENDAR_MONTH_LABEL.format(new Date(viewYear, viewMonth, 1))}
-        </span>
+        </strong>
 
         <button
           type="button"
           className="payments-calendar-nav-button"
           onClick={goToNextMonth}
+          disabled={atCurrentMonth}
           aria-label="Next month"
         >
-          ›
+          {chevron}
         </button>
       </div>
 
@@ -307,58 +319,53 @@ function PaymentCalendar({
         ))}
       </div>
 
-      {weeks.map((week, weekIndex) => (
-        <div className="payments-calendar-grid" key={`week-${weekIndex}`}>
-          {week.map((cell) => {
-            const isSelected = cell.dateKey === selectedDateKey
-            const isToday = cell.dateKey === todayKey
-            const hasPayments = activeDateKeys.has(cell.dateKey)
+      <div className="payments-calendar-grid">
+        {weeks.flat().map((cell) => {
+          const isSelected = cell.dateKey === selectedDateKey
+          const isToday = cell.dateKey === todayKey
+          const isFuture = cell.dateKey > todayKey
+          const hasPayments = activeDateKeys.has(cell.dateKey)
 
-            const classNames = [
-              'payments-calendar-day',
-              cell.outside ? 'payments-calendar-day-outside' : '',
-              isToday ? 'payments-calendar-day-today' : '',
-              isSelected ? 'payments-calendar-day-selected' : '',
-              hasPayments && !cell.outside
-                ? 'payments-calendar-day-dot'
-                : '',
-            ]
-              .filter(Boolean)
-              .join(' ')
+          const classNames = [
+            'payments-calendar-day',
+            cell.outside ? 'payments-calendar-day-outside' : '',
+            isFuture ? 'payments-calendar-day-future' : '',
+            isToday ? 'payments-calendar-day-today' : '',
+            isSelected ? 'payments-calendar-day-selected' : '',
+            hasPayments && !cell.outside ? 'payments-calendar-day-dot' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
 
-            return (
-              <button
-                type="button"
-                key={cell.dateKey}
-                className={classNames}
-                onClick={() => onSelectDate(cell.dateKey)}
-              >
-                {cell.day}
-              </button>
-            )
-          })}
-        </div>
-      ))}
-
-      <div className="payments-calendar-legend">
-        <span>
-          <span className="payments-calendar-legend-today" />
-          Today
-        </span>
-
-        <span>
-          <span className="payments-calendar-legend-dot" />
-          Has payments
-        </span>
+          return (
+            <button
+              type="button"
+              key={cell.dateKey}
+              className={classNames}
+              disabled={isFuture}
+              aria-pressed={isSelected}
+              onClick={() => onSelectDate(cell.dateKey)}
+            >
+              {cell.day}
+            </button>
+          )
+        })}
       </div>
 
-      <button
-        type="button"
-        className="payments-calendar-jump"
-        onClick={jumpToToday}
-      >
-        Jump to Today
-      </button>
+      <div className="payments-calendar-legend-row">
+        <div className="payments-calendar-legend">
+          <span><i className="payments-calendar-key-today" /> Today</span>
+          <span><i className="payments-calendar-key-dot" /> Has payments</span>
+        </div>
+        <button
+          type="button"
+          className="payments-calendar-today-link"
+          onClick={jumpToToday}
+          disabled={onTodayAlready}
+        >
+          Jump to today
+        </button>
+      </div>
     </div>
   )
 }
@@ -1894,4 +1901,4 @@ export default function PaymentsPage({ user: suppliedUser }) {
       />
     </div>
   )
-} 
+}
