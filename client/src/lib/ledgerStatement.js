@@ -1,4 +1,3 @@
-
 const cents = (value) => Math.round((Number(value) || 0) * 100)
 
 // Input to this helper is already in cents. Convert to pesos once.
@@ -33,7 +32,8 @@ function chargeEntries(charge) {
       reference_number: referenceNumber,
       debit: amount,
       credit: 0,
-      delta: amount,
+      voided: Boolean(charge.voided_at),
+      delta: charge.voided_at ? 0 : amount,
       paymentAmount: 0,
       paymentEffect: 0,
       explicitAllocated: 0,
@@ -92,7 +92,8 @@ function paymentEntry(payment) {
       payment.reference_number || payment.receipt_number || '',
     debit: voided ? effectiveEffect : 0,
     credit: voided ? 0 : amountPaid,
-    delta: voided ? effectiveEffect : -effectiveEffect,
+    voided,
+    delta: voided ? 0 : -effectiveEffect,
     paymentAmount: voided ? 0 : amountPaid,
     paymentEffect: voided ? 0 : effectiveEffect,
     explicitAllocated,
@@ -204,12 +205,12 @@ export function buildLedgerStatement({
   const finalLedgerBalance = running
 
   const totalChargeDebits = entries.reduce(
-    (sum, entry) => sum + entry.debit,
+    (sum, entry) => sum + (entry.voided ? 0 : entry.debit),
     0,
   )
 
   const totalChargeCredits = entries.reduce(
-    (sum, entry) => sum + entry.credit,
+    (sum, entry) => sum + (entry.voided ? 0 : entry.credit),
     0,
   )
 
