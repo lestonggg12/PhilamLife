@@ -246,7 +246,7 @@ export const GUIDE_CONTENT = {
         id: 'dashboard',
         title: 'Dashboard',
         summary:
-          'Your financial command center: Collected this month, Outstanding receivables, Overdue balance, and Net cash activity (dues + amenities − expenses), plus an aging breakdown and a list of exceptions (unreconciled deposits, adjustments needing review).',
+          'Your financial command center: Collected this month, Outstanding receivables, Overdue balance, and Net cash activity (dues, fees + amenities − expenses), plus an aging breakdown and a list of exceptions (unreconciled deposits, adjustments needing review).',
         steps: [
           'Check Net cash activity first for a fast read on whether the month is trending positive or negative.',
           'The exceptions panel flags anything that needs a closer look — treat it as your daily to-do list.',

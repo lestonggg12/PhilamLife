@@ -581,7 +581,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const remainingBalance = useMemo(() => {
     const previous = Number(form.previousBalance) || 0
     const paid = Number(form.amountPaid) || 0
-    const effect = isDuesPayment ? paid : Math.min(paid, openOfType)
+    const effect = isDuesPayment || purposeType !== 'Other' ? paid : Math.min(paid, openOfType)
     return previous - effect
   }, [form.previousBalance, form.amountPaid, isDuesPayment, openOfType])
 
@@ -1087,49 +1087,15 @@ export default function PaymentsPage({ user: suppliedUser }) {
       return
     }
 
+    if (purposeType && purposeType !== 'Association Dues' && purposeType !== 'Other' && paid > openOfType + 0.005 && !advanceApproved) {
+      setAdvanceConfirm({ credit: Math.round((paid - openOfType) * 100) / 100, paid, kind: 'fee', feeType: purposeType })
+      return
+    }
+
  
     if (form.paymentMethod !== 'Cash' && !reference) {
       setFormError('A reference number is required for non-cash payments.')
       return
-    }
-
-    // Check whether this reference has already been used.
-    // The database trigger remains the final protection against duplicates.
-    if (form.paymentMethod !== 'Cash' && reference) {
-      const normalizeReference = (value) =>
-        String(value || '').toLowerCase().replace(/\s+/g, '')
-
-      const normalizedReference = normalizeReference(reference)
-
-      const {
-        data: existingReferences,
-        error: referenceCheckError,
-      } = await fetchAll(() =>
-        supabase
-          .from('payments')
-          .select('payment_method, reference_number')
-          .not('reference_number', 'is', null)
-      )
-
-      if (referenceCheckError) {
-        setFormError(
-          'Could not verify this reference number. Please try again before saving.'
-        )
-        return
-      }
-
-      const exactDuplicate = (existingReferences || []).some(
-        (payment) =>
-          String(payment.payment_method || '').trim().toLowerCase() !== 'cash' &&
-          normalizeReference(payment.reference_number) === normalizedReference
-      )
-
-      if (exactDuplicate) {
-        setFormError(
-          'This reference number has already been used for a non-cash payment. Verify it or ask an administrator to review it.'
-        )
-        return
-      }
     }
 
     setSaving(true)
@@ -1594,9 +1560,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>{purposeType}</strong>
                   <span>
-                    {openOfType > 0
-                      ? `This homeowner has an open ${purposeType} charge of ${peso.format(openOfType)}. ${peso.format(Math.min(Number(form.amountPaid) || 0, openOfType))} of this payment will be applied to it${Number(form.amountPaid) > openOfType ? `; the extra ${peso.format(Number(form.amountPaid) - openOfType)} is recorded as a one-time fee.` : '.'}`
-                      : `No open ${purposeType} charge for this homeowner. This is recorded as a one-time fee and does not change their dues balance.`}
+                    {purposeType !== 'Other'
+                      ? (openOfType > 0
+                        ? `This homeowner has an open ${purposeType} charge of ${peso.format(openOfType)}. ${Number(form.amountPaid) > openOfType ? `The extra ${peso.format(Number(form.amountPaid) - openOfType)} will be saved as advance credit.` : 'The full amount will be applied to it.'}`
+                        : `No open ${purposeType} charge for this homeowner. The full amount will be saved as advance credit.`)
+                      : (openOfType > 0
+                        ? `This homeowner has an open ${purposeType} charge of ${peso.format(openOfType)}. ${peso.format(Math.min(Number(form.amountPaid) || 0, openOfType))} of this payment will be applied to it${Number(form.amountPaid) > openOfType ? `; the extra ${peso.format(Number(form.amountPaid) - openOfType)} is recorded as a one-time fee.` : '.'}`
+                        : `No open ${purposeType} charge for this homeowner. This is recorded as a one-time fee and does not change their dues balance.`)}
                   </span>
                 </div>
               )}
@@ -1821,20 +1791,23 @@ export default function PaymentsPage({ user: suppliedUser }) {
       )}
 
       {advanceConfirm && (() => {
-        const d = advanceCreditDetails(advanceConfirm.credit, duesSettings)
+        const isFee = advanceConfirm.kind === 'fee'
+        const d = isFee ? { credit: advanceConfirm.credit } : advanceCreditDetails(advanceConfirm.credit, duesSettings)
         return (
           <div className="payments-overlay advance-overlay" onMouseDown={() => setAdvanceConfirm(null)}>
             <section className="advance-dialog" role="dialog" aria-modal="true" aria-labelledby="advance-title" onMouseDown={(e) => e.stopPropagation()}>
               <div className="advance-icon" aria-hidden="true">₱</div>
               <h2 id="advance-title">Advance payment</h2>
-              <p className="advance-lead">This payment is more than what the homeowner owes. The extra will be saved as credit.</p>
+              <p className="advance-lead">{isFee ? `This payment is more than the open ${advanceConfirm.feeType} charge. The extra will be saved as advance credit.` : 'This payment is more than what the homeowner owes. The extra will be saved as credit.'}</p>
 
               <div className="advance-amount">
-                <span>Advance credit after this payment</span>
+                <span>{isFee ? 'Extra saved as advance credit' : 'Advance credit after this payment'}</span>
                 <strong>{peso.format(d.credit)}</strong>
               </div>
 
-              {d.hasSettings ? (
+              {isFee ? (
+                <p className="advance-coverage">It will be deducted automatically from this homeowner's next charges.</p>
+              ) : d.hasSettings ? (
                 <>
                   <dl className="advance-details">
                     <div><dt>Deducted on</dt><dd>{d.billing}</dd></div>

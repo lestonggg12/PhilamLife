@@ -134,7 +134,7 @@ create table if not exists public.payments (
   property_id bigint,
   amount numeric not null,
   status text not null default 'Completed'::text,
-  payment_date date,
+  payment_date date not null,
   recorded_by uuid,
   created_at timestamp with time zone default now(),
   paid_at timestamp with time zone not null default now(),
