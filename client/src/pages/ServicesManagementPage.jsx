@@ -38,6 +38,7 @@ function ChevronRightIcon({ size = 16 }) {
   )
 }
 import { supabase } from '../lib/supabaseClient'
+import { useSettledAmount } from '../lib/useSettledAmount'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
@@ -338,6 +339,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [serviceForm, setServiceForm] = useState(emptyService)
   const [transactionForm, setTransactionForm] = useState(emptyTransaction)
   const [receipt, setReceipt] = useState(null)
+  const settledAmount = useSettledAmount(receipt)
 
   // Totals for the current month and overall come from small database queries;
   // the page never downloads the full list of service receipts.
@@ -1440,7 +1442,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       )}
 
       {receipt && (() => {
-        const receiptModel = buildReceiptModel('service', receipt, organization)
+        const receiptModel = buildReceiptModel('service', receipt, organization, { settledAmount })
         return (
           <ReceiptDialog
             model={receiptModel}

@@ -9,6 +9,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { useSettledAmount } from '../lib/useSettledAmount'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
@@ -547,6 +548,7 @@ export default function OfficialReceiptsPage() {
   const [toDate, setToDate] = useState('')
   const [selectedReceipt, setSelectedReceipt] =
     useState(null)
+  const settledAmount = useSettledAmount(selectedReceipt?.type === 'service' ? selectedReceipt.raw : null)
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
@@ -1194,7 +1196,7 @@ export default function OfficialReceiptsPage() {
       </section>
 
       {selectedReceipt && (() => {
-        const receiptModel = buildReceiptModel(selectedReceipt.type, selectedReceipt.raw, organization)
+        const receiptModel = buildReceiptModel(selectedReceipt.type, selectedReceipt.raw, organization, { settledAmount })
         return (
           <ReceiptDialog
             model={receiptModel}

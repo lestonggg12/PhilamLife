@@ -1,5 +1,3 @@
-import { accountStatus, groupChargesByProperty } from './latepenalty'
-
 // Pure data computation for the HOA Monthly Report.
 // No rendering here — both ReportsPage (on-screen) and monthlyReportPdf.js
 // (PDF export) consume this so the two always show identical figures.
@@ -56,13 +54,14 @@ const paymentCategory = (payment) => {
  * @param {Array} raw.serviceTransactions
  * @param {Array} raw.expenses        - already excludes voided
  * @param {Array} raw.properties      - all property/lot records
- * @param {object} raw.settings      - system_settings row (dues_amount, due_day, grace_period_days, late_penalty)
+ * @param {Array} raw.overdue         - rows of the property_overdue_summary view (database is the single source for balances and overdue)
+ * @param {object} raw.credits        - the credit_liability_summary view row (advance credit held)
  * @param {Array} raw.documents
  * @param {Array} raw.events
  * @param {string} raw.month          - 'YYYY-MM'
  */
 export function computeMonthlyReportData(raw) {
-  const { payments = [], serviceTransactions = [], expenses = [], properties = [], charges = [], settings = null, documents = [], events = [], month } = raw
+  const { payments = [], serviceTransactions = [], expenses = [], properties = [], overdue = [], credits = null, documents = [], events = [], month } = raw
   const range = monthBounds(month)
 
   const inRange = (iso) => {
@@ -101,12 +100,12 @@ export function computeMonthlyReportData(raw) {
   const totalExpenses = fromCents(expenseCents)
   const netIncome = fromCents(duesCents + feesCents + serviceCents - expenseCents)
 
-  const chargesByProperty = groupChargesByProperty(charges)
+  const overdueByProperty = new Map(overdue.map((row) => [row.property_id, row]))
   const accountBalances = properties
     .filter((property) => (property.homeowner_status || 'active') === 'active')
     .map((property) => {
-      const { balance, isOverdue } = accountStatus(property, chargesByProperty, settings)
-      return { balance, isOverdue }
+      const row = overdueByProperty.get(property.id)
+      return { balance: Number(row?.balance) || 0, isOverdue: Boolean(row?.is_overdue) }
     })
   const outstandingAccounts = accountBalances.filter((a) => a.balance > 0)
   const totalOutstanding = outstandingAccounts.reduce((s, a) => s + a.balance, 0)
@@ -166,6 +165,12 @@ export function computeMonthlyReportData(raw) {
       serviceIncome,
       totalOutstanding,
       outstandingAccountCount: outstandingAccounts.length,
+      creditsHeld: {
+        activeTotal: Number(credits?.active_credit_total) || 0,
+        activeAccounts: Number(credits?.active_credit_accounts) || 0,
+        movedTotal: Number(credits?.moved_credit_total) || 0,
+        movedAccounts: Number(credits?.moved_credit_accounts) || 0,
+      },
     },
     events: {
       thisMonth: monthEvents,
@@ -288,4 +293,8 @@ export const collectionsRows = (receivables) => [
   ['Amenity and service revenue collected this period', formatMoney(receivables.serviceIncome)],
   ['Outstanding homeowner balances (aggregate, as of report date)', formatMoney(receivables.totalOutstanding)],
   ['Accounts with an outstanding balance', String(receivables.outstandingAccountCount)],
+  ['Advance credit held for homeowners (active accounts)', `${formatMoney(receivables.creditsHeld.activeTotal)} (${receivables.creditsHeld.activeAccounts} ${receivables.creditsHeld.activeAccounts === 1 ? 'account' : 'accounts'})`],
+  ...(receivables.creditsHeld.movedTotal > 0
+    ? [['Credit held on moved or transferred accounts', `${formatMoney(receivables.creditsHeld.movedTotal)} (${receivables.creditsHeld.movedAccounts} ${receivables.creditsHeld.movedAccounts === 1 ? 'account' : 'accounts'})`]]
+    : []),
 ] 

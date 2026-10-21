@@ -64,6 +64,25 @@ describe('buildReceiptModel', () => {
     expect(m.details.find((d) => d.label === 'Property').value).toBe('Block 1, Lot 4')
   })
 
+  it('shows a settled partial receipt as settled once the balance was collected later', () => {
+    const row = { receipt_number: 'SR-1', paid_at: '2026-10-05T01:00:00Z', amount_due: 500, amount_paid: 499.96, payment_status: 'partial', service_name: 'Basketball Court' }
+    const open = buildReceiptModel('service', row, organization)
+    expect(open.statusLabel).toBe('Partial payment')
+    expect(open.summary.find((s) => s.label === 'Balance remaining').value).toBe('PHP 0.04')
+
+    const settled = buildReceiptModel('service', row, organization, { settledAmount: 0.04 })
+    expect(settled.statusLabel).toBe('Balance settled')
+    expect(settled.summary.find((s) => s.label === 'Balance paid later').value).toBe('PHP 0.04')
+    expect(settled.summary.find((s) => s.label === 'Balance remaining').value).toBe('PHP 0.00')
+  })
+
+  it('keeps showing the remainder when the later payments do not cover the balance', () => {
+    const row = { receipt_number: 'SR-1', paid_at: '2026-10-05T01:00:00Z', amount_due: 1200, amount_paid: 300, payment_status: 'partial', service_name: 'Spa' }
+    const m = buildReceiptModel('service', row, organization, { settledAmount: 500 })
+    expect(m.statusLabel).toBe('Partial payment')
+    expect(m.summary.find((s) => s.label === 'Balance remaining').value).toBe('PHP 400.00')
+  })
+
   it('flags a voided service receipt', () => {
     const m = buildReceiptModel('service', { receipt_number: 'SR-2', paid_at: '2026-10-05T01:00:00Z', amount_paid: 50.04, payment_status: 'voided', service_name: 'Basketball Court' }, organization)
     expect(m.voided).toBe(true)

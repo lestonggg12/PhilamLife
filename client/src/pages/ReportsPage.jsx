@@ -29,16 +29,19 @@ const currentMonthInManila = () => todayInManila().slice(0, 7)
 // the page opened.
 // ---------------------------------------------------------------------------
 async function fetchCommunity() {
-  const [propertyResult, settingsResult, chargesResult] = await Promise.all([
+  const [propertyResult, settingsResult, overdueResult, creditsResult] = await Promise.all([
     fetchAll(() => supabase.from('properties').select('id, homeowner_status, current_balance')),
     supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
-    fetchAll(() => supabase.from('property_charges').select('property_id, amount, billing_month, created_at, charge_type').is('voided_at', null)),
+    fetchAll(() => supabase.from('property_overdue_summary').select('property_id, balance, is_overdue').order('property_id')),
+    supabase.from('credit_liability_summary').select('*').maybeSingle(),
   ])
-  const failure = propertyResult.error || chargesResult.error || settingsResult.error
+  const failure = propertyResult.error || overdueResult.error || creditsResult.error || settingsResult.error
   return {
     failure: failure ? failure.message : '',
     properties: propertyResult.error ? null : propertyResult.data || [],
-    charges: chargesResult.error ? null : chargesResult.data || [],
+    overdue: overdueResult.error ? null : overdueResult.data || [],
+    credits: creditsResult.error ? null : creditsResult.data || null,
+    creditsLoaded: !creditsResult.error,
     settings: settingsResult.error ? null : settingsResult.data || null,
     settingsLoaded: !settingsResult.error,
   }
@@ -160,7 +163,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
   const [properties, setProperties] = useState([])
-  const [charges, setCharges] = useState([])
+  const [overdue, setOverdue] = useState([])
+  const [credits, setCredits] = useState(null)
   const [documents, setDocuments] = useState([])
   const [events, setEvents] = useState([])
   const [orgSettings, setOrgSettings] = useState(null)
@@ -214,7 +218,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   function applyCommunity(result) {
     setCommunityError(result.failure)
     if (result.properties) setProperties(result.properties)
-    if (result.charges) setCharges(result.charges)
+    if (result.overdue) setOverdue(result.overdue)
+    if (result.creditsLoaded) setCredits(result.credits)
     if (result.settingsLoaded) setOrgSettings(result.settings)
   }
 
@@ -245,8 +250,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   }
 
   const report = useMemo(
-    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, charges, settings: orgSettings, documents, events, month }),
-    [payments, serviceTransactions, expenses, properties, charges, orgSettings, documents, events, month]
+    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, overdue, credits, documents, events, month }),
+    [payments, serviceTransactions, expenses, properties, overdue, credits, documents, events, month]
   )
 
   const loadFailure = error || communityError
@@ -276,8 +281,8 @@ export default function ReportsPage({ user: suppliedUser }) {
         serviceTransactions: monthly.serviceTransactions,
         expenses: monthly.expenses,
         properties: community.properties,
-        charges: community.charges,
-        settings: community.settings,
+        overdue: community.overdue,
+        credits: community.credits,
         documents: monthly.documents,
         events: monthly.events,
         month,

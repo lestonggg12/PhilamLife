@@ -24,7 +24,7 @@
 .treasurer-actions a small { overflow: hidden; color: var(--treas-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .treasurer-actions a:hover { border-color: #9bc0d7; background: #fff; box-shadow: 0 8px 20px rgba(20,100,160,.08); transform: translateY(-1px); }
 
-.treasurer-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.treasurer-stat-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
 .treasurer-stat-card { position: relative; overflow: hidden; min-width: 0; border: 1px solid var(--treas-line); border-radius: 14px; padding: 16px; background: rgba(255,255,255,.78); box-shadow: 0 5px 16px rgba(15,46,68,.045); }
 .treasurer-stat-card::before { position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--tone); content: ''; }
 .treasurer-stat-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--treas-muted); }

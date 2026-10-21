@@ -14,7 +14,6 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
-import { accountStatus, groupChargesByProperty } from '../lib/latepenalty'
 import Loader from '../components/Loader'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -61,8 +60,8 @@ export default function TreasurerDashboard() {
     expenses: [],
     services: [],
     properties: [],
-    charges: [],
-    settings: null,
+    overdue: [],
+    credits: null,
     adjustments: [],
     deposits: [],
     periods: [],
@@ -90,9 +89,9 @@ export default function TreasurerDashboard() {
         .eq('month_start', `${manilaMonthKey()}-01`).maybeSingle()
         .then(({ data, error }) => ({ table: 'monthly_collections', data: data ? [data] : [], error })),
       optionalRows('properties', 'homeowner_name'),
-      supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle()
-        .then(({ data, error }) => ({ table: 'system_settings', data: data ? [data] : [], error })),
-      optionalRows('property_charges', 'created_at'),
+      optionalRows('property_overdue_summary', 'property_id'),
+      supabase.from('credit_liability_summary').select('*').maybeSingle()
+        .then(({ data, error }) => ({ table: 'credit_liability_summary', data: data ? [data] : [], error })),
       optionalRows('account_adjustments', 'created_at'),
       optionalRows('bank_deposits', 'recorded_at'),
       optionalRows('accounting_periods', 'starts_on'),
@@ -102,7 +101,7 @@ export default function TreasurerDashboard() {
     const criticalError = results.find(
       (result) =>
         result.error &&
-        ['payments', 'expenses', 'properties', 'monthly_collections', 'property_charges', 'system_settings'].includes(result.table),
+        ['payments', 'expenses', 'properties', 'monthly_collections', 'property_overdue_summary', 'credit_liability_summary'].includes(result.table),
     )
 
     if (criticalError) {
@@ -115,8 +114,8 @@ export default function TreasurerDashboard() {
       expenses: byTable.expenses || [],
       services: byTable.service_transactions || [],
       properties: byTable.properties || [],
-      charges: (byTable.property_charges || []).filter((row) => !row.voided_at),
-      settings: (byTable.system_settings || [])[0] || null,
+      overdue: byTable.property_overdue_summary || [],
+      credits: (byTable.credit_liability_summary || [])[0] || null,
       adjustments: byTable.account_adjustments || [],
       deposits: byTable.bank_deposits || [],
       periods: byTable.accounting_periods || [],
@@ -135,21 +134,20 @@ export default function TreasurerDashboard() {
       .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
       .reduce((sum, row) => sum + amount(row, ['amount']), 0)
 
-    // Computed the same way as the Overdue Accounts page: directly from
-    // payment history + Due Day/Grace Period/Late Penalty settings, since
-    // homeowner_ledger_summary (posted-charge based) is not populated.
-    const dueDay = Number(finance.settings?.due_day) || 5
-    const gracePeriodDays = Number(finance.settings?.grace_period_days) || 0
-    const latePenalty = Number(finance.settings?.late_penalty) || 0
-    const duesAmount = Number(finance.settings?.dues_amount) || 0
-
-    const chargesByProperty = groupChargesByProperty(finance.charges)
+    // Balances and overdue come from the property_overdue_summary view, the
+    // same source as the Admin dashboard and the Overdue Accounts page.
+    const overdueByProperty = new Map(finance.overdue.map((row) => [row.property_id, row]))
     const accountRows = finance.properties
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
-      const { balance, isOverdue, daysOverdue, overdueAmount } = accountStatus(property, chargesByProperty, finance.settings)
-      return { balance, isOverdue, daysOverdue, overdueAmount }
-    })
+        const row = overdueByProperty.get(property.id)
+        return {
+          balance: Number(row?.balance) || 0,
+          isOverdue: Boolean(row?.is_overdue),
+          daysOverdue: Number(row?.days_overdue) || 0,
+          overdueAmount: Number(row?.overdue_amount) || 0,
+        }
+      })
 
     const outstanding = accountRows.reduce((sum, row) => sum + row.balance, 0)
     const aging = accountRows.reduce(
@@ -173,6 +171,9 @@ export default function TreasurerDashboard() {
       netThisMonth: collectedThisMonth + servicesThisMonth - expensesThisMonth,
       outstanding,
       overdue: aging.days1To30 + aging.days31To60 + aging.days61To90 + aging.days90Plus,
+      creditsHeld: Number(finance.credits?.active_credit_total) || 0,
+      creditAccounts: Number(finance.credits?.active_credit_accounts) || 0,
+      movedCredit: Number(finance.credits?.moved_credit_total) || 0,
       aging,
       overdueAccounts: accountRows.filter((row) => row.isOverdue).length,
     }
@@ -242,6 +243,7 @@ export default function TreasurerDashboard() {
     { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Dues and fees collected', icon: TrendingUp, tone: 'green' },
     { label: 'Outstanding receivables', value: summary.outstanding, note: `${summary.overdueAccounts} overdue account${summary.overdueAccounts === 1 ? '' : 's'}`, icon: FileText, tone: 'blue' },
     { label: 'Overdue balance', value: summary.overdue, note: 'Across all aging buckets', icon: AlertCircle, tone: 'red' },
+    { label: 'Advance credits held', value: summary.creditsHeld, note: `${summary.creditAccounts} active account${summary.creditAccounts === 1 ? '' : 's'}${summary.movedCredit > 0 ? ` + ${peso.format(summary.movedCredit)} on moved accounts` : ''}`, icon: DollarSign, tone: 'navy' },
     { label: 'Net cash activity', value: summary.netThisMonth, note: 'Dues, fees + amenities − expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
   ]
 

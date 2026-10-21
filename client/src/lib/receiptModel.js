@@ -72,7 +72,7 @@ const num = (value) => Number(value) || 0
  * @param {object} [options]
  * @param {string} [options.advanceNote] - extra note explaining an advance-credit balance
  */
-export function buildReceiptModel(kind, row, organization, { advanceNote = '' } = {}) {
+export function buildReceiptModel(kind, row, organization, { advanceNote = '', settledAmount = 0 } = {}) {
   const money = (value) => organization.formatMoney(value)
   const dateTime = (value) => organization.formatDate(value, { withTime: true })
   const dateOnly = (yyyyMmDd) => (yyyyMmDd ? organization.formatDate(`${yyyyMmDd}T12:00:00+08:00`) : '—')
@@ -94,6 +94,10 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '' } 
     const status = String(row.payment_status || 'paid').toLowerCase()
     const voided = status === 'voided'
     const partial = status === 'partial'
+    // Money collected later through linked balance receipts (partial receipts only).
+    const laterPaid = partial ? num(settledAmount) : 0
+    const remaining = Math.max(due - paid - laterPaid, 0)
+    const settled = partial && due > paid && remaining < 0.005
 
     const meta = [`Service date: ${dateOnly(row.service_date)}`]
     if (row.start_time) meta.push(`Start time: ${String(row.start_time).slice(0, 5)}`)
@@ -102,7 +106,8 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '' } 
     const summary = []
     if (due) summary.push({ label: 'Amount due', value: money(due) })
     summary.push({ label: 'Amount paid', value: money(paid), strong: true })
-    if (partial && due > paid) summary.push({ label: 'Balance remaining', value: money(due - paid) })
+    if (laterPaid > 0) summary.push({ label: 'Balance paid later', value: money(laterPaid) })
+    if (partial && due > paid) summary.push({ label: 'Balance remaining', value: money(remaining) })
 
     return {
       ...common,
@@ -111,7 +116,7 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '' } 
       subtitle: 'Amenity and Service Payment',
       voided,
       voidReason: '',
-      statusLabel: partial ? 'Partial payment' : voided ? 'Voided' : 'Paid',
+      statusLabel: settled ? 'Balance settled' : partial ? 'Partial payment' : voided ? 'Voided' : 'Paid',
       details: [
         { label: 'Received from', value: row.customer_name || 'Unnamed customer' },
         { label: 'Property', value: propertyLabel(row.block_name, row.lot_number) },
