@@ -261,7 +261,8 @@ export default function TreasurerDashboard() {
           <p>Receivables, collections, aging, exceptions, and cash activity in one view.</p>
         </div>
         <button type="button" className="treasurer-refresh" onClick={loadDashboard} disabled={loading}>
-          <RefreshCw size={16} /> {loading ? 'Refreshing…' : 'Refresh data'}
+          <RefreshCw size={14} className={loading ? 'treas-spin-icon' : ''} />
+          {loading ? 'Refreshing…' : 'Refresh data'}
         </button>
       </header>
 
