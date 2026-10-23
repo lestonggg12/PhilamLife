@@ -357,7 +357,7 @@ export default function ReportsPage({ user: suppliedUser }) {
               <KeyFigure label="Total revenue" value={money(kpis.totalIncome)} />
               <KeyFigure label="Total expenditures" value={money(kpis.totalExpenses)} />
               <KeyFigure label={kpis.netIncome >= 0 ? 'Net surplus' : 'Net deficit'} value={money(Math.abs(kpis.netIncome))} alert={kpis.netIncome < 0} />
-              <KeyFigure label="Outstanding balances" value={money(kpis.totalOutstanding)} />
+              <KeyFigure label="Outstanding Balances" value={money(kpis.totalOutstanding)} />
             </div>
             <h3 className="monthly-subheading">Management overview</h3>
             <p className="monthly-paragraph">{text.overview}</p>
