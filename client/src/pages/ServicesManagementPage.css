@@ -597,10 +597,26 @@
 
 /* ---------- Improved time selector ---------- */
 
+
 .services-time-field {
   position: relative;
   min-width: 0;
 }
+
+.services-time-field input[type="time"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  color-scheme: light;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.services-time-field input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.8;
+}
+
 
 .services-time-field::after {
   display: none;
