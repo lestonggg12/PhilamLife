@@ -39,7 +39,7 @@ async function fetchCommunity() {
       .select('property_id, balance, is_overdue')
       .order('property_id'),
   { tiebreaker: null }
-)
+),
     supabase.from('credit_liability_summary').select('*').maybeSingle(),
   ])
   const failure = propertyResult.error || overdueResult.error || creditsResult.error || settingsResult.error
