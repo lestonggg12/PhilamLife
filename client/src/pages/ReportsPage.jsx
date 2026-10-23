@@ -32,7 +32,14 @@ async function fetchCommunity() {
   const [propertyResult, settingsResult, overdueResult, creditsResult] = await Promise.all([
     fetchAll(() => supabase.from('properties').select('id, homeowner_status, current_balance')),
     supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
-    fetchAll(() => supabase.from('property_overdue_summary').select('property_id, balance, is_overdue').order('property_id')),
+    fetchAll(
+  () =>
+    supabase
+      .from('property_overdue_summary')
+      .select('property_id, balance, is_overdue')
+      .order('property_id'),
+  { tiebreaker: null }
+)
     supabase.from('credit_liability_summary').select('*').maybeSingle(),
   ])
   const failure = propertyResult.error || overdueResult.error || creditsResult.error || settingsResult.error
