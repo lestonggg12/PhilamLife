@@ -42,15 +42,18 @@ const amount = (row, keys) => {
 
 const isVoided = (row) => String(row?.status || '').toLowerCase() === 'voided'
 
-async function optionalRows(table, orderColumn) {
-  // fetchAll pages through the whole table so totals are never cut off at the
-  // API's 1,000-row limit.
+
+async function optionalRows(table, orderColumn, fetchOptions = {}) {
+  // Fetch every page without exceeding the API's 1,000-row limit.
+  // Views without an "id" column must disable fetchAll's default tiebreaker.
   const { data, error } = await fetchAll(() => {
     const query = supabase.from(table).select('*')
     return orderColumn ? query.order(orderColumn, { ascending: false }) : query
-  })
+  }, fetchOptions)
+
   return { table, data: data || [], error }
 }
+
 
 export default function TreasurerDashboard() {
   const { organization } = useOrganization()
@@ -89,7 +92,9 @@ export default function TreasurerDashboard() {
         .eq('month_start', `${manilaMonthKey()}-01`).maybeSingle()
         .then(({ data, error }) => ({ table: 'monthly_collections', data: data ? [data] : [], error })),
       optionalRows('properties', 'homeowner_name'),
-      optionalRows('property_overdue_summary', 'property_id'),
+        optionalRows('property_overdue_summary', 'property_id', {
+          tiebreaker: null,
+        }),
       supabase.from('credit_liability_summary').select('*').maybeSingle()
         .then(({ data, error }) => ({ table: 'credit_liability_summary', data: data ? [data] : [], error })),
       optionalRows('account_adjustments', 'created_at'),
