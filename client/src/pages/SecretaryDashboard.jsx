@@ -8,6 +8,7 @@ import {
   CreditCard,
   FileText,
   Home,
+  RefreshCw,
   TrendingUp,
   Users,
 } from '../components/Icons'
@@ -145,7 +146,7 @@ export default function SecretaryDashboard() {
   return (
     <div className="sec-secretary-dashboard">
       <header className="sec-page-header">
-        <div>
+        <div className="sec-header-content">
           <p className="sec-eyebrow">Secretary workspace</p>
           <h1 className="sec-page-title">Secretary Dashboard</h1>
           <p className="sec-page-subtitle">
@@ -159,6 +160,7 @@ export default function SecretaryDashboard() {
           onClick={loadDashboard}
           disabled={loading}
         >
+          <RefreshCw size={14} className={loading ? 'sec-spin-icon' : ''} />
           {loading ? 'Refreshing...' : 'Refresh data'}
         </button>
       </header>
