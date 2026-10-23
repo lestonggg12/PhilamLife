@@ -594,46 +594,59 @@
   box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
 }
 
+
+/* ---------- Improved time selector ---------- */
+
 .services-time-field {
   position: relative;
+  min-width: 0;
 }
 
 .services-time-field::after {
-  position: absolute;
-  right: 14px;
-  bottom: 13px;
-  width: 8px;
-  height: 8px;
-  border-right: 1.5px solid var(--primary);
-  border-bottom: 1.5px solid var(--primary);
-  content: '';
-  pointer-events: none;
-  transform: rotate(45deg);
+  display: none;
 }
 
 .services-time-field input[type='time'] {
-  min-height: 42px;
-  padding-right: 38px;
-  border-color: rgba(20, 100, 160, 0.28);
-  background: linear-gradient(135deg, rgba(239, 247, 253, 0.95), rgba(255, 255, 255, 0.9));
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+
+  border: 1px solid rgba(20, 100, 160, 0.28);
+  border-radius: 10px;
+
+  background: #fff;
   color: var(--primary-dark);
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
+
+  box-shadow: 0 2px 6px rgba(15, 63, 106, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .services-time-field input[type='time']::-webkit-calendar-picker-indicator {
-  position: relative;
-  z-index: 1;
   width: 18px;
   height: 18px;
+  margin-left: 6px;
   cursor: pointer;
-  opacity: 0.72;
+  opacity: 0.75;
   filter: invert(34%) sepia(30%) saturate(1030%) hue-rotate(163deg);
 }
 
-.services-time-field input[type='time']:focus {
-  background: #fff;
+.services-time-field input[type='time']:hover {
+  border-color: rgba(20, 100, 160, 0.5);
 }
+
+.services-time-field input[type='time']:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
+}
+
 
 .services-modal textarea {
   resize: vertical;
