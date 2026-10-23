@@ -1029,13 +1029,14 @@
 
 .payments-calendar-animation {
   position: absolute;
-  bottom: calc(100% + 10px);
+  top: calc(100% + 10px);
+  left: 0;
   z-index: 50;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(8px) scale(0.98);
-   transform-origin: bottom left;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top left;
   transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
 }
 
@@ -1633,4 +1634,11 @@
 
 .payments-day-switcher > .payments-day-today:hover:not(:disabled) {
   background: var(--primary-dark);
+}
+
+/* Reserve room for the calendar popover on desktop so opening it never adds a scrollbar. */
+@media (min-width: 821px) {
+  .payments-page .payments-table-card {
+    min-height: 560px;
+  }
 }
