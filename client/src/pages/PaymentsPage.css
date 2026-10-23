@@ -1029,14 +1029,13 @@
 
 .payments-calendar-animation {
   position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
+  bottom: calc(100% + 10px);
   z-index: 50;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-8px) scale(0.98);
-  transform-origin: top left;
+  transform: translateY(8px) scale(0.98);
+   transform-origin: bottom left;
   transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
 }
 
