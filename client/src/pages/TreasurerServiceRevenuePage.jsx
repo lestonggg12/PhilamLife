@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, DollarSign, TrendingUp, Clock, Search } from '../components/Icons'
+import { AlertCircle, DollarSign, TrendingUp, Clock, Search, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
@@ -180,12 +180,22 @@ export default function TreasurerServiceRevenuePage() {
     <div className="tsr-page">
       <div className="tsr-page-header">
         <div>
+          <p className="tsr-eyebrow">Treasurer workspace</p>
           <h1 className="tsr-page-title">Amenity & Service Revenue</h1>
           <p className="tsr-page-subtitle">
             Review income collected from bookable amenities and services.
           </p>
         </div>
 
+        <button
+          type="button"
+          className="tsr-refresh-button"
+          onClick={() => loadTransactions()}
+          disabled={loading}
+        >
+          <RefreshCw size={14} className={loading ? 'tsr-spin-icon' : ''} />
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
       </div>
 
       {pageError && (
