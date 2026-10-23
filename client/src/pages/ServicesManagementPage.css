@@ -661,6 +661,17 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.services-form-row-four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.services-field-error {
+  margin: -4px 0 12px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .services-amount-due {
   display: flex;
   align-items: center;
@@ -1259,7 +1270,7 @@
 }
 
 @media (max-width: 720px) {
-  .services-page {
+    .services-page {
     padding: 16px;
     gap: 16px;
   }
@@ -1285,6 +1296,10 @@
   .services-form-row,
   .services-form-row-three {
     grid-template-columns: 1fr;
+  }
+
+    .services-form-row-four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .service-catalog,

@@ -311,6 +311,7 @@ const emptyTransaction = {
   property_id: '',
   service_date: today(),
   start_time: '',
+  end_time: '',
   quantity: '1',
   amount_paid: '',
   payment_method: 'Cash',
@@ -323,6 +324,16 @@ const emptyCollect = { amount: '', payment_method: 'Cash', reference_number: '',
 // Money is stored in whole centavos; round typed/calculated amounts the same way
 // so what staff see on screen is exactly what gets saved.
 const toCents = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
+
+function openTimePicker(event) {
+  const input = event.currentTarget
+  if (typeof input.showPicker !== 'function') return
+  try {
+    input.showPicker()
+  } catch {
+    /* ignore */
+  }
+}
 
 export default function ServicesManagementPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
@@ -599,6 +610,13 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const amountApplied = Math.min(amountReceived, amountDue)
   const changeDue = toCents(Math.max(amountReceived - amountDue, 0))
   const stillOwed = toCents(Math.max(amountDue - amountReceived, 0))
+    const endTimeError = transactionForm.start_time
+    ? !transactionForm.end_time
+      ? 'Enter an end time.'
+      : transactionForm.end_time <= transactionForm.start_time
+        ? 'End time must be later than start time.'
+        : ''
+    : ''
 
   function openPaymentForm(service = null) {
     if (!canManageServices) return
@@ -712,6 +730,11 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
+        if (endTimeError) {
+      setPageError(endTimeError)
+      return
+    }
+
     const received = toCents(transactionForm.amount_paid)
 
     if (!Number.isFinite(received) || received <= 0) {
@@ -739,6 +762,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       lot_number: String(property.lot_number),
       service_date: transactionForm.service_date,
       start_time: transactionForm.start_time || null,
+      end_time: transactionForm.end_time || null,
       quantity: Math.max(Number(transactionForm.quantity) || 1, 1),
       amount_due: amountDue,
       amount_paid: paid,
@@ -1220,7 +1244,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               />
             </div>
 
-            <div className="services-form-row services-form-row-three">
+            <div className="services-form-row services-form-row-four">
               <label>
                 Service date
                 <input
@@ -1240,11 +1264,28 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 <input
                   aria-label="Start time"
                   type="time"
+                                    onClick={openTimePicker}
                   value={transactionForm.start_time}
                   onChange={(event) =>
                     setTransactionForm((current) => ({
                       ...current,
                       start_time: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+                            <label className="services-time-field">
+                End time
+                <input
+                  aria-label="End time"
+                  type="time"
+                  value={transactionForm.end_time}
+                  aria-invalid={Boolean(endTimeError)}
+                  onClick={openTimePicker}
+                  onChange={(event) =>
+                    setTransactionForm((current) => ({
+                      ...current,
+                      end_time: event.target.value,
                     }))
                   }
                 />
@@ -1274,6 +1315,10 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 />
               </label>
             </div>
+
+                        {endTimeError && (
+              <p className="services-field-error" role="alert">{endTimeError}</p>
+            )}
 
             <div className="services-amount-due">
               <span>Amount due</span>
@@ -1359,7 +1404,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               <button type="button" onClick={() => setShowPaymentForm(false)}>
                 Cancel
               </button>
-              <button type="submit" disabled={saving || amountDue <= 0 || !(Number(transactionForm.amount_paid) > 0)}>
+              <button type="submit" disabled={saving || amountDue <= 0 || !(Number(transactionForm.amount_paid) > 0) || Boolean(endTimeError)}>
                 {saving ? 'Saving...' : 'Save & Issue Receipt'}
               </button>
             </div>
