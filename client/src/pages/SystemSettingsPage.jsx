@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchTableVerified } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
+import PricePerSqmForm from '../components/PricePerSqmForm'
 
 // Every table needed to fully restore the system. Financial tables that used
 // to be missing from this list (property_charges, payment_allocations,
@@ -190,6 +191,7 @@ export default function SystemSettingsPage({ user }) {
     delete payload.id
     delete payload.updated_at
     delete payload.updated_by
+    delete payload.price_per_sqm
     const { error } = await supabase.from('system_settings').update(payload).eq('id', 1)
     setSaving(false)
     setMessage(error ? { type: 'error', text: `Unable to save settings: ${error.message}` } : { type: 'success', text: 'System settings saved successfully.' })
@@ -292,6 +294,9 @@ export default function SystemSettingsPage({ user }) {
           <Field label="Contact Email" type="email" value={settings.contact_email || ''} onChange={(v) => update('contact_email', v)} />
           <Field label="Contact Phone" value={settings.contact_phone || ''} onChange={(v) => update('contact_phone', v)} />
         </SettingsCard>
+        <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
+        <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
+      </SettingsCard>
         <SettingsCard title="Billing configuration" subtitle="Default dues and overdue-payment rules.">
           <Field label="Monthly Dues Amount (₱)" type="number" min="0" step="0.01" value={settings.dues_amount} onChange={(v) => update('dues_amount', v)} />
           <Field label="Billing Day of Month" type="number" min="1" max="31" value={settings.billing_day} onChange={(v) => update('billing_day', v)} />

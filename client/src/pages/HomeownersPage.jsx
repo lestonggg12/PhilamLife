@@ -17,6 +17,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
+import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -38,6 +39,7 @@ const monthNames = Array.from({ length: 12 }, (_, month) =>
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 const EMPTY_HOMEOWNER = {
+  lotSizeSqm: '',
   homeownerName: '',
   blockName: '',
   lotNumber: '',
@@ -152,6 +154,7 @@ export default function HomeownersPage() {
   // loaded when a homeowner is opened. The directory uses small per-homeowner counts.
   const [payments, setPayments] = useState([])
   const [paymentCounts, setPaymentCounts] = useState(new Map())
+  const [duesByProperty, setDuesByProperty] = useState(new Map())
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [currentUser, setCurrentUser] = useState(null)
@@ -300,9 +303,9 @@ export default function HomeownersPage() {
 
     // Never delete a homeowner who has money history - it must stay on record.
     const [paymentCount, chargeCount] = await Promise.all([
-      supabase.from('payments').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
-      supabase.from('property_charges').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
-    ])
+  supabase.from('payments').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
+  supabase.from('property_charges').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
+])
     const records = (paymentCount.count || 0) + (chargeCount.count || 0)
 
     if (paymentCount.error || chargeCount.error) {
@@ -350,11 +353,15 @@ export default function HomeownersPage() {
     else setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult] = await Promise.all([
+    const [duesResult, propertyResult, paymentResult] = await Promise.all([
+      fetchAll(() => supabase
+  .from('property_monthly_dues')
+  .select('property_id, lot_size_sqm, price_per_sqm, monthly_dues')
+  .order('property_id'), { tiebreaker: null }),
       fetchAll(() => supabase
         .from('properties')
         .select(
-          'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
+          'id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
         )
         .order('homeowner_name')),
       // One tiny row per homeowner: how many active payments they have.
@@ -365,6 +372,7 @@ export default function HomeownersPage() {
     ])
 
     const errors = [
+      duesResult.error,
       propertyResult.error,
       paymentResult.error,
     ].filter(Boolean)
@@ -374,6 +382,8 @@ export default function HomeownersPage() {
     // directory, search results, or be selected via a stale URL.
     setProperties((propertyResult.data || []).filter(isActiveHomeowner))
     setPaymentCounts(new Map((paymentResult.data || []).map((row) => [Number(row.property_id), Number(row.active_payment_count) || 0])))
+    setDuesByProperty(new Map((duesResult.data || []).map((row) => [Number(row.property_id), row])))
+
     // Refresh also reloads the open homeowner's records.
     setDetailReloadKey((key) => key + 1)
 
@@ -458,9 +468,10 @@ export default function HomeownersPage() {
     let cancelled = false
     setDetailLoading(true)
 
-    Promise.all([
+        Promise.all([
       fetchAll(() => supabase
         .from('payments')
+
         .select('*')
         .eq('property_id', selectedPropertyId)
         .order('paid_at', { ascending: false })),
@@ -793,6 +804,9 @@ export default function HomeownersPage() {
                       <span className="homeowner-directory-copy">
                         <strong>{property.homeowner_name}</strong>
                         <small>{property.block} · Lot {property.lot_number}</small>
+                        <small>
+                          {formatLotSize(duesByProperty.get(Number(property.id))?.lot_size_sqm)} · {formatRate(duesByProperty.get(Number(property.id))?.price_per_sqm)} · {formatDues(duesByProperty.get(Number(property.id))?.monthly_dues)}/mo
+                        </small>
                         <span className={`homeowner-account-badge badge-${status.key}`}>
                           {status.label}
                         </span>
@@ -896,11 +910,19 @@ export default function HomeownersPage() {
                 <strong>{peso.format(summary.outstanding)}</strong>
                 <small>{summary.outstanding > 0 ? 'Payment still required' : 'No recorded balance'}</small>
               </article>
-              <article className={summary.credit > 0 ? 'has-credit' : ''}>
+                            <article className={summary.credit > 0 ? 'has-credit' : ''}>
                 <span>Credit</span>
                 <strong>{peso.format(summary.credit)}</strong>
                 <small>{summary.credit > 0 ? 'Applied to next dues' : 'No advance credit'}</small>
               </article>
+              <article>
+                <span>Monthly Dues</span>
+                <strong>{formatDues(duesByProperty.get(Number(selectedProperty.id))?.monthly_dues)}</strong>
+                <small>
+                  {formatLotSize(duesByProperty.get(Number(selectedProperty.id))?.lot_size_sqm)} · {formatRate(duesByProperty.get(Number(selectedProperty.id))?.price_per_sqm)}
+                </small>
+              </article>
+             
               <article>
                 <span>Last Payment</span>
                 <strong className="homeowner-summary-date">{summary.lastPayment}</strong>
@@ -1264,6 +1286,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
               homeownerName: property.homeowner_name || '',
               blockName: property.block || '',
               lotNumber: String(property.lot_number ?? ''),
+              lotSizeSqm: property.lot_size_sqm == null ? '' : String(property.lot_size_sqm),
             }
           : EMPTY_HOMEOWNER,
       )
@@ -1320,6 +1343,18 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
       return
     }
 
+        const existingLot = editingHomeownerId ? dialog?.property?.lot_size_sqm : null
+    const rawLot = String(homeownerForm.lotSizeSqm ?? '').trim()
+    let lotSizeSqm = null
+    if (rawLot !== '' || !editingHomeownerId || existingLot != null) {
+      const parsedLot = parsePositiveAmount(rawLot, 'Lot size', { maxInt: 8 })
+      if (parsedLot.error) {
+        setFormError(parsedLot.error)
+        return
+      }
+      lotSizeSqm = parsedLot.value
+    }
+
     setSavingHomeowner(true)
     setFormError('')
 
@@ -1348,12 +1383,12 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
       return
     }
 
-    const payload = {
+        const payload = {
       homeowner_name: homeownerName,
       block: blockName,
       lot_number: lotNumber,
-    }
-
+      ...(lotSizeSqm !== null && { lot_size_sqm: lotSizeSqm }),
+}
     const { error } = editingHomeownerId
       ? await supabase.from('properties').update(payload).eq('id', editingHomeownerId)
       : await supabase.from('properties').insert(payload)
@@ -1669,6 +1704,22 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
                 />
               </div>
             </div>
+
+     <div>
+    <label htmlFor="hod-homeowner-lot-size">Lot size (sqm)</label>
+    <input
+      id="hod-homeowner-lot-size"
+      name="lotSizeSqm"
+      type="number"
+      inputMode="decimal"
+      min="0.01"
+      step="0.01"
+      value={homeownerForm.lotSizeSqm}
+      onChange={updateHomeownerField}
+      placeholder="e.g., 150.50"
+    />
+  </div>
+
 
             {blocksLoadError && <p className="hod-error">{blocksLoadError}</p>}
             {!blocksLoading && !blocksLoadError && blocks.length === 0 && (
