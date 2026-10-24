@@ -47,6 +47,7 @@ import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import './ServicesManagementPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
+import TimePicker, { formatTime12, rangesOverlap, timeToMinutes } from '../components/TimePicker'
 
 // Search-and-select homeowner field. Filters by name, block and lot;
 // supports keyboard (arrows / Enter / Esc) and keeps native form validation.
@@ -320,20 +321,14 @@ const emptyTransaction = {
 }
 
 const emptyCollect = { amount: '', payment_method: 'Cash', reference_number: '', notes: '' }
+// Edit this one line if hourly services are identified differently.
+const isHourlyService = (service) => service?.rate_unit === 'per hour'
+const TIME_MINUTE_STEP = 5
 
 // Money is stored in whole centavos; round typed/calculated amounts the same way
 // so what staff see on screen is exactly what gets saved.
 const toCents = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
 
-function openTimePicker(event) {
-  const input = event.currentTarget
-  if (typeof input.showPicker !== 'function') return
-  try {
-    input.showPicker()
-  } catch {
-    /* ignore */
-  }
-}
 
 export default function ServicesManagementPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
@@ -360,6 +355,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [collectForm, setCollectForm] = useState(emptyCollect)
   const [collectError, setCollectError] = useState('')
   const [reloadTick, setReloadTick] = useState(0)
+    const [bookedRanges, setBookedRanges] = useState([])
+  const [bookedLoading, setBookedLoading] = useState(false)
+  const [bookedError, setBookedError] = useState('')
 
   // --- Calendar day-modal state (calendar lives beside "Record Payment";
   // picking an exact date opens a floating statement-style modal) ---
@@ -403,6 +401,56 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     document.addEventListener('mousedown', handleClickAway)
     return () => document.removeEventListener('mousedown', handleClickAway)
   }, [calendar.open])
+
+  useEffect(() => {
+    setBookedRanges([])
+    setBookedError('')
+    if (!showPaymentForm || !transactionForm.service_id || !transactionForm.service_date) {
+      setBookedLoading(false)
+      return undefined
+    }
+
+    let cancelled = false
+    setBookedLoading(true)
+
+    supabase
+      .from('service_transactions')
+      .select('start_time, end_time')
+      .eq('service_id', transactionForm.service_id)
+      .eq('service_date', transactionForm.service_date)
+      .not('start_time', 'is', null)
+      .not('end_time', 'is', null)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          setBookedError('Could not check booked times. Availability is unverified.')
+          setBookedLoading(false)
+          return
+        }
+        const ranges = (data || [])
+          .map((row) => ({ start: row.start_time.slice(0, 5), end: row.end_time.slice(0, 5) }))
+          .filter((range) => range.end > range.start)
+          .sort((a, b) => a.start.localeCompare(b.start))
+        setBookedRanges(ranges)
+        setBookedLoading(false)
+
+        // Drop an already-chosen time that clashes with the newly loaded bookings.
+        setTransactionForm((current) => {
+          const s = timeToMinutes(current.start_time)
+          const e = timeToMinutes(current.end_time)
+          const clash = ranges.some((range) => {
+            const bs = timeToMinutes(range.start)
+            const be = timeToMinutes(range.end)
+            if (s !== null && e !== null) return rangesOverlap(s, e, bs, be)
+            if (s !== null) return s >= bs && s < be
+            return false
+          })
+          return clash ? { ...current, start_time: '', end_time: '' } : current
+        })
+      })
+
+    return () => { cancelled = true }
+  }, [showPaymentForm, transactionForm.service_id, transactionForm.service_date])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -600,6 +648,34 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const selectedService = services.find(
     (service) => service.id === transactionForm.service_id,
   )
+
+  const startMinutes = timeToMinutes(transactionForm.start_time)
+  const endMinutes = timeToMinutes(transactionForm.end_time)
+  const autoHours =
+    isHourlyService(selectedService) &&
+    startMinutes !== null &&
+    endMinutes !== null &&
+    endMinutes > startMinutes
+      ? Math.round(((endMinutes - startMinutes) / 60) * 100) / 100
+      : null
+
+  useEffect(() => {
+    if (autoHours === null) return
+    setTransactionForm((current) => {
+      if (Number(current.quantity) === autoHours) return current
+      // Same "amount received follows amount due" rule the Quantity field already uses.
+      const rate = Number(selectedService?.rate) || 0
+      const oldDue = toCents(rate * Math.max(Number(current.quantity) || 1, 1))
+      const newDue = toCents(rate * Math.max(autoHours, 1))
+      const followsDue = toCents(current.amount_paid) === oldDue
+      return {
+        ...current,
+        quantity: String(autoHours),
+        amount_paid: followsDue ? String(newDue) : current.amount_paid,
+      }
+    })
+  }, [autoHours, selectedService?.id])
+
   const amountDue = toCents(
     (Number(selectedService?.rate) || 0) *
     Math.max(Number(transactionForm.quantity) || 1, 1),
@@ -1259,42 +1335,41 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   }
                 />
               </label>
-              <label className="services-time-field">
-                Start time
-                <input
-                  aria-label="Start time"
-                  type="time"
-                                    onClick={openTimePicker}
-                  value={transactionForm.start_time}
-                  onChange={(event) =>
-                    setTransactionForm((current) => ({
-                      ...current,
-                      start_time: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-                            <label className="services-time-field">
-                End time
-                <input
-                  aria-label="End time"
-                  type="time"
-                  value={transactionForm.end_time}
-                  aria-invalid={Boolean(endTimeError)}
-                  onClick={openTimePicker}
-                  onChange={(event) =>
-                    setTransactionForm((current) => ({
-                      ...current,
-                      end_time: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                            <TimePicker
+                label="Start time"
+                mode="start"
+                value={transactionForm.start_time}
+                counterpart={transactionForm.end_time}
+                bookedRanges={bookedRanges}
+                loading={bookedLoading}
+                minuteStep={TIME_MINUTE_STEP}
+                onChange={(next) =>
+                  setTransactionForm((current) => ({ ...current, start_time: next }))
+                }
+              />
+              <TimePicker
+                label="End time"
+                mode="end"
+                value={transactionForm.end_time}
+                counterpart={transactionForm.start_time}
+                bookedRanges={bookedRanges}
+                loading={bookedLoading}
+                minuteStep={TIME_MINUTE_STEP}
+                invalid={Boolean(endTimeError)}
+                onChange={(next) =>
+                  setTransactionForm((current) => ({ ...current, end_time: next }))
+                }
+              />
+                            
               <label>
                 Quantity
                 <input
                   required
-                  min="1"
+                                    min={autoHours !== null ? '0.01' : '1'}
+                  step={autoHours !== null ? 'any' : '1'}
+                  readOnly={autoHours !== null}
+                  title={autoHours !== null ? 'Calculated from start and end time' : undefined}
+                  className={autoHours !== null ? 'services-input-auto' : undefined}
                   type="number"
                   value={transactionForm.quantity}
                   onChange={(event) => {
@@ -1318,6 +1393,20 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
                         {endTimeError && (
               <p className="services-field-error" role="alert">{endTimeError}</p>
+            )}
+                        {bookedLoading && (
+              <p className="services-booked-note" role="status">Checking booked times…</p>
+            )}
+            {bookedError && (
+              <p className="services-field-error" role="alert">{bookedError}</p>
+            )}
+            {!bookedLoading && bookedRanges.length > 0 && (
+              <p className="services-booked-note">
+                Booked:{' '}
+                {bookedRanges
+                  .map((r) => `${formatTime12(r.start, false)} - ${formatTime12(r.end, false)}`)
+                  .join(', ')}
+              </p>
             )}
 
             <div className="services-amount-due">

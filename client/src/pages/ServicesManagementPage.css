@@ -701,6 +701,17 @@
   font-weight: 600;
 }
 
+.services-booked-note {
+  margin: -4px 0 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.services-modal input.services-input-auto {
+  background: rgba(20, 100, 160, 0.08);
+  cursor: not-allowed;
+}
+
 .services-amount-due {
   display: flex;
   align-items: center;
