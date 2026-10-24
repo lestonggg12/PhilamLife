@@ -62,6 +62,13 @@ function propertyLabel(blockName, lotNumber) {
   return [blockName, lot].filter(Boolean).join(', ') || 'Not specified'
 }
 
+// "15:40" or "15:40:00" -> "3:40 PM"
+function time12(value) {
+  const [h, m] = String(value).split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return String(value)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+
 const num = (value) => Number(value) || 0
 
 /**
@@ -88,7 +95,7 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
     issuedBy: row.recorded_by_name || '—',
   }
 
-  if (kind === 'service') {
+      if (kind === 'service') {
     const paid = num(row.amount_paid)
     const due = num(row.amount_due)
     const status = String(row.payment_status || 'paid').toLowerCase()
@@ -100,7 +107,11 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
     const settled = partial && due > paid && remaining < 0.005
 
     const meta = [`Service date: ${dateOnly(row.service_date)}`]
-    if (row.start_time) meta.push(`Start time: ${String(row.start_time).slice(0, 5)}`)
+       if (row.start_time) {
+      const start = time12(row.start_time)
+      const end = row.end_time ? time12(row.end_time) : ''
+      meta.push(end ? `Time: ${start} - ${end}` : `Start time: ${start}`)
+    }
     if (row.quantity && Number(row.quantity) !== 1) meta.push(`Quantity: ${row.quantity}`)
 
     const summary = []

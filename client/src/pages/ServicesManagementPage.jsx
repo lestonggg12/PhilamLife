@@ -420,6 +420,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       .eq('service_date', transactionForm.service_date)
       .not('start_time', 'is', null)
       .not('end_time', 'is', null)
+            .neq('payment_status', 'voided')
       .then(({ data, error }) => {
         if (cancelled) return
         if (error) {
@@ -1366,7 +1367,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 <input
                   required
                                     min={autoHours !== null ? '0.01' : '1'}
-                  step={autoHours !== null ? 'any' : '1'}
+                                    step="any"
                   readOnly={autoHours !== null}
                   title={autoHours !== null ? 'Calculated from start and end time' : undefined}
                   className={autoHours !== null ? 'services-input-auto' : undefined}
@@ -1628,7 +1629,12 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                     </div>
                     <div className="day-modal-row-meta">
                       <span>{item.customer_name} — {item.block_name}, Lot {item.lot_number}</span>
-                      {item.start_time && <span>{item.start_time.slice(0, 5)}</span>}
+                      {item.start_time && (
+                    <span>
+                      {formatTime12(item.start_time, false)}
+                      {item.end_time ? ` - ${formatTime12(item.end_time, false)}` : ''}
+                    </span>
+                  )}
                       {balanceById.get(item.id) && (
                         <span>Unpaid {peso.format(Number(balanceById.get(item.id).balance_due) || 0)}</span>
                       )}
