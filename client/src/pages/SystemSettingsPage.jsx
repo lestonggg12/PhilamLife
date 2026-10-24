@@ -300,7 +300,7 @@ export default function SystemSettingsPage({ user }) {
           <Field label="Grace Period (days)" type="number" min="0" value={settings.grace_period_days} onChange={(v) => update('grace_period_days', v)} />
           <Field label="Late-Payment Penalty (₱)" type="number" min="0" step="0.01" value={settings.late_penalty} onChange={(v) => update('late_penalty', v)} />
         </SettingsCard>
-        <SettingsCard title="System preferences" subtitle="Regional display defaults." full>
+        <SettingsCard title="System preferences" subtitle="Regional display defaults.">
           <SelectField label="Currency" value={settings.currency} onChange={(v) => update('currency', v)} options={[['PHP', 'Philippine Peso (₱)']]} />
           <SelectField label="Time Zone" value={settings.timezone} onChange={(v) => update('timezone', v)} options={[['Asia/Manila', 'Asia/Manila']]} />
           <SelectField label="Date Format" value={settings.date_format} onChange={(v) => update('date_format', v)} options={['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'].map((v) => [v, v])} />
