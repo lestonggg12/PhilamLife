@@ -124,7 +124,7 @@ export const GUIDE_CONTENT = {
       {
         id: 'system-settings',
         title: 'System Settings',
-        summary: 'Admin-only. Controls the HOA name/branding, monthly dues amount, due day, grace period, and late penalty used throughout the system.',
+        summary: 'Admin-only. Controls the HOA name/branding, the dues rate per square meter, billing day, due day, grace period, and late penalty used throughout the system.',
         steps: [
           'Changes here affect every calculation across the app — overdue aging, late fees, dashboard totals — so double-check figures before saving.',
           'This is also where you\'d update the association name/address if it ever changes.',

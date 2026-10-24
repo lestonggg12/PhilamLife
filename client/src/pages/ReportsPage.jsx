@@ -31,7 +31,7 @@ const currentMonthInManila = () => todayInManila().slice(0, 7)
 async function fetchCommunity() {
   const [propertyResult, settingsResult, overdueResult, creditsResult] = await Promise.all([
     fetchAll(() => supabase.from('properties').select('id, homeowner_status, current_balance')),
-    supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, dues_amount, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
+    supabase.from('system_settings').select('hoa_name, address, contact_email, contact_phone, currency, due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
     fetchAll(
   () =>
     supabase

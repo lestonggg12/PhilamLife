@@ -43,7 +43,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [paymentSummaries, setPaymentSummaries] = useState([])
   const [collectionActions, setCollectionActions] = useState([])
   const [penaltySettings, setPenaltySettings] = useState({
-    duesAmount: 0,
     dueDay: 5,
     gracePeriodDays: 0,
     latePenalty: 0,
@@ -92,7 +91,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       fetchAll(() => supabase.from('property_payment_summary').select('property_id, latest_paid_at, latest_amount_paid').order('property_id'), { tiebreaker: null }),
       supabase
         .from('system_settings')
-        .select('dues_amount, due_day, grace_period_days, late_penalty')
+        .select('due_day, grace_period_days, late_penalty')
         .eq('id', 1)
         .maybeSingle(),
       fetchAll(() => supabase
@@ -115,7 +114,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setCollectionActions(actionsResult.data || [])
     setOverdueSummaries(overdueResult.data || [])
     setPenaltySettings({
-      duesAmount: Number(settingsResult.data?.dues_amount) || 0,
       dueDay: Number(settingsResult.data?.due_day) || 5,
       gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
       latePenalty: Number(settingsResult.data?.late_penalty) || 0,

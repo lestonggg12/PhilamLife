@@ -47,7 +47,6 @@ const DEFAULT_SETTINGS = {
   address: 'Cagayan de Oro City, Philippines',
   contact_email: '',
   contact_phone: '',
-  dues_amount: '5000',
   billing_day: '1',
   due_day: '5',
   grace_period_days: '0',
@@ -142,7 +141,6 @@ export default function SystemSettingsPage({ user }) {
         ...data,
         contact_email: data.contact_email || '',
         contact_phone: data.contact_phone || '',
-        dues_amount: String(data.dues_amount),
         billing_day: String(data.billing_day ?? 1),
         due_day: String(data.due_day),
         grace_period_days: String(data.grace_period_days),
@@ -163,7 +161,6 @@ export default function SystemSettingsPage({ user }) {
     if (!settings.hoa_name.trim()) return 'HOA name is required.'
     if (!settings.address.trim()) return 'Address is required.'
     if (settings.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.contact_email)) return 'Enter a valid contact email.'
-    if (Number(settings.dues_amount) < 0) return 'Monthly dues cannot be negative.'
     if (!Number.isInteger(Number(settings.due_day)) || Number(settings.due_day) < 1 || Number(settings.due_day) > 31) return 'Due day must be from 1 to 31.'
     if (!Number.isInteger(Number(settings.billing_day)) || Number(settings.billing_day) < 1 || Number(settings.billing_day) > 31) return 'Billing day must be from 1 to 31.'
     if (Number(settings.due_day) < Number(settings.billing_day)) return 'Due day must be on or after the billing day — dues cannot fall due before they are charged.'
@@ -181,7 +178,6 @@ export default function SystemSettingsPage({ user }) {
       ...settings,
       contact_email: (settings.contact_email || '').trim() || null,
       contact_phone: (settings.contact_phone || '').trim() || null,
-      dues_amount: Number(settings.dues_amount),
       billing_day: Number(settings.billing_day),
       due_day: Number(settings.due_day),
       grace_period_days: Number(settings.grace_period_days),
@@ -192,6 +188,7 @@ export default function SystemSettingsPage({ user }) {
     delete payload.updated_at
     delete payload.updated_by
     delete payload.price_per_sqm
+    delete payload.dues_amount
     const { error } = await supabase.from('system_settings').update(payload).eq('id', 1)
     setSaving(false)
     setMessage(error ? { type: 'error', text: `Unable to save settings: ${error.message}` } : { type: 'success', text: 'System settings saved successfully.' })
@@ -297,8 +294,7 @@ export default function SystemSettingsPage({ user }) {
         <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
         <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
       </SettingsCard>
-        <SettingsCard title="Billing configuration" subtitle="Default dues and overdue-payment rules.">
-          <Field label="Monthly Dues Amount (₱)" type="number" min="0" step="0.01" value={settings.dues_amount} onChange={(v) => update('dues_amount', v)} />
+        <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
           <Field label="Billing Day of Month" type="number" min="1" max="31" value={settings.billing_day} onChange={(v) => update('billing_day', v)} />
           <Field label="Due Day of Month" type="number" min="1" max="31" value={settings.due_day} onChange={(v) => update('due_day', v)} />
           <Field label="Grace Period (days)" type="number" min="0" value={settings.grace_period_days} onChange={(v) => update('grace_period_days', v)} />

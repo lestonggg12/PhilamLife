@@ -1,14 +1,15 @@
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
-// Advance-credit details from the admin's System Settings (monthly dues
-// amount, due day, grace period). Credit is deducted when the next month's
+// Advance-credit details from the admin's System Settings (due day, grace
+// period) and the homeowner's own monthly dues (lot size x price per sqm,
+// passed in as settings.monthly_dues). Credit is deducted when the next month's
 // dues are billed (1st of the month).
 export function advanceCreditDetails(rawCredit, settings) {
   // Round to whole centavos first: JavaScript decimals like 4999.98 - 3499.98
   const credit = Math.round((Number(rawCredit) || 0) * 100) / 100
   if (!settings) return { credit, hasSettings: false }
 
-  const dues = Number(settings.dues_amount) || 0
+  const dues = Number(settings.monthly_dues) || 0
   const dueDay = Math.min(Math.max(Number(settings.due_day) || 1, 1), 31)
   const billingDay = Math.min(Math.max(Number(settings.billing_day) || 1, 1), 31)
   const grace = Number(settings.grace_period_days) || 0
@@ -78,5 +79,5 @@ export function advanceCreditNote(credit, settings) {
       : ` This is less than one month's dues, so ${peso.format(d.shortfall)} will still be due after the deduction.`
   }
 
-  return `${amount} will be kept as advance credit and deducted automatically when the next monthly dues (${peso.format(d.dues)}) are billed on ${d.billing} (${schedule}).${coverage}`
+  return `${amount} will be kept as advance credit and deducted automatically when the next monthly dues${d.dues > 0 ? ` (${peso.format(d.dues)})` : ''} are billed on ${d.billing} (${schedule}).${coverage}`
 }

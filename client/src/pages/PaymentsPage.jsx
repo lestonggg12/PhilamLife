@@ -395,6 +395,11 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [popupNotice, setPopupNotice] = useState('')
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
+  const [monthlyDuesByProperty, setMonthlyDuesByProperty] = useState(new Map())
+  // Advance-credit notes use the selected homeowner's own monthly dues (lot size x rate).
+  const duesSettingsFor = (propertyId) => (duesSettings
+    ? { ...duesSettings, monthly_dues: monthlyDuesByProperty.get(Number(propertyId)) || 0 }
+    : null)
   const [chargeRows, setChargeRows] = useState([])
   const [chargeTotal, setChargeTotal] = useState(0)
   const [chargesLoading, setChargesLoading] = useState(false)
@@ -490,14 +495,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
-    const [propertyResult, settingsResult, billedResult] = await Promise.all([
+    const [propertyResult, settingsResult, billedResult, duesResult] = await Promise.all([
       fetchAll(() => supabase
         .from('properties')
         .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')
         .order('homeowner_name')),
       supabase
         .from('system_settings')
-        .select('dues_amount, billing_day, due_day, grace_period_days')
+        .select('billing_day, due_day, grace_period_days')
         .eq('id', 1)
         .maybeSingle(),
       // Has this month's dues run already? (decides which billing date the advance note shows)
@@ -506,6 +511,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .select('id')
         .eq('billing_month', `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).slice(0, 7)}-01`)
         .limit(1),
+      fetchAll(() => supabase
+        .from('property_monthly_dues')
+        .select('property_id, monthly_dues')
+        .order('property_id'), { tiebreaker: null }),
     ])
 
     if (!settingsResult.error && settingsResult.data) {
@@ -513,6 +522,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
         ...settingsResult.data,
         billed_this_month: !billedResult.error && (billedResult.data || []).length > 0,
       })
+    }
+
+    if (!duesResult.error) {
+      setMonthlyDuesByProperty(new Map((duesResult.data || []).map((row) => [Number(row.property_id), row.monthly_dues])))
     }
 
     if (propertyResult.error) {
@@ -1552,7 +1565,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
               {form.propertyId && isDuesPayment && remainingBalance < 0 && (
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>Advance payment</strong>
-                  <span>{advanceCreditNote(-remainingBalance, duesSettings)}</span>
+                  <span>{advanceCreditNote(-remainingBalance, duesSettingsFor(form.propertyId))}</span>
                 </div>
               )}
 
@@ -1792,7 +1805,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
       {advanceConfirm && (() => {
         const isFee = advanceConfirm.kind === 'fee'
-        const d = isFee ? { credit: advanceConfirm.credit } : advanceCreditDetails(advanceConfirm.credit, duesSettings)
+        const d = isFee ? { credit: advanceConfirm.credit } : advanceCreditDetails(advanceConfirm.credit, duesSettingsFor(form.propertyId))
         return (
           <div className="payments-overlay advance-overlay" onMouseDown={() => setAdvanceConfirm(null)}>
             <section className="advance-dialog" role="dialog" aria-modal="true" aria-labelledby="advance-title" onMouseDown={(e) => e.stopPropagation()}>
@@ -1840,7 +1853,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
         const receiptModel = buildReceiptModel('payment', receipt, organization, {
           advanceNote:
             Number(receipt.remaining_balance) < 0 && (!receipt.charge_type || receipt.charge_type === 'Association Dues')
-              ? advanceCreditNote(-Number(receipt.remaining_balance), duesSettings)
+              ? advanceCreditNote(-Number(receipt.remaining_balance), duesSettingsFor(receipt.property_id ?? form.propertyId))
               : '',
         })
         return (

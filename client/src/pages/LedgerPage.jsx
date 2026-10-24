@@ -62,7 +62,6 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [paymentSummaries, setPaymentSummaries] = useState([])
   const [overdueSummaries, setOverdueSummaries] = useState([])
-  const [duesAmount, setDuesAmount] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
     gracePeriodDays: 0,
@@ -125,7 +124,7 @@ const actorName =
         // One small row per homeowner (totals + latest payment) computed by the database,
         // instead of downloading every payment ever recorded.
         fetchAll(() => supabase.from('property_payment_summary').select('*').order('property_id'), { tiebreaker: null }),
-        supabase.from('system_settings').select('dues_amount, due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
+        supabase.from('system_settings').select('due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         fetchAll(() => supabase
           .from('property_overdue_summary')
           .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
@@ -145,7 +144,6 @@ const actorName =
     setPaymentSummaries(paymentResult.data || [])
     setOverdueSummaries(overdueResult.data || [])
     setOrgSettings(settingsResult.data || null)
-    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
       gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,

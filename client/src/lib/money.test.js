@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { advanceCreditDetails, advanceCreditNote } from './advanceCredit'
 
 // Fixed "today": Oct 3, 2026 (Manila). Due day 10 + 10 grace days = deadline on the 20th.
-const SETTINGS = { due_day: 10, grace_period_days: 10, late_penalty: 150, dues_amount: 1000, billing_day: 1 }
+const SETTINGS = { due_day: 10, grace_period_days: 10, late_penalty: 150, monthly_dues: 1000, billing_day: 1 }
 
 beforeEach(() => {
   vi.useFakeTimers()

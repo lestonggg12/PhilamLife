@@ -104,7 +104,7 @@ export default function AdminDashboard() {
   const [paidPropertyIds, setPaidPropertyIds] = useState(new Set())
   const [overdueSummaries, setOverdueSummaries] = useState([])
   const [activities, setActivities] = useState([])
-  const [duesAmount, setDuesAmount] = useState(0)
+  const [duesByProperty, setDuesByProperty] = useState(new Map())
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
     gracePeriodDays: 0,
@@ -131,6 +131,7 @@ export default function AdminDashboard() {
       activityResult,
       settingsResult,
       overdueResult,
+      duesResult,
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -156,12 +157,17 @@ export default function AdminDashboard() {
         .limit(5),
       supabase
         .from('system_settings')
-        .select('dues_amount, due_day, grace_period_days, late_penalty')
+        .select('due_day, grace_period_days, late_penalty')
         .eq('id', 1)
         .maybeSingle(),
       fetchAll(() => supabase
         .from('property_overdue_summary')
         .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+        .order('property_id'), { tiebreaker: null }),
+      // Each homeowner's monthly dues = lot size x price per sqm, computed by the database.
+      fetchAll(() => supabase
+        .from('property_monthly_dues')
+        .select('property_id, monthly_dues')
         .order('property_id'), { tiebreaker: null }),
     ])
 
@@ -173,6 +179,7 @@ export default function AdminDashboard() {
       activityResult.error,
       overdueResult.error,
       settingsResult.error,
+      duesResult.error,
     ].filter(Boolean)
 
     if (errors.length > 0) {
@@ -189,7 +196,7 @@ export default function AdminDashboard() {
     setPaidPropertyIds(new Set((serviceResult.data || []).map((row) => Number(row.property_id))))
     setOverdueSummaries(overdueResult.data || [])
     setActivities(activityResult.data || [])
-    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
+    setDuesByProperty(new Map((duesResult.data || []).map((row) => [Number(row.property_id), row.monthly_dues])))
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
       gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
@@ -235,7 +242,11 @@ export default function AdminDashboard() {
     ? ((collectedThisMonth - collectedLastMonth) / collectedLastMonth) * 100
     : null
 
-  const monthlyDuesTarget = activeProperties.length * duesAmount
+  // Sum in whole centavos so peso amounts never pick up floating-point drift.
+  const monthlyDuesTarget = activeProperties.reduce(
+    (sum, property) => sum + Math.round((Number(duesByProperty.get(Number(property.id))) || 0) * 100),
+    0,
+  ) / 100
   const overdueByProperty = useMemo(
     () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
     [overdueSummaries],

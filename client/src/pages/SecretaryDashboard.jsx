@@ -48,7 +48,6 @@ export default function SecretaryDashboard() {
   const [recentPayments, setRecentPayments] = useState([])
   const [monthlyRows, setMonthlyRows] = useState([])
   const [activities, setActivities] = useState([])
-  const [duesAmount, setDuesAmount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
 
@@ -60,7 +59,7 @@ export default function SecretaryDashboard() {
     setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, activityResult, settingsResult, monthlyResult] =
+    const [propertyResult, paymentResult, activityResult, monthlyResult] =
       await Promise.all([
         fetchAll(() => supabase
           .from('properties')
@@ -77,11 +76,6 @@ export default function SecretaryDashboard() {
           .select('*')
           .order('created_at', { ascending: false })
           .limit(5),
-        supabase
-          .from('system_settings')
-          .select('dues_amount')
-          .eq('id', 1)
-          .maybeSingle(),
         // This year's monthly totals, computed by the database (max 12 rows).
         supabase
           .from('monthly_collections')
@@ -109,7 +103,6 @@ export default function SecretaryDashboard() {
     setRecentPayments(paymentResult.data || [])
     setMonthlyRows(monthlyResult.data || [])
     setActivities(activityResult.data || [])
-    setDuesAmount(Number(settingsResult.data?.dues_amount) || 0)
     setLoading(false)
   }
 
