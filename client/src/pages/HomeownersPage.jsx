@@ -943,6 +943,125 @@ export default function HomeownersPage() {
                 <small>Across all categories</small>
               </article>
             </section>
+            
+            <section
+              className="homeowner-payment-analytics"
+              aria-labelledby="homeowner-payment-analytics-title"
+            >
+              <div className="homeowner-payment-analytics-header">
+                <div>
+                  <h3 id="homeowner-payment-analytics-title">
+                    Payment Analytics
+                  </h3>
+                  <p>
+                    Monthly payments recorded for {selectedProperty.homeowner_name}.
+                  </p>
+                </div>
+
+                <label className="homeowner-analytics-year">
+                  <span>Year</span>
+                  <select
+                    value={trackerYear}
+                    onChange={(event) =>
+                      setTrackerYear(Number(event.target.value))
+                    }
+                    aria-label="Payment analytics year"
+                  >
+                    {trackerYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {(() => {
+                const chartMax = Math.max(
+                  1,
+                  ...monthlyTracker.map((month) => month.total)
+                );
+
+                const ticks = [1, 0.75, 0.5, 0.25, 0];
+
+                return (
+                  <div
+                    className="homeowner-analytics-chart"
+                    role="img"
+                    aria-label={`Monthly payments for ${trackerYear}: ${monthlyTracker
+                      .map(
+                        (month) =>
+                          `${month.month}: ${peso.format(month.total)}`
+                      )
+                      .join(", ")}`}
+                  >
+                    <div
+                      className="homeowner-analytics-y-axis"
+                      aria-hidden="true"
+                    >
+                      {ticks.map((tick) => (
+                        <span key={tick}>
+                          {peso.format(Math.round(chartMax * tick))}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="homeowner-analytics-plot">
+                      <div
+                        className="homeowner-analytics-gridlines"
+                        aria-hidden="true"
+                      >
+                        {ticks.map((tick) => (
+                          <span key={tick} />
+                        ))}
+                      </div>
+
+                      <div className="homeowner-analytics-bars">
+                        {monthlyTracker.map((month) => (
+                          <div
+                            className="homeowner-analytics-month"
+                            key={month.month}
+                            title={`${month.month} ${trackerYear}: ${peso.format(
+                              month.total
+                            )}`}
+                          >
+                            <div className="homeowner-analytics-bar-track">
+                              <span
+                                className={`homeowner-analytics-bar${
+                                  month.total > 0 ? " has-value" : ""
+                                }`}
+                                style={{
+                                  height:
+                                    month.total > 0
+                                      ? `${Math.max(
+                                          (month.total / chartMax) * 100,
+                                          2
+                                        )}%`
+                                      : "0%",
+                                }}
+                              />
+                            </div>
+
+                            <span className="homeowner-analytics-month-label">
+                              {month.month.slice(0, 3)}
+                            </span>
+
+                            <span className="homeowner-analytics-month-value">
+                              {peso.format(month.total)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <p className="homeowner-payment-analytics-note">
+                Monthly totals use payment dates in Philippine time.
+                Voided payments are excluded. Months without payments show ₱0.
+              </p>
+            </section>
 
             <BalanceBreakdown
               propertyId={selectedProperty.id}

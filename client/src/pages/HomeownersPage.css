@@ -1652,3 +1652,202 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Homeowner monthly payment analytics ---------- */
+
+.homeowner-payment-analytics {
+  margin: 18px 20px 0;
+  padding: 22px 24px 18px;
+  border: 1px solid #d8e5ef;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #f7fbff 0%, #eaf4fd 100%);
+  box-shadow: 0 8px 24px rgba(42, 92, 132, 0.08);
+  color: #17354b;
+}
+
+.homeowner-payment-analytics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.homeowner-payment-analytics-header h3 {
+  margin: 0;
+  color: #102f45;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.homeowner-payment-analytics-header p {
+  margin: 5px 0 0;
+  color: #607b91;
+  font-size: 0.82rem;
+}
+
+.homeowner-analytics-year {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #59758b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.homeowner-analytics-year select {
+  min-height: 36px;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid #cadce9;
+  border-radius: 9px;
+  background: #fff;
+  color: #17354b;
+  font: inherit;
+}
+
+.homeowner-analytics-chart {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 245px;
+}
+
+.homeowner-analytics-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-bottom: 43px;
+  color: #59788f;
+  font-size: 0.72rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.homeowner-analytics-plot {
+  position: relative;
+  height: 245px;
+  min-width: 0;
+}
+
+.homeowner-analytics-gridlines {
+  position: absolute;
+  inset: 0 0 43px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.homeowner-analytics-gridlines span {
+  display: block;
+  width: 100%;
+  border-top: 1px solid rgba(99, 135, 162, 0.2);
+}
+
+.homeowner-analytics-bars {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: clamp(3px, 1.1vw, 12px);
+  height: 100%;
+}
+
+.homeowner-analytics-month {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 20px 23px;
+  align-items: end;
+  min-width: 0;
+  text-align: center;
+}
+
+.homeowner-analytics-bar-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+}
+
+.homeowner-analytics-bar {
+  display: block;
+  width: min(100%, 46px);
+  border: 1px solid transparent;
+  border-radius: 9px 9px 5px 5px;
+  background: transparent;
+  transition: height 180ms ease;
+}
+
+.homeowner-analytics-bar.has-value {
+  border-color: #3f80b0;
+  background: linear-gradient(180deg, #76a9cf 0%, #4d8dbb 100%);
+  box-shadow: 0 3px 8px rgba(43, 105, 153, 0.12);
+}
+
+.homeowner-analytics-month-label {
+  align-self: center;
+  color: #42647d;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.homeowner-analytics-month-value {
+  overflow: hidden;
+  color: #345d78;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.homeowner-payment-analytics-note {
+  margin: 14px 0 0;
+  color: #627d91;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .homeowner-payment-analytics {
+    margin: 14px 12px 0;
+    padding: 18px 12px 14px;
+  }
+
+  .homeowner-payment-analytics-header {
+    align-items: flex-start;
+  }
+
+  .homeowner-payment-analytics-header h3 {
+    font-size: 1rem;
+  }
+
+  .homeowner-analytics-chart {
+    grid-template-columns: 62px minmax(0, 1fr);
+    gap: 7px;
+    min-height: 220px;
+  }
+
+  .homeowner-analytics-plot {
+    height: 220px;
+  }
+
+  .homeowner-analytics-y-axis {
+    font-size: 0.64rem;
+  }
+
+  .homeowner-analytics-bars {
+    gap: 2px;
+  }
+
+  .homeowner-analytics-month-label {
+    font-size: 0.62rem;
+  }
+
+  .homeowner-analytics-month-value {
+    font-size: 0.52rem;
+  }
+
+  .homeowner-analytics-bar {
+    border-radius: 6px 6px 3px 3px;
+  }
+}
