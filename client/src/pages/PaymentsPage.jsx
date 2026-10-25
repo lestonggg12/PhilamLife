@@ -822,24 +822,34 @@ function updateField(event) {
 }
 
 
-  function updateHomeownerSearch(event) {
-    const { value } = event.target
 
-    if (annualAdvance) {
-  setAnnualAdvance(false)
+function updateHomeownerSearch(event) {
+  const { value } = event.target
+  const wasAnnualAdvance = annualAdvance
+
+  if (wasAnnualAdvance) {
+    setAnnualAdvance(false)
+  }
+
+  setForm((current) => ({
+    ...current,
+    propertyId: '',
+    homeownerName: value,
+    blockName: '',
+    lotNumber: '',
+    previousBalance: '',
+    ...(wasAnnualAdvance
+      ? {
+          amountPaid: '',
+          coveragePeriod: '',
+        }
+      : {}),
+  }))
+
+  setHomeownerMenuOpen(true)
+  setFormError('')
 }
 
-    setForm((current) => ({
-      ...current,
-      propertyId: '',
-      homeownerName: value,
-      blockName: '',
-      lotNumber: '',
-      previousBalance: '',
-    }))
-    setHomeownerMenuOpen(true)
-    setFormError('')
-  }
 
   // A penalty that fell due was just posted for the selected homeowner: refresh their balance.
   async function handlePenaltiesPosted() {
