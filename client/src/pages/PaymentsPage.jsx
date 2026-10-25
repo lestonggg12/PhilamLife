@@ -825,6 +825,10 @@ function updateField(event) {
   function updateHomeownerSearch(event) {
     const { value } = event.target
 
+    if (annualAdvance) {
+  setAnnualAdvance(false)
+}
+
     setForm((current) => ({
       ...current,
       propertyId: '',
