@@ -24,6 +24,7 @@ const EMPTY_TRANSFER_FORM = {
   status: 'moved',
   effectiveDate: '',
   reason: '',
+  newHomeownerName: '',
 }
 
 const MIN_SEARCH_LENGTH = 2
@@ -331,6 +332,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       status: 'moved',
       effectiveDate: manilaDate(),
       reason: '',
+      newHomeownerName: '',
     })
     setPendingTransferContact(contact)
   }
@@ -358,12 +360,58 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       return
     }
 
+        if (
+      transferForm.status === 'transferred' &&
+      !transferForm.newHomeownerName.trim()
+    ) {
+      setTransferError('Enter the new homeowner name.')
+      return
+    }
+
     setTransferringContactId(contact.id)
     setTransferError('')
+
+
+    if (transferForm.status === 'transferred') {
+      const { data, error } = await supabase.rpc('transfer_homeowner', {
+        p_previous_property_id: contact.id,
+        p_new_homeowner_name: transferForm.newHomeownerName.trim(),
+        p_effective_date: transferForm.effectiveDate,
+        p_note: transferForm.reason.trim() || null,
+      })
+
+      if (error) {
+        setTransferringContactId(null)
+        setTransferError(`Could not transfer homeowner: ${error.message}`)
+        return
+      }
+
+      const result = Array.isArray(data) ? data[0] : data
+
+      setReloadTick((tick) => tick + 1)
+      setTransferringContactId(null)
+      setPendingTransferContact(null)
+      setTransferForm(EMPTY_TRANSFER_FORM)
+
+      setNotice(
+        `${contact.homeowner_name} was transferred to ${
+          transferForm.newHomeownerName.trim()
+        }. Balance transferred: ${Number(
+          result?.transferred_balance ?? 0
+        ).toLocaleString('en-PH', {
+          style: 'currency',
+          currency: 'PHP',
+        })}. Previous payment history was preserved.`
+      )
+
+      return
+    }
+
 
     const statusUpdatedAt = new Date().toISOString()
     const { error } = await supabase
       .from('properties')
+
       .update({
         homeowner_status: transferForm.status,
         status_effective_date: transferForm.effectiveDate,
@@ -704,6 +752,36 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 />
               </div>
             </div>
+
+                  
+            {transferForm.status === 'transferred' && (
+              <>
+                <label htmlFor="homeowner-new-owner-name">
+                  New homeowner name
+                </label>
+                <input
+                  id="homeowner-new-owner-name"
+                  type="text"
+                  value={transferForm.newHomeownerName}
+                  maxLength={120}
+                  placeholder="Enter the new owner's full name"
+                  onChange={(event) =>
+                    setTransferForm((current) => ({
+                      ...current,
+                      newHomeownerName: event.target.value,
+                    }))
+                  }
+                  required
+                />
+                <p className="contact-transfer-note">
+                  The new owner will receive this property's outstanding
+                  balance or advance credit. The previous owner's history
+                  remains preserved.
+                </p>
+              </>
+            )}
+
+
 
             <label htmlFor="homeowner-status-reason">Reason or note (optional)</label>
             <textarea
