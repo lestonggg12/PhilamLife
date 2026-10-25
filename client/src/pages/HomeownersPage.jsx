@@ -152,6 +152,7 @@ export default function HomeownersPage() {
   const [adminDialog, setAdminDialog] = useState(null)
   const [balanceDialog, setBalanceDialog] = useState(null)
   const [breakdownKey, setBreakdownKey] = useState(0)
+  const [balanceBreakdownOpen, setBalanceBreakdownOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [properties, setProperties] = useState([])
   // `payments` / `serviceTransactions` hold ONLY the selected homeowner's records,
@@ -185,6 +186,24 @@ export default function HomeownersPage() {
   useEffect(() => {
     loadHomeowners()
   }, [])
+
+  
+useEffect(() => {
+  if (!balanceBreakdownOpen) return undefined
+
+  function handleEscape(event) {
+    if (event.key === 'Escape') {
+      setBalanceBreakdownOpen(false)
+    }
+  }
+
+  document.addEventListener('keydown', handleEscape)
+
+  return () => {
+    document.removeEventListener('keydown', handleEscape)
+  }
+}, [balanceBreakdownOpen])
+
 
   useEffect(() => {
     setActiveTab('overview')
@@ -893,18 +912,34 @@ export default function HomeownersPage() {
                 <Calendar size={16} /> {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
                 </button>
                 {canManageHomeowners && (
-  <button
-    type="button"
-    onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}
-  >
-    Edit Homeowner
-  </button>
-)}
-                {canManageHomeowners && (
-                  <button type="button" onClick={() => setBalanceDialog(selectedProperty)}>
-                    Add Balance
-                  </button>
-                )}
+            <button
+              type="button"
+              onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}
+            >
+              Edit Homeowner
+            </button>
+          )}
+                          
+          {canManageHomeowners && (
+            <>
+              <button
+                type="button"
+                onClick={() => setBalanceDialog(selectedProperty)}
+              >
+                Add Balance
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBalanceBreakdownOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={balanceBreakdownOpen}
+              >
+                Balance Breakdown
+              </button>
+            </>
+          )}
+
               </div>
             </section>
 
@@ -1063,16 +1098,57 @@ export default function HomeownersPage() {
               </p>
             </section>
 
-            <BalanceBreakdown
-              propertyId={selectedProperty.id}
-              canManage={canManageHomeowners}
-              refreshKey={breakdownKey}
-              onChanged={(message) => {
-                setNotice(message)
-                setBreakdownKey((key) => key + 1)
-                loadHomeowners(true)
+                      
+          {balanceBreakdownOpen && (
+            <div
+              className="homeowner-breakdown-overlay"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  setBalanceBreakdownOpen(false)
+                }
               }}
-            />
+            >
+              <section
+                className="homeowner-breakdown-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="homeowner-breakdown-title"
+              >
+                <div className="homeowner-breakdown-modal-header">
+                  <div>
+                    <h2 id="homeowner-breakdown-title">Balance Breakdown</h2>
+                    <p>
+                      {selectedProperty.homeowner_name} — {selectedProperty.block},
+                      {' '}Lot {selectedProperty.lot_number}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="homeowner-breakdown-close"
+                    onClick={() => setBalanceBreakdownOpen(false)}
+                    aria-label="Close balance breakdown"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="homeowner-breakdown-modal-content">
+                  <BalanceBreakdown
+                    propertyId={selectedProperty.id}
+                    canManage={canManageHomeowners}
+                    refreshKey={breakdownKey}
+                    onChanged={(message) => {
+                      setNotice(message)
+                      setBreakdownKey((key) => key + 1)
+                      loadHomeowners(true)
+                    }}
+                  />
+                </div>
+              </section>
+            </div>
+          )}
+
 
             {trackerOpen && (
               <div
