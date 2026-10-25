@@ -1,0 +1,15 @@
+.lps { display: grid; gap: 12px; }
+.lps-defaults,
+.lps-add { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.lps-defaults .ss-field,
+.lps-add .ss-field { flex: 1 1 180px; }
+.lps-heading { margin: 8px 0 0; font-size: 0.95rem; }
+.lps-empty { margin: 0; color: #5b6b82; font-size: 0.9rem; }
+.lps-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.lps-table th,
+.lps-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #dbe5f1; }
+.lps-input { width: 110px; padding: 6px 8px; border: 1px solid #b9c8dc; border-radius: 8px; }
+.lps-actions { text-align: right; white-space: nowrap; }
+.lps-link { background: none; border: 0; padding: 4px 8px; color: #1565a8; font-weight: 600; cursor: pointer; }
+.lps-link:disabled { opacity: 0.5; cursor: default; }
+.lps-danger { color: #b3261e; }

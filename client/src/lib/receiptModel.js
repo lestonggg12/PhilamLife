@@ -3,6 +3,8 @@
 // Services Management, Official Receipts) goes through here, so a receipt
 // reads the same wherever it is opened or printed.
 
+import { formatPercent, hasBreakdown, penaltyLabel } from './latepenalty'
+
 const ONES = [
   'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
   'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
@@ -149,6 +151,55 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
 
   const notes = []
   if (advanceNote) notes.push({ label: 'Advance credit', text: advanceNote })
+
+  // What was owed just before this payment (saved with the payment). Printed
+  // only for homeowners who have an entered balance or late penalties, so
+  // ordinary receipts stay exactly as they were.
+  const breakdown = hasBreakdown(row.receipt_breakdown) ? row.receipt_breakdown : null
+  let summary = [
+    { label: previous < 0 ? 'Previous advance credit' : 'Previous balance', value: money(Math.abs(previous)) },
+    { label: 'Amount paid', value: money(paid), strong: true },
+    { label: remaining < 0 ? 'Advance credit' : 'Remaining balance', value: money(Math.abs(remaining)) },
+  ]
+
+  if (breakdown) {
+    const toCents = (value) => Math.round(num(value) * 100)
+    const entered = toCents(breakdown.entered_balance)
+    const penalties = toCents(breakdown.penalties_outstanding)
+    const dues = toCents(breakdown.unpaid_dues)
+    const other = Math.round(previous * 100) - entered - penalties - dues
+
+    summary = []
+    if (entered > 0) summary.push({ label: 'Balance', value: money(entered / 100) })
+    if (penalties > 0) summary.push({ label: penaltyLabel(breakdown) || 'Late penalties', value: money(penalties / 100) })
+    if (dues > 0) summary.push({ label: 'Unpaid monthly dues', value: money(dues / 100) })
+    if (other > 0) summary.push({ label: 'Other charges', value: money(other / 100) })
+    if (other < 0) summary.push({ label: 'Credit applied', value: money(-other / 100) })
+    summary.push({ label: 'Total dues', value: money(Math.max(previous, 0)), strong: true })
+    summary.push({ label: 'Amount paid', value: money(paid), strong: true })
+    summary.push({ label: remaining < 0 ? 'Advance credit' : 'Remaining balance', value: money(Math.abs(remaining)) })
+
+    const entryLines = Array.isArray(breakdown.entry_lines) ? breakdown.entry_lines : []
+    entryLines.forEach((line, index) => {
+      notes.push({
+        label: entryLines.length > 1 ? `Balance ${index + 1}` : 'Balance',
+        text: `${line.description}${line.as_of ? ` (as of ${dateOnly(String(line.as_of).slice(0, 10))})` : ''}`,
+      })
+    })
+
+    const penaltyLines = Array.isArray(breakdown.penalty_lines) ? breakdown.penalty_lines : []
+    const rated = penaltyLines.filter((line) => line.rate != null)
+    const sameRate = rated.length > 0 && rated.every((line) => Number(line.rate) === Number(rated[0].rate))
+    if (rated.length > 0 && !sameRate) {
+      notes.push({
+        label: 'Penalty rates',
+        text: rated
+          .map((line) => `Year ${line.no} (${dateOnly(String(line.date).slice(0, 10))}): ${formatPercent(line.rate)}`)
+          .join('; '),
+      })
+    }
+  }
+
   if (row.note) notes.push({ label: 'Note', text: row.note })
 
   return {
@@ -166,11 +217,7 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
       { label: 'Reference no.', value: row.reference_number || '' },
     ].filter((d) => d.value),
     lines: [{ description: row.coverage_period || 'Homeowner payment', meta: '', amount: money(paid) }],
-    summary: [
-      { label: previous < 0 ? 'Previous advance credit' : 'Previous balance', value: money(Math.abs(previous)) },
-      { label: 'Amount paid', value: money(paid), strong: true },
-      { label: remaining < 0 ? 'Advance credit' : 'Remaining balance', value: money(Math.abs(remaining)) },
-    ],
+    summary,
     amountInWords: amountInWords(paid),
     notes,
   }

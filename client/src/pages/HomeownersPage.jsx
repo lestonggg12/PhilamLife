@@ -18,6 +18,8 @@ import { formatDate as formatDateValue } from '../config/organization'
 import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
 import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
+import BalanceBreakdown from '../components/BalanceBreakdown'
+import BalanceEntryDialog from '../components/BalanceEntryDialog'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -148,6 +150,8 @@ export default function HomeownersPage() {
   const { homeownerId } = useParams()
   const confirm = useConfirm()
   const [adminDialog, setAdminDialog] = useState(null)
+  const [balanceDialog, setBalanceDialog] = useState(null)
+  const [breakdownKey, setBreakdownKey] = useState(0)
   const [notice, setNotice] = useState('')
   const [properties, setProperties] = useState([])
   // `payments` / `serviceTransactions` hold ONLY the selected homeowner's records,
@@ -896,6 +900,11 @@ export default function HomeownersPage() {
     Edit Homeowner
   </button>
 )}
+                {canManageHomeowners && (
+                  <button type="button" onClick={() => setBalanceDialog(selectedProperty)}>
+                    Add Balance
+                  </button>
+                )}
               </div>
             </section>
 
@@ -934,6 +943,17 @@ export default function HomeownersPage() {
                 <small>Across all categories</small>
               </article>
             </section>
+
+            <BalanceBreakdown
+              propertyId={selectedProperty.id}
+              canManage={canManageHomeowners}
+              refreshKey={breakdownKey}
+              onChanged={(message) => {
+                setNotice(message)
+                setBreakdownKey((key) => key + 1)
+                loadHomeowners(true)
+              }}
+            />
 
             {trackerOpen && (
               <div
@@ -1187,6 +1207,19 @@ export default function HomeownersPage() {
             </div>
           </form>
         </div>
+      )}
+      {balanceDialog && (
+        <BalanceEntryDialog
+          property={balanceDialog}
+          currentUser={currentUser}
+          onClose={() => setBalanceDialog(null)}
+          onSaved={(message) => {
+            setBalanceDialog(null)
+            setNotice(message)
+            setBreakdownKey((key) => key + 1)
+            loadHomeowners(true)
+          }}
+        />
       )}
       <HomeownerAdminDialogs
         dialog={adminDialog}

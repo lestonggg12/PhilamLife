@@ -4,6 +4,7 @@ import { fetchTableVerified } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 import PricePerSqmForm from '../components/PricePerSqmForm'
+import LatePenaltySettings from '../components/LatePenaltySettings'
 
 // Every table needed to fully restore the system. Financial tables that used
 // to be missing from this list (property_charges, payment_allocations,
@@ -189,6 +190,8 @@ export default function SystemSettingsPage({ user }) {
     delete payload.updated_by
     delete payload.price_per_sqm
     delete payload.dues_amount
+    delete payload.late_penalty_rate
+    delete payload.late_penalty_first_after_months
     const { error } = await supabase.from('system_settings').update(payload).eq('id', 1)
     setSaving(false)
     setMessage(error ? { type: 'error', text: `Unable to save settings: ${error.message}` } : { type: 'success', text: 'System settings saved successfully.' })
@@ -294,6 +297,9 @@ export default function SystemSettingsPage({ user }) {
         <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
         <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
       </SettingsCard>
+        <SettingsCard title="Late-payment penalty" subtitle="Yearly penalty on unpaid entered balances. Set a different rate for any year.">
+          <LatePenaltySettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
+        </SettingsCard>
         <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
           <Field label="Billing Day of Month" type="number" min="1" max="31" value={settings.billing_day} onChange={(v) => update('billing_day', v)} />
           <Field label="Due Day of Month" type="number" min="1" max="31" value={settings.due_day} onChange={(v) => update('due_day', v)} />

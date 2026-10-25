@@ -4,6 +4,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
+import BalanceBreakdown from '../components/BalanceBreakdown'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
@@ -781,6 +782,19 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setFormError('')
   }
 
+  // A penalty that fell due was just posted for the selected homeowner: refresh their balance.
+  async function handlePenaltiesPosted() {
+    const id = form.propertyId
+    if (!id) return
+    const { data } = await supabase.from('properties').select('current_balance').eq('id', Number(id)).maybeSingle()
+    if (!data) return
+    const balance = Number(data.current_balance) || 0
+    setProperties((current) =>
+      current.map((property) => (String(property.id) === String(id) ? { ...property, current_balance: balance } : property)),
+    )
+    setForm((current) => (String(current.propertyId) === String(id) ? { ...current, previousBalance: String(balance) } : current))
+  }
+
   function selectHomeowner(property) {
     setForm((current) => ({
       ...current,
@@ -1541,6 +1555,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
                   required
                 />
               </label>
+
+              {form.propertyId && (
+                <div className="payment-span-2">
+                  <BalanceBreakdown propertyId={form.propertyId} postDue compact onPosted={handlePenaltiesPosted} />
+                </div>
+              )}
 
               <label>Current Balance
                 <input
