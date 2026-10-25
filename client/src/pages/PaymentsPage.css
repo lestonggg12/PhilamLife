@@ -1642,3 +1642,62 @@
     min-height: 560px;
   }
 }
+.annual-advance-option {
+  border: 1px solid #cbdff7;
+  border-radius: 12px;
+  padding: 16px;
+  background: #f7fbff;
+}
+
+.annual-advance-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.annual-advance-toggle input {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.annual-advance-toggle span {
+  display: grid;
+  gap: 4px;
+}
+
+.annual-advance-toggle small {
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.annual-advance-breakdown {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.annual-advance-breakdown > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.annual-advance-breakdown dt {
+  color: #475569;
+}
+
+.annual-advance-breakdown dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.annual-advance-breakdown .annual-advance-total {
+  border-top: 1px solid #cbdff7;
+  padding-top: 10px;
+  color: #1d4ed8;
+  font-weight: 700;
+}

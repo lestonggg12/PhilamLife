@@ -396,6 +396,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [popupNotice, setPopupNotice] = useState('')
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
+  const [annualAdvance, setAnnualAdvance] = useState(false)
   const [monthlyDuesByProperty, setMonthlyDuesByProperty] = useState(new Map())
   // Advance-credit notes use the selected homeowner's own monthly dues (lot size x rate).
   const duesSettingsFor = (propertyId) => (duesSettings
@@ -592,12 +593,50 @@ export default function PaymentsPage({ user: suppliedUser }) {
     return () => { cancelled = true }
   }, [form.propertyId, isDuesPayment, purposeType, reloadTick])
 
+const selectedMonthlyDues =
+  Number(monthlyDuesByProperty.get(Number(form.propertyId))) || 0
+
+const annualGrossCents = Math.round(selectedMonthlyDues * 100) * 12
+const annualDiscountCents = Math.round(selectedMonthlyDues * 100)
+const annualPaidCents = annualGrossCents - annualDiscountCents
+
+const annualGross = annualGrossCents / 100
+const annualDiscount = annualDiscountCents / 100
+const annualDiscountedPayment = annualPaidCents / 100
+
+// Do not offer the discount when there is still a positive balance owed.
+// Otherwise, part of the annual credit could be consumed by old arrears.
+const canOfferAnnualDiscount =
+  form.paymentPurpose === 'Association Dues' &&
+  Boolean(form.propertyId) &&
+  selectedMonthlyDues > 0 &&
+  Number(form.previousBalance) <= 0
+
+const effectivePaymentAmount = annualAdvance
+  ? annualGross
+  : Math.round((Number(form.amountPaid) || 0) * 100) / 100
+
   const remainingBalance = useMemo(() => {
-    const previous = Number(form.previousBalance) || 0
-    const paid = Number(form.amountPaid) || 0
-    const effect = isDuesPayment || purposeType !== 'Other' ? paid : Math.min(paid, openOfType)
-    return previous - effect
-  }, [form.previousBalance, form.amountPaid, isDuesPayment, openOfType])
+  const previous = Number(form.previousBalance) || 0
+  const paid = annualAdvance
+    ? annualGross
+    : Math.round((Number(form.amountPaid) || 0) * 100) / 100
+
+  const effect =
+    annualAdvance || isDuesPayment || purposeType !== 'Other'
+      ? paid
+      : Math.min(paid, openOfType)
+
+  return Math.round((previous - effect) * 100) / 100
+}, [
+  form.previousBalance,
+  form.amountPaid,
+  annualAdvance,
+  annualGross,
+  isDuesPayment,
+  purposeType,
+  openOfType,
+])
 
   // ---- Paged payment history -------------------------------------------------
   // The table shows one day at a time (50 rows per page), read straight from the database.
@@ -762,10 +801,15 @@ export default function PaymentsPage({ user: suppliedUser }) {
   }, [chargeHomeownerText, properties])
 
   function updateField(event) {
-    const { name, value } = event.target
-    setForm((current) => ({ ...current, [name]: value }))
-    setFormError('')
+  const { name, value } = event.target
+
+  if (name === 'paymentPurpose') {
+    setAnnualAdvance(false)
   }
+
+  setForm((current) => ({ ...current, [name]: value }))
+  setFormError('')
+}
 
   function updateHomeownerSearch(event) {
     const { value } = event.target
@@ -813,11 +857,13 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setForm(EMPTY_FORM)
     setFormError('')
     setHomeownerMenuOpen(false)
+    setAnnualAdvance(false)
     setShowForm(true)
   }
 
   function closeForm() {
     if (saving) return
+    setAnnualAdvance(false)
     setShowForm(false)
     setFormError('')
   }
@@ -1108,8 +1154,26 @@ export default function PaymentsPage({ user: suppliedUser }) {
       setFormError('Amount paid must be greater than zero.')
       return
     }
+    if (annualAdvance) {
+  if (!canOfferAnnualDiscount) {
+    setFormError(
+      'The annual discount is available only for Association Dues when no positive balance is outstanding.',
+    )
+    return
+  }
 
-    if (form.paymentPurpose === 'Association Dues' && paid > Math.max(previous, 0) && !advanceApproved) {
+  if (Math.round(paid * 100) !== annualPaidCents) {
+    setFormError('The annual discounted amount does not match the current dues.')
+    return
+  }
+}
+
+    if (
+  form.paymentPurpose === 'Association Dues' &&
+  !annualAdvance &&
+  paid > Math.max(previous, 0) &&
+  !advanceApproved
+) {
       setAdvanceConfirm({ credit: paid - previous, paid })
       return
     }
@@ -1130,21 +1194,36 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
 
     const payload = {
-      property_id: Number(form.propertyId),
-      homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
-      block_name: form.blockName,
-      lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
-      coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
-      charge_type: PAYMENT_PURPOSES.includes(form.paymentPurpose) ? form.paymentPurpose : 'Other',
-      previous_balance: previous,
-      amount: paid,
-      amount_paid: paid,
-      payment_method: form.paymentMethod,
-      reference_number: reference || null,
-      note: form.note.trim() || null,
-      recorded_by: currentUser.id,
-      recorded_by_name: recorderName,
-    }
+  property_id: Number(form.propertyId),
+  homeowner_name: form.homeownerName.trim().replace(/\s+/g, ' '),
+  block_name: form.blockName,
+  lot_number: form.lotNumber.trim().replace(/\s+/g, ' '),
+  coverage_period: `${selectedPurpose} — ${form.coveragePeriod.trim()}`.replace(/\s+/g, ' '),
+  charge_type: PAYMENT_PURPOSES.includes(form.paymentPurpose)
+    ? form.paymentPurpose
+    : 'Other',
+  previous_balance: previous,
+
+  // amount is the full dues credit; amount_paid is the cash actually received.
+  amount: annualAdvance ? annualGross : paid,
+  amount_paid: paid,
+
+  receipt_breakdown: annualAdvance
+    ? {
+        annual_advance_discount: {
+          months_covered: 12,
+          gross_amount: annualGross,
+          discount_amount: annualDiscount,
+        },
+      }
+    : undefined,
+
+  payment_method: form.paymentMethod,
+  reference_number: reference || null,
+  note: form.note.trim() || null,
+  recorded_by: currentUser.id,
+  recorded_by_name: recorderName,
+}
 
     const { data, error } = await supabase
       .from('payments')
@@ -1573,9 +1652,68 @@ export default function PaymentsPage({ user: suppliedUser }) {
                 />
               </label>
 
+                    {canOfferAnnualDiscount && (
+      <div className="payment-span-2 annual-advance-option">
+        <label className="annual-advance-toggle">
+          <input
+            type="checkbox"
+            checked={annualAdvance}
+            onChange={(event) => {
+              const enabled = event.target.checked
+              setAnnualAdvance(enabled)
+              setForm((current) => ({
+                ...current,
+                amountPaid: enabled
+                  ? annualDiscountedPayment.toFixed(2)
+                  : '',
+                coveragePeriod: enabled
+                  ? '12-month advance payment (1 month free)'
+                  : '',
+              }))
+              setFormError('')
+            }}
+          />
+          <span>
+            <strong>12-month advance payment — 1 month free</strong>
+            <small>
+              Available for this homeowner's Association Dues.
+            </small>
+          </span>
+        </label>
+
+        <dl className="annual-advance-breakdown">
+          <div>
+            <dt>Regular dues for 12 months</dt>
+            <dd>{peso.format(annualGross)}</dd>
+          </div>
+          <div>
+            <dt>One month free</dt>
+            <dd>− {peso.format(annualDiscount)}</dd>
+          </div>
+          <div className="annual-advance-total">
+            <dt>Amount to collect</dt>
+            <dd>{peso.format(annualDiscountedPayment)}</dd>
+          </div>
+          <div>
+            <dt>Coverage</dt>
+            <dd>12 months</dd>
+          </div>
+        </dl>
+      </div>
+    )}
+
               <label>Amount paid
-                <input name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} required />
-              </label>
+  <input
+    name="amountPaid"
+    type="number"
+    min="0.01"
+    step="0.01"
+    value={form.amountPaid}
+    onChange={updateField}
+    readOnly={annualAdvance}
+    required
+  />
+</label>
 
               <div className="payment-balance-preview payment-span-2">
                 <span>{remainingBalance < 0 ? 'Advance credit after payment' : 'Remaining balance after payment'}</span>
