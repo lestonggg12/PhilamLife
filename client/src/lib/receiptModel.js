@@ -198,7 +198,7 @@ const annualDiscountAmount = isAnnualDiscount
   ]
 }
 
-  if (breakdown) {
+  if (breakdown && !isAnnualDiscount) {
     const toCents = (value) => Math.round(num(value) * 100)
     const entered = toCents(breakdown.entered_balance)
     const penalties = toCents(breakdown.penalties_outstanding)

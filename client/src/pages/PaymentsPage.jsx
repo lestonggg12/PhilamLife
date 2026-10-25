@@ -612,9 +612,6 @@ const canOfferAnnualDiscount =
   selectedMonthlyDues > 0 &&
   Number(form.previousBalance) <= 0
 
-const effectivePaymentAmount = annualAdvance
-  ? annualGross
-  : Math.round((Number(form.amountPaid) || 0) * 100) / 100
 
   const remainingBalance = useMemo(() => {
   const previous = Number(form.previousBalance) || 0
@@ -800,16 +797,30 @@ const effectivePaymentAmount = annualAdvance
       .slice(0, 8)
   }, [chargeHomeownerText, properties])
 
-  function updateField(event) {
+  
+function updateField(event) {
   const { name, value } = event.target
+  const leavingAnnualAdvance =
+    name === 'paymentPurpose' && annualAdvance
 
-  if (name === 'paymentPurpose') {
+  if (leavingAnnualAdvance) {
     setAnnualAdvance(false)
   }
 
-  setForm((current) => ({ ...current, [name]: value }))
+  setForm((current) => ({
+    ...current,
+    [name]: value,
+    ...(leavingAnnualAdvance
+      ? {
+          amountPaid: '',
+          coveragePeriod: '',
+        }
+      : {}),
+  }))
+
   setFormError('')
 }
+
 
   function updateHomeownerSearch(event) {
     const { value } = event.target
@@ -839,19 +850,30 @@ const effectivePaymentAmount = annualAdvance
     setForm((current) => (String(current.propertyId) === String(id) ? { ...current, previousBalance: String(balance) } : current))
   }
 
-  function selectHomeowner(property) {
-    setAnnualAdvance(false)
-    setForm((current) => ({
-      ...current,
-      previousBalance: String(Number(property.current_balance) || 0),
-      propertyId: String(property.id),
-      homeownerName: property.homeowner_name,
-      blockName: property.block,
-      lotNumber: String(property.lot_number),
-    }))
-    setHomeownerMenuOpen(false)
-    setFormError('')
-  }
+  
+function selectHomeowner(property) {
+  const wasAnnualAdvance = annualAdvance
+  setAnnualAdvance(false)
+
+  setForm((current) => ({
+    ...current,
+    previousBalance: String(Number(property.current_balance) || 0),
+    propertyId: String(property.id),
+    homeownerName: property.homeowner_name,
+    blockName: property.block,
+    lotNumber: String(property.lot_number),
+    ...(wasAnnualAdvance
+      ? {
+          amountPaid: '',
+          coveragePeriod: '',
+        }
+      : {}),
+  }))
+
+  setHomeownerMenuOpen(false)
+  setFormError('')
+}
+
 
   function openForm() {
     if (!canManagePayments) return
