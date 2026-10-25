@@ -840,6 +840,7 @@ const effectivePaymentAmount = annualAdvance
   }
 
   function selectHomeowner(property) {
+    setAnnualAdvance(false)
     setForm((current) => ({
       ...current,
       previousBalance: String(Number(property.current_balance) || 0),

@@ -149,6 +149,20 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
   const remaining = num(row.remaining_balance)
   const voided = row.status === 'Voided'
 
+const annualDiscount = row.receipt_breakdown?.annual_advance_discount ?? null
+const isAnnualDiscount = Boolean(
+  annualDiscount &&
+  Number(annualDiscount.months_covered) === 12
+)
+
+const annualGross = isAnnualDiscount
+  ? num(annualDiscount.gross_amount)
+  : 0
+
+const annualDiscountAmount = isAnnualDiscount
+  ? num(annualDiscount.discount_amount)
+  : 0
+
   const notes = []
   if (advanceNote) notes.push({ label: 'Advance credit', text: advanceNote })
 
@@ -161,6 +175,28 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
     { label: 'Amount paid', value: money(paid), strong: true },
     { label: remaining < 0 ? 'Advance credit' : 'Remaining balance', value: money(Math.abs(remaining)) },
   ]
+
+  if (isAnnualDiscount) {
+  summary = [
+    {
+      label: 'Regular dues — 12 months',
+      value: money(annualGross),
+    },
+    {
+      label: 'Discount — 1 month free',
+      value: `− ${money(annualDiscountAmount)}`,
+    },
+    {
+      label: 'Amount paid',
+      value: money(paid),
+      strong: true,
+    },
+    {
+      label: remaining < 0 ? 'Advance credit' : 'Remaining balance',
+      value: money(Math.abs(remaining)),
+    },
+  ]
+}
 
   if (breakdown) {
     const toCents = (value) => Math.round(num(value) * 100)
@@ -216,7 +252,15 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
       { label: 'Payment method', value: row.payment_method || 'Not specified' },
       { label: 'Reference no.', value: row.reference_number || '' },
     ].filter((d) => d.value),
-    lines: [{ description: row.coverage_period || 'Homeowner payment', meta: '', amount: money(paid) }],
+    lines: [
+  {
+    description: row.coverage_period || 'Homeowner payment',
+    meta: isAnnualDiscount
+      ? 'Regular 12-month dues before discount'
+      : '',
+    amount: money(isAnnualDiscount ? annualGross : paid),
+  },
+],
     summary,
     amountInWords: amountInWords(paid),
     notes,
