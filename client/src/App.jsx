@@ -31,6 +31,7 @@ const ResetPasswordPage = lazy(
 
 // Lazy-loaded dashboard pages
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const GrievancesPage = lazy(() => import('./pages/GrievancesPage'))
 const TreasurerDashboard = lazy(
   () => import('./pages/TreasurerDashboard')
 )
@@ -248,6 +249,8 @@ function AppContent() {
                   <TreasurerDashboard />
                 )}
               />
+
+              <Route path="/treasurer/grievances" element={guarded(['treasurer'], <GrievancesPage user={user} />)} />
 
               {/* Legacy treasurer expenses URL */}
               <Route

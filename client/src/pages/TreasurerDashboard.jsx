@@ -271,6 +271,7 @@ export default function TreasurerDashboard() {
       <section className="treasurer-actions" aria-label="Treasurer actions">
         <Link to="/payments"><CreditCard size={18} /><span><strong>Record payment</strong><small>Save a payment and issue a receipt</small></span></Link>
         <Link to="/ledger"><FileText size={18} /><span><strong>Open ledger</strong><small>Balances and statements</small></span></Link>
+        <Link to="/treasurer/grievances"><FileText size={18} /><span><strong>Grievances</strong><small>Cases and period statements</small></span></Link>
         <Link to="/treasurer/expenses"><DollarSign size={18} /><span><strong>Record expense</strong><small>Maintain audit details</small></span></Link>
         <Link to="/reports"><Bank size={18} /><span><strong>Financial reports</strong><small>Collections and cash review</small></span></Link>
       </section>

@@ -74,6 +74,12 @@ export default function Sidebar({
       roles: ['admin', 'secretary', 'treasurer'],
     },
     {
+      name: 'Grievances',
+      path: '/treasurer/grievances',
+      icon: FileText,
+      roles: ['treasurer'],
+    },
+    {
       name: 'Document Library',
       path: '/documents',
       icon: FileArchive,
