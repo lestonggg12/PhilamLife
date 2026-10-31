@@ -1,0 +1,21 @@
+/* Keep navigation visible while the current page of matches scrolls. */
+.homeowners-search-results {
+  overflow: hidden;
+  max-height: none;
+}
+.homeowners-directory-results {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.homeowners-search-results .pager {
+  gap: 8px;
+  padding: 10px 4px 2px;
+  border-top: 1px solid var(--ho-border);
+}
+.homeowners-search-results .pager-button {
+  padding: 7px 10px;
+}
+.homeowners-search-results .pager-indicator {
+  flex: 1 1 130px;
+}

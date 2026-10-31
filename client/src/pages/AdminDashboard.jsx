@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './AdminDashboard.css'
+import AutoFitAmount from '../components/AutoFitAmount'
 import {
   Users,
   Home,
@@ -485,6 +486,7 @@ export default function AdminDashboard() {
     {
       label: `COLLECTED ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
       value: loading ? '—' : peso.format(collectedThisMonth),
+      fitAmount: true,
       footer: monthlyDuesTarget > 0
         ? `vs ${peso.format(monthlyDuesTarget)} target${servicesThisMonth > 0 ? ` · +${peso.format(servicesThisMonth)} services` : ''}`
         : servicesThisMonth > 0
@@ -605,7 +607,9 @@ export default function AdminDashboard() {
                 <stat.icon size={18} />
               </div>
             </div>
-            <div className="dash-stat-value">{stat.value}</div>
+            {stat.fitAmount
+              ? <AutoFitAmount className="dash-stat-value" value={stat.value} />
+              : <div className="dash-stat-value">{stat.value}</div>}
             <div className="dash-stat-footer">
               <span>{stat.footer}</span>
             </div>

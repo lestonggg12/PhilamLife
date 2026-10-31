@@ -26,6 +26,9 @@ import HomeownerLotChips from '../components/HomeownerLotChips'
 import { duplicateLotMessage, isDuplicateLotError } from '../lib/homeownerLots'
 import HomeownerActionsMenu from '../components/HomeownerActionsMenu'
 import '../components/HomeownerProfileRefresh.css'
+import { Pager } from '../components/PagerControls'
+import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
+import '../components/HomeownerDirectoryPaging.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -447,22 +450,14 @@ useEffect(() => {
 
   const filteredDirectory = useMemo(() => {
     if (!hasQuery && !hasFilter) return []
-    const term = normalize(search)
     return directoryEntries.filter(({ property, status }) => {
-      const matchesSearch =
-        !term ||
-        [
-          property.homeowner_name,
-          property.block,
-          `Lot ${property.lot_number}`,
-          property.contact_phone,
-          property.contact_email,
-        ].some((value) => normalize(value).includes(term))
+      const matchesSearch = matchesHomeownerSearch(property, search)
       const matchesStatus = statusFilter === 'all' || status.key === statusFilter
       return matchesSearch && matchesStatus
     })
   }, [directoryEntries, hasFilter, hasQuery, search, statusFilter])
 
+  const directoryPage = useListPage(filteredDirectory, [search, statusFilter], 25)
   const showResults = resultsOpen && (hasQuery || hasFilter)
 
   function handleSelectHomeowner(id) {
@@ -819,13 +814,14 @@ useEffect(() => {
             />
 
             {showResults && (
-              <div className="homeowners-search-results" role="listbox">
+              <div className="homeowners-search-results">
+                <div className="homeowners-directory-results" aria-label="Homeowner search results">
                 {loading ? (
                   <p className="homeowners-empty">Loading homeowners...</p>
                 ) : filteredDirectory.length === 0 ? (
                   <p className="homeowners-empty">No matching homeowner found.</p>
                 ) : (
-                  filteredDirectory.map(({ property, status }) => (
+                  directoryPage.rows.map(({ property, status }) => (
                     <button
                       type="button"
                       key={property.id}
@@ -852,6 +848,8 @@ useEffect(() => {
                     </button>
                   ))
                 )}
+                </div>
+                {!loading && <Pager page={directoryPage.page} total={filteredDirectory.length} size={25} onPageChange={directoryPage.setPage} />}
               </div>
             )}
           </div>

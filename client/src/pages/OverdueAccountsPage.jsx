@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
-
-const normalize = (value) => String(value ?? '').trim().toLowerCase()
+import { Pager } from '../components/PagerControls'
+import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 
 const STATUS_FILTERS = ['Overdue', 'Pending', 'Partial', 'Paid', 'All']
 
@@ -43,6 +43,9 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [paymentSummaries, setPaymentSummaries] = useState([])
   const [collectionActions, setCollectionActions] = useState([])
+  const [actionsLoading, setActionsLoading] = useState(false)
+  const [actionsError, setActionsError] = useState('')
+  const [actionsReload, setActionsReload] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
     gracePeriodDays: 0,
@@ -86,7 +89,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     isRefresh ? setRefreshing(true) : setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, settingsResult, actionsResult, overdueResult] = await Promise.all([
+    const [propertyResult, paymentResult, settingsResult, overdueResult] = await Promise.all([
       fetchAll(() => supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance')),
       // One small row per homeowner (latest payment) computed by the database.
       fetchAll(() => supabase.from('property_payment_summary').select('property_id, latest_paid_at, latest_amount_paid').order('property_id'), { tiebreaker: null }),
@@ -96,23 +99,19 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         .eq('id', 1)
         .maybeSingle(),
       fetchAll(() => supabase
-        .from('collection_actions')
-        .select('id, property_id, action_type, action_date, details, document_reference, created_by')
-        .order('action_date', { ascending: false })),
-      fetchAll(() => supabase
         .from('property_overdue_summary')
         .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
         .order('property_id'), { tiebreaker: null }),
     ])
 
-    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, actionsResult.error, overdueResult.error].filter(Boolean)
+    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error].filter(Boolean)
     if (errors.length > 0) {
       setPageError(`Some records could not be loaded: ${errors.map((e) => e.message).join(' ')}`)
     }
 
     setProperties(propertyResult.data || [])
     setPaymentSummaries(paymentResult.data || [])
-    setCollectionActions(actionsResult.data || [])
+    setActionsReload((value) => value + 1)
     setOverdueSummaries(overdueResult.data || [])
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -197,14 +196,39 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   )
 
   const filtered = useMemo(() => {
-    const term = normalize(search)
     return accounts
       .filter((a) => statusFilter === 'All' || a.status === statusFilter)
       .filter((a) => agingFilter === 'All' || a.agingTier === agingFilter)
       .filter((a) => blockFilter === 'All' || a.block === blockFilter)
-      .filter((a) => !term || normalize(a.name).includes(term) || normalize(a.lot).includes(term) || normalize(a.block).includes(term))
-      .sort((a, b) => b.daysOverdue - a.daysOverdue || b.balance - a.balance)
+      .filter((a) => matchesHomeownerSearch({ homeowner_name: a.name, block: a.block, lot_number: a.lot }, search))
+      .sort((a, b) => b.daysOverdue - a.daysOverdue || b.balance - a.balance || a.id - b.id)
   }, [accounts, search, blockFilter, statusFilter, agingFilter])
+
+  const accountPage = useListPage(filtered, [search, blockFilter, statusFilter, agingFilter])
+
+  const visibleIds = JSON.stringify(accountPage.rows.map((account) => account.id))
+  useEffect(() => {
+    if (loading) return undefined
+    let cancelled = false
+    const ids = JSON.parse(visibleIds)
+    setCollectionActions([])
+    setActionsError('')
+    if (!ids.length) { setActionsLoading(false); return undefined }
+    setActionsLoading(true)
+    async function loadVisibleActions() {
+      const { data, error } = await fetchAll(() => supabase
+        .from('collection_actions')
+        .select('id, property_id, action_type, action_date, details, document_reference, created_by')
+        .in('property_id', ids)
+        .order('action_date', { ascending: false }))
+      if (cancelled) return
+      setCollectionActions(data || [])
+      setActionsError(error ? 'Follow-up history could not be loaded. Please refresh to try again.' : '')
+      setActionsLoading(false)
+    }
+    loadVisibleActions()
+    return () => { cancelled = true }
+  }, [visibleIds, loading, actionsReload])
 
   const summary = useMemo(() => {
     const overdueAccounts = accounts.filter((a) => a.status === 'Overdue')
@@ -272,6 +296,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     }
 
     setCollectionActions((current) => [data, ...current])
+    setActionsReload((value) => value + 1)
     setLogSaving(false)
     notifySuccess(`${logForm.action_type} follow-up saved for ${logTarget.name || logTarget.homeowner_name || "this homeowner"}.`)
     setLogTarget(null)
@@ -372,9 +397,10 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       </div>
 
       <div className="overdue-result-row">
-        <span>Showing {filtered.length} of {accounts.length} homeowners</span>
+        <span>{filtered.length} matching lots of {accounts.length}</span>
       </div>
 
+      {actionsError && <p className="overdue-error" role="alert">{actionsError}</p>}
       <div className="overdue-list glass-card" aria-live="polite">
         {loading ? (
           <p className="overdue-empty">Loading accounts...</p>
@@ -411,7 +437,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((account) => (
+              {accountPage.rows.map((account) => (
                 <tr key={account.id} className={account.status === 'Overdue' ? 'overdue-row-flagged' : ''}>
                   <td className="overdue-name-cell">
                     <button type="button" className="overdue-name-link" onClick={() => navigate(`/homeowners/${account.id}`)}>
@@ -443,7 +469,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                   </td>
                   <td>{account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2)) : 'No payments yet'}</td>
                   <td>
-                    {account.lastAction ? (
+                    {actionsLoading ? <span className="overdue-no-action">Loading follow-ups...</span> : actionsError ? <span className="overdue-no-action">History unavailable</span> : account.lastAction ? (
                       <button type="button" className="overdue-action-link" onClick={() => setHistoryTarget(account)}>
                         {account.lastAction.action_type}
                         <small>{organization.formatDate(account.lastAction.action_date).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2))}{account.actionCount > 1 ? ` (+${account.actionCount - 1} more)` : ''}</small>
@@ -466,6 +492,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </table>
         )}
       </div>
+
+      {!loading && <Pager page={accountPage.page} total={filtered.length} onPageChange={accountPage.setPage} />}
 
       {logTarget && (
         <div className="overdue-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) closeLogForm() }}>

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import { loadOpenCharges } from '../lib/openChargeSearch'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
@@ -20,7 +21,6 @@ import {
   applyTimeRange,
   countLabel,
   dayRange,
-  ilikeAny,
   interpretPage,
   pageCount,
   pageWindow,
@@ -411,6 +411,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [chargeRows, setChargeRows] = useState([])
   const [chargeTotal, setChargeTotal] = useState(0)
   const [chargesLoading, setChargesLoading] = useState(false)
+  const [chargesError, setChargesError] = useState('')
   const [showCharges, setShowCharges] = useState(false)
   const [chargeSearch, setChargeSearch] = useState('')
   const [voidTarget, setVoidTarget] = useState(null)
@@ -1056,37 +1057,21 @@ function selectHomeowner(property) {
 
     async function loadCharges() {
       setChargesLoading(true)
+      setChargeRows([])
+      setChargesError('')
 
-      let query = supabase
-        .from('property_charges')
-        .select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at', { count: 'exact' })
-        .is('voided_at', null)
-
-      searchTokens(debouncedChargeSearch).forEach((token) => {
-        const lower = token.toLowerCase()
-        const ownerIds = properties
-          .filter((property) => (property.homeowner_name || '').toLowerCase().includes(lower))
-          .map((property) => Number(property.id))
-          .slice(0, 500)
-        const parts = [ilikeAny(['charge_type', 'description'], token)]
-        if (ownerIds.length > 0) parts.push(`property_id.in.(${ownerIds.join(',')})`)
-        query = query.or(parts.join(','))
-      })
-
-      const { data, error, count } = await query
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: true })
-        .limit(50)
+      const { data, error, count } = await loadOpenCharges(supabase, properties, debouncedChargeSearch)
 
       if (cancelled) return
       setChargeRows(error ? [] : data || [])
+      setChargesError(error ? 'Charges could not be loaded. Close this window and try again.' : '')
       setChargeTotal(error ? 0 : count || 0)
       setChargesLoading(false)
     }
 
     loadCharges()
     return () => { cancelled = true }
-  }, [showCharges, debouncedChargeSearch, reloadTick])
+  }, [showCharges, debouncedChargeSearch, reloadTick, properties])
 
   function openVoid(kind, item) {
     setVoidTarget({ kind, item })
@@ -1972,7 +1957,7 @@ function selectHomeowner(property) {
             />
 
             <div className="charge-list">
-              {chargesLoading && chargeRows.length === 0 ? (
+              {chargesError ? <p className="payments-error" role="alert">{chargesError}</p> : chargesLoading && chargeRows.length === 0 ? (
                 <p className="charge-list-empty">Loading charges...</p>
               ) : chargeRows.length === 0 ? (
                 <p className="charge-list-empty">No charges found.</p>
