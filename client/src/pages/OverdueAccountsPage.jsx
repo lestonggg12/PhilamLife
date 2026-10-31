@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
@@ -272,6 +273,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
     setCollectionActions((current) => [data, ...current])
     setLogSaving(false)
+    notifySuccess(`${logForm.action_type} follow-up saved for ${logTarget.name || logTarget.homeowner_name || "this homeowner"}.`)
     setLogTarget(null)
   }
 

@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { formatRate, parsePositiveAmount } from '../lib/lotDues'
@@ -7,7 +8,11 @@ export default function PricePerSqmForm({ canEdit = false }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState(null)
+  const [message, setMessageState] = useState(null)
+  function setMessage(next) {
+    setMessageState(next)
+    if (next?.type === 'success') notifySuccess(next.text)
+  }
 
   useEffect(() => {
     let active = true

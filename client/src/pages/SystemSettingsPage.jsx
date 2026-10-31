@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchTableVerified } from '../lib/fetchAll'
@@ -124,7 +125,11 @@ export default function SystemSettingsPage({ user }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState('')
-  const [message, setMessage] = useState(null)
+  const [message, setMessageState] = useState(null)
+  function setMessage(next) {
+    setMessageState(next)
+    if (next?.type === 'success') notifySuccess(next.text)
+  }
   const [history, setHistory] = useState(readHistory)
 
   const tabs = useMemo(() => [
@@ -226,7 +231,7 @@ export default function SystemSettingsPage({ user }) {
       const filename = `${table}-${stamp()}.csv`
       downloadFile('\uFEFF' + rowsToCsv(data || []), filename, 'text/csv;charset=utf-8')
       recordExport(`${label} CSV`, filename)
-      setMessage({ type: 'success', text: `${label} export downloaded (${count} rows, verified complete).` })
+      setMessage({ type: 'success', text: `${label} download started (${count} rows, verified complete).` })
     }
     setExporting('')
   }
@@ -250,7 +255,7 @@ export default function SystemSettingsPage({ user }) {
       const filename = `combined-ledger-${stamp()}.csv`
       downloadFile('\uFEFF' + rowsToCsv(rows), filename, 'text/csv;charset=utf-8')
       recordExport('Combined Ledger CSV', filename)
-      setMessage({ type: 'success', text: 'Combined ledger downloaded.' })
+      setMessage({ type: 'success', text: 'Combined ledger download started.' })
     }
     setExporting('')
   }
@@ -267,7 +272,7 @@ export default function SystemSettingsPage({ user }) {
       const totalRows = results.reduce((sum, { result }) => sum + result.count, 0)
       downloadFile(JSON.stringify(payload, null, 2), filename, 'application/json;charset=utf-8')
       recordExport('Full System Data JSON', filename)
-      setMessage({ type: 'success', text: `Full system data export downloaded (${TABLES.length} tables, ${totalRows} rows, verified complete).` })
+      setMessage({ type: 'success', text: `Full system data download started (${TABLES.length} tables, ${totalRows} rows, verified complete).` })
     }
     setExporting('')
   }

@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircle,
@@ -776,6 +777,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         : [...current, data]
       return updated.sort((left, right) => left.name.localeCompare(right.name))
     })
+    notifySuccess(`${data.name} was ${editingServiceId ? 'updated' : 'added'}.`)
     setServiceForm(emptyService)
     setEditingServiceId(null)
     setShowServiceForm(false)
@@ -866,6 +868,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setTransactionForm(emptyTransaction)
     setShowPaymentForm(false)
     setReceipt(data)
+    notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
     setSaving(false)
     setReloadTick((tick) => tick + 1)
 
@@ -946,6 +949,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
     setCollectTarget(null)
     setReceipt(data)
+    notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
     setReloadTick((tick) => tick + 1)
 
     await supabase.from('activity_log').insert({

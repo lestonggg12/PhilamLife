@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
@@ -302,6 +303,7 @@ async function downloadStatementPdf() {
       })
 
       doc.save(`Statement-${statementAccount.name.replace(/\s+/g, '-')}-${organization.formatDate(now).replace(/[,\s\/]/g, '-')}.pdf`)
+      notifySuccess(`Statement PDF download started for ${statementAccount.name}.`)
     } finally {
       setStatementPdfGenerating(false)
     }

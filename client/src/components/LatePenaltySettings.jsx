@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
@@ -13,7 +14,11 @@ export default function LatePenaltySettings({ canEdit = false }) {
   const [firstAfter, setFirstAfter] = useState('12')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState(null)
+  const [message, setMessageState] = useState(null)
+  function setMessage(next) {
+    setMessageState(next)
+    if (next?.type === 'success') notifySuccess(next.text)
+  }
 
   useEffect(() => {
     async function load() {

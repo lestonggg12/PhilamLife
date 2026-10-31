@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -412,6 +413,7 @@ const isReadOnly = !canRecordExpenses
 
     setExpenses((current) => [data, ...current])
     setShowForm(false)
+    notifySuccess(`Expense of ${peso.format(data.amount)} recorded: ${data.description}.`)
 
     const { error: activityError } = await supabase
       .from('activity_log')
@@ -471,6 +473,7 @@ const isReadOnly = !canRecordExpenses
       return
     }
 
+    notifySuccess(`Expense of ${peso.format(expense.amount)} was cancelled: ${expense.description}.`)
     setExpenses((current) =>
       current.map((item) => (item.id === expense.id ? data : item)),
     )

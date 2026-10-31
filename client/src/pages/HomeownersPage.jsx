@@ -1,3 +1,5 @@
+import { notifySuccess, notifyAction } from '../lib/actionFeedback'
+import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -157,7 +159,7 @@ export default function HomeownersPage() {
   const [balanceDialog, setBalanceDialog] = useState(null)
   const [breakdownKey, setBreakdownKey] = useState(0)
   const [balanceBreakdownOpen, setBalanceBreakdownOpen] = useState(false)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useSuccessNotice()
   const [properties, setProperties] = useState([])
   // `payments` / `serviceTransactions` hold ONLY the selected homeowner's records,
   // loaded when a homeowner is opened. The directory uses small per-homeowner counts.
@@ -313,6 +315,7 @@ useEffect(() => {
     })
 
     setVoiding(false)
+    notifySuccess(`Payment ${voidTarget.receipt_number || ""} was cancelled for ${voidTarget.homeowner_name}.`)
     setVoidTarget(null)
   }
 
@@ -1712,6 +1715,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setShowQuickBlock(false)
     setQuickBlockName('')
     setHomeownerForm((current) => ({ ...current, blockName: data.name }))
+    notifySuccess(`Block ${data.name} was added.`)
 
     await logAdminActivity(currentUser, 'Block Added', `${data.name} (by ${actorName})`)
   }
@@ -1752,6 +1756,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     await loadBlocks()
     setNewBlockName('')
     setSavingBlock(false)
+    notifySuccess(`Block ${name} was added.`)
 
     await logAdminActivity(currentUser, 'Block Added', `${name} (by ${actorName})`)
   }
@@ -1818,7 +1823,8 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     cancelEditBlock()
 
     if (onChanged) {
-      onChanged({ message: `Block ${block.name} was renamed to ${newName}.` })
+      onChanged({ message: cascadeError ? '' : `Block ${block.name} was renamed to ${newName}.` })
+      if (cascadeError) notifyAction(`The block was renamed to ${newName}, but some homeowner records could not be updated. Please check Manage Blocks before trying again.`, 'warning')
     }
 
     await logAdminActivity(
@@ -1876,6 +1882,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     await loadBlocks()
     setBlockActionBusyId(null)
 
+    notifySuccess(`Block ${block.name} was deleted.`)
     await logAdminActivity(currentUser, 'Block Removed', `${block.name} (by ${actorName})`)
   }
 

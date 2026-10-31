@@ -1,3 +1,4 @@
+import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Edit, FileArchive, Mail, Phone, RefreshCw, Search } from '../components/Icons'
@@ -61,7 +62,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [pageState, setPageState] = useState({ key: '', page: 0 })
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useSuccessNotice()
   const [selectedContact, setSelectedContact] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')

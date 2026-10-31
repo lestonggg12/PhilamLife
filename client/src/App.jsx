@@ -13,6 +13,7 @@ import Loader from './components/Loader'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { OrganizationProvider } from './context/OrganizationContext'
 import NetworkStatus from './components/NetworkStatus'
+import ActionFeedback from './components/ActionFeedback'
 
 import './App.css'
 
@@ -397,6 +398,7 @@ function App() {
       }}
     >
       <NetworkStatus />
+      <ActionFeedback />
       <AppContent />
     </BrowserRouter>
   )

@@ -1,4 +1,5 @@
 import React from 'react'
+import { notifySuccess } from './actionFeedback'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ReceiptSheet from '../components/ReceiptSheet'
 import receiptCss from '../components/ReceiptSheet.css?inline'
@@ -29,6 +30,7 @@ export function printReceipt(model, onPopupBlocked) {
     'load',
     () => {
       printWindow.focus()
+      notifySuccess(`Print window opened for receipt ${model.receiptNumber}.`)
       printWindow.print()
     },
     { once: true },

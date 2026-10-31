@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
@@ -1031,6 +1032,7 @@ function selectHomeowner(property) {
       ),
     )
     setReloadTick((tick) => tick + 1)
+    notifySuccess(`${chargeForm.chargeType} charge of ${peso.format(amount)} added for ${property.homeowner_name}, ${property.block}, Lot ${property.lot_number}.`)
     setShowCharge(false)
     setChargeSaving(false)
   }
@@ -1164,6 +1166,9 @@ function selectHomeowner(property) {
     }
 
     setVoiding(false)
+    notifySuccess(kind === 'payment'
+      ? `Payment ${item.receipt_number || ''} was cancelled.`
+      : `${item.charge_type} charge was cancelled.`)
     setVoidTarget(null)
   }
 
@@ -1334,6 +1339,7 @@ function selectHomeowner(property) {
     setShowForm(false)
     setForm(EMPTY_FORM)
     setReceipt(data)
+    notifySuccess(`Payment ${data.receipt_number} recorded for ${data.homeowner_name}, ${data.block_name || ""}, Lot ${data.lot_number || ""}.`)
     setSaving(false)
   }
 

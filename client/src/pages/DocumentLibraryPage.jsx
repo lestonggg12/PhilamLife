@@ -1,3 +1,5 @@
+import { notifySuccess } from '../lib/actionFeedback'
+import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useState } from 'react'
 import './DocumentLibraryPage.css'
 import {
@@ -92,7 +94,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useSuccessNotice()
   const [showUpload, setShowUpload] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [selectedFile, setSelectedFile] = useState(null)
@@ -357,6 +359,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
     setDownloadingId(null)
+    notifySuccess(`Download started for “${document.title}”.`)
   }
 
   function requestDeleteDocument(document) {

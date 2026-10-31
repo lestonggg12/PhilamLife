@@ -1,3 +1,4 @@
+import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   Clock,
@@ -360,7 +361,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useSuccessNotice()
   const [showForm, setShowForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)

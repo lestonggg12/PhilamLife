@@ -1,3 +1,4 @@
+import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
@@ -295,6 +296,7 @@ export default function ReportsPage({ user: suppliedUser }) {
         month,
       })
       doc.save(`HOA-Monthly-Report-${month}.pdf`)
+      notifySuccess(`Monthly report PDF download started for ${month}.`)
     } finally {
       setPdfGenerating(false)
     }
