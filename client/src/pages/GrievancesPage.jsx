@@ -113,13 +113,13 @@ export default function GrievancesPage({ user }) {
     setExporting(true)
     try {
       const { downloadGrievanceStatement } = await import('../lib/grievanceStatementPdf')
-      downloadGrievanceStatement(report,organization,user?.full_name || user?.email || 'Treasurer'); setNotice('Grievances statement PDF downloaded.')
+      downloadGrievanceStatement(report,organization,user?.full_name || user?.email || 'Secretary'); setNotice('Grievances statement PDF downloaded.')
     } catch(error) { setReportError(readableError(error)) } finally { setExporting(false) }
   }
   const schedule = (title, entries) => <section className="grievance-schedule"><h3>{title}</h3>{entries.length ? <dl>{entries.map(({label,count}) => <div key={label}><dt>{label}</dt><dd>{count}</dd></div>)}</dl> : <p className="grievance-help">No open cases at period end.</p>}</section>
-  if (!allowed) return <div className="grievances-page"><p role="alert">Grievances is available to the Treasurer only.</p></div>
+  if (!allowed) return <div className="grievances-page"><p role="alert">Grievances is available to the Secretary only.</p></div>
   return <main className="grievances-page">
-    <header className="grievance-heading"><div><p className="grievance-eyebrow">Treasurer workspace</p><h1>Grievances</h1><p>Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-buttons"><button onClick={() => { setRevision((v) => v+1); setReport(null) }} disabled={loading}>Refresh</button><button className="grievance-primary" onClick={() => { setSelected(newGrievance()); setSaveError('') }}>Record grievance</button></div></header>
+    <header className="grievance-heading"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p>Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-buttons"><button onClick={() => { setRevision((v) => v+1); setReport(null) }} disabled={loading}>Refresh</button><button className="grievance-primary" onClick={() => { setSelected(newGrievance()); setSaveError('') }}>Record grievance</button></div></header>
     {notice && <p className="grievance-success" role="status">{notice}</p>}
     <div className="grievance-tabs" role="tablist" aria-label="Grievance views"><button role="tab" aria-selected={tab==='register'} onClick={() => setTab('register')}>Case register</button><button role="tab" aria-selected={tab==='statement'} onClick={() => setTab('statement')}>Period statement</button></div>
     {tab==='register' ? <section className="grievance-panel">

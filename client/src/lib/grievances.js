@@ -2,7 +2,7 @@ export const GRIEVANCE_CATEGORIES = ['Noise', 'Parking', 'Pets', 'Maintenance', 
 export const GRIEVANCE_STATUSES = ['Received', 'Under review', 'In mediation', 'Awaiting decision', 'Awaiting action', 'Referred', 'Resolved', 'Dismissed', 'Withdrawn']
 export const CLOSED_GRIEVANCES = ['Resolved', 'Dismissed', 'Withdrawn']
 export const isGrievanceClosed = (status) => CLOSED_GRIEVANCES.includes(status)
-export const canUseGrievances = (user) => String(user?.role || '').trim().toLowerCase() === 'treasurer'
+export const canUseGrievances = (user) => String(user?.role || '').trim().toLowerCase() === 'secretary'
 export const grievanceNumber = (number) => `GR-${String(number).padStart(5, '0')}`
 export const manilaDateKey = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 export const newGrievance = () => ({

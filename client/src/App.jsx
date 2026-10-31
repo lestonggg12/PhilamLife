@@ -250,7 +250,7 @@ function AppContent() {
                 )}
               />
 
-              <Route path="/treasurer/grievances" element={guarded(['treasurer'], <GrievancesPage user={user} />)} />
+              <Route path="/secretary/grievances" element={guarded(['secretary'], <GrievancesPage user={user} />)} />
 
               {/* Legacy treasurer expenses URL */}
               <Route

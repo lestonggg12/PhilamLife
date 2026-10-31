@@ -75,9 +75,9 @@ export default function Sidebar({
     },
     {
       name: 'Grievances',
-      path: '/treasurer/grievances',
+      path: '/secretary/grievances',
       icon: FileText,
-      roles: ['treasurer'],
+      roles: ['secretary'],
     },
     {
       name: 'Document Library',

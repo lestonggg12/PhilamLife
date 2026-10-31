@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { statementRows } from './grievances'
 
-export function downloadGrievanceStatement(report, organization, preparedBy = 'Treasurer') {
+export function downloadGrievanceStatement(report, organization, preparedBy = 'Secretary') {
   const doc = new jsPDF()
   const heading = organization.hoaName || organization.hoa_name || 'Homeowners Association'
   doc.setFontSize(15)

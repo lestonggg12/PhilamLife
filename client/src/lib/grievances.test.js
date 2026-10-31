@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { canUseGrievances, grievanceNumber, grievanceRequest, isGrievanceClosed, manilaDateKey, statementMovement } from './grievances'
 const form = { id:'test',version:0,title:'Noise',category:'Noise',status:'Received',complainant:'A',respondent:'B',location:'Gate',description:'Loud music',outcome:'',decision_authority:'',property_id:'',incident_date:'' }
-describe('Treasurer grievances', () => {
- it('allows only the Treasurer', () => { expect(canUseGrievances({role:' Treasurer '})).toBe(true); for (const role of ['admin','secretary','',undefined]) expect(canUseGrievances({role})).toBe(false) })
+describe('Secretary grievances', () => {
+ it('allows only the Secretary', () => { expect(canUseGrievances({role:' Secretary '})).toBe(true); for (const role of ['admin','treasurer','',undefined]) expect(canUseGrievances({role})).toBe(false) })
  it('keeps referred cases open and recognizes closing outcomes', () => { expect(isGrievanceClosed('Referred')).toBe(false); for (const status of ['Resolved','Dismissed','Withdrawn']) expect(isGrievanceClosed(status)).toBe(true) })
  it('creates a narrow request without allowing history or balance fields', () => { const request=grievanceRequest({...form,current_balance:'999',filed_at:'2000-01-01'},'  Filing note  '); expect(request.p_note).toBe('Filing note'); expect(request.p_details).not.toHaveProperty('current_balance'); expect(request.p_details).not.toHaveProperty('filed_at'); expect(request.p_details.property_id).toBeNull() })
  it('requires the basic facts and a saved-history note', () => { expect(()=>grievanceRequest({...form,title:' '},'note')).toThrow(); expect(()=>grievanceRequest(form,' ')).toThrow() })
