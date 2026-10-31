@@ -2089,7 +2089,7 @@ function selectHomeowner(property) {
           <ReceiptDialog
             model={receiptModel}
             onClose={() => setReceipt(null)}
-            onPrint={() => printReceipt(receiptModel, setPopupNotice)}
+            onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
           >
             {canVoidPayments && receipt.status !== 'Voided' && (
               <button

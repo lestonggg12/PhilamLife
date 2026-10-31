@@ -1587,7 +1587,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             model={receiptModel}
             dismissOnBackdrop={false}
             onClose={() => setReceipt(null)}
-            onPrint={() => printReceipt(receiptModel, setPopupNotice)}
+            onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
           />
         )
       })()}

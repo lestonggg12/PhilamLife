@@ -1201,7 +1201,7 @@ export default function OfficialReceiptsPage() {
           <ReceiptDialog
             model={receiptModel}
             onClose={() => setSelectedReceipt(null)}
-            onPrint={() => printReceipt(receiptModel, setPopupNotice)}
+            onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
           />
         )
       })()}

@@ -1,3 +1,4 @@
+import { buildPreprintedFields } from './preprintedReceipt'
 // Turns a saved payment or service-transaction row into the plain "receipt
 // model" that ReceiptSheet draws. Every receipt in the app (Record Payment,
 // Services Management, Official Receipts) goes through here, so a receipt
@@ -92,6 +93,8 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
       address: organization.address || '',
       contact: [organization.contactPhone, organization.contactEmail].filter(Boolean).join('  |  '),
     },
+    sourceId: row.id,
+    preprinted: buildPreprintedFields(kind, row),
     receiptNumber: row.receipt_number || 'Receipt number unavailable',
     issuedAt: dateTime(row.paid_at),
     issuedBy: row.recorded_by_name || '—',

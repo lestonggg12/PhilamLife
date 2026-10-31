@@ -1,0 +1,52 @@
+/* Positions measured in mm for 5.5 x 8.5 inch stock. The guide never prints. */
+.paper-receipt { position: relative; box-sizing: border-box; width: 139.7mm; height: 215.9mm; min-width: 139.7mm; margin: 0 auto; background: white; color: #111; font-family: Arial, sans-serif; }
+.paper-receipt * { box-sizing: border-box; }
+.paper-guide { position: absolute; inset: 0; color: #627181; font: 7pt/1.3 Arial, sans-serif; }
+.paper-guide header { position: absolute; left: 7mm; top: 6mm; width: 92mm; }
+.paper-guide header strong { display: block; font-size: 10pt; line-height: 1.15; text-transform: uppercase; }
+.paper-guide header small { display: block; margin-top: 1.5mm; font-size: 7pt; }
+.paper-guide-title { position: absolute; right: 8mm; top: 8mm; width: 33mm; text-align: center; font-size: 9pt; }
+.paper-guide-title b { font-size: 14pt; }
+.paper-guide-title em { display: block; margin-top: 3mm; font-size: 13pt; color: #b05454; font-style: normal; }
+.guide-date { position: absolute; left: 98mm; top: 39mm; }
+.guide-customer { position: absolute; left: 7mm; top: 43mm; width: 123mm; height: 42mm; border: .2mm solid #82909d; }
+.guide-customer > div { height: 8mm; padding: 2mm; border-bottom: .2mm solid #82909d; }
+.guide-customer p { margin: 0; height: 8.3mm; padding: 2mm; font-size: 7pt; }
+.guide-customer p::after { content: ''; position: absolute; left: 34mm; right: 0; margin-top: 5.5mm; border-bottom: .2mm solid #82909d; }
+.guide-items { position: absolute; left: 7mm; top: 86mm; width: 123mm; border: .2mm solid #82909d; }
+.guide-item-heading, .guide-item-row { display: grid; grid-template-columns: 67mm 13mm 17mm 26mm; }
+.guide-item-heading { height: 6.5mm; font-size: 6.5pt; text-align: center; }
+.guide-item-row { height: 7.4mm; border-top: .2mm solid #82909d; }
+.guide-items span { border-right: .2mm solid #82909d; padding: 1mm; }
+.guide-items span:last-child { border: 0; }
+.guide-id { position: absolute; top: 138mm; left: 7mm; width: 52mm; height: 17mm; border: .2mm solid #82909d; padding: 1mm; font-size: 6pt; }
+.guide-id hr { border: 0; border-top: .2mm solid #82909d; }
+.guide-totals { position: absolute; top: 138mm; left: 67mm; width: 63mm; border: .2mm solid #82909d; }
+.guide-totals > div { display: grid; grid-template-columns: 28mm 35mm; height: 8.5mm; border-bottom: .2mm solid #82909d; }
+.guide-totals > div:last-child { border: 0; }
+.guide-totals span:first-child { text-align: right; border-right: .2mm solid #82909d; padding: 2mm 1mm; font-size: 6pt; }
+.guide-issued { position: absolute; left: 7mm; top: 174mm; }
+.guide-customer-sign { position: absolute; left: 85mm; top: 174mm; }
+.guide-sign-left, .guide-sign-right { position: absolute; top: 186mm; width: 46mm; padding-top: 1mm; border-top: .2mm solid #82909d; text-align: center; }
+.guide-sign-left { left: 7mm; }.guide-sign-right { left: 84mm; }
+.paper-guide footer { position: absolute; left: 7mm; top: 197mm; width: 123mm; border: .2mm solid #82909d; padding: 2mm; font-size: 6pt; text-align: center; }
+.paper-values { position: absolute; inset: 0; transform: translate(var(--paper-offset-x, 0mm), var(--paper-offset-y, 0mm)); color: #000; font: 8pt/1 'Courier New', Courier, monospace; font-variant-numeric: tabular-nums; }
+.paper-values > div { position: absolute; margin: 0; padding: 0; }
+.paper-reference { top: 31mm; left: 8mm; width: 90mm; font-size: 7pt; }
+.paper-date { top: 39mm; left: 106mm; width: 23mm; text-align: right; }
+.paper-name { top: 45mm; left: 31mm; width: 98mm; line-height: 3.4mm; }
+.paper-lot { top: 64mm; left: 31mm; width: 98mm; }
+.paper-description { top: 94mm; left: 9mm; width: 63mm; }
+.paper-description > div { height: 7.4mm; white-space: pre; }
+.paper-quantity, .paper-unit, .paper-line-amount { top: 94mm; text-align: right; }
+.paper-quantity { left: 75mm; width: 10mm; }.paper-unit { left: 87.5mm; width: 15.5mm; font-size: 7pt; }.paper-line-amount { left: 105mm; width: 23mm; }
+.paper-total-sales, .paper-discount, .paper-total-paid { left: 97mm; width: 31mm; text-align: right; }
+.paper-total-sales { top: 141mm; }.paper-discount { top: 149.5mm; }.paper-total-paid { top: 166.5mm; font-weight: bold; }
+.paper-issued-by { left: 8mm; top: 179mm; width: 45mm; line-height: 3.4mm; }
+.paper-cancelled { top: 112mm; left: 8mm; width: 121mm; font: bold 15pt Arial, sans-serif; text-align: center; transform: rotate(-15deg); }
+@media print { .paper-guide { display: none !important; } .paper-receipt { margin: 0; box-shadow: none; background: transparent; break-inside: avoid; } }
+
+.paper-long-amount { font-size: 6.5pt; }
+.guide-customer p:nth-of-type(2)::after { left: 11mm; }
+
+.paper-method { top: 35mm; left: 8mm; width: 90mm; font-size: 7pt; line-height: 3.2mm; }

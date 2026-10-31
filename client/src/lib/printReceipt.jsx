@@ -1,56 +1,38 @@
 import React from 'react'
 import { notifySuccess } from './actionFeedback'
 import { renderToStaticMarkup } from 'react-dom/server'
-import ReceiptSheet from '../components/ReceiptSheet'
-import receiptCss from '../components/ReceiptSheet.css?inline'
+import PreprintedReceipt from '../components/PreprintedReceipt'
+import receiptCss from '../components/PreprintedReceipt.css?inline'
+import { alignmentValue, normalizePaperNumber, preprintedLayoutError, RECEIPT_PAPER } from './preprintedReceipt'
 
-const escapeHtml = (value) =>
-  String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
+const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 
-/**
- * Opens the receipt in its own window and starts the browser's print dialog
- * ("Save as PDF" is available there). The window is drawn from the same
- * ReceiptSheet component and stylesheet as the on-screen receipt.
- */
-export function printReceipt(model, onPopupBlocked) {
-  const printWindow = window.open('', '_blank', 'width=900,height=800')
+// Only filled-in values are sent to the printer. No preprinted artwork is in
+// this document, even when the browser's background-printing option is enabled.
+export function receiptPrintHtml(model, setup = {}) {
+  normalizePaperNumber(setup.paperNumber)
+  const error = preprintedLayoutError(model.preprinted)
+  if (error) throw new Error(error)
+  const alignment = { x: alignmentValue(setup.alignment?.x), y: alignmentValue(setup.alignment?.y) }
+  const markup = renderToStaticMarkup(<PreprintedReceipt model={model} guide={false} alignment={alignment} />)
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>${escapeHtml(model.receiptNumber)} - Invoice details</title><style>
+    @page { size: ${RECEIPT_PAPER.width}mm ${RECEIPT_PAPER.height}mm; margin: 0; }
+    html, body { margin: 0; padding: 0; width: ${RECEIPT_PAPER.width}mm; height: ${RECEIPT_PAPER.height}mm; background: transparent; }
+    ${receiptCss}
+  </style></head><body>${markup}</body></html>`
+}
 
-  if (!printWindow) {
-    onPopupBlocked?.('Please allow pop-ups to print this receipt.')
-    return
-  }
-
-  const markup = renderToStaticMarkup(<ReceiptSheet model={model} />)
-
-  printWindow.addEventListener(
-    'load',
-    () => {
-      printWindow.focus()
-      notifySuccess(`Print window opened for receipt ${model.receiptNumber}.`)
-      printWindow.print()
-    },
-    { once: true },
-  )
-
-  printWindow.document.write(`<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(model.receiptNumber)} - Official Receipt</title>
-    <style>
-      @page { size: A4 portrait; margin: 14mm; }
-      html, body { margin: 0; padding: 0; background: #fff; }
-      body { padding: 0; }
-      ${receiptCss}
-      .rcpt { max-width: none; }
-    </style>
-  </head>
-  <body>${markup}</body>
-</html>`)
+export function printReceipt(model, onPrintError, setup = {}) {
+  let html
+  try { html = receiptPrintHtml(model, setup) }
+  catch (error) { onPrintError?.(error.message); return }
+  const printWindow = window.open('', '_blank', 'width=650,height=850')
+  if (!printWindow) { onPrintError?.('Please allow pop-ups to print this receipt.'); return }
+  printWindow.addEventListener('load', () => {
+    printWindow.focus()
+    notifySuccess(`Print window opened for receipt ${model.receiptNumber}.`)
+    printWindow.print()
+  }, { once: true })
+  printWindow.document.write(html)
   printWindow.document.close()
 }

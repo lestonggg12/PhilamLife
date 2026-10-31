@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react'
+import PreprintedReceipt from './PreprintedReceipt'
+import ReceiptPrintSetup from './ReceiptPrintSetup'
+import { preprintedLayoutError } from '../lib/preprintedReceipt'
+import React, { useEffect, useState } from 'react'
 import './ReceiptSheet.css'
 
 /**
- * The formal Official Receipt document. Used on screen (inside ReceiptDialog)
- * and, rendered to static markup, in the print window (lib/printReceipt.jsx),
- * so what is seen on screen is exactly what is printed.
+ * Full saved payment details, available below the preprinted invoice preview.
+ * Printing uses PreprintedReceipt so the existing paper design is not repeated.
  */
 export default function ReceiptSheet({ model }) {
   const { organization, voided } = model
@@ -117,6 +119,9 @@ export default function ReceiptSheet({ model }) {
  * Extra buttons should use the classes rcpt-btn + rcpt-btn-secondary / rcpt-btn-danger.
  */
 export function ReceiptDialog({ model, onClose, onPrint, dismissOnBackdrop = true, children }) {
+  const [printSetup, setPrintSetup] = useState(null)
+  const layoutError = preprintedLayoutError(model.preprinted)
+  const currentSetup = printSetup?.key === `${model.kind}:${model.sourceId}` ? printSetup : null
   useEffect(() => {
     const onKey = (event) => {
       if (event.key === 'Escape') onClose()
@@ -139,12 +144,16 @@ export function ReceiptDialog({ model, onClose, onPrint, dismissOnBackdrop = tru
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="rcpt-dialog-scroll">
-          <ReceiptSheet model={model} />
+          <ReceiptPrintSetup key={`${model.kind}:${model.sourceId}`} model={model} onReady={setPrintSetup} />
+          <p className="receipt-preview-note">Form guide only. Printing adds the receipt details to your preprinted paper; the boxes, headings and red number do not print.</p>
+          {layoutError && <p className="receipt-setup-error" role="alert">{layoutError}</p>}
+          <div className="receipt-paper-scroll"><PreprintedReceipt model={model} paperNumber={currentSetup?.paperNumber} alignment={currentSetup?.alignment} /></div>
+          <details className="receipt-full-record"><summary>Full payment details</summary><ReceiptSheet model={model} /></details>
         </div>
         <div className="rcpt-actions">
           <button type="button" className="rcpt-btn rcpt-btn-secondary" onClick={onClose}>Close</button>
           {children}
-          <button type="button" className="rcpt-btn rcpt-btn-primary" onClick={onPrint}>Print / Save as PDF</button>
+          <button type="button" className="rcpt-btn rcpt-btn-primary" disabled={!currentSetup?.ready || Boolean(layoutError)} onClick={() => onPrint(currentSetup)}>Print details on invoice</button>
         </div>
       </div>
     </div>
