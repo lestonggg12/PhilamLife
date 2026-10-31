@@ -1026,3 +1026,108 @@
   .ledger-result-count { margin-left: 0; }
   .ledger-search-prompt { padding: 40px 16px; }
 }
+/* Statement detail: cash collections and non-cash credits remain distinct. */
+.ledger-statement-modal .ledger-statement-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ledger-statement-modal .ledger-statement-summary strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ledger-statement-modal .ledger-statement-detail { display: block; margin-top: 5px; color: #526b80; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.ledger-statement-modal .ledger-statement-lines table { width: 100%; min-width: 0; table-layout: fixed; }
+.ledger-statement-modal .ledger-statement-lines td { vertical-align: top; }
+.ledger-statement-modal .ledger-statement-lines td:nth-child(2) { min-width: 0; white-space: normal; }
+.ledger-statement-modal .ledger-statement-lines td:nth-child(3) { overflow-wrap: anywhere; }
+.ledger-statement-modal .ledger-statement-discount { background: #edf7f3; }
+.ledger-statement-modal .ledger-statement-voided { color: #6a7785; background: #f4f6f8; }
+.ledger-statement-modal .ledger-statement-lines tfoot { background: #edf3f9; font-weight: 700; }
+.ledger-statement-modal .ledger-statement-lines tfoot th { text-transform: none; letter-spacing: 0; }
+@media (max-width: 620px) {
+  .ledger-statement-modal .ledger-statement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media print {
+  .ledger-statement-modal .ledger-statement-lines table { min-width: 0; }
+}
+.ledger-statement-modal .ledger-statement-summary span,
+.ledger-statement-modal .ledger-statement-summary strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Fit every statement field to the modal; never clip or hide financial columns. */
+.ledger-statement-modal .ledger-statement-lines { min-width: 0; overflow: visible; }
+.ledger-statement-modal .statement-column-date { width: 13%; }
+.ledger-statement-modal .statement-column-entry { width: 33%; }
+.ledger-statement-modal .statement-column-reference { width: 15%; }
+.ledger-statement-modal .statement-column-money { width: 13%; }
+.ledger-statement-modal .ledger-statement-lines th,
+.ledger-statement-modal .ledger-statement-lines td {
+  min-width: 0;
+  padding: 12px 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.5;
+}
+.ledger-statement-modal .ledger-statement-lines th:nth-child(n + 4),
+.ledger-statement-modal .ledger-statement-lines tbody td:nth-child(n + 4),
+.ledger-statement-modal .ledger-statement-lines tfoot td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ledger-statement-modal .ledger-statement-lines thead th:first-child { border-radius: 12px 0 0 0; }
+.ledger-statement-modal .ledger-statement-lines thead th:last-child { border-radius: 0 12px 0 0; }
+@media screen and (max-width: 760px) {
+  .ledger-statement-modal { padding: 20px; }
+  .ledger-statement-modal .ledger-statement-lines table,
+  .ledger-statement-modal .ledger-statement-lines tbody,
+  .ledger-statement-modal .ledger-statement-lines tfoot { display: block; width: 100%; }
+  .ledger-statement-modal .ledger-statement-lines colgroup { display: none; }
+  .ledger-statement-modal .ledger-statement-lines thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ledger-statement-modal .ledger-statement-lines tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    padding: 18px;
+    border-bottom: 1px solid #dfe7ef;
+  }
+  .ledger-statement-modal .ledger-statement-lines tbody td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+  .ledger-statement-modal .ledger-statement-lines tbody td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .ledger-statement-modal .ledger-statement-lines tbody td:nth-child(1),
+  .ledger-statement-modal .ledger-statement-lines tbody td:nth-child(3) { grid-row: 2; }
+  .ledger-statement-modal .ledger-statement-lines tbody td:nth-child(n + 4) {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    grid-column: 1 / -1;
+    text-align: right;
+  }
+  .ledger-statement-modal .ledger-statement-lines [data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: #526b80;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .ledger-statement-modal .ledger-statement-lines tbody td:nth-child(n + 4)::before { margin: 0; text-align: left; }
+  .ledger-statement-modal .ledger-statement-lines tfoot tr { display: block; padding: 18px; }
+  .ledger-statement-modal .ledger-statement-lines tfoot th { display: block; padding: 0 0 12px; border: 0; }
+  .ledger-statement-modal .ledger-statement-lines tfoot td { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border: 0; }
+  .ledger-statement-modal .ledger-statement-lines tfoot td::before { margin: 0; text-align: left; }
+}

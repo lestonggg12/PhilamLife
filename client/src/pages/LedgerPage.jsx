@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { buildLedgerStatement } from '../lib/ledgerStatement'
+import { buildLedgerStatement, ledgerStatementNotes } from '../lib/ledgerStatement'
 import { useOrganization } from '../context/OrganizationContext'
 
 const SORT_COLUMNS = [
@@ -76,6 +76,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [statementLines, setStatementLines] = useState([])
   const [statementLoading, setStatementLoading] = useState(false)
   const [statementError, setStatementError] = useState('')
+  const statementRequestRef = useRef(0)
 
   const role = currentUser?.role?.trim().toLowerCase()
 
@@ -153,33 +154,48 @@ const actorName =
   }
 
   async function openStatement(entry) {
+    const requestId = ++statementRequestRef.current
     setStatementAccount(entry)
     setStatementError('')
     setStatementLines([])
     setStatementLoading(true)
 
-    const [paymentResult, chargeResult] = await Promise.all([
+    const [paymentResult, chargeResult, lotResult, accountAdjustmentResult] = await Promise.all([
       fetchAll(() => supabase
         .from('payments')
-        .select('id, paid_at, created_at, status, coverage_period, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released')
+        .select('id, paid_at, created_at, status, coverage_period, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released, receipt_breakdown, payment_method, note, recorded_by_name, void_reason')
         .eq('property_id', entry.id)
         .order('paid_at', { ascending: true })),
       fetchAll(() => supabase
         .from('property_charges')
-        .select('id, created_at, charge_type, description, billing_month, amount, voided_at')
+        .select('id, created_at, charge_type, description, billing_month, amount, voided_at, void_reason')
         .eq('property_id', entry.id)
         .order('created_at', { ascending: true })),
+      supabase.from('properties')
+        .select('id, current_balance, opening_balance, opening_balance_as_of, opening_balance_note')
+        .eq('id', entry.id)
+        .maybeSingle(),
+      fetchAll(() => supabase.from('account_adjustments')
+        .select('id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at, reversal_reason')
+        .eq('property_id', entry.id)
+        .order('created_at')),
     ])
-    const allocationResult = await supabase
+    if (requestId !== statementRequestRef.current) return
+    const allocationResult = (paymentResult.data || []).length ? await supabase
       .from('property_payment_allocations')
       .select('payment_id, property_charge_id, allocated_amount')
       .in('payment_id', (paymentResult.data || []).map((payment) => payment.id))
+      : { data: [], error: null }
     const adjustmentResult = await supabase
       .from('moved_account_reconciliations')
       .select('adjustment_amount, reason')
       .eq('property_id', entry.id)
       .maybeSingle()
+    if (requestId !== statementRequestRef.current) return
     const error = paymentResult.error
+      || lotResult.error
+      || accountAdjustmentResult.error
+      || (!lotResult.data ? { message: 'This lot is no longer available.' } : null)
       || chargeResult.error
       || allocationResult.error
       || adjustmentResult.error
@@ -203,9 +219,11 @@ const actorName =
     const statement = buildLedgerStatement({
       payments,
       charges: chargeResult.data || [],
-      storedBalance: entry.stored,
-      openingBalance: entry.opening_balance,
-      openingBalanceNote: entry.opening_balance_note,
+      adjustments: accountAdjustmentResult.data || [],
+      storedBalance: lotResult.data.current_balance,
+      openingBalance: lotResult.data.opening_balance,
+      openingBalanceNote: lotResult.data.opening_balance_note,
+      openingBalanceAsOf: lotResult.data.opening_balance_as_of,
     })
     const latestPayment = payments
       .filter((payment) => payment.status !== 'Voided')
@@ -219,6 +237,7 @@ setStatementAccount((current) =>
     ? {
         ...current,
         statementTotals: statement.totals,
+        opening_balance_as_of: lotResult.data.opening_balance_as_of,
         balance: Math.max(finalBalance, 0),
         unallocatedCredit: Math.max(-finalBalance, 0),
         latestStatementPayment:
@@ -245,8 +264,8 @@ async function downloadStatementPdf() {
     try {
       const now = new Date()
       const rows = statementLines.map((line) => ({
-        date: line.transaction_date ? organization.formatDate(line.transaction_date) : '—',
-        entry: line.description,
+        date: line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—',
+        entry: [line.description, ...(line.details || [])].join('\n'),
         reference: line.reference_number || '—',
         debit: Number(line.debit) || 0,
         credit: Number(line.credit) || 0,
@@ -259,23 +278,23 @@ async function downloadStatementPdf() {
         hoaAddress: orgSettings?.address || '',
         homeownerName: statementAccount.name,
         blockLotLabel: `${statementAccount.block}, ${statementAccount.lot}`,
-        totalCharges: statementAccount.statementTotals?.charges ?? statementAccount.dueAmount,
+        totalCharges: statementAccount.statementTotals?.addedCharges ?? 0,
+        openingBalance: statementAccount.statementTotals?.openingBalance ?? 0,
+        annualDiscountCredit: statementAccount.statementTotals?.annualDiscountCredit ?? 0,
+        otherAdjustments: statementAccount.statementTotals?.netOtherAdjustments ?? 0,
+        totalDebits: statementAccount.statementTotals?.totalDebits ?? 0,
+        totalCredits: statementAccount.statementTotals?.totalCredits ?? 0,
+        closingBalance: statementAccount.statementTotals?.finalBalance ?? 0,
         paymentsAllocated: statementAccount.statementTotals?.payments ?? statementAccount.paidAmount,
-        paymentsLabel: 'Total payments',
+        paymentsLabel: 'Payments received',
         outstandingBalance: statementAccount.balance,
         availableCredit: statementAccount.unallocatedCredit || 0,
         reconciliationNote: [
-          statementAccount.statementTotals?.openingBalanceNote,
-          statementAccount.statementTotals?.inferredOpeningBalance
-            ? 'Opening balance is inferred from the stored balance and available transaction history. Older charges or payments may not be present in this statement.'
-            : '',
-          statementAccount.statementTotals?.inferredAllocated
-            ? `${peso.format(statementAccount.statementTotals.inferredAllocated)} of applied payments rely on historical balance effects rather than explicit charge allocation records.`
-            : '',
+          ...ledgerStatementNotes(statementAccount.statementTotals, (value) => `PHP ${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
           statementAccount.closingAdjustment
-            ? `This moved account includes a documented closing adjustment of ${peso.format(statementAccount.closingAdjustment)}. It is reconciliation metadata, not a charge or payment.${statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}`
+            ? `Documented moved-account closing adjustment: PHP ${Number(statementAccount.closingAdjustment).toFixed(2)}. This is reconciliation metadata, not cash received.${statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}`
             : '',
-        ].filter(Boolean).join(' '),
+        ].filter(Boolean).join('\n'),
         statementLines: rows,
         preparedBy: actorName,
         datePrepared: organization.formatDate(now),
@@ -563,56 +582,66 @@ async function downloadStatementPdf() {
               <div><p className="ledger-statement-kicker">Homeowner statement</p><h2>{statementAccount.name}</h2><p>{statementAccount.block}, {statementAccount.lot}</p></div>
               <button type="button" className="ledger-modal-close" onClick={() => setStatementAccount(null)} aria-label="Close">×</button>
             </div>
-            <div className="ledger-statement-summary">
-              <div>
-            <span>Previous balance (at last payment)</span>
-            <strong>{formatMoney(statementAccount.dueAmount)}</strong>
-          </div>
-              <div><span>Total payments</span><strong>{peso.format(statementAccount.statementTotals?.payments ?? statementAccount.totalPaid ?? 0)}</strong></div>
-              <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
-              <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
-            </div>
-            {statementAccount.statementTotals?.openingBalance !== 0 && (
-              <p className="ledger-form-note">
-                {statementAccount.statementTotals?.openingBalanceNote
-                  || 'This statement includes a balance brought forward because the available transaction history does not fully explain the stored balance.'}
-              </p>
-            )}
-            {(statementAccount.statementTotals?.unallocated || 0) > 0 && (
-              <p className="ledger-form-note">
-                {peso.format(statementAccount.statementTotals.unallocated)} of recorded payments did not reduce the property balance and may require reconciliation.
-              </p>
-            )}
-            {(statementAccount.statementTotals?.inferredAllocated || 0) > 0 && (
-              <p className="ledger-form-note">
-                {peso.format(statementAccount.statementTotals.inferredAllocated)} of applied payments rely on historical balance effects rather than explicit charge allocation records.
-              </p>
-            )}
-            {statementAccount.closingAdjustment !== 0 && (
-              <p className="ledger-form-note">
-                This moved account includes a documented closing adjustment of {peso.format(statementAccount.closingAdjustment)}. It is reconciliation metadata, not a charge or payment.
-                {statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}
-              </p>
+            {!statementLoading && !statementError && statementAccount.statementTotals && (
+              <>
+                <div className="ledger-statement-summary">
+                  <div><span>Opening balance brought forward</span><strong>{formatMoney(statementAccount.statementTotals.openingBalance)}</strong></div>
+                  <div><span>Charges added</span><strong>{peso.format(statementAccount.statementTotals.addedCharges)}</strong></div>
+                  <div><span>Payments received (money collected)</span><strong>{peso.format(statementAccount.statementTotals.payments)}</strong></div>
+                  <div><span>Annual discount credit (non-cash)</span><strong>{peso.format(statementAccount.statementTotals.annualDiscountCredit)}</strong></div>
+                  <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
+                  <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
+                  {statementAccount.statementTotals.netOtherAdjustments !== 0 && (
+                    <div><span>Other balance adjustments</span><strong>{formatMoney(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
+                  )}
+                </div>
+                <p className="ledger-form-note">All available transactions for this lot. Amounts in Philippine pesos; dates and times in Asia/Manila. A balance marked “credit” is available against future charges.</p>
+                {ledgerStatementNotes(statementAccount.statementTotals, (value) => peso.format(value)).map((note) => (
+                  <p className="ledger-form-note" key={note}>{note}</p>
+                ))}
+                {statementAccount.closingAdjustment !== 0 && (
+                  <p className="ledger-form-note">
+                    This moved account includes a documented closing adjustment of {peso.format(statementAccount.closingAdjustment)}. It is reconciliation metadata, not a charge or payment.
+                    {statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}
+                  </p>
+                )}
+              </>
             )}
             {statementError && <p className="ledger-form-error">{statementError}</p>}
             <div className="ledger-statement-lines">
-              <table>
-                <thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Added Charge</th><th>Credit</th><th>Balance</th></tr></thead>
+              <table role="table" aria-label="Lot account statement">
+                <colgroup>
+                  <col className="statement-column-date" />
+                  <col className="statement-column-entry" />
+                  <col className="statement-column-reference" />
+                  <col className="statement-column-money" />
+                  <col className="statement-column-money" />
+                  <col className="statement-column-money" />
+                </colgroup>
+                <thead><tr><th scope="col">Date</th><th scope="col">Entry</th><th scope="col">Reference</th><th scope="col">Charge / debit</th><th scope="col">Payment / credit</th><th scope="col">Running balance</th></tr></thead>
                 <tbody>
                   {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No statement entries found.</td></tr> : statementLines.map((line, index) => (
-                    <tr key={line.id || `${line.transaction_date}-${index}`}>
-                      <td>{line.transaction_date ? organization.formatDate(line.transaction_date) : '—'}</td>
-                      <td>{line.description}</td>
-                      <td>{line.reference_number || '—'}</td>
-                      <td>{peso.format(Number(line.debit) || 0)}</td>
-                      <td>{peso.format(Number(line.credit) || 0)}</td>
-                      <td>{line.running_balance == null ? '—' : peso.format(Number(line.running_balance) || 0)}</td>
+                    <tr role="row" key={line.id || `${line.transaction_date}-${index}`} className={line.voided ? 'ledger-statement-voided' : line.kind === 'annual-discount' ? 'ledger-statement-discount' : ''}>
+                      <td role="cell" data-label="Date">{line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—'}</td>
+                      <td role="cell" data-label="Entry"><strong>{line.description}</strong>{(line.details || []).map((detail) => <small className="ledger-statement-detail" key={detail}>{detail}</small>)}</td>
+                      <td role="cell" data-label="Reference">{line.reference_number || '—'}</td>
+                      <td role="cell" data-label="Charge / debit">{peso.format(Number(line.debit) || 0)}</td>
+                      <td role="cell" data-label="Payment / credit">{peso.format(Number(line.credit) || 0)}</td>
+                      <td role="cell" data-label="Running balance">{line.running_balance == null ? '—' : formatMoney(line.running_balance)}</td>
                     </tr>
                   ))}
                 </tbody>
+                {!statementLoading && !statementError && statementAccount.statementTotals && (
+                  <tfoot><tr>
+                    <th colSpan="3">Statement totals / closing balance</th>
+                    <td data-label="Total debits">{peso.format(statementAccount.statementTotals.totalDebits)}</td>
+                    <td data-label="Total credits">{peso.format(statementAccount.statementTotals.totalCredits)}</td>
+                    <td data-label="Closing balance">{formatMoney(statementAccount.statementTotals.finalBalance)}</td>
+                  </tr></tfoot>
+                )}
               </table>
             </div>
-            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={() => setStatementAccount(null)}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || statementPdfGenerating}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
+            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={() => setStatementAccount(null)}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
           </article>
         </div>
       )}
