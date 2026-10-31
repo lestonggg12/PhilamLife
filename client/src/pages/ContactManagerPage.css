@@ -1156,3 +1156,22 @@
     flex-direction: column;
   }
 }
+/* Compact transfer form; scrolling stays inside the dialog on short screens. */
+.contact-transfer-modal { width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 20px; }
+.contact-transfer-modal .contact-modal-heading { margin-bottom: 12px; }
+.contact-transfer-modal .contact-modal-heading h2 { font-size: 1.15rem; }
+.contact-transfer-modal .contact-transfer-homeowner { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 12px; padding: 9px 12px; }
+.contact-transfer-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.contact-transfer-modal .contact-form-row { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+.contact-transfer-modal input, .contact-transfer-modal select { margin-bottom: 10px; padding: 9px 10px; }
+.contact-transfer-modal textarea { min-height: 54px; height: 54px; margin-bottom: 10px; padding: 9px 10px; }
+.contact-transfer-modal .contact-transfer-note { margin: 0; padding: 8px 10px; }
+.contact-transfer-modal .contact-modal-actions { margin-top: 12px; }
+.transfer-owner-results { max-height: 124px; overflow-y: auto; border: 1px solid #d3dfeb; border-radius: 8px; margin-bottom: 10px; background: #fff; }
+.transfer-owner-results > button { display: block; width: 100%; padding: 8px 10px; text-align: left; border: 0; border-bottom: 1px solid #e5edf4; background: #fff; color: #19364f; cursor: pointer; }
+.transfer-owner-results > button:hover, .transfer-owner-results > button:focus-visible { background: #edf5fc; }
+.transfer-owner-results > p { padding: 8px 10px; margin: 0; font-size: .85rem; }
+.transfer-owner-results small, .transfer-selected-owner small { display: block; color: #61798e; font-size: .78rem; overflow-wrap: anywhere; }
+.transfer-selected-owner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; margin-bottom: 10px; border: 1px solid #b8cfe3; border-radius: 8px; background: #edf5fc; }
+.transfer-selected-owner button { padding: 6px 10px; border: 1px solid #b8cfe3; border-radius: 6px; background: white; color: #1464a0; cursor: pointer; }
+@media (max-width: 520px) { .contact-transfer-modal { padding: 16px; } .contact-transfer-modal .contact-form-row { grid-template-columns: 1fr; gap: 0; } }

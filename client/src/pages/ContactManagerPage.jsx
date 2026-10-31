@@ -1,3 +1,5 @@
+import TransferHomeownerPicker from '../components/TransferHomeownerPicker'
+import { transferRequest } from '../lib/homeownerTransfer'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -26,12 +28,14 @@ const EMPTY_TRANSFER_FORM = {
   effectiveDate: '',
   reason: '',
   newHomeownerName: '',
+  transferTo: 'new',
+  targetProperty: null,
 }
 
 const MIN_SEARCH_LENGTH = 2
 
 const CONTACT_COLUMNS =
-  'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at'
+  'id, homeowner_id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at'
 
 // Text columns searched for every typed word. lot_number is an INTEGER column, so it is
 // matched separately with .eq (never ilike).
@@ -330,6 +334,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     if (!canManageContacts) return
     setTransferError('')
     setTransferForm({
+      ...EMPTY_TRANSFER_FORM,
       status: 'moved',
       effectiveDate: manilaDate(),
       reason: '',
@@ -361,12 +366,10 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       return
     }
 
-        if (
-      transferForm.status === 'transferred' &&
-      !transferForm.newHomeownerName.trim()
-    ) {
-      setTransferError('Enter the new homeowner name.')
-      return
+    let request
+    if (transferForm.status === 'transferred') {
+      try { request = transferRequest(contact.id, transferForm) }
+      catch (error) { setTransferError(error.message); return }
     }
 
     setTransferringContactId(contact.id)
@@ -374,12 +377,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
 
     if (transferForm.status === 'transferred') {
-      const { data, error } = await supabase.rpc('transfer_homeowner', {
-        p_previous_property_id: contact.id,
-        p_new_homeowner_name: transferForm.newHomeownerName.trim(),
-        p_effective_date: transferForm.effectiveDate,
-        p_note: transferForm.reason.trim() || null,
-      })
+      const targetName = transferForm.transferTo === 'existing'
+        ? transferForm.targetProperty.homeowner_name : transferForm.newHomeownerName.trim()
+      const { data, error } = await supabase.rpc(request.name, request.args)
 
       if (error) {
         setTransferringContactId(null)
@@ -395,9 +395,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       setTransferForm(EMPTY_TRANSFER_FORM)
 
       setNotice(
-        `${contact.homeowner_name} was transferred to ${
-          transferForm.newHomeownerName.trim()
-        }. Balance transferred: ${Number(
+        `${contact.block}, Lot ${contact.lot_number} was transferred to ${targetName}. Balance transferred: ${Number(
           result?.transferred_balance ?? 0
         ).toLocaleString('en-PH', {
           style: 'currency',
@@ -696,9 +694,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           >
             <div className="contact-modal-heading">
               <div>
-                <h2 id="transfer-homeowner-title">Move or Transfer Homeowner</h2>
+                <h2 id="transfer-homeowner-title">Move or transfer this lot</h2>
                 <p>
-                  The profile and all payment history will remain in the system.
+                  Only this lot changes owner. Previous records are kept.
                 </p>
               </div>
               <button
@@ -718,22 +716,26 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               </span>
             </div>
 
+            <fieldset className="contact-transfer-fields" disabled={Boolean(transferringContactId)}>
             <div className="contact-form-row">
               <div>
-                <label htmlFor="homeowner-new-status">New status</label>
+                <label htmlFor="homeowner-new-status">Action</label>
                 <select
                   id="homeowner-new-status"
-                  value={transferForm.status}
+                  value={transferForm.status === 'moved' ? 'moved' : transferForm.transferTo}
                   onChange={(event) =>
                     setTransferForm((current) => ({
                       ...current,
-                      status: event.target.value,
+                      status: event.target.value === 'moved' ? 'moved' : 'transferred',
+                      transferTo: event.target.value === 'existing' ? 'existing' : 'new',
+                      targetProperty: null,
                     }))
                   }
                   required
                 >
-                  <option value="moved">Moved</option>
-                  <option value="transferred">Transferred</option>
+                  <option value="moved">Mark as moved</option>
+                  <option value="existing">Transfer to an Existing homeowner</option>
+                  <option value="new">Transfer to a New homeowner</option>
                 </select>
               </div>
               <div>
@@ -755,7 +757,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             </div>
 
                   
-            {transferForm.status === 'transferred' && (
+            {transferForm.status === 'transferred' && transferForm.transferTo === 'new' && (
               <>
                 <label htmlFor="homeowner-new-owner-name">
                   New homeowner name
@@ -774,15 +776,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                   }
                   required
                 />
-                <p className="contact-transfer-note">
-                  The new owner will receive this property's outstanding
-                  balance or advance credit. The previous owner's history
-                  remains preserved.
-                </p>
               </>
             )}
 
 
+
+            {transferForm.status === 'transferred' && transferForm.transferTo === 'existing' && (
+              <TransferHomeownerPicker previousProperty={pendingTransferContact}
+                selected={transferForm.targetProperty} disabled={Boolean(transferringContactId)}
+                onSelect={(person) => setTransferForm((current) => ({ ...current, targetProperty: person }))} />
+            )}
 
             <label htmlFor="homeowner-status-reason">Reason or note (optional)</label>
             <textarea
@@ -799,11 +802,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             />
 
             <p className="contact-transfer-note">
-              This does not delete the homeowner. Previous dues, amenity payments,
-              service records, and receipts stay connected to this profile.
+              {transferForm.status === 'transferred' ? 'This lot’s balance or advance payment moves to its new owner. Other lots keep their own balances. Previous records are kept.' : 'This frees the lot while keeping the homeowner’s records.'}
             </p>
 
-            {transferError && <p className="contact-form-error">{transferError}</p>}
+            </fieldset>
+            {transferError && <p className="contact-form-error" role="alert">{transferError}</p>}
 
             <div className="contact-modal-actions">
               <button
@@ -819,7 +822,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 className="contact-save-button"
                 disabled={Boolean(transferringContactId)}
               >
-                {transferringContactId ? 'Saving...' : 'Confirm Status'}
+                {transferringContactId ? 'Saving...' : transferForm.status === 'transferred' ? 'Confirm transfer' : 'Confirm move'}
               </button>
             </div>
           </form>
