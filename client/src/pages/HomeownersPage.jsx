@@ -20,6 +20,10 @@ import './HomeownersPage.css'
 import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
+import HomeownerLotChips from '../components/HomeownerLotChips'
+import { duplicateLotMessage, isDuplicateLotError } from '../lib/homeownerLots'
+import HomeownerActionsMenu from '../components/HomeownerActionsMenu'
+import '../components/HomeownerProfileRefresh.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -312,9 +316,10 @@ useEffect(() => {
     setVoidTarget(null)
   }
 
-  function handleAdminChanged(result) {
+  async function handleAdminChanged(result) {
     setNotice(result?.message || '')
-    loadHomeowners(true)
+    await loadHomeowners(true)
+    if (result?.propertyId) handleSelectHomeowner(result.propertyId)
   }
 
   async function handleDeleteHomeowner() {
@@ -384,7 +389,7 @@ useEffect(() => {
       fetchAll(() => supabase
         .from('properties')
         .select(
-          'id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
+          'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
         )
         .order('homeowner_name')),
       // One tiny row per homeowner: how many active payments they have.
@@ -476,6 +481,13 @@ useEffect(() => {
         (property) => String(property.id) === String(homeownerId),
       ) || null,
     [homeownerId, properties],
+  )
+
+  const homeownerLots = useMemo(
+    () => selectedProperty?.homeowner_id
+      ? properties.filter((property) => property.homeowner_id === selectedProperty.homeowner_id)
+      : selectedProperty ? [selectedProperty] : [],
+    [properties, selectedProperty],
   )
 
   const selectedPropertyId = selectedProperty?.id ?? null
@@ -894,54 +906,61 @@ useEffect(() => {
                 </div>
               </div>
               <div className="homeowner-profile-actions">
-                {canEditContact && (
-                  <button type="button" onClick={() => navigate(`/contacts?edit=${selectedProperty.id}`)}>
-                    Edit Contact
-                  </button>
-                )}
-                <button type="button" onClick={() => navigate('/payments')}>
+                <button
+                  type="button"
+                  className="homeowner-primary-action"
+                  onClick={() => navigate('/payments', { state: { recordPaymentPropertyId: selectedProperty.id } })}
+                >
                   <CreditCard size={16} /> Record Payment
                 </button>
-               <button
-                type="button"
-                className={trackerOpen ? 'is-tracker-open' : ''}
-                aria-expanded={trackerOpen}
-                aria-controls="homeowner-payment-tracker"
-                onClick={togglePaymentTracker}
-                >
-                <Calendar size={16} /> {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
-                </button>
-                {canManageHomeowners && (
-            <button
-              type="button"
-              onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}
-            >
-              Edit Homeowner
-            </button>
-          )}
-                          
-          {canManageHomeowners && (
-            <>
-              <button
-                type="button"
-                onClick={() => setBalanceDialog(selectedProperty)}
-              >
-                Add Balance
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBalanceBreakdownOpen(true)}
-                aria-haspopup="dialog"
-                aria-expanded={balanceBreakdownOpen}
-              >
-                Balance Breakdown
-              </button>
-            </>
-          )}
-
+                <HomeownerActionsMenu key={selectedProperty.id}>
+                  {canManageHomeowners && (
+                    <>
+                      <button type="button" onClick={() => setAdminDialog({ type: 'lot', property: selectedProperty })}>
+                        Add Lot
+                      </button>
+                      <button type="button" onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}>
+                        Edit Homeowner
+                      </button>
+                    </>
+                  )}
+                  {canEditContact && (
+                    <button type="button" onClick={() => navigate(`/contacts?edit=${selectedProperty.id}`)}>
+                      Edit Contact
+                    </button>
+                  )}
+                  {canManageHomeowners && (
+                    <>
+                      <button type="button" onClick={() => setBalanceDialog(selectedProperty)}>
+                        Add Balance
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBalanceBreakdownOpen(true)}
+                        aria-haspopup="dialog"
+                        aria-expanded={balanceBreakdownOpen}
+                      >
+                        Balance Breakdown
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    aria-expanded={trackerOpen}
+                    aria-controls="homeowner-payment-tracker"
+                    onClick={togglePaymentTracker}
+                  >
+                    {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
+                  </button>
+                </HomeownerActionsMenu>
               </div>
             </section>
+
+            <HomeownerLotChips
+              lots={homeownerLots}
+              selectedId={selectedProperty.id}
+              onSelect={handleSelectHomeowner}
+            />
 
             <section className="homeowner-summary-grid" aria-label="Financial summary">
               <article>
@@ -1011,7 +1030,13 @@ useEffect(() => {
                 </label>
               </div>
 
-              {(() => {
+              {monthlyTracker.every((month) => month.total === 0) ? (
+                <div className="homeowner-analytics-empty" role="status">
+                  <FileText size={24} />
+                  <strong>No payments recorded in {trackerYear}</strong>
+                  <p>Monthly collections will appear here after a payment is recorded for this lot.</p>
+                </div>
+              ) : (() => {
                 const chartMax = Math.max(
                   1,
                   ...monthlyTracker.map((month) => month.total)
@@ -1036,7 +1061,7 @@ useEffect(() => {
                     >
                       {ticks.map((tick) => (
                         <span key={tick}>
-                          {peso.format(Math.round(chartMax * tick))}
+                          {peso.format(chartMax * tick)}
                         </span>
                       ))}
                     </div>
@@ -1359,8 +1384,8 @@ useEffect(() => {
                           <td>{formatDate(item.paidAt, organization.dateFormat)}</td>
                           <td><strong>{item.receipt}</strong></td>
                           <td><span className={`homeowner-category category-${item.kind}`}>{item.category}</span></td>
-                          <td>{item.description}</td>
-                          <td>{item.method}</td>
+                          <td title={item.description}>{item.description}</td>
+                          <td title={item.method}>{item.method}</td>
                           <td className="homeowner-number">{peso.format(item.amount)}</td>
                           <td className={item.remaining > 0 ? 'homeowner-balance' : item.remaining < 0 ? 'homeowner-credit' : 'homeowner-number'}>
                             {item.remaining < 0 ? `${peso.format(Math.abs(item.remaining))} credit` : peso.format(item.remaining)}
@@ -1445,7 +1470,7 @@ async function logAdminActivity(user, action, target) {
   }
 }
 
-// dialog:    null | { type: 'blocks' } | { type: 'homeowner', property: null | { id, homeowner_name, block, lot_number } }
+// dialog: null | { type: 'blocks' } | { type: 'homeowner' | 'lot', property }
 // canManage: true only for Admin or Secretary
 // onChanged: called after a change the page should reload for; receives { message }
 function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChanged }) {
@@ -1506,19 +1531,19 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setEditingBlockName('')
     setShowQuickBlock(false)
 
-    if (dialog.type === 'homeowner') {
+    if (dialog.type === 'homeowner' || dialog.type === 'lot') {
       const property = dialog.property
       setHomeownerForm(
         property
           ? {
               homeownerName: property.homeowner_name || '',
-              blockName: property.block || '',
-              lotNumber: String(property.lot_number ?? ''),
-              lotSizeSqm: property.lot_size_sqm == null ? '' : String(property.lot_size_sqm),
+              blockName: dialog.type === 'lot' ? '' : property.block || '',
+              lotNumber: dialog.type === 'lot' ? '' : String(property.lot_number ?? ''),
+              lotSizeSqm: dialog.type === 'lot' || property.lot_size_sqm == null ? '' : String(property.lot_size_sqm),
             }
           : EMPTY_HOMEOWNER,
       )
-      setEditingHomeownerId(property ? property.id : null)
+      setEditingHomeownerId(property && dialog.type !== 'lot' ? property.id : null)
     }
 
     loadBlocks()
@@ -1557,8 +1582,13 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
       return
     }
 
+    if (dialog.type === 'lot' && !dialog.property?.homeowner_id) {
+      setFormError('Refresh the homeowner profile before adding a lot.')
+      return
+    }
+
     const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
-    const blockName = homeownerForm.blockName
+    const blockName = homeownerForm.blockName.trim()
     const lotNumber = Number(homeownerForm.lotNumber)
 
     if (!homeownerName || !blockName || !homeownerForm.lotNumber) {
@@ -1586,45 +1616,25 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setSavingHomeowner(true)
     setFormError('')
 
-    // Only a currently active homeowner occupies a lot. Once a homeowner is marked
-    // Moved/Transferred the lot is vacant again. Checked in the database so it stays
-    // correct (and fast) no matter how many homeowners exist.
-    let occupiedQuery = supabase
-      .from('properties')
-      .select('id', { count: 'exact', head: true })
-      .eq('block', blockName)
-      .eq('lot_number', lotNumber)
-      .eq('homeowner_status', 'active')
-    if (editingHomeownerId) occupiedQuery = occupiedQuery.neq('id', editingHomeownerId)
-
-    const { count: occupiedCount, error: occupiedError } = await occupiedQuery
-
-    if (occupiedError) {
-      setFormError(`Could not check the lot: ${occupiedError.message}`)
-      setSavingHomeowner(false)
-      return
-    }
-
-    if ((occupiedCount || 0) > 0) {
-      setFormError('That block and lot already has an active homeowner.')
-      setSavingHomeowner(false)
-      return
-    }
-
-        const payload = {
+    const payload = {
+      ...(dialog.type === 'lot' && {
+        homeowner_id: dialog.property.homeowner_id,
+        contact_phone: dialog.property.contact_phone,
+        contact_email: dialog.property.contact_email,
+      }),
       homeowner_name: homeownerName,
       block: blockName,
       lot_number: lotNumber,
       ...(lotSizeSqm !== null && { lot_size_sqm: lotSizeSqm }),
-}
-    const { error } = editingHomeownerId
+    }
+    const { data, error } = editingHomeownerId
       ? await supabase.from('properties').update(payload).eq('id', editingHomeownerId)
-      : await supabase.from('properties').insert(payload)
+      : await supabase.from('properties').insert(payload).select('id').single()
 
     if (error) {
       setFormError(
-        error.code === '23505'
-          ? 'That block and lot already has a homeowner record.'
+        isDuplicateLotError(error)
+          ? duplicateLotMessage(blockName, lotNumber)
           : error.message,
       )
       setSavingHomeowner(false)
@@ -1638,7 +1648,10 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     onClose()
     if (onChanged) {
       onChanged({
-        message: wasEditing
+        ...(dialog.type === 'lot' && { propertyId: data.id }),
+        message: dialog.type === 'lot'
+          ? `Lot ${lotNumber} was added for ${homeownerName}.`
+          : wasEditing
           ? `Homeowner ${homeownerName} was updated.`
           : `Homeowner ${homeownerName} was added.`,
       })
@@ -1870,7 +1883,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
 
   return (
     <>
-      {dialogType === 'homeowner' && canManage && (
+      {(dialogType === 'homeowner' || dialogType === 'lot') && canManage && (
         <div className="hod-backdrop" onMouseDown={closeHomeownerForm}>
           <form
             className="hod-modal"
@@ -1879,9 +1892,11 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
           >
             <div className="hod-heading">
               <div>
-                <h2>{editingHomeownerId ? 'Edit Homeowner' : 'Add New Homeowner'}</h2>
+                <h2>{dialogType === 'lot' ? 'Add Lot' : editingHomeownerId ? 'Edit Homeowner' : 'Add New Homeowner'}</h2>
                 <p>
-                  {editingHomeownerId
+                  {dialogType === 'lot'
+                    ? `Add a separate lot for ${dialog.property.homeowner_name}.`
+                    : editingHomeownerId
                     ? 'Update the homeowner or their block and lot.'
                     : 'Add the homeowner and assign an available block and lot.'}
                 </p>
@@ -1889,16 +1904,20 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
               <button type="button" className="hod-close" onClick={closeHomeownerForm} aria-label="Close">×</button>
             </div>
 
-            <label htmlFor="hod-homeowner-name">Homeowner full name</label>
-            <input
-              id="hod-homeowner-name"
-              name="homeownerName"
-              value={homeownerForm.homeownerName}
-              onChange={updateHomeownerField}
-              maxLength="120"
-              autoFocus
-              required
-            />
+            {dialogType !== 'lot' && (
+              <>
+                <label htmlFor="hod-homeowner-name">Homeowner full name</label>
+                <input
+                  id="hod-homeowner-name"
+                  name="homeownerName"
+                  value={homeownerForm.homeownerName}
+                  onChange={updateHomeownerField}
+                  maxLength="120"
+                  autoFocus
+                  required
+                />
+              </>
+            )}
 
             <div className="hod-row">
               <div>
@@ -1966,7 +1985,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
                   ? 'Saving...'
                   : editingHomeownerId
                     ? 'Save Changes'
-                    : 'Save Homeowner'}
+                    : dialogType === 'lot' ? 'Save Lot' : 'Save Homeowner'}
               </button>
             </div>
           </form>

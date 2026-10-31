@@ -5,7 +5,7 @@ import {
   parseWholeNumber,
   penaltyLabel,
   percentToFraction,
-} from './latePenalty'
+} from './latepenalty'
 
 describe('percentToFraction', () => {
   it('converts a percent to the stored fraction', () => {

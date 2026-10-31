@@ -22,8 +22,8 @@ function todayInManila() {
 
 /**
  * Adds a carried-forward balance to a homeowner (for example an old unpaid
- * amount). The database adds it to the homeowner's balance and posts one late
- * penalty for every full year since the "as of" date.
+ * amount, including penalties already calculated in the verified HOA records).
+ * The database adds this final amount without another automatic penalty.
  */
 export default function BalanceEntryDialog({ property, currentUser, onClose, onSaved }) {
   const today = todayInManila()
@@ -48,7 +48,7 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
     setError('')
 
     const note = description.trim()
-    const { data, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from('balance_entries')
       .insert({
         property_id: property.id,
@@ -66,14 +66,6 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
       return
     }
 
-    // The database already posted any penalties for the years that have passed.
-    const { data: penalties } = await supabase
-      .from('late_payment_penalties')
-      .select('penalty_amount')
-      .eq('balance_entry_id', data.id)
-    const posted = (penalties || []).filter((row) => Number(row.penalty_amount) > 0)
-    const penaltyCents = posted.reduce((sum, row) => sum + Math.round(Number(row.penalty_amount) * 100), 0)
-
     if (currentUser?.id) {
       const { error: logError } = await supabase.from('activity_log').insert({
         user_id: currentUser.id,
@@ -84,12 +76,7 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
     }
 
     setSaving(false)
-    onSaved(
-      `Balance of ${peso.format(Number(parsed.value))} added to ${property.homeowner_name}.` +
-        (posted.length > 0
-          ? ` ${posted.length} late penalt${posted.length === 1 ? 'y' : 'ies'} totaling ${peso.format(penaltyCents / 100)} ${posted.length === 1 ? 'was' : 'were'} posted.`
-          : ''),
-    )
+    onSaved(`Balance of ${peso.format(Number(parsed.value))} added to ${property.homeowner_name}.`)
   }
 
   return (
@@ -149,8 +136,8 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
         />
 
         <p className="hod-note">
-          A late penalty is added automatically for every full year since the “as of” date, using the
-          yearly rate set in System Settings. Choose the date the oldest part of this balance became due.
+          Enter the final verified balance, including any penalties already in the HOA records.
+          No additional automatic penalty is added. The “as of” date is for reference.
         </p>
 
         {error && <p className="hod-error">{error}</p>}

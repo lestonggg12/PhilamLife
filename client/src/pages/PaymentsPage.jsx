@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
@@ -372,6 +374,9 @@ function PaymentCalendar({
 }
 
 export default function PaymentsPage({ user: suppliedUser }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const handledPaymentRequestRef = useRef(null)
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   // One page (50) of payments at a time, read from the database.
@@ -537,6 +542,34 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
     setLoading(false)
   }
+
+  // A profile's Record Payment button carries only its lot ID. Wait for the
+  // current ledger and role, then consume the request so closing/refreshing the
+  // form does not reopen it. Name, lot and balance come from the fresh ledger.
+  useEffect(() => {
+    const propertyId = location.state?.recordPaymentPropertyId
+    if (propertyId == null || loading || !canManagePayments || pageError) return
+    if (handledPaymentRequestRef.current === location.key) return
+    handledPaymentRequestRef.current = location.key
+
+    const property = findActivePaymentLot(properties, propertyId)
+    if (property) {
+      setForm({ ...EMPTY_FORM, ...paymentLotFields(property) })
+      setFormError('')
+      setHomeownerMenuOpen(false)
+      setAnnualAdvance(false)
+      setShowForm(true)
+    } else {
+      setPageError('This lot is no longer active or available. Select an active homeowner to record a payment.')
+    }
+
+    const remainingState = { ...location.state }
+    delete remainingState.recordPaymentPropertyId
+    navigate(
+      { pathname: location.pathname, search: location.search, hash: location.hash },
+      { replace: true, state: Object.keys(remainingState).length ? remainingState : null },
+    )
+  }, [location, loading, canManagePayments, pageError, properties, navigate])
 
   // Dues payments come off the balance in full (extra becomes advance credit).
   // Fees/penalties only pay off an open charge of the same type; otherwise they are a one-time fee.
@@ -871,11 +904,7 @@ function selectHomeowner(property) {
 
   setForm((current) => ({
     ...current,
-    previousBalance: String(Number(property.current_balance) || 0),
-    propertyId: String(property.id),
-    homeownerName: property.homeowner_name,
-    blockName: property.block,
-    lotNumber: String(property.lot_number),
+    ...paymentLotFields(property),
     ...(wasAnnualAdvance
       ? {
           amountPaid: '',
@@ -1596,8 +1625,7 @@ function selectHomeowner(property) {
                             role="option"
                             aria-selected={String(property.id) === form.propertyId}
                           >
-                            <span>{property.homeowner_name}</span>
-                            <small>{property.block} · Lot {property.lot_number}</small>
+                            <span>{property.homeowner_name} — {property.block}, Lot {property.lot_number}</span>
                           </button>
                         ))
                       )}

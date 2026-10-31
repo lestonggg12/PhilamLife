@@ -1,0 +1,244 @@
+/* Scoped to the finder and profile content only. App chrome and page header keep
+   their current styles. Existing amounts, permissions and data loading are unchanged. */
+.homeowners-page .homeowners-finder,
+.homeowners-page .homeowner-profile-panel {
+  --profile-ink: #19354d;
+  --profile-muted: #62778b;
+  --profile-line: #dfe7ef;
+  --profile-soft: #f6f9fc;
+  border-color: var(--profile-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(31, 65, 96, 0.04);
+}
+.homeowners-page .homeowners-finder { margin-bottom: 0; }
+.homeowners-page .homeowners-finder-heading { padding: 20px 22px 0; }
+.homeowners-page .homeowners-finder-heading h2 {
+  color: var(--profile-ink);
+  font-size: 15px;
+  font-weight: 650;
+}
+.homeowners-page .homeowners-finder-heading span { color: var(--profile-muted); font-size: 12px; }
+.homeowners-page .homeowners-directory-icon { width: 34px; height: 34px; background: #f0f6fb; border-radius: 8px; }
+.homeowners-page .homeowners-finder-controls { padding: 14px 22px 20px; gap: 12px; }
+.homeowners-page .homeowners-search,
+.homeowners-page .homeowners-filter {
+  min-height: 44px;
+  border-color: var(--profile-line);
+  border-radius: 8px;
+  box-shadow: none;
+  color: var(--profile-ink);
+  font-size: 13px;
+}
+.homeowners-page .homeowners-search:focus,
+.homeowners-page .homeowners-filter:focus { border-color: #1464a0; box-shadow: 0 0 0 3px #1464a015; }
+.homeowners-page .homeowners-search-results {
+  background: #fff;
+  border: 1px solid var(--profile-line);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px #19354d18;
+}
+.homeowners-page .homeowner-directory-card { border-radius: 6px; }
+.homeowners-page .homeowner-directory-avatar { box-shadow: none; background: #edf5fb; color: #1464a0; }
+.homeowners-page .homeowner-directory-copy strong { color: var(--profile-ink); font-weight: 600; }
+.homeowners-page .homeowner-directory-copy small { color: var(--profile-muted); }
+.homeowners-page .homeowner-profile-panel { overflow: visible; }
+.homeowners-page .homeowner-profile-hero {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 26px 24px;
+  border: 0;
+  border-radius: 12px 12px 0 0;
+  background: #fff;
+  text-align: left;
+}
+.homeowners-page .homeowner-profile-avatar {
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  border: 0;
+  background: #eaf3fb;
+  color: #1464a0;
+  box-shadow: none;
+  font-size: 23px;
+  font-weight: 600;
+}
+.homeowners-page .homeowner-profile-title-row { flex-direction: row; align-items: center; gap: 10px 14px; }
+.homeowners-page .homeowner-profile-title-row p {
+  color: var(--profile-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  margin-bottom: 4px;
+}
+.homeowners-page .homeowner-profile-title-row h2 { color: var(--profile-ink); font-size: 26px; letter-spacing: -0.025em; line-height: 1.2; overflow-wrap: anywhere; }
+.homeowners-page .homeowner-account-badge { padding: 4px 8px; font-size: 11px; font-weight: 600; border-radius: 6px; }
+.homeowners-page .homeowner-profile-meta { gap: 7px 16px; margin-top: 11px; color: var(--profile-muted); font-size: 12px; justify-content: flex-start; }
+.homeowners-page .homeowner-profile-meta span { overflow-wrap: anywhere; }
+.homeowners-page .homeowner-profile-meta svg { width: 14px; height: 14px; color: #7791a8; }
+.homeowners-page .homeowner-profile-actions { max-width: none; display: flex; flex-flow: row wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 0; grid-column: auto; }
+.homeowners-page .homeowner-profile-actions button {
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid var(--profile-line);
+  border-radius: 8px;
+  color: var(--profile-ink);
+  background: #fff;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+.homeowners-page .homeowner-profile-actions button:hover { background: var(--profile-soft); border-color: #b9cad9; }
+.homeowners-page .homeowner-profile-actions .homeowner-primary-action { color: #fff; background: #1464a0; border-color: #1464a0; }
+.homeowners-page .homeowner-profile-actions .homeowner-primary-action:hover { color: #fff; background: #10517f; border-color: #10517f; }
+.homeowner-actions-disclosure { position: relative; }
+.homeowner-actions-disclosure > button { gap: 9px; }
+.homeowner-actions-disclosure > button[aria-expanded="true"] { border-color: #1464a0; }
+.homeowner-actions-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  width: 216px;
+  max-width: calc(100vw - 48px);
+  z-index: 40;
+  display: grid;
+  padding: 6px;
+  border: 1px solid #dfe7ef;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px #19354d21;
+}
+.homeowners-page .homeowner-actions-popover button {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 39px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--profile-ink);
+  background: #fff;
+  white-space: normal;
+  text-align: left;
+}
+.homeowners-page .homeowner-actions-popover button:hover { border: 0; background: #eef5fb; }
+.homeowners-page .homeowner-profile-panel .homeowner-lot-chips {
+  gap: 8px;
+  margin: 0 24px;
+  padding: 0 0 20px;
+  border-bottom: 1px solid var(--profile-line);
+}
+.homeowners-page .homeowner-profile-panel .homeowner-lot-chips button {
+  padding: 8px 13px;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--profile-soft);
+  color: var(--profile-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.homeowners-page .homeowner-profile-panel .homeowner-lot-chips button[aria-current="page"] {
+  border-color: #bad3e7;
+  background: #edf5fc;
+  color: #10517f;
+  font-weight: 650;
+}
+.homeowners-page .homeowner-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 22px 24px 0; }
+.homeowners-page .homeowner-summary-grid article {
+  min-height: 112px;
+  padding: 17px 18px;
+  border: 1px solid var(--profile-line);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+  transform: none;
+}
+.homeowners-page .homeowner-summary-grid article::before { display: none; }
+.homeowners-page .homeowner-summary-grid article:hover { transform: none; box-shadow: none; }
+.homeowners-page .homeowner-summary-grid article > span { color: var(--profile-muted); font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.homeowners-page .homeowner-summary-grid strong { margin: 9px 0 5px; color: var(--profile-ink); font-size: clamp(20px, 1.7vw, 25px); font-weight: 650; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+.homeowners-page .homeowner-summary-grid .has-balance { background: #fffafa; border-color: #efd9d4; }
+.homeowners-page .homeowner-summary-grid .has-balance strong { color: #a53327; }
+.homeowners-page .homeowner-summary-grid .has-credit strong { color: #16704e; }
+.homeowners-page .homeowner-summary-grid small { color: var(--profile-muted); font-size: 11px; line-height: 1.5; }
+.homeowners-page .homeowner-summary-grid .homeowner-summary-date { font-size: 15px !important; font-weight: 600; letter-spacing: 0; }
+.homeowners-page .homeowner-payment-analytics { margin: 22px 24px 0; padding: 22px; border: 1px solid var(--profile-line); border-radius: 10px; background: #fff; box-shadow: none; }
+.homeowners-page .homeowner-payment-analytics-header { align-items: flex-start; margin-bottom: 22px; }
+.homeowners-page .homeowner-payment-analytics-header h3 { color: var(--profile-ink); font-size: 15px; font-weight: 650; }
+.homeowners-page .homeowner-payment-analytics-header p { color: var(--profile-muted); font-size: 12px; }
+.homeowners-page .homeowner-analytics-year { color: var(--profile-muted); font-size: 12px; font-weight: 500; }
+.homeowners-page .homeowner-analytics-year select { border-color: var(--profile-line); border-radius: 7px; font-size: 12px; }
+.homeowners-page .homeowner-analytics-chart { grid-template-columns: minmax(72px, max-content) minmax(0, 1fr); gap: 12px; }
+.homeowners-page .homeowner-analytics-y-axis { color: var(--profile-muted); font-size: 11px; }
+.homeowners-page .homeowner-analytics-gridlines span { border-color: #e8edf3; }
+.homeowners-page .homeowner-analytics-bar.has-value { border: 0; border-radius: 5px 5px 0 0; background: #3b80b6; box-shadow: none; }
+.homeowners-page .homeowner-analytics-month-label { color: var(--profile-muted); font-size: 11px; font-weight: 500; }
+.homeowners-page .homeowner-analytics-month-value { color: var(--profile-muted); font-size: 11px; }
+.homeowners-page .homeowner-payment-analytics-note { color: var(--profile-muted); font-size: 11px; border-top: 1px solid #edf1f5; padding-top: 13px; }
+.homeowner-analytics-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; min-height: 195px; padding: 24px 16px; text-align: center; color: #62778b; }
+.homeowner-analytics-empty svg { color: #8fa5b9; margin-bottom: 3px; }
+.homeowner-analytics-empty strong { color: #334f67; font-size: 14px; font-weight: 600; }
+.homeowner-analytics-empty p { max-width: 350px; margin: 0; font-size: 12px; line-height: 1.6; }
+.homeowners-page .homeowner-tabs { gap: 24px; margin-top: 24px; padding: 0 24px; border-color: var(--profile-line); }
+.homeowners-page .homeowner-tabs button { padding: 13px 0; border-bottom-width: 2px; font-size: 12px; font-weight: 600; color: var(--profile-muted); }
+.homeowners-page .homeowner-tabs button.is-active { color: #1464a0; }
+.homeowners-page .homeowner-tabs button span { height: 19px; min-width: 19px; font-size: 10px; background: #eff3f7; color: var(--profile-muted); }
+.homeowners-page .homeowner-tabs button.is-active span { color: #1464a0; background: #e9f3fb; }
+.homeowners-page .homeowner-overview-grid { gap: 18px; padding: 22px 24px 0; }
+.homeowners-page .homeowner-info-card,
+.homeowners-page .homeowner-history-card { border-color: var(--profile-line); border-radius: 9px; background: #fff; box-shadow: none; }
+.homeowners-page .homeowner-info-card { padding: 20px; }
+.homeowners-page .homeowner-section-heading { gap: 11px; }
+.homeowners-page .homeowner-section-heading > svg { padding: 7px; border-radius: 7px; background: #f0f6fb; color: #39739f; }
+.homeowners-page .homeowner-section-heading h3 { color: var(--profile-ink); font-size: 14px; font-weight: 650; }
+.homeowners-page .homeowner-section-heading p { color: var(--profile-muted); font-size: 11px; margin-top: 4px; }
+.homeowners-page .homeowner-info-card dl { margin-top: 19px; gap: 12px; }
+.homeowners-page .homeowner-info-card dl > div { gap: 14px; padding-bottom: 12px; border-color: #edf1f5; }
+.homeowners-page .homeowner-info-card dt { color: var(--profile-muted); font-size: 12px; }
+.homeowners-page .homeowner-info-card dd { color: var(--profile-ink); font-size: 12px; font-weight: 500; overflow-wrap: anywhere; min-width: 0; }
+.homeowners-page .homeowner-history-card { margin: 18px 24px 24px; padding: 20px; }
+.homeowners-page .homeowner-history-table-wrap { border-color: var(--profile-line); border-radius: 7px; margin-top: 18px; }
+.homeowners-page .homeowner-history-table { min-width: 820px; table-layout: fixed; }
+.homeowners-page .homeowner-history-table th { background: #f5f8fb; color: #526b80; border-color: var(--profile-line); font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; padding: 12px 10px; }
+.homeowners-page .homeowner-history-table td { padding: 15px 10px; color: #405b71; border-color: #edf1f5; font-size: 12px; }
+.homeowners-page .homeowner-history-table td strong { font-weight: 600; }
+.homeowners-page .homeowner-history-table thead th:last-child { background: #f5f8fb; }
+.homeowners-page .homeowner-history-table .homeowners-empty { padding: 38px 16px; text-align: center; color: var(--profile-muted); }
+.homeowners-page .homeowner-category,
+.homeowners-page .homeowner-payment-status { font-size: 10px; font-weight: 600; border-radius: 5px; }
+@media (max-width: 1050px) {
+  .homeowners-page .homeowner-profile-hero { grid-template-columns: auto minmax(0, 1fr); }
+  .homeowners-page .homeowner-profile-actions { grid-column: 2; justify-content: flex-start; }
+}
+@media (max-width: 760px) {
+  .homeowners-page .homeowners-finder-heading { padding: 18px 18px 0; }
+  .homeowners-page .homeowners-finder-controls { padding: 14px 18px 18px; }
+  .homeowners-page .homeowner-profile-hero { padding: 22px 18px; }
+  .homeowners-page .homeowner-profile-panel .homeowner-lot-chips { margin: 0 18px; padding-bottom: 18px; }
+  .homeowners-page .homeowner-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 18px 18px 0; }
+  .homeowners-page .homeowner-payment-analytics { margin: 18px 18px 0; padding: 18px; }
+  .homeowners-page .homeowner-analytics-chart { overflow-x: auto; grid-template-columns: 78px minmax(540px, 1fr); }
+  .homeowners-page .homeowner-analytics-plot { height: 225px; }
+  .homeowners-page .homeowner-analytics-bars { gap: 7px; }
+  .homeowners-page .homeowner-payment-analytics-header { flex-wrap: wrap; }
+  .homeowners-page .homeowner-analytics-month-label,
+  .homeowners-page .homeowner-analytics-month-value,
+  .homeowners-page .homeowner-analytics-y-axis { font-size: 11px; }
+  .homeowners-page .homeowner-tabs { padding: 0 18px; gap: 20px; }
+  .homeowners-page .homeowner-overview-grid { grid-template-columns: 1fr; padding: 18px 18px 0; gap: 14px; }
+  .homeowners-page .homeowner-history-card { margin: 14px 18px 18px; padding: 18px; }
+}
+@media (max-width: 430px) {
+  .homeowners-page .homeowner-profile-hero { gap: 13px; grid-template-columns: 42px minmax(0, 1fr); }
+  .homeowners-page .homeowner-profile-avatar { width: 42px; height: 42px; font-size: 19px; }
+  .homeowners-page .homeowner-profile-title-row h2 { font-size: 23px; }
+  .homeowners-page .homeowner-profile-actions { grid-column: 1 / -1; }
+  .homeowners-page .homeowner-summary-grid { grid-template-columns: 1fr; }
+  .homeowners-page .homeowner-actions-popover { left: 0; right: auto; }
+}
+@media print {
+  .homeowners-page .homeowner-profile-actions { display: none; }
+  .homeowners-page .homeowner-analytics-chart { overflow: visible; grid-template-columns: 78px minmax(0, 1fr); }
+  .homeowners-page .homeowner-history-table { min-width: 0; }
+}
