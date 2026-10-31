@@ -10,13 +10,13 @@ const SORT_COLUMNS = [
   { key: 'name', label: 'Homeowner' },
   { key: 'block', label: 'Block / Lot' },
   { key: 'dueAmount', label: 'Previous Balance' },
-  { key: 'paidAmount', label: 'Last Paid' },
-  { key: 'balance', label: 'Balance' },
+  { key: 'paidAmount', label: 'Last Payment Amount' },
+  { key: 'balance', label: 'Outstanding Balance' },
   { key: 'lastPaymentSort', label: 'Last Payment' },
 ]
 
 // Negative balances are advance credit — show them as credit, not as "-₱x".
-const formatMoney = (value) => (value < 0 ? `${peso.format(-value)} credit` : peso.format(value))
+const formatMoney = (value) => (value < 0 ? `${peso.format(-value)} for future bills` : peso.format(value))
 
 // The table only renders once the user has narrowed things down — with a
 // search term or a non-default filter — so we never dump the full
@@ -292,7 +292,7 @@ async function downloadStatementPdf() {
         reconciliationNote: [
           ...ledgerStatementNotes(statementAccount.statementTotals, (value) => `PHP ${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
           statementAccount.closingAdjustment
-            ? `Documented moved-account closing adjustment: PHP ${Number(statementAccount.closingAdjustment).toFixed(2)}. This is reconciliation metadata, not cash received.${statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}`
+            ? `Balance correction recorded after the owner moved: PHP ${Number(statementAccount.closingAdjustment).toFixed(2)}. This note does not add a charge or payment.${statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}`
             : '',
         ].filter(Boolean).join('\n'),
         statementLines: rows,
@@ -539,33 +539,34 @@ async function downloadStatementPdf() {
               Showing the first {MAX_VISIBLE_ROWS} of {sorted.length} matches — refine your search to narrow this down.
             </p>
           )}
-          <table className="ledger-table">
+          <table className="ledger-table" aria-label="Homeowner accounts">
             <thead>
               <tr>
                 {SORT_COLUMNS.map((column) => (
-                  <th key={column.key} className="ledger-th-sortable" onClick={() => toggleSort(column.key)}>
-                    {column.label}{sortIndicator(column.key)}
+                  <th key={column.key} className="ledger-th-sortable" scope="col">
+                    <button type="button" className="ledger-column-sort" onClick={() => toggleSort(column.key)}>
+                    {column.label}{sortIndicator(column.key)}</button>
                   </th>
                 ))}
-                <th>Credit</th>
-                <th>Status</th>
+                <th scope="col">Available Credit</th>
+                <th scope="col">Status</th>
                 <th className="ledger-actions-heading" aria-label="Actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((entry) => (
                 <tr key={entry.id}>
-                  <td><strong>{entry.name}</strong></td>
-                  <td>{entry.block}, {entry.lot}</td>
-                  <td>{formatMoney(entry.dueAmount)}</td>
-                  <td>{peso.format(entry.paidAmount)}</td>
-                  <td className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
-                  <td>{entry.lastPayment}</td>
-                  <td className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
-                  <td><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
+                  <td data-label="Homeowner"><strong>{entry.name}</strong></td>
+                  <td data-label="Block / Lot">{entry.block}, {entry.lot}</td>
+                  <td data-label="Previous balance">{formatMoney(entry.dueAmount)}</td>
+                  <td data-label="Last payment amount">{peso.format(entry.paidAmount)}</td>
+                  <td data-label="Outstanding balance" className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
+                  <td data-label="Last payment date">{entry.lastPayment}</td>
+                  <td data-label="Available credit" className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
+                  <td data-label="Status"><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
                   <td className="ledger-row-actions">
                     <div className="ledger-actions-card">
-                      <button className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>
+                      <button aria-label={`View statement for ${entry.name}, ${entry.block}, ${entry.lot}`} className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>
                     </div>
                   </td>
                 </tr>
@@ -585,23 +586,23 @@ async function downloadStatementPdf() {
             {!statementLoading && !statementError && statementAccount.statementTotals && (
               <>
                 <div className="ledger-statement-summary">
-                  <div><span>Opening balance brought forward</span><strong>{formatMoney(statementAccount.statementTotals.openingBalance)}</strong></div>
-                  <div><span>Charges added</span><strong>{peso.format(statementAccount.statementTotals.addedCharges)}</strong></div>
-                  <div><span>Payments received (money collected)</span><strong>{peso.format(statementAccount.statementTotals.payments)}</strong></div>
-                  <div><span>Annual discount credit (non-cash)</span><strong>{peso.format(statementAccount.statementTotals.annualDiscountCredit)}</strong></div>
-                  <div><span>Outstanding balance</span><strong>{peso.format(statementAccount.balance)}</strong></div>
-                  <div><span>Available credit</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
+                  <div><span>Starting balance</span><strong>{formatMoney(statementAccount.statementTotals.openingBalance)}</strong></div>
+                  <div><span>New charges</span><strong>{peso.format(statementAccount.statementTotals.addedCharges)}</strong></div>
+                  <div><span>Payments received</span><strong>{peso.format(statementAccount.statementTotals.payments)}</strong></div>
+                  <div><span>Discount: 1 month free</span><strong>{peso.format(statementAccount.statementTotals.annualDiscountCredit)}</strong></div>
+                  <div><span>Amount still owed</span><strong>{peso.format(statementAccount.balance)}</strong></div>
+                  <div><span>Amount available for future bills</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
                   {statementAccount.statementTotals.netOtherAdjustments !== 0 && (
-                    <div><span>Other balance adjustments</span><strong>{formatMoney(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
+                    <div><span>Other balance changes</span><strong>{formatMoney(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
                   )}
                 </div>
-                <p className="ledger-form-note">All available transactions for this lot. Amounts in Philippine pesos; dates and times in Asia/Manila. A balance marked “credit” is available against future charges.</p>
+                <p className="ledger-form-note">Payment and charge history for this lot. All amounts are in Philippine pesos. Dates and times use Philippine time. “For future bills” means you do not owe that amount; it can cover later bills.</p>
                 {ledgerStatementNotes(statementAccount.statementTotals, (value) => peso.format(value)).map((note) => (
                   <p className="ledger-form-note" key={note}>{note}</p>
                 ))}
                 {statementAccount.closingAdjustment !== 0 && (
                   <p className="ledger-form-note">
-                    This moved account includes a documented closing adjustment of {peso.format(statementAccount.closingAdjustment)}. It is reconciliation metadata, not a charge or payment.
+                    After the owner moved, a balance correction of {peso.format(statementAccount.closingAdjustment)} was recorded. This note does not add a charge or payment.
                     {statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}
                   </p>
                 )}
@@ -618,25 +619,25 @@ async function downloadStatementPdf() {
                   <col className="statement-column-money" />
                   <col className="statement-column-money" />
                 </colgroup>
-                <thead><tr><th scope="col">Date</th><th scope="col">Entry</th><th scope="col">Reference</th><th scope="col">Charge / debit</th><th scope="col">Payment / credit</th><th scope="col">Running balance</th></tr></thead>
+                <thead><tr><th scope="col">Date</th><th scope="col">What happened</th><th scope="col">Reference</th><th scope="col">Amount added</th><th scope="col">Amount deducted</th><th scope="col">Balance after this entry</th></tr></thead>
                 <tbody>
                   {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No statement entries found.</td></tr> : statementLines.map((line, index) => (
                     <tr role="row" key={line.id || `${line.transaction_date}-${index}`} className={line.voided ? 'ledger-statement-voided' : line.kind === 'annual-discount' ? 'ledger-statement-discount' : ''}>
                       <td role="cell" data-label="Date">{line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—'}</td>
-                      <td role="cell" data-label="Entry"><strong>{line.description}</strong>{(line.details || []).map((detail) => <small className="ledger-statement-detail" key={detail}>{detail}</small>)}</td>
+                      <td role="cell" data-label="What happened"><strong>{line.description}</strong>{(line.details || []).map((detail) => <small className="ledger-statement-detail" key={detail}>{detail}</small>)}</td>
                       <td role="cell" data-label="Reference">{line.reference_number || '—'}</td>
-                      <td role="cell" data-label="Charge / debit">{peso.format(Number(line.debit) || 0)}</td>
-                      <td role="cell" data-label="Payment / credit">{peso.format(Number(line.credit) || 0)}</td>
-                      <td role="cell" data-label="Running balance">{line.running_balance == null ? '—' : formatMoney(line.running_balance)}</td>
+                      <td role="cell" data-label="Amount added">{peso.format(Number(line.debit) || 0)}</td>
+                      <td role="cell" data-label="Amount deducted">{peso.format(Number(line.credit) || 0)}</td>
+                      <td role="cell" data-label="Balance after this entry">{line.running_balance == null ? '—' : formatMoney(line.running_balance)}</td>
                     </tr>
                   ))}
                 </tbody>
                 {!statementLoading && !statementError && statementAccount.statementTotals && (
                   <tfoot><tr>
-                    <th colSpan="3">Statement totals / closing balance</th>
-                    <td data-label="Total debits">{peso.format(statementAccount.statementTotals.totalDebits)}</td>
-                    <td data-label="Total credits">{peso.format(statementAccount.statementTotals.totalCredits)}</td>
-                    <td data-label="Closing balance">{formatMoney(statementAccount.statementTotals.finalBalance)}</td>
+                    <th colSpan="3">Totals / final balance</th>
+                    <td data-label="Total added">{peso.format(statementAccount.statementTotals.totalDebits)}</td>
+                    <td data-label="Total deducted">{peso.format(statementAccount.statementTotals.totalCredits)}</td>
+                    <td data-label="Final balance">{formatMoney(statementAccount.statementTotals.finalBalance)}</td>
                   </tr></tfoot>
                 )}
               </table>

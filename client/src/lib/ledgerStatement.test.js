@@ -17,7 +17,7 @@ describe('buildLedgerStatement', () => {
     expect(result.lines.map((line) => line.description)).toEqual([
       'Association Dues',
       'Payment',
-      'Special Assessment (Voided)',
+      'Special Assessment (Cancelled)',
     ])
     expect(result.lines.at(-1).running_balance).toBe(500)
     expect(result.totals.openingBalance).toBe(0)
@@ -171,8 +171,8 @@ describe('complete annual advance statement', () => {
   it('does not describe unbilled advance credit as unexplained applied payments', () => {
     const result = buildLedgerStatement({ payments: [annualPayment], storedBalance: -12000 })
     const notes = ledgerStatementNotes(result.totals, (v) => `PHP ${v}`)
-    expect(notes.join(' ')).toContain('not cash received')
-    expect(notes.join(' ')).toContain('future charges')
+    expect(notes.join(' ')).toContain('not part of the money received')
+    expect(notes.join(' ')).toContain('future bills')
     expect(notes.join(' ')).not.toContain('existing positive balance')
     expect(notes.join(' ')).not.toContain('historical balance effects')
   })
@@ -206,7 +206,7 @@ describe('complete annual advance statement', () => {
       const result = buildLedgerStatement({ payments: [{ ...annualPayment, receipt_breakdown }], storedBalance: -12000 })
       expect(result.totals.annualDiscountCredit).toBe(0)
       expect(result.totals.additionalRecordedCredit).toBe(1000)
-      expect(ledgerStatementNotes(result.totals, String).join(' ')).toContain('verify the supporting record')
+      expect(ledgerStatementNotes(result.totals, String).join(' ')).toContain('Please ask the office to check it')
       expectRowsToReconcile(result)
     }
   })
@@ -230,7 +230,7 @@ describe('complete annual advance statement', () => {
     expect(result.totals.addedCharges).toBe(500)
     expect(result.lines[0].transaction_date).toBe('2025-12-31')
     expect(result.totals.reconciliationDifference).toBe(-200)
-    expect(ledgerStatementNotes(result.totals, String).join(' ')).toContain('does not match')
+    expect(ledgerStatementNotes(result.totals, String).join(' ')).toContain('differs from the saved lot balance')
     expectRowsToReconcile(result)
   })
 })

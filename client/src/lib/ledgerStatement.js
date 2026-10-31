@@ -20,10 +20,10 @@ function chargeEntries(charge) {
     order: 0,
     kind: 'charge',
     date: charge.voided_at || charge.created_at,
-    description: `${charge.description || charge.charge_type || 'Charge'}${voided ? ' (Voided)' : ''}`,
+    description: `${charge.description || charge.charge_type || 'Charge'}${voided ? ' (Cancelled)' : ''}`,
     reference_number: charge.billing_month ? String(charge.billing_month).slice(0, 7) : '',
     details: voided
-      ? [`Original charge ${money(amount)}; excluded from totals and running balance.`, ...(charge.void_reason ? [`Void reason: ${charge.void_reason}`] : [])]
+      ? [`Original charge ${money(amount)}; not counted in the totals or balance.`, ...(charge.void_reason ? [`Reason for cancellation: ${charge.void_reason.startsWith('fixed-balance-inclusive-20261031150000:') ? 'The entered balance already includes penalties, so this extra penalty was cancelled.' : charge.void_reason}`] : [])]
       : [],
     debit: voided ? 0 : amount,
     credit: 0,
@@ -59,8 +59,8 @@ function paymentEntries(payment) {
     ...(payment.recorded_by_name ? [`Recorded by: ${payment.recorded_by_name}`] : []),
     ...(payment.note ? [`Note: ${payment.note}`] : []),
   ]
-  if (validAnnual) details.push(`12 months of dues: ${money(originalEffect)} regular price; ${money(paid)} collected; ${money(discount)} one-month-free credit.`)
-  if (voided) details.push(`Original payment ${money(paid)}; excluded from totals and running balance.`, ...(payment.void_reason ? [`Void reason: ${payment.void_reason}`] : []))
+  if (validAnnual) details.push(`12 months of dues: ${money(originalEffect)} regular price; ${money(paid)} collected; ${money(discount)} discount for one free month.`)
+  if (voided) details.push(`Original payment ${money(paid)}; not counted in the totals or balance.`, ...(payment.void_reason ? [`Reason for cancellation: ${payment.void_reason}`] : []))
   const groupId = `payment-${payment.id}`
   const base = {
     groupId,
@@ -78,7 +78,7 @@ function paymentEntries(payment) {
     id: groupId,
     order: 0,
     kind: 'payment',
-    description: `${payment.coverage_period || payment.description || 'Payment'}${voided ? ' (Voided)' : ''}`,
+    description: `${payment.coverage_period || payment.description || 'Payment'}${voided ? ' (Cancelled)' : ''}`,
     details,
     debit: 0,
     credit: voided ? 0 : paid,
@@ -95,8 +95,8 @@ function paymentEntries(payment) {
     id: `${groupId}-noncash`,
     order: 1,
     kind: validAnnual ? 'annual-discount' : 'recorded-credit',
-    description: `${validAnnual ? 'Annual advance discount - 1 month free (non-cash)' : 'Additional recorded balance credit (non-cash)'}${voided ? ' (Voided)' : ''}`,
-    details: [voided ? `Original non-cash credit ${money(extra)}; excluded from totals and running balance.` : 'Reduces the account balance; not money collected.'],
+    description: `${validAnnual ? 'Discount for paying 12 months ahead - 1 month free' : 'Other amount deducted from your balance'}${voided ? ' (Cancelled)' : ''}`,
+    details: [voided ? `Original discount or deduction ${money(extra)}; not counted in the totals or balance.` : 'This lowers your balance. It is not another payment.'],
     debit: 0,
     credit: voided ? 0 : extra,
     delta: voided ? 0 : -extra,
@@ -106,11 +106,11 @@ function paymentEntries(payment) {
     id: `${groupId}-effect-adjustment`,
     order: 2,
     kind: 'payment-adjustment',
-    description: `Payment balance-effect adjustment${voided ? ' (Voided)' : ''}`,
+    description: `Payment amount not used to reduce your balance${voided ? ' (Cancelled)' : ''}`,
     details: [
       ...(unapplied ? [`${money(unapplied)} of the received amount was not applied to this account balance.`] : []),
-      ...(released ? [`${money(released)} of the original balance reduction was released.`] : []),
-      ...(voided ? ['Excluded from totals and running balance.'] : []),
+      ...(released ? [`${money(released)} was added back to the balance after an earlier deduction.`] : []),
+      ...(voided ? ['Not counted in the totals or balance.'] : []),
     ],
     debit: voided ? 0 : unapplied + released,
     credit: 0,
@@ -128,12 +128,12 @@ function adjustmentEntries(adjustment) {
     order: 0,
     kind: 'account-adjustment',
     date: adjustment.created_at,
-    description: `Documented account adjustment${reversed ? ' (Reversed)' : ''}`,
+    description: `Recorded balance correction${reversed ? ' (Undone)' : ''}`,
     reference_number: adjustment.approval_reference || '',
     details: [
       adjustment.reason || adjustment.adjustment_type || 'Recorded account correction',
-      'Non-cash adjustment; not a payment received.',
-      ...(reversed ? [`Reversed ${String(adjustment.reversed_at).slice(0, 10)}; excluded from totals.`, ...(adjustment.reversal_reason ? [adjustment.reversal_reason] : [])] : []),
+      'This corrects the balance. No money was received.',
+      ...(reversed ? [`Undone on ${String(adjustment.reversed_at).slice(0, 10)}; not counted in the totals.`, ...(adjustment.reversal_reason ? [adjustment.reversal_reason] : [])] : []),
     ],
     voided: reversed,
     debit: reversed ? 0 : Math.max(effect, 0),
@@ -185,7 +185,7 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
     id: 'opening',
     kind: 'opening',
     transaction_date: openingBalanceAsOf || null,
-    description: hasExplicitOpening ? 'Opening balance brought forward' : 'Opening balance brought forward (history incomplete)',
+    description: hasExplicitOpening ? 'Starting balance' : 'Starting balance (some older records are missing)',
     details: openingBalanceNote ? [openingBalanceNote] : [],
     reference_number: '',
     debit: toAmount(Math.max(opening, 0)),
@@ -245,14 +245,14 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
 export function ledgerStatementNotes(totals, formatMoney) {
   if (!totals) return []
   const notes = []
-  if (totals.openingBalanceWasInferred && totals.openingBalance !== 0) notes.push('The opening balance is inferred from the saved lot balance and available history; older transactions may be missing.')
-  if (totals.annualDiscountCredit > 0) notes.push(`${formatMoney(totals.annualDiscountCredit)} is annual advance discount credit (1 month free), not cash received. It is included in the account credits but excluded from Payments received.`)
-  if (totals.additionalRecordedCredit > 0) notes.push(`${formatMoney(totals.additionalRecordedCredit)} is additional non-cash credit from the saved payment balance effects. No matching annual-discount metadata was available; verify the supporting record.`)
-  if (totals.documentedAccountAdjustments) notes.push('Documented account adjustments are included with their approval references and reasons. They change the balance but are not payments received.')
-  if (totals.unallocated > 0) notes.push(`${formatMoney(totals.unallocated)} of cash received is not included in the effective account balance reduction. The separate payment adjustment rows explain the recorded difference.`)
-  if (totals.inferredAppliedToExistingBalance > 0) notes.push(`${formatMoney(totals.inferredAppliedToExistingBalance)} of cash was applied to an existing positive balance using saved account effects; individual receipt-to-charge links are not available for that portion.`)
-  if (totals.explicitlyAllocated > 0) notes.push(`${formatMoney(totals.explicitlyAllocated)} has explicit receipt-to-charge allocation records.`)
-  if (totals.availableCredit > 0) notes.push(`Available credit of ${formatMoney(totals.availableCredit)} is carried forward against future charges on this lot. It can include both payments and non-cash credits.`)
-  if (!totals.reconcilesWithStoredBalance) notes.push(`Reconciliation difference: ${formatMoney(totals.reconciliationDifference)}. The statement closing balance does not match the saved lot balance of ${formatMoney(totals.storedBalance)}; review the account history.`)
+  if (totals.openingBalanceWasInferred && totals.openingBalance !== 0) notes.push('Some older records are missing. The starting balance was worked out using the saved balance and the records available.')
+  if (totals.annualDiscountCredit > 0) notes.push(`${formatMoney(totals.annualDiscountCredit)} is the discount for one free month when paying 12 months ahead. It lowers your balance but is not part of the money received.`)
+  if (totals.additionalRecordedCredit > 0) notes.push(`${formatMoney(totals.additionalRecordedCredit)} was deducted from your balance in addition to your payment. The saved receipt does not explain this deduction. Please ask the office to check it.`)
+  if (totals.documentedAccountAdjustments) notes.push('Balance corrections are listed with their reasons and approval numbers. They are not payments.')
+  if (totals.unallocated > 0) notes.push(`${formatMoney(totals.unallocated)} of the money received did not reduce this lot’s balance. See the entries marked “Payment amount not used to reduce your balance.”`)
+  if (totals.inferredAppliedToExistingBalance > 0) notes.push(`${formatMoney(totals.inferredAppliedToExistingBalance)} of your payments reduced an earlier amount owed. The saved records do not show which individual bills were paid.`)
+  if (totals.explicitlyAllocated > 0) notes.push(`The records show which bills were paid by ${formatMoney(totals.explicitlyAllocated)} of your payments.`)
+  if (totals.availableCredit > 0) notes.push(`${formatMoney(totals.availableCredit)} is available for future bills on this lot. This may include advance payments and discounts. It is not an amount you owe.`)
+  if (!totals.reconcilesWithStoredBalance) notes.push(`The final balance shown here differs from the saved lot balance by ${formatMoney(totals.reconciliationDifference)}. The saved balance is ${formatMoney(totals.storedBalance)}. Please ask the office to check the records.`)
   return notes
 }
