@@ -16,12 +16,12 @@ const cents = (value) => Math.round((Number(value) || 0) * 100)
 
 /**
  * What a homeowner owes, split into entered balances, yearly late penalties and
- * unpaid monthly dues. All amounts come from the database views; nothing is
+ * unpaid monthly dues, other charges and adjustments. All amounts come from the database views; nothing is
  * calculated here.
  *
  *  postDue   - first ask the database to post any penalty that has fallen due
  *  compact   - read-only version for the Record Payment screen (hidden when the
- *              homeowner has no entered balance or penalties)
+ *              homeowner has no recorded balance items)
  *  canManage - Admin/Secretary can void an entered balance
  */
 export default function BalanceBreakdown({
@@ -124,7 +124,8 @@ export default function BalanceBreakdown({
   const entries = items.filter((item) => item.kind === 'entry')
   const penalties = items.filter((item) => item.kind === 'penalty')
   const duesTotal = Number(summary?.unpaid_dues_total) || 0
-  const hasContent = entries.length > 0 || penalties.length > 0
+  const otherItems = items.filter((item) => ['opening', 'charge', 'adjustment'].includes(item.kind))
+  const hasContent = entries.length > 0 || penalties.length > 0 || duesTotal > 0 || otherItems.length > 0
 
   if (!hasContent) {
     if (loading || !error) return null
@@ -214,6 +215,27 @@ export default function BalanceBreakdown({
             <small>{summary?.unpaid_dues_months} month{Number(summary?.unpaid_dues_months) === 1 ? '' : 's'}</small>
           </div>
           <div className="bb-amounts"><strong>{peso.format(duesTotal)}</strong></div>
+        </div>
+      )}
+
+      {otherItems.length > 0 && (
+        <div className="bb-block">
+          <h4>Other recorded amounts</h4>
+          {otherItems.map((item) => (
+            <div className="bb-row" key={`${item.kind}-${item.ref_id}`}>
+              <div className="bb-main">
+                <strong>{item.label}</strong>
+                <small>{item.category} · {formatDay(item.item_date)}</small>
+                {Number(item.original) < 0 && <small>This credit is already included in the account balance.</small>}
+              </div>
+              <div className="bb-amounts">
+                <strong>{peso.format(Number(item.original) < 0 ? Number(item.original) : Number(item.unpaid) || 0)}</strong>
+                {Number(item.original) > 0 && cents(item.unpaid) !== cents(item.original) && (
+                  <small>of {peso.format(Number(item.original) || 0)}</small>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
