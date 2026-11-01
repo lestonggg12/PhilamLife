@@ -53,7 +53,6 @@ const DEFAULT_SETTINGS = {
   billing_day: '1',
   due_day: '5',
   grace_period_days: '0',
-  late_penalty: '0',
   require_strong_password: true,
   session_timeout: '30',
   currency: 'PHP',
@@ -151,7 +150,6 @@ export default function SystemSettingsPage({ user }) {
         billing_day: String(data.billing_day ?? 1),
         due_day: String(data.due_day),
         grace_period_days: String(data.grace_period_days),
-        late_penalty: String(data.late_penalty),
         session_timeout: String(data.session_timeout),
       })
       setLoading(false)
@@ -171,7 +169,7 @@ export default function SystemSettingsPage({ user }) {
     if (!Number.isInteger(Number(settings.due_day)) || Number(settings.due_day) < 1 || Number(settings.due_day) > 31) return 'Due day must be from 1 to 31.'
     if (!Number.isInteger(Number(settings.billing_day)) || Number(settings.billing_day) < 1 || Number(settings.billing_day) > 31) return 'Billing day must be from 1 to 31.'
     if (Number(settings.due_day) < Number(settings.billing_day)) return 'Due day must be on or after the billing day — dues cannot fall due before they are charged.'
-    if (Number(settings.grace_period_days) < 0 || Number(settings.late_penalty) < 0) return 'Days and penalty values cannot be negative.'
+    if (Number(settings.grace_period_days) < 0) return 'Grace period cannot be negative.'
     if (Number(settings.session_timeout) < 5 || Number(settings.session_timeout) > 1440) return 'Session timeout must be from 5 to 1,440 minutes.'
     return ''
   }
@@ -188,7 +186,6 @@ export default function SystemSettingsPage({ user }) {
       billing_day: Number(settings.billing_day),
       due_day: Number(settings.due_day),
       grace_period_days: Number(settings.grace_period_days),
-      late_penalty: Number(settings.late_penalty),
       session_timeout: Number(settings.session_timeout),
     }
     delete payload.id
@@ -196,6 +193,8 @@ export default function SystemSettingsPage({ user }) {
     delete payload.updated_by
     delete payload.price_per_sqm
     delete payload.dues_amount
+    // Retained for existing overdue calculations; no longer editable here.
+    delete payload.late_penalty
     delete payload.late_penalty_rate
     delete payload.late_penalty_first_after_months
     const { error } = await supabase.from('system_settings').update(payload).eq('id', 1)
@@ -310,7 +309,6 @@ export default function SystemSettingsPage({ user }) {
           <Field label="Billing Day of Month" type="number" min="1" max="31" value={settings.billing_day} onChange={(v) => update('billing_day', v)} />
           <Field label="Due Day of Month" type="number" min="1" max="31" value={settings.due_day} onChange={(v) => update('due_day', v)} />
           <Field label="Grace Period (days)" type="number" min="0" value={settings.grace_period_days} onChange={(v) => update('grace_period_days', v)} />
-          <Field label="Late-Payment Penalty (₱)" type="number" min="0" step="0.01" value={settings.late_penalty} onChange={(v) => update('late_penalty', v)} />
         </SettingsCard>
         <SettingsCard title="System preferences" subtitle="Regional display defaults.">
           <SelectField label="Currency" value={settings.currency} onChange={(v) => update('currency', v)} options={[['PHP', 'Philippine Peso (₱)']]} />
