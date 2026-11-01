@@ -51,6 +51,7 @@ begin
 
   if ct not in (
     'Association Dues',
+    'Balance Payment',
     'Special Assessment',
     'Penalty / Late Fee',
     'Sticker / ID Fee',
@@ -142,7 +143,7 @@ begin
       -- Record the discounted cash payment, but credit the full annual dues.
       effect := round(new.amount, 2);
     else
-      -- Existing Association Dues and typed-fee behavior remains unchanged.
+      -- Association Dues and Balance Payment reduce the current balance in full.
       effect := paid;
     end if;
 

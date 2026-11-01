@@ -647,12 +647,14 @@
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   overflow-y: auto;
+  animation: payments-overlay-enter var(--motion-base, 220ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1));
 }
 
 .payment-form,
 .receipt {
+  box-sizing: border-box;
   width: min(720px, 100%);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.92);
@@ -680,6 +682,17 @@
 
 .payment-form {
   padding: 26px;
+  animation: payments-modal-enter var(--motion-base, 220ms) var(--ease-out, cubic-bezier(.2, .8, .2, 1));
+}
+
+@keyframes payments-overlay-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes payments-modal-enter {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .payment-modal-heading {
@@ -1303,6 +1316,13 @@
   .receipt-details { grid-template-columns: 1fr; }
   .receipt-copy { display: block; }
   .payment-span-2 { grid-column: span 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payments-overlay,
+  .payment-form {
+    animation: none;
+  }
 }
 
 @media (max-width: 520px) {

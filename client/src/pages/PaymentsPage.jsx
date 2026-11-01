@@ -42,6 +42,7 @@ const PAYMENT_SEARCH_COLUMNS = [
 
 const PAYMENT_PURPOSES = [
   'Association Dues',
+  'Balance Payment',
   'Special Assessment',
   'Penalty / Late Fee',
   'Sticker / ID Fee',
@@ -581,13 +582,14 @@ export default function PaymentsPage({ user: suppliedUser }) {
     : form.paymentPurpose
       ? 'Other'
       : ''
-  const isDuesPayment = !purposeType || purposeType === 'Association Dues'
+  const isBalanceReducingPayment =
+    !purposeType || purposeType === 'Association Dues' || purposeType === 'Balance Payment'
 
   // How much of this homeowner's fee charge is still unpaid. Only this one
   // homeowner's rows are read, and the formula matches the database trigger that
   // makes the final decision: charged minus (balance_effect - effect_released).
   useEffect(() => {
-    if (!form.propertyId || isDuesPayment) {
+    if (!form.propertyId || isBalanceReducingPayment) {
       setOpenOfType(0)
       return undefined
     }
@@ -627,7 +629,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
     loadOpenAmount()
     return () => { cancelled = true }
-  }, [form.propertyId, isDuesPayment, purposeType, reloadTick])
+  }, [form.propertyId, isBalanceReducingPayment, purposeType, reloadTick])
 
 const selectedMonthlyDues =
   Number(monthlyDuesByProperty.get(Number(form.propertyId))) || 0
@@ -656,7 +658,7 @@ const canOfferAnnualDiscount =
     : Math.round((Number(form.amountPaid) || 0) * 100) / 100
 
   const effect =
-    annualAdvance || isDuesPayment || purposeType !== 'Other'
+    annualAdvance || isBalanceReducingPayment || purposeType !== 'Other'
       ? paid
       : Math.min(paid, openOfType)
 
@@ -666,7 +668,7 @@ const canOfferAnnualDiscount =
   form.amountPaid,
   annualAdvance,
   annualGross,
-  isDuesPayment,
+  isBalanceReducingPayment,
   purposeType,
   openOfType,
 ])
@@ -1765,14 +1767,14 @@ function selectHomeowner(property) {
                 <strong>{formatBalance(remainingBalance)}</strong>
               </div>
 
-              {form.propertyId && isDuesPayment && remainingBalance < 0 && (
+              {form.propertyId && isBalanceReducingPayment && remainingBalance < 0 && (
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>Advance payment</strong>
                   <span>{advanceCreditNote(-remainingBalance, duesSettingsFor(form.propertyId))}</span>
                 </div>
               )}
 
-              {form.propertyId && !isDuesPayment && Number(form.amountPaid) > 0 && (
+              {form.propertyId && !isBalanceReducingPayment && Number(form.amountPaid) > 0 && (
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>{purposeType}</strong>
                   <span>
@@ -1787,7 +1789,7 @@ function selectHomeowner(property) {
                 </div>
               )}
 
-              {form.propertyId && !isDuesPayment && Number(form.previousBalance) < 0 && (
+              {form.propertyId && !isBalanceReducingPayment && Number(form.previousBalance) < 0 && (
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>Advance credit on file</strong>
                   <span>
