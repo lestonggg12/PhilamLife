@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { parsePositiveAmount } from '../lib/lotDues'
+import DateField from './DateField'
+import Select from './Select'
 
 const CATEGORIES = [
   'Association Dues',
@@ -91,9 +93,7 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
         </div>
 
         <label htmlFor="be-category">Category</label>
-        <select id="be-category" value={category} onChange={(event) => { setCategory(event.target.value); setError('') }}>
-          {CATEGORIES.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
+        <Select ariaLabel="Category" value={category} onChange={(value) => { setCategory(value); setError('') }} options={CATEGORIES.map((name) => ({ value: name, label: name }))} />
 
         <div className="hod-row">
           <div>
@@ -113,15 +113,7 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
           </div>
           <div>
             <label htmlFor="be-asof">As of</label>
-            <input
-              id="be-asof"
-              type="date"
-              value={asOf}
-              min="1990-01-01"
-              max={today}
-              onChange={(event) => { setAsOf(event.target.value); setError('') }}
-              required
-            />
+            <DateField ariaLabel="As of" name="as_of_date" value={asOf} min="1990-01-01" max={today} onChange={(value) => { setAsOf(value); setError('') }} required />
           </div>
         </div>
 

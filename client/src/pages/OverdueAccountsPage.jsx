@@ -1,5 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useState } from 'react'
+import Select from '../components/Select'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -370,14 +371,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         </div>
 
         <div className="overdue-filter-pair">
-          <select value={blockFilter} onChange={(e) => setBlockFilter(e.target.value)} aria-label="Filter by block">
-            {blocks.map((b) => <option key={b} value={b}>{b === 'All' ? 'All Blocks' : b}</option>)}
-          </select>
-
-          <select value={agingFilter} onChange={(e) => setAgingFilter(e.target.value)} aria-label="Filter by aging tier">
-            <option value="All">All Aging Tiers</option>
-            {AGING_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} options={blocks.map((b) => ({ value: b, label: b === 'All' ? 'All Blocks' : b }))} />
+          <Select ariaLabel="Filter by aging tier" value={agingFilter} onChange={setAgingFilter} options={[{ value: 'All', label: 'All Aging Tiers' }, ...AGING_TIERS.map((t) => ({ value: t, label: t }))]} />
         </div>
 
         <div className="overdue-status-tabs" role="tablist" aria-label="Filter by status">
@@ -511,13 +506,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             <form className="overdue-log-form" onSubmit={submitLogAction}>
               <label>
                 Action type
-                <select
-                  value={logForm.action_type}
-                  onChange={(e) => setLogForm((f) => ({ ...f, action_type: e.target.value }))}
-                  disabled={logSaving}
-                >
-                  {ACTION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <Select ariaLabel="Action type" value={logForm.action_type} onChange={(value) => setLogForm((f) => ({ ...f, action_type: value }))} disabled={logSaving} options={ACTION_TYPES.map((t) => ({ value: t, label: t }))} />
               </label>
 
               <label>

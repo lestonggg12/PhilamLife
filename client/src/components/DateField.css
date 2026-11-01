@@ -1,131 +1,17 @@
-/* DateField — custom calendar popup. Imported by components/DateField.jsx,
-   so it works on every page that uses the component. */
 .tsr-date { position: relative; width: 100%; min-width: 0; }
-
-.tsr-date-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  min-height: 38px;
-  box-sizing: border-box;
-  padding: 9px 10px 9px 12px;
-  border: 1px solid #d0e4f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #071e30;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: normal;
-  text-transform: none;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.tsr-date-trigger svg { flex-shrink: 0; color: #5a7a92; }
-.tsr-date-trigger:hover { border-color: #9cc3de; }
-.tsr-date-trigger:focus-visible,
-.tsr-date-trigger.is-open { outline: none; border-color: #1464a0; box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12); }
-.tsr-date-trigger.is-open svg { color: #1464a0; }
-.tsr-date-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tsr-date-text.is-placeholder { color: #7f98ab; }
-
-.tsr-date-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 60;
-  width: 272px;
-  box-sizing: border-box;
-  padding: 14px;
-  background: #fff;
-  border: 1px solid #d0e4f0;
-  border-radius: 12px;
-  box-shadow: 0 18px 40px -14px rgba(15, 63, 106, 0.35), 0 2px 8px rgba(15, 63, 106, 0.08);
-  letter-spacing: normal;
-  text-transform: none;
-  font-weight: 400;
-  transform-origin: top left;
-  animation: tsr-date-pop 0.14s ease-out;
-}
-
-.tsr-date-popover.align-right { left: auto; right: 0; transform-origin: top right; }
-
-@keyframes tsr-date-pop {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
-
-.tsr-date-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.tsr-date-head strong { font-size: 13px; color: #071e30; }
-
-.tsr-date-nav {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #2a5470;
-  cursor: pointer;
-}
-
-.tsr-date-nav:hover { background: #eef5fb; color: #1464a0; }
-.tsr-date-prev svg { transform: rotate(180deg); }
-
-.tsr-date-weekdays,
-.tsr-date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-
-.tsr-date-weekdays span {
-  padding: 4px 0 6px;
-  text-align: center;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: #5a7a92;
-}
-
-.tsr-date-day {
-  height: 32px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #071e30;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.tsr-date-day:hover:not(:disabled):not(.is-selected) { background: #eef5fb; }
-.tsr-date-day.is-outside { color: #9db2c2; }
-.tsr-date-day.is-today:not(.is-selected) { box-shadow: inset 0 0 0 1.5px #9cc3de; font-weight: 700; }
-.tsr-date-day.is-selected { background: #1464a0; color: #fff; font-weight: 700; }
-.tsr-date-day:disabled { color: #c3d2dd; cursor: not-allowed; }
-.tsr-date-day:focus-visible { outline: 2px solid #1464a0; outline-offset: 1px; }
-
-.tsr-date-foot { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e3eef6; }
-
-.tsr-date-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #1464a0;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tsr-date-link:hover:not(:disabled) { background: #eef5fb; }
-.tsr-date-link:disabled { color: #9db2c2; cursor: not-allowed; }
+.tsr-date-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.tsr-date-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 38px; box-sizing: border-box; padding: 9px 10px 9px 12px; border: 1px solid rgba(120,162,210,.35); border-radius: 11px; background: #fff; color: var(--text-dark, #071e30); font-family: var(--font-body, 'DM Sans', sans-serif); font-size: 12px; text-align: left; cursor: pointer; }
+.tsr-date-trigger:hover:not(:disabled), .tsr-date-trigger.is-open { border-color: var(--primary-light, #9cc3de); box-shadow: 0 3px 8px -3px rgba(15,63,106,.2); }
+.tsr-date-trigger:focus-visible { outline: 2px solid var(--primary, #1464a0); outline-offset: 1px; }
+.tsr-date-trigger:disabled { opacity: .55; cursor: not-allowed; }
+.tsr-date-trigger svg { flex-shrink: 0; color: var(--text-light, #5a7a92); }
+.tsr-date-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.tsr-date-text.is-placeholder { color: #7f98ab; }
+.tsr-date-popover { position: fixed; z-index: 1000; width: 300px; max-width: calc(100vw - 32px); padding: 18px; box-sizing: border-box; border: 1px solid rgba(120,162,210,.3); border-radius: 20px; background: #fff; box-shadow: 0 22px 44px -14px rgba(15,63,106,.32),0 2px 10px rgba(20,100,160,.1); text-align: left; }
+.tsr-date-popover.open-up { transform-origin: bottom left; }
+.tsr-date-head { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; gap: 8px; margin-bottom: 15px; }.tsr-date-head strong { color: var(--text-dark,#071e30); text-align: center; font: 600 15px var(--font-display, Georgia, serif); }
+.tsr-date-nav { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid rgba(120,162,210,.35); border-radius: 11px; background: #fff; color: var(--text-light,#5a7a92); cursor: pointer; box-shadow: 0 3px 8px -3px rgba(15,63,106,.2); }.tsr-date-nav:hover { color: var(--primary,#1464a0); border-color: var(--primary-light,#9cc3de); }.tsr-date-prev svg { transform: rotate(180deg); }
+.tsr-date-weekdays,.tsr-date-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); }.tsr-date-weekdays span { padding: 4px 0 9px; color: var(--text-muted,#5a7a92); text-align: center; font-size: 10px; font-weight: 800; }.tsr-date-grid { gap: 5px; }
+.tsr-date-day { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; aspect-ratio: 1; padding: 0; border: 1px solid transparent; border-radius: 11px; background: transparent; color: var(--text-dark,#071e30); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }.tsr-date-day:hover:not(:disabled):not(.is-selected) { border-color: rgba(120,162,210,.4); background: rgba(120,162,210,.12); }.tsr-date-day.is-outside { color: #c0c8d0; }.tsr-date-day.is-today { border-color: var(--primary-light,#9cc3de); background: rgba(120,162,210,.16); color: var(--primary,#1464a0); }.tsr-date-day.is-selected { border-color: var(--primary,#1464a0); background: var(--primary,#1464a0); color: #fff; box-shadow: 0 4px 9px rgba(20,100,160,.3); }.tsr-date-day.has-marker::after { content: ''; position: absolute; bottom: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--warning,#d69200); }.tsr-date-day:disabled,.tsr-date-month:disabled { color: #d3d8de; cursor: not-allowed; }
+.tsr-date-legend-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 13px; border-top: 1px solid rgba(120,162,210,.18); }.tsr-date-legend { display: flex; flex-wrap: wrap; gap: 13px; color: var(--text-muted,#5a7a92); font-size: 11px; }.tsr-date-legend span { display: inline-flex; align-items: center; gap: 6px; }.tsr-date-legend i { width: 9px; height: 9px; border-radius: 50%; }.tsr-date-key-today { border: 2px solid var(--primary-light,#9cc3de); background: rgba(120,162,210,.16); }.tsr-date-key-marker { background: var(--warning,#d69200); }
+.tsr-date-today-link { padding: 0; border: none; background: none; color: var(--primary,#1464a0); cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; text-decoration: underline; }.tsr-date-today-link:disabled { color: #b7c2cd; cursor: not-allowed; text-decoration: none; }.tsr-date-clear { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--primary,#1464a0); font-size: 11px; cursor: pointer; }.tsr-date-clear:disabled { color: #b7c2cd; cursor: not-allowed; }
+.tsr-date-month-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }.tsr-date-month { min-height: 42px; border: 1px solid transparent; border-radius: 11px; background: transparent; color: var(--text-dark,#071e30); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }.tsr-date-month:hover:not(:disabled) { border-color: rgba(120,162,210,.4); background: rgba(120,162,210,.12); }.tsr-date-month.is-selected { border-color: var(--primary,#1464a0); background: var(--primary,#1464a0); color: #fff; }

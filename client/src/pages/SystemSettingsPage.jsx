@@ -1,5 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useState } from 'react'
+import Select from '../components/Select'
 import { supabase } from '../lib/supabaseClient'
 import { fetchTableVerified } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
@@ -360,7 +361,7 @@ function Field({ label, value, onChange, wide = false, ...props }) {
 }
 
 function SelectField({ label, value, onChange, options }) {
-  return <label className="ss-field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>
+  return <label className="ss-field"><span>{label}</span><Select ariaLabel={label} value={value} onChange={onChange} options={options.map(([key, text]) => ({ value: key, label: text }))} /></label>
 }
 
 function Toggle({ label, description, checked, onChange }) {

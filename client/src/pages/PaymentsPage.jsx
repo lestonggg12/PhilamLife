@@ -9,6 +9,7 @@ import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import BalanceBreakdown from '../components/BalanceBreakdown'
+import Select from '../components/Select'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
@@ -1651,19 +1652,7 @@ function selectHomeowner(property) {
               <label className="payment-purpose-field payment-span-2">
                 Payment Purpose
                 <div className="payment-purpose-select-wrap">
-                  <select
-                    name="paymentPurpose"
-                    value={form.paymentPurpose}
-                    onChange={updateField}
-                    required
-                  >
-                    <option value="" disabled>Select payment purpose</option>
-                    {PAYMENT_PURPOSES.map((purpose) => (
-                      <option value={purpose} key={purpose}>
-                        {purpose}
-                      </option>
-                    ))}
-                  </select>
+                  <Select ariaLabel="Payment Purpose" value={form.paymentPurpose} onChange={(value) => updateField({ target: { name: 'paymentPurpose', value } })} placeholder="Select payment purpose" options={PAYMENT_PURPOSES.map((purpose) => ({ value: purpose, label: purpose }))} />
                 </div>
               </label>
 
@@ -1809,12 +1798,7 @@ function selectHomeowner(property) {
               )}
 
               <label>Payment Method
-                <select name="paymentMethod" value={form.paymentMethod} onChange={updateField}>
-                  <option>Cash</option>
-                  <option>GCash</option>
-                  <option>Bank Transfer</option>
-                  <option>Check</option>
-                </select>
+                <Select ariaLabel="Payment Method" value={form.paymentMethod} onChange={(value) => updateField({ target: { name: 'paymentMethod', value } })} options={['Cash', 'GCash', 'Bank Transfer', 'Check'].map((value) => ({ value, label: value }))} />
               </label>
 
               <label>Reference Number {form.paymentMethod !== 'Cash' && '*'}
@@ -1900,11 +1884,7 @@ function selectHomeowner(property) {
               </div>
 
               <label>Charge Type
-                <select name="chargeType" value={chargeForm.chargeType} onChange={updateChargeField}>
-                  {CHARGE_TYPES.map((purpose) => (
-                    <option key={purpose}>{purpose}</option>
-                  ))}
-                </select>
+                <Select ariaLabel="Charge Type" value={chargeForm.chargeType} onChange={(value) => updateChargeField({ target: { name: 'chargeType', value } })} options={CHARGE_TYPES.map((purpose) => ({ value: purpose, label: purpose }))} />
               </label>
 
               <label>Amount

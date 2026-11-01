@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import GrievanceLotPicker from './GrievanceLotPicker'
 import { GRIEVANCE_CATEGORIES, GRIEVANCE_STATUSES, grievanceNumber, isGrievanceClosed, manilaDateKey } from '../lib/grievances'
+import DateField from './DateField'
+import Select from './Select'
 
 export default function GrievanceEditor({ initial, busy, error, history, historyLoading, historyError, onSave, onClose, formatDate }) {
   const [form, setForm] = useState(initial)
@@ -29,17 +31,17 @@ export default function GrievanceEditor({ initial, busy, error, history, history
         <fieldset disabled={busy}>
           <div className="grievance-form-grid">
             <label className="grievance-wide">Title<input value={form.title} onChange={(e) => update('title',e.target.value)} maxLength={160} required /></label>
-            <label>Category<select aria-label="Category" value={form.category} onChange={(e) => update('category',e.target.value)}>{GRIEVANCE_CATEGORIES.map((v) => <option key={v}>{v}</option>)}</select></label>
-            <label>Status<select aria-label="Status" value={form.status} disabled={!initial.version} onChange={(e) => update('status',e.target.value)}>{GRIEVANCE_STATUSES.map((v) => <option key={v}>{v}</option>)}</select></label>
+            <label>Category<Select ariaLabel="Category" value={form.category} onChange={(value) => update('category',value)} options={GRIEVANCE_CATEGORIES.map((v) => ({ value: v, label: v }))} /></label>
+            <label>Status<Select ariaLabel="Status" value={form.status} disabled={!initial.version} onChange={(value) => update('status',value)} options={GRIEVANCE_STATUSES.map((v) => ({ value: v, label: v }))} /></label>
             {text('complainant','Person making the complaint',200,true)}
             {text('respondent','Person or group the complaint concerns',200,true)}
             <div className="grievance-wide"><label>Affected lot (optional)</label><GrievanceLotPicker value={form.property_id} label={initial.property_id ? `${initial.homeowner_name} — ${initial.block}, Lot ${initial.lot_number}` : ''} onChange={(lot) => setForm((current) => ({ ...current, property_id: lot?.id || '', ...(lot ? { location: `${lot.block}, Lot ${lot.lot_number}` } : {}) }))} /></div>
             {text('location','Location or common area',300,true)}
-            <label>Incident date (optional)<input type="date" max={manilaDateKey()} value={form.incident_date || ''} onChange={(e) => update('incident_date',e.target.value)} /></label>
+            <label>Incident date (optional)<DateField ariaLabel="Incident date" name="incident_date" max={manilaDateKey()} value={form.incident_date || ''} onChange={(value) => update('incident_date',value)} /></label>
             {area('description','What happened?',6000,true)}
             {area('requested_action','What action is requested?',3000)}
             {text('assigned_handler','Assigned person or committee')}
-            <label>Next follow-up date<input type="date" value={form.follow_up_date || ''} onChange={(e) => update('follow_up_date',e.target.value)} /></label>
+            <label>Next follow-up date<DateField ariaLabel="Next follow-up date" name="follow_up_date" value={form.follow_up_date || ''} onChange={(value) => update('follow_up_date',value)} /></label>
           </div>
           <details open={isGrievanceClosed(form.status) || undefined}><summary>Supporting details and decision</summary><div className="grievance-form-grid">
             {area('rule_reference','Relevant rule or bylaw',1000)}

@@ -1,5 +1,7 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import DateField from '../components/DateField'
+import Select from '../components/Select'
 import {
   CheckCircle,
   CreditCard,
@@ -1235,20 +1237,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               </label>
               <label>
                 Rate unit
-                <select
-                  value={serviceForm.rate_unit}
-                  onChange={(event) =>
-                    setServiceForm((current) => ({
-                      ...current,
-                      rate_unit: event.target.value,
-                    }))
-                  }
-                >
-                  <option>per use</option>
-                  <option>per hour</option>
-                  <option>per person</option>
-                  <option>per day</option>
-                </select>
+                <Select ariaLabel="Rate unit" value={serviceForm.rate_unit} onChange={(value) => setServiceForm((current) => ({ ...current, rate_unit: value }))} options={['per use', 'per hour', 'per person', 'per day'].map((value) => ({ value, label: value }))} />
               </label>
             </div>
             <label className="services-checkbox">
@@ -1302,16 +1291,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             <div className="services-form-row">
               <label>
                 Service
-                <select
-                  required
-                  value={transactionForm.service_id}
-                  onChange={handleServiceChange}
-                >
-                  <option value="">Select service</option>
-                  {activeServices.map((service) => (
-                    <option value={service.id} key={service.id}>{service.name}</option>
-                  ))}
-                </select>
+                <Select ariaLabel="Service" value={transactionForm.service_id} onChange={handleServiceChange} placeholder="Select service" options={activeServices.map((service) => ({ value: String(service.id), label: service.name }))} />
               </label>
               <HomeownerCombobox
                 properties={properties}
@@ -1328,17 +1308,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             <div className="services-form-row services-form-row-four">
               <label>
                 Service date
-                <input
-                  required
-                  type="date"
-                  value={transactionForm.service_date}
-                  onChange={(event) =>
-                    setTransactionForm((current) => ({
-                      ...current,
-                      service_date: event.target.value,
-                    }))
-                  }
-                />
+                <DateField ariaLabel="Service date" name="service_date" value={transactionForm.service_date} onChange={(value) => setTransactionForm((current) => ({ ...current, service_date: value }))} required />
               </label>
                             <TimePicker
                 label="Start time"
@@ -1439,20 +1409,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               </label>
               <label>
                 Payment method
-                <select
-                  value={transactionForm.payment_method}
-                  onChange={(event) =>
-                    setTransactionForm((current) => ({
-                      ...current,
-                      payment_method: event.target.value,
-                    }))
-                  }
-                >
-                  <option>Cash</option>
-                  <option>GCash</option>
-                  <option>Bank Transfer</option>
-                  <option>Check</option>
-                </select>
+                <Select ariaLabel="Payment method" value={transactionForm.payment_method} onChange={(value) => setTransactionForm((current) => ({ ...current, payment_method: value }))} options={['Cash', 'GCash', 'Bank Transfer', 'Check'].map((value) => ({ value, label: value }))} />
               </label>
             </div>
 
@@ -1541,15 +1498,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               </label>
               <label>
                 Payment method
-                <select
-                  value={collectForm.payment_method}
-                  onChange={(event) => setCollectForm((current) => ({ ...current, payment_method: event.target.value }))}
-                >
-                  <option>Cash</option>
-                  <option>GCash</option>
-                  <option>Bank Transfer</option>
-                  <option>Check</option>
-                </select>
+                <Select ariaLabel="Payment method" value={collectForm.payment_method} onChange={(value) => setCollectForm((current) => ({ ...current, payment_method: value }))} options={['Cash', 'GCash', 'Bank Transfer', 'Check'].map((value) => ({ value, label: value }))} />
               </label>
             </div>
 

@@ -2,6 +2,8 @@ import TransferHomeownerPicker from '../components/TransferHomeownerPicker'
 import { transferRequest } from '../lib/homeownerTransfer'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useState } from 'react'
+import DateField from '../components/DateField'
+import Select from '../components/Select'
 import { useSearchParams } from 'react-router-dom'
 import { Edit, FileArchive, Mail, Phone, RefreshCw, Search } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -509,17 +511,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             aria-label="Search homeowner contacts"
           />
         </div>
-        <select
-          className="contact-status-filter"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          aria-label="Filter homeowners by residency status"
-        >
-          <option value="active">Active</option>
-          <option value="moved">Moved</option>
-          <option value="transferred">Transferred</option>
-          <option value="all">All statuses</option>
-        </select>
+        <Select ariaLabel="Filter homeowners by residency status" value={statusFilter} onChange={setStatusFilter} options={[['active', 'Active'], ['moved', 'Moved'], ['transferred', 'Transferred'], ['all', 'All statuses']].map(([value, label]) => ({ value, label }))} />
         {shouldList && (
           <span className="contact-result-count">
             Showing {rangeStart}-{rangeEnd} of {total}
@@ -720,39 +712,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             <div className="contact-form-row">
               <div>
                 <label htmlFor="homeowner-new-status">Action</label>
-                <select
-                  id="homeowner-new-status"
-                  value={transferForm.status === 'moved' ? 'moved' : transferForm.transferTo}
-                  onChange={(event) =>
-                    setTransferForm((current) => ({
-                      ...current,
-                      status: event.target.value === 'moved' ? 'moved' : 'transferred',
-                      transferTo: event.target.value === 'existing' ? 'existing' : 'new',
-                      targetProperty: null,
-                    }))
-                  }
-                  required
-                >
-                  <option value="moved">Mark as moved</option>
-                  <option value="existing">Transfer to an Existing homeowner</option>
-                  <option value="new">Transfer to a New homeowner</option>
-                </select>
+                <Select ariaLabel="Action" value={transferForm.status === 'moved' ? 'moved' : transferForm.transferTo} onChange={(value) => setTransferForm((current) => ({ ...current, status: value === 'moved' ? 'moved' : 'transferred', transferTo: value === 'existing' ? 'existing' : 'new', targetProperty: null }))} options={[['moved', 'Mark as moved'], ['existing', 'Transfer to an Existing homeowner'], ['new', 'Transfer to a New homeowner']].map(([value, label]) => ({ value, label }))} />
               </div>
               <div>
                 <label htmlFor="homeowner-status-date">Effective date</label>
-                <input
-                  id="homeowner-status-date"
-                  type="date"
-                  value={transferForm.effectiveDate}
-                  max={manilaDate()}
-                  onChange={(event) =>
-                    setTransferForm((current) => ({
-                      ...current,
-                      effectiveDate: event.target.value,
-                    }))
-                  }
-                  required
-                />
+                <DateField ariaLabel="Effective date" name="effective_date" value={transferForm.effectiveDate} max={manilaDate()} onChange={(value) => setTransferForm((current) => ({ ...current, effectiveDate: value }))} required />
               </div>
             </div>
 

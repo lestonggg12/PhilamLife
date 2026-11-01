@@ -18,6 +18,7 @@ import {
   reportText,
 } from '../lib/monthlyReportData'
 import './ReportsPage.css'
+import DateField from '../components/DateField'
 
 const todayInManila = () => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
@@ -334,7 +335,7 @@ export default function ReportsPage({ user: suppliedUser }) {
         <div className="reports-header-actions">
           <label className="monthly-month-picker">
             Report month
-            <input type="month" value={month} disabled={pdfGenerating} onChange={(event) => setMonth(event.target.value)} />
+            <DateField ariaLabel="Report month" name="report_month" monthOnly value={month} disabled={pdfGenerating} onChange={setMonth} placeholder="Select month" />
           </label>
           {canGenerateReports && (
             <button type="button" className="reports-primary" onClick={downloadPdf} disabled={loading || pdfGenerating || Boolean(loadFailure)}>

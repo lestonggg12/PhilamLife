@@ -1,5 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Select from '../components/Select'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -491,17 +492,8 @@ async function downloadStatementPdf() {
             className="ledger-search"
           />
         </div>
-        <select value={blockFilter} onChange={(event) => setBlockFilter(event.target.value)} className="ledger-select" disabled={loading}>
-          <option value="all">{loading ? 'Loading blocks...' : 'All Blocks'}</option>
-          {blocks.map((block) => <option key={block.id} value={block.name}>{block.name}</option>)}
-        </select>
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="ledger-select">
-          <option value="all">All Statuses</option>
-          <option value="Paid">Paid</option>
-          <option value="Partial">Partial</option>
-          <option value="Pending">Pending</option>
-          <option value="Overdue">Overdue</option>
-        </select>
+        <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} disabled={loading} options={[{ value: 'all', label: loading ? 'Loading blocks...' : 'All Blocks' }, ...blocks.map((block) => ({ value: block.name, label: block.name }))]} />
+        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'Paid', 'Partial', 'Pending', 'Overdue'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
         {hasActiveQuery && (
           <span className="ledger-result-count">
             {sorted.length <= MAX_VISIBLE_ROWS

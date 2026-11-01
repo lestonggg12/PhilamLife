@@ -1,6 +1,7 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useState } from 'react'
+import Select from '../components/Select'
 import './DocumentLibraryPage.css'
 import {
   AlertCircle,
@@ -524,19 +525,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           />
         </label>
 
-        <select
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-          className="doc-filter"
-          aria-label="Filter documents by category"
-        >
-          <option value="All">All Categories</option>
-          {CATEGORIES.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
+        <Select ariaLabel="Filter documents by category" value={category} onChange={setCategory} options={[{ value: 'All', label: 'All Categories' }, ...CATEGORIES.map((item) => ({ value: item, label: item }))]} />
 
         {canUploadDocuments && (
           <button
@@ -690,18 +679,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
               <label>
                 Category
-                <select
-                  name="category"
-                  value={form.category}
-                  onChange={updateForm}
-                  disabled={uploading}
-                >
-                  {CATEGORIES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
+                <Select ariaLabel="Category" value={form.category} onChange={(value) => updateForm({ target: { name: 'category', value } })} disabled={uploading} options={CATEGORIES.map((item) => ({ value: item, label: item }))} />
               </label>
 
               {formError && <p className="doc-form-error">{formError}</p>}

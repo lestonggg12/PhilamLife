@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import DateField from '../components/DateField'
+import Select from '../components/Select'
 import {
   CreditCard,
   Eye,
@@ -1011,50 +1013,19 @@ export default function OfficialReceiptsPage() {
           <label>
             <span>Receipt type</span>
 
-            <select
-              value={typeFilter}
-              onChange={(event) =>
-                setTypeFilter(event.target.value)
-              }
-            >
-              <option value="all">
-                All receipt types
-              </option>
-
-              <option value="payment">
-                Regular payments
-              </option>
-
-              <option value="service">
-                Service payments
-              </option>
-            </select>
+            <Select ariaLabel="Receipt type" value={typeFilter} onChange={setTypeFilter} options={[{ value: 'all', label: 'All receipt types' }, { value: 'payment', label: 'Regular payments' }, { value: 'service', label: 'Service payments' }]} />
           </label>
 
           <label>
             <span>From date</span>
 
-            <input
-              type="date"
-              value={fromDate}
-              max={toDate || undefined}
-              onChange={(event) =>
-                setFromDate(event.target.value)
-              }
-            />
+            <DateField ariaLabel="From date" value={fromDate} max={toDate || undefined} onChange={setFromDate} />
           </label>
 
           <label>
             <span>To date</span>
 
-            <input
-              type="date"
-              value={toDate}
-              min={fromDate || undefined}
-              onChange={(event) =>
-                setToDate(event.target.value)
-              }
-            />
+            <DateField ariaLabel="To date" value={toDate} min={fromDate || undefined} onChange={setToDate} />
           </label>
 
           <button

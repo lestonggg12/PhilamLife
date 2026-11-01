@@ -1,5 +1,6 @@
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useState } from 'react'
+import Select from '../components/Select'
 import {
   Clock,
   Edit,
@@ -727,16 +728,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           />
         </label>
 
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="cal-filter"
-          aria-label="Filter events by status"
-        >
-          <option value="upcoming">Upcoming Events</option>
-          <option value="past">Past Events</option>
-          <option value="all">All Events</option>
-        </select>
+        <Select ariaLabel="Filter events by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'upcoming', label: 'Upcoming Events' }, { value: 'past', label: 'Past Events' }, { value: 'all', label: 'All Events' }]} />
       </div>
 
       {pageError && <p className="cal-message cal-error">{pageError}</p>}

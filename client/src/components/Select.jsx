@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './Select.css'
 
 const svgProps = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
@@ -10,8 +11,7 @@ const CheckIcon = () => (
 )
 
 /**
- * Styled single-select that looks the same in every browser (a native
- * <select> list cannot be styled). Styles: Select.css.
+ * Styled single-select that looks the same in every browser. Styles: Select.css.
  *
  *   <Select value={v} onChange={setV} ariaLabel="Category"
  *           options={[{ value: 'a', label: 'Option A' }, ...]} />
@@ -22,6 +22,7 @@ const CheckIcon = () => (
 export default function Select({ value, options, onChange, ariaLabel, placeholder = 'Select', disabled = false }) {
   const [open, setOpen] = useState(false)
   const [openUp, setOpenUp] = useState(false)
+  const [popPosition, setPopPosition] = useState(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const rootRef = useRef(null)
   const listRef = useRef(null)
@@ -33,19 +34,36 @@ export default function Select({ value, options, onChange, ariaLabel, placeholde
   useEffect(() => {
     if (!open) return undefined
     const onPointerDown = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false)
+      if (rootRef.current && !rootRef.current.contains(event.target) && !listRef.current?.contains(event.target)) setOpen(false)
     }
     document.addEventListener('mousedown', onPointerDown)
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [open])
 
-  // Flip upward if the list would run off the bottom of the window.
   useEffect(() => {
     if (!open || !rootRef.current || !listRef.current) return
-    const trigger = rootRef.current.getBoundingClientRect()
-    const height = listRef.current.offsetHeight
-    const roomBelow = window.innerHeight - trigger.bottom - 12
-    setOpenUp(roomBelow < height && trigger.top > roomBelow)
+    const updatePosition = () => {
+      const trigger = rootRef.current.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const fieldWidth = Math.min(trigger.width, viewportWidth - 32)
+      const naturalHeight = listRef.current.scrollHeight
+      const roomBelow = Math.max(0, window.innerHeight - trigger.bottom - 8)
+      const roomAbove = Math.max(0, trigger.top - 8)
+      const shouldOpenUp = roomBelow < naturalHeight && roomAbove > roomBelow
+      const availableHeight = shouldOpenUp ? roomAbove : roomBelow
+      const height = Math.min(naturalHeight, availableHeight)
+      const left = Math.min(Math.max(16, trigger.left), viewportWidth - fieldWidth - 16)
+      const top = shouldOpenUp ? trigger.top - height - 8 : trigger.bottom + 8
+      setOpenUp(shouldOpenUp)
+      setPopPosition({ left, top: Math.max(8, top), width: fieldWidth, maxHeight: Math.max(40, height), visibility: 'visible' })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
   }, [open])
 
   useEffect(() => {
@@ -105,8 +123,8 @@ export default function Select({ value, options, onChange, ariaLabel, placeholde
         <span className="sel-chevron"><Chevron /></span>
       </button>
 
-      {open && (
-        <ul className={`sel-popover${openUp ? ' open-up' : ''}`} id={listId} role="listbox" ref={listRef}>
+      {open && createPortal((
+        <ul className={`sel-popover${openUp ? ' open-up' : ''}`} id={listId} role="listbox" ref={listRef} style={popPosition || { visibility: 'hidden' }}>
           {options.map((option, index) => (
             <li
               key={option.value}
@@ -122,7 +140,7 @@ export default function Select({ value, options, onChange, ariaLabel, placeholde
             </li>
           ))}
         </ul>
-      )}
+      ), document.body)}
     </div>
   )
 }

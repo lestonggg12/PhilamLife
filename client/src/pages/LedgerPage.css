@@ -311,6 +311,10 @@
   transition: transform 0.15s ease;
 }
 
+.ledger-summary-card > div:last-child {
+  min-width: 0;
+}
+
 .ledger-summary-card:hover {
   transform: translateY(-2px);
 }
@@ -339,11 +343,14 @@
 }
 
 .ledger-summary-value {
-  font-size: 1.25rem;
+  font-size: clamp(0.72rem, 1vw, 0.95rem);
+  line-height: 1.15;
   font-weight: 700;
   margin: 0;
   color: var(--text-dark);
   font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 /* ---------- Toolbar ---------- */

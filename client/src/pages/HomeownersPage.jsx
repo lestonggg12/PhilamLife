@@ -1,6 +1,7 @@
 import { notifySuccess, notifyAction } from '../lib/actionFeedback'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Select from '../components/Select'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Calendar,
@@ -854,20 +855,7 @@ useEffect(() => {
             )}
           </div>
 
-          <select
-            className="homeowners-filter"
-            value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value)
-              setResultsOpen(true)
-            }}
-            aria-label="Filter homeowners by account status"
-          >
-            <option value="all">All account statuses</option>
-            <option value="current">Current</option>
-            <option value="balance">With balance</option>
-            <option value="no-history">No payment history</option>
-          </select>
+          <Select ariaLabel="Filter homeowners by account status" value={statusFilter} onChange={(value) => { setStatusFilter(value); setResultsOpen(true) }} options={[['all', 'All account statuses'], ['current', 'Current'], ['balance', 'With balance'], ['no-history', 'No payment history']].map(([value, label]) => ({ value, label }))} />
         </div>
       </section>
 
@@ -1015,19 +1003,7 @@ useEffect(() => {
 
                 <label className="homeowner-analytics-year">
                   <span>Year</span>
-                  <select
-                    value={trackerYear}
-                    onChange={(event) =>
-                      setTrackerYear(Number(event.target.value))
-                    }
-                    aria-label="Payment analytics year"
-                  >
-                    {trackerYears.map((year) => (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
+                  <Select ariaLabel="Payment analytics year" value={String(trackerYear)} onChange={(value) => setTrackerYear(Number(value))} options={trackerYears.map((year) => ({ value: String(year), label: String(year) }))} />
                 </label>
               </div>
 
@@ -1226,14 +1202,7 @@ useEffect(() => {
                       {trackerView === 'monthly' && (
                         <label className="homeowner-tracker-year">
                           <span>Year</span>
-                          <select
-                            value={trackerYear}
-                            onChange={(event) => setTrackerYear(Number(event.target.value))}
-                          >
-                            {trackerYears.map((year) => (
-                              <option key={year} value={year}>{year}</option>
-                            ))}
-                          </select>
+                          <Select ariaLabel="Payment analytics year" value={String(trackerYear)} onChange={(value) => setTrackerYear(Number(value))} options={trackerYears.map((year) => ({ value: String(year), label: String(year) }))} />
                         </label>
                       )}
                     </div>
@@ -1927,19 +1896,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
             <div className="hod-row">
               <div>
                 <label htmlFor="hod-homeowner-block">Block</label>
-                <select
-                  id="hod-homeowner-block"
-                  name="blockName"
-                  value={homeownerForm.blockName}
-                  onChange={updateHomeownerField}
-                  required
-                >
-                  <option value="">Select block</option>
-                  {blocks.map((block) => (
-                    <option key={block.id} value={block.name}>{block.name}</option>
-                  ))}
-                  <option value={ADD_BLOCK_OPTION}>+ Add Block</option>
-                </select>
+                <Select ariaLabel="Block" value={homeownerForm.blockName} onChange={(value) => updateHomeownerField({ target: { name: 'blockName', value } })} options={[{ value: '', label: 'Select block' }, ...blocks.map((block) => ({ value: block.name, label: block.name })), { value: ADD_BLOCK_OPTION, label: '+ Add Block' }]} />
               </div>
               <div>
                 <label htmlFor="hod-homeowner-lot">Lot number</label>
