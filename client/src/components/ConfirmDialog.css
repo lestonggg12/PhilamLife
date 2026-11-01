@@ -16,7 +16,7 @@
   background: rgba(15, 63, 106, 0.38);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-  animation: confirm-fade 0.14s ease-out;
+  animation: confirm-fade var(--motion-fast, 140ms) var(--ease-out, ease-out);
 }
 
 .confirm-dialog {
@@ -32,7 +32,7 @@
   backdrop-filter: blur(26px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 30px 70px -20px rgba(15, 63, 106, 0.45), 0 2px 10px rgba(20, 100, 160, 0.1);
-  animation: confirm-pop 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: confirm-pop var(--motion-base, 220ms) var(--ease-out, ease-out);
 }
 
 .confirm-icon {
@@ -146,6 +146,13 @@
 @keyframes confirm-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-backdrop,
+  .confirm-dialog {
+    animation: none;
+  }
 }
 
 @media (max-width: 480px) {

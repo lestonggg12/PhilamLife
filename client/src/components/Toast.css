@@ -1,0 +1,87 @@
+.toast-stack {
+  position: fixed;
+  top: 76px;
+  right: 20px;
+  z-index: 2147483000;
+  display: grid;
+  gap: 10px;
+  width: min(390px, calc(100vw - 32px));
+  max-height: calc(100dvh - 100px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: hidden;
+  padding: 14px 14px 16px;
+  border: 1px solid #b8d7c8;
+  border-left: 4px solid #19805a;
+  border-radius: 14px;
+  background: #fff;
+  color: #213b32;
+  box-shadow: 0 12px 30px rgba(20, 45, 65, .18);
+  font: 14px/1.5 var(--font-body, sans-serif);
+  pointer-events: auto;
+  animation: toast-enter var(--motion-base, 220ms) var(--ease-out, ease-out) both;
+}
+
+.toast-error {
+  border-color: #e2b9b4;
+  border-left-color: #c0392b;
+  color: #54231e;
+}
+
+.toast-info {
+  border-color: #b7cde4;
+  border-left-color: #1464a0;
+  color: #173a52;
+}
+
+.toast-mark {
+  flex: 0 0 auto;
+  color: #19805a;
+  font-weight: 800;
+}
+
+.toast-error .toast-mark { color: #c0392b; }
+.toast-info .toast-mark { color: #1464a0; }
+.toast p { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.toast button { flex: 0 0 auto; border: 0; background: transparent; color: #526b60; cursor: pointer; font-size: 22px; line-height: 1; padding: 0 2px; }
+.toast button:focus-visible { outline: 2px solid #1464a0; outline-offset: 2px; }
+.toast-countdown { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: currentColor; opacity: .35; transform-origin: left; animation: toast-countdown 3s linear both; }
+.toast-countdown.is-paused { animation-play-state: paused; }
+
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (max-width: 600px) {
+  .toast-stack {
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast-countdown {
+    animation: none;
+  }
+}
+
+@media print {
+  .toast-stack { display: none; }
+}

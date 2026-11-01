@@ -104,6 +104,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [downloadingId, setDownloadingId] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [highlightedDocumentId, setHighlightedDocumentId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canUploadDocuments = role === 'secretary'
@@ -329,6 +330,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     }
 
     setDocuments((current) => [data, ...current])
+    setHighlightedDocumentId(data.id)
     setShowUpload(false)
     setForm(EMPTY_FORM)
     setSelectedFile(null)
@@ -548,8 +550,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       </div>
 
       {pageError && <p className="doc-message doc-error">{pageError}</p>}
-      {notice && <p className="doc-message doc-success">{notice}</p>}
-
       <div className="doc-list glass-card" aria-live="polite">
         {loading ? (
           <p className="doc-empty">Loading documents...</p>
@@ -561,7 +561,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           </p>
         ) : (
           filteredDocuments.map((document) => (
-            <article key={document.id} className="doc-row">
+            <article key={document.id} className={`doc-row${document.id === highlightedDocumentId ? ' motion-record-highlight' : ''}`}>
               <div className="doc-icon">
                 <FileText size={21} />
               </div>

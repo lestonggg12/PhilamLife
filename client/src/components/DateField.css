@@ -6,8 +6,10 @@
 .tsr-date-trigger:disabled { opacity: .55; cursor: not-allowed; }
 .tsr-date-trigger svg { flex-shrink: 0; color: var(--text-light, #5a7a92); }
 .tsr-date-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.tsr-date-text.is-placeholder { color: #7f98ab; }
-.tsr-date-popover { position: fixed; z-index: 1000; width: 300px; max-width: calc(100vw - 32px); padding: 18px; box-sizing: border-box; border: 1px solid rgba(120,162,210,.3); border-radius: 20px; background: #fff; box-shadow: 0 22px 44px -14px rgba(15,63,106,.32),0 2px 10px rgba(20,100,160,.1); text-align: left; }
+.tsr-date-popover { position: fixed; z-index: 1500; width: 300px; max-width: calc(100vw - 32px); padding: 18px; box-sizing: border-box; border: 1px solid rgba(120,162,210,.3); border-radius: 20px; background: #fff; box-shadow: 0 22px 44px -14px rgba(15,63,106,.32),0 2px 10px rgba(20,100,160,.1); text-align: left; transform-origin: top left; animation: tsr-date-pop var(--motion-fast, 140ms) var(--ease-out, ease-out) both; }
 .tsr-date-popover.open-up { transform-origin: bottom left; }
+@keyframes tsr-date-pop { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .tsr-date-popover { animation: none; } }
 .tsr-date-head { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; gap: 8px; margin-bottom: 15px; }.tsr-date-head strong { color: var(--text-dark,#071e30); text-align: center; font: 600 15px var(--font-display, Georgia, serif); }
 .tsr-date-nav { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid rgba(120,162,210,.35); border-radius: 11px; background: #fff; color: var(--text-light,#5a7a92); cursor: pointer; box-shadow: 0 3px 8px -3px rgba(15,63,106,.2); }.tsr-date-nav:hover { color: var(--primary,#1464a0); border-color: var(--primary-light,#9cc3de); }.tsr-date-prev svg { transform: rotate(180deg); }
 .tsr-date-weekdays,.tsr-date-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); }.tsr-date-weekdays span { padding: 4px 0 9px; color: var(--text-muted,#5a7a92); text-align: center; font-size: 10px; font-weight: 800; }.tsr-date-grid { gap: 5px; }

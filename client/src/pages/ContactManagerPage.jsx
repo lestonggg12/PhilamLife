@@ -524,11 +524,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           {pageError}
         </p>
       )}
-      {notice && (
-        <p className="contact-message contact-success" role="status" aria-live="polite">
-          {notice}
-        </p>
-      )}
       {transferError && !pendingTransferContact && (
         <p className="contact-message contact-error" role="alert">
           {transferError}

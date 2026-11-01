@@ -780,8 +780,6 @@ useEffect(() => {
       </header>
 
       {pageError && <p className="homeowners-error">{pageError}</p>}
-      {notice && <p className="hod-notice" role="status">{notice}</p>}
-
       <section className="homeowners-finder">
         <div className="homeowners-finder-heading">
           <div>

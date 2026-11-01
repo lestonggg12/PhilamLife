@@ -35,6 +35,7 @@ export default function GrievancesPage({ user }) {
   const [revision, setRevision] = useState(0)
   const [notice, setNotice] = useSuccessNotice()
   const [selected, setSelected] = useState(null)
+  const [highlightedCaseId, setHighlightedCaseId] = useState(null)
   const [opening, setOpening] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -95,6 +96,7 @@ export default function GrievancesPage({ user }) {
     try {
       const {data,error} = await supabase.rpc('save_grievance',args)
       if (error) throw error
+      if (!form.version) setHighlightedCaseId(data.id)
       setSelected(null); setRevision((v) => v+1); setReport(null)
       setNotice(`${grievanceNumber(data.case_number)} ${form.version ? 'updated' : 'recorded'} successfully.`)
     } catch(error) { setSaveError(readableError(error)) } finally { setSaving(false) }
@@ -122,14 +124,13 @@ export default function GrievancesPage({ user }) {
   if (!allowed) return <div className="grievances-page"><p role="alert">Grievances is available to the Secretary only.</p></div>
   return <main className="grievances-page">
     <header className="grievance-heading"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p>Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-buttons"><button onClick={() => { setRevision((v) => v+1); setReport(null) }} disabled={loading}>Refresh</button><button className="grievance-primary" onClick={() => { setSelected(newGrievance()); setSaveError('') }}>Record grievance</button></div></header>
-    {notice && <p className="grievance-success" role="status">{notice}</p>}
     <div className="grievance-tabs" role="tablist" aria-label="Grievance views"><button role="tab" aria-selected={tab==='register'} onClick={() => setTab('register')}>Case register</button><button role="tab" aria-selected={tab==='statement'} onClick={() => setTab('statement')}>Period statement</button></div>
     {tab==='register' ? <section className="grievance-panel">
       <div className="grievance-filters"><label>Search<input type="search" placeholder="Search people, title, location or handler..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} /></label><label>Status<Select ariaLabel="Status" value={status} onChange={(value) => { setStatus(value); setPage(0) }} options={[{ value: 'All', label: 'All' }, ...GRIEVANCE_STATUSES.map((v) => ({ value: v, label: v }))]} /></label><label>Category<Select ariaLabel="Category" value={category} onChange={(value) => { setCategory(value); setPage(0) }} options={[{ value: 'All', label: 'All' }, ...GRIEVANCE_CATEGORIES.map((v) => ({ value: v, label: v }))]} /></label></div>
       {error && <p className="grievance-error" role="alert">{error}</p>}
       <p className="grievance-help">{loading ? 'Loading cases...' : `${total.toLocaleString('en-PH')} matching cases`}</p>
       {!loading && !error && !rows.length && <div className="grievance-empty"><h2>No grievances found</h2><p>Record a complaint or adjust your search filters.</p></div>}
-      {!loading && rows.map((row) => <article className="grievance-case" key={row.id}><div><span className="grievance-case-number">{grievanceNumber(row.case_number)} · {row.category}</span><h2>{row.title}</h2><p>{row.complainant} <span>— complaint concerns —</span> {row.respondent}</p><small>{row.location} · Filed {organization.formatDate(row.filed_at)}</small><small>Handler: {row.assigned_handler || 'Not assigned'}{row.follow_up_date ? ` · Follow up ${organization.formatDate(row.follow_up_date)}` : ''}</small></div><div className="grievance-case-actions"><span className="grievance-badge">{row.status}</span><button onClick={() => openCase(row)} disabled={opening}>View / update</button></div></article>)}
+      {!loading && rows.map((row) => <article className={`grievance-case${row.id === highlightedCaseId ? ' motion-record-highlight' : ''}`} key={row.id}><div><span className="grievance-case-number">{grievanceNumber(row.case_number)} · {row.category}</span><h2>{row.title}</h2><p>{row.complainant} <span>— complaint concerns —</span> {row.respondent}</p><small>{row.location} · Filed {organization.formatDate(row.filed_at)}</small><small>Handler: {row.assigned_handler || 'Not assigned'}{row.follow_up_date ? ` · Follow up ${organization.formatDate(row.follow_up_date)}` : ''}</small></div><div className="grievance-case-actions"><span className="grievance-badge">{row.status}</span><button onClick={() => openCase(row)} disabled={opening}>View / update</button></div></article>)}
       <Pager page={page} total={total} size={PAGE_SIZE} onPageChange={setPage} disabled={loading} />
     </section> : <section className="grievance-panel">
       <form className="grievance-period" onSubmit={generateReport}><label>From<DateField ariaLabel="From date" name="from_date" required disabled={reportBusy} max={today} value={from} onChange={(value) => { setFrom(value); setReport(null) }} /></label><label>To<DateField ariaLabel="To date" name="to_date" required disabled={reportBusy} max={today} value={to} onChange={(value) => { setTo(value); setReport(null) }} /></label><button className="grievance-primary" disabled={reportBusy}>{reportBusy ? 'Generating...' : 'Generate statement'}</button></form>

@@ -370,6 +370,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [highlightedEventId, setHighlightedEventId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageEvents = role === 'secretary'
@@ -584,6 +585,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         eventSortValue(left).localeCompare(eventSortValue(right)),
       )
     })
+    if (!editingEvent) setHighlightedEventId(savedEvent.id)
 
     setShowForm(false)
     setEditingEvent(null)
@@ -732,8 +734,6 @@ export default function EventCalendarPage({ user: suppliedUser }) {
       </div>
 
       {pageError && <p className="cal-message cal-error">{pageError}</p>}
-      {notice && <p className="cal-message cal-success">{notice}</p>}
-
       <section className="cal-list glass-card" aria-live="polite">
         {loading ? (
           <p className="cal-empty">Loading events...</p>
@@ -751,7 +751,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
             return (
               <article
                 key={event.id}
-                className={`cal-row ${isPast ? 'cal-row-past' : ''}`}
+                className={`cal-row ${isPast ? 'cal-row-past' : ''}${event.id === highlightedEventId ? ' motion-record-highlight' : ''}`}
               >
                 <div className="cal-date-badge" aria-hidden="true">
                   <span className="cal-month">

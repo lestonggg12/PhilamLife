@@ -1,0 +1,80 @@
+:root {
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+}
+
+.motion-page-enter {
+  animation: motion-page-enter var(--motion-base) var(--ease-out) both;
+}
+
+.motion-interactive,
+.motion-card {
+  transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+
+.motion-interactive:hover:not(:disabled),
+.motion-card:hover {
+  transform: translateY(-1px);
+}
+
+.motion-interactive:active:not(:disabled) {
+  transform: scale(.98);
+}
+
+.motion-interactive:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(20, 100, 160, .45);
+  outline-offset: 2px;
+}
+
+.motion-interactive:disabled,
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.motion-record-highlight {
+  animation: motion-record-highlight 1.2s var(--ease-out);
+}
+
+@keyframes motion-page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motion-record-highlight {
+  0%, 100% { box-shadow: inherit; }
+  35% { box-shadow: 0 0 0 3px rgba(20, 100, 160, .18), 0 10px 24px rgba(20, 100, 160, .12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-page-enter,
+  .motion-record-highlight {
+    animation: none;
+  }
+
+  .motion-interactive,
+  .motion-card {
+    transition: opacity var(--motion-fast) linear, color var(--motion-fast) linear, background-color var(--motion-fast) linear, border-color var(--motion-fast) linear;
+  }
+
+  .motion-interactive:hover:not(:disabled),
+  .motion-interactive:active:not(:disabled),
+  .motion-card:hover {
+    transform: none;
+  }
+}
+
+@media print {
+  .motion-page-enter,
+  .motion-record-highlight {
+    animation: none;
+  }
+}

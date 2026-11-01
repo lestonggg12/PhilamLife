@@ -90,7 +90,9 @@ export default function Layout({ user, onLogout }) {
         />
 
         <div className="page-content">
-          <Outlet />
+          <div className="motion-page-enter" key={location.key}>
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>

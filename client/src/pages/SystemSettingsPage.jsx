@@ -291,7 +291,7 @@ export default function SystemSettingsPage({ user }) {
         {tabs.map(([id, label]) => <button key={id} type="button" className={activeTab === id ? 'active' : ''} onClick={() => { setActiveTab(id); setMessage(null) }}><Icon name={id} />{label}</button>)}
       </nav>
 
-      {message && <div className={`ss-message ${message.type}`} role="status">{message.type === 'success' && <Icon name="check" />}{message.text}</div>}
+      {message?.type === 'error' && <div className="ss-message error" role="alert">{message.text}</div>}
 
       {activeTab === 'general' && <div className="ss-card-grid">
         <SettingsCard title="Organization details" subtitle="Information shown across the HOA system.">

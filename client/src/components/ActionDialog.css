@@ -7,7 +7,7 @@
   justify-content: center;
   z-index: 2000;
   padding: 20px;
-  animation: action-dialog-fade-in 0.15s ease;
+  animation: action-dialog-fade-in var(--motion-fast, 140ms) var(--ease-out, ease-out);
 }
 
 @keyframes action-dialog-fade-in {
@@ -23,7 +23,7 @@
   padding: 28px;
   box-shadow: 0 20px 60px rgba(7, 30, 48, 0.3);
   font-family: 'DM Sans', sans-serif;
-  animation: action-dialog-pop-in 0.15s ease;
+  animation: action-dialog-pop-in var(--motion-base, 220ms) var(--ease-out, ease-out);
 }
 
 @keyframes action-dialog-pop-in {
@@ -76,7 +76,7 @@
   font-family: 'DM Sans', sans-serif;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--motion-fast, 140ms) ease, box-shadow var(--motion-fast, 140ms) ease, transform var(--motion-fast, 140ms) ease, color var(--motion-fast, 140ms) ease;
 }
 
 .action-dialog-btn-secondary {
@@ -104,4 +104,11 @@
 
 .action-dialog-btn-danger:hover {
   background: #a5301f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-dialog-overlay,
+  .action-dialog {
+    animation: none;
+  }
 }

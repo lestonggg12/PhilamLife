@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { notifySuccess } from './actionFeedback'
 
-// Keep existing inline notices while also announcing success above open dialogs.
+// Route success feedback through the shared toast host.
 export function useSuccessNotice() {
   const [notice, setNoticeState] = useState('')
   const setNotice = useCallback((message) => {
