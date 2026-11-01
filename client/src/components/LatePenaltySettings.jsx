@@ -103,10 +103,9 @@ export default function LatePenaltySettings({ canEdit = false }) {
         {effectiveDate && ` Automatic posting starts ${effectiveDate} (Manila time).`}
       </p>
       <p className="ss-info">
-        The first assessment uses the recorded As-of Date plus the configured months;
-        later assessments are 12 months apart. Dates before activation are skipped.
-        Changing the months setting affects newly registered schedules only.
-        The current rate is recorded separately on each future assessment.
+        First assessment: As-of Date + configured months. Later assessments: every 12 months.
+        Pre-activation dates are skipped. Months changes affect new schedules only.
+        Current rate is saved per assessment.
       </p>
 
       <form className="lps-defaults" onSubmit={saveDefaults}>

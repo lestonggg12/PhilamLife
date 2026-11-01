@@ -84,14 +84,3 @@ export function receiptPaperKey(model) {
   if (!model.sourceId || !['payment', 'service'].includes(model.kind)) throw new Error('Open a saved receipt before assigning a paper number.')
   return model.kind === 'payment' ? { payment_id: model.sourceId } : { service_transaction_id: model.sourceId }
 }
-
-export function readPrintAlignment() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('philamlife-receipt-alignment-v1') || '{}')
-    return { x: alignmentValue(saved.x), y: alignmentValue(saved.y) }
-  } catch { return { x: 0, y: 0 } }
-}
-export function alignmentValue(value) {
-  const number = Number(value)
-  return Number.isFinite(number) ? Math.max(-5, Math.min(5, number)) : 0
-}

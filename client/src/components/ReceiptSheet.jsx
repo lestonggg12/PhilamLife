@@ -147,7 +147,7 @@ export function ReceiptDialog({ model, onClose, onPrint, dismissOnBackdrop = tru
           <ReceiptPrintSetup key={`${model.kind}:${model.sourceId}`} model={model} onReady={setPrintSetup} />
           <p className="receipt-preview-note">Form guide only. Printing adds the receipt details to your preprinted paper; the boxes, headings and red number do not print.</p>
           {layoutError && <p className="receipt-setup-error" role="alert">{layoutError}</p>}
-          <div className="receipt-paper-scroll"><PreprintedReceipt model={model} paperNumber={currentSetup?.paperNumber} alignment={currentSetup?.alignment} /></div>
+          {currentSetup?.alignment && <div className="receipt-paper-scroll"><PreprintedReceipt model={model} paperNumber={currentSetup?.paperNumber} alignment={currentSetup.alignment} /></div>}
           <details className="receipt-full-record"><summary>Full payment details</summary><ReceiptSheet model={model} /></details>
         </div>
         <div className="rcpt-actions">

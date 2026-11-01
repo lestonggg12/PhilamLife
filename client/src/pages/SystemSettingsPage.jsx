@@ -289,7 +289,7 @@ export default function SystemSettingsPage({ user }) {
         <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
         <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
       </SettingsCard>
-        <SettingsCard title="Late-payment penalty" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
+        <SettingsCard className="ss-penalty-card" title="Late-payment penalty" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
           <LatePenaltySettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
         </SettingsCard>
         <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
@@ -297,7 +297,7 @@ export default function SystemSettingsPage({ user }) {
           <Field label="Due Day of Month" type="number" min="1" max="31" value={settings.due_day} onChange={(v) => update('due_day', v)} />
           <Field label="Grace Period (days)" type="number" min="0" value={settings.grace_period_days} onChange={(v) => update('grace_period_days', v)} />
         </SettingsCard>
-        <SettingsCard title="System preferences" subtitle="Regional display defaults.">
+        <SettingsCard className="ss-preferences-card" title="System preferences" subtitle="Regional display defaults.">
           <SelectField label="Currency" value={settings.currency} onChange={(v) => update('currency', v)} options={[['PHP', 'Philippine Peso (₱)']]} />
           <SelectField label="Time Zone" value={settings.timezone} onChange={(v) => update('timezone', v)} options={[['Asia/Manila', 'Asia/Manila']]} />
           <SelectField label="Date Format" value={settings.date_format} onChange={(v) => update('date_format', v)} options={['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'].map((v) => [v, v])} />
@@ -337,8 +337,8 @@ export default function SystemSettingsPage({ user }) {
   )
 }
 
-function SettingsCard({ title, subtitle, children, full = false }) {
-  return <section className={`ss-card ${full ? 'full' : ''}`}><div className="ss-card-heading"><h2>{title}</h2><p>{subtitle}</p></div><div className="ss-fields">{children}</div></section>
+function SettingsCard({ title, subtitle, children, full = false, className = '' }) {
+  return <section className={`ss-card ${full ? 'full' : ''} ${className}`.trim()}><div className="ss-card-heading"><h2>{title}</h2><p>{subtitle}</p></div><div className="ss-fields">{children}</div></section>
 }
 
 function Field({ label, value, onChange, wide = false, ...props }) {

@@ -29,6 +29,7 @@ export const ADMIN_EXPORT_TABLES = Object.freeze([
   'property_charges',
   'property_payment_allocations',
   'receipt_paper_numbers',
+  'receipt_print_settings',
   'service_transactions',
   'system_settings',
   'user_management_logs',

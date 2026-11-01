@@ -1,8 +1,10 @@
 import React from 'react'
+import { receiptAlignmentOffsets } from '../lib/receiptAlignment'
 import { wrapReceiptText } from '../lib/preprintedReceipt'
 import './PreprintedReceipt.css'
 
-export default function PreprintedReceipt({ model, paperNumber = '', alignment = { x: 0, y: 0 }, guide = true }) {
+export default function PreprintedReceipt({ model, paperNumber = '', alignment, guide = true }) {
+  alignment = receiptAlignmentOffsets(alignment)
   const f = model.preprinted || {}
   return <article className="paper-receipt" aria-label="Preprinted service invoice preview">
     {guide && <div className="paper-guide" aria-hidden="true">

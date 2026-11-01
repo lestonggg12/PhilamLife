@@ -38,7 +38,7 @@ describe('Admin application data export', () => {
       expect(payload.tables[name]).toEqual(rows[name])
       expect(payload.export_scope.row_counts[name]).toBe(1)
     }
-    expect(Object.keys(payload.tables)).toHaveLength(30)
+    expect(Object.keys(payload.tables)).toHaveLength(31)
     expect(payload).toMatchObject({ exported_by: 'Admin fixture', exported_at: '2026-11-01T06:00:00Z', timezone: 'Asia/Manila' })
   })
 

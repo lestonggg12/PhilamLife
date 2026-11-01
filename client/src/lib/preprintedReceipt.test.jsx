@@ -5,6 +5,8 @@ import { buildPreprintedFields, normalizePaperNumber, preprintedLayoutError, rec
 import { buildReceiptModel } from './receiptModel'
 import { receiptPrintHtml, printReceipt } from './printReceipt'
 import PreprintedReceipt from '../components/PreprintedReceipt'
+const db = vi.hoisted(() => ({ single: vi.fn() }))
+vi.mock('./supabaseClient', () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ single: db.single }) }) }) } }))
 
 const organization = { associationName: 'Village Association', address: 'Village address', formatMoney: (v) => String(v), formatDate: (v) => String(v) }
 const row = { id: 1, receipt_number: 'OR-2026-000010', homeowner_name: 'Lily', block_name: 'Block 3', lot_number: 12, amount_paid: '11000.00', amount: '12000.00', paid_at: '2026-10-31T20:00:00Z', coverage_period: 'Association dues - 12 months ahead', recorded_by_name: 'Secretary', status: 'Completed', receipt_breakdown: { annual_advance_discount: { months_covered: 12, gross_amount: '12000.00', discount_amount: '1000.00' } } }
@@ -39,7 +41,7 @@ describe('preprinted invoice output', () => {
   })
   it('shows the guide on screen but sends no guide, red number, table lines or association header to print', () => {
     const m = model()
-    const preview = renderToStaticMarkup(<PreprintedReceipt model={m} paperNumber="3464" />)
+    const preview = renderToStaticMarkup(<PreprintedReceipt model={m} paperNumber="3464" alignment={{ x: -2, y: 0 }} />)
     expect(preview).toContain('SOLD TO:')
     expect(preview).toContain('No. 3464')
     const html = receiptPrintHtml(m, { paperNumber: '3464', alignment: { x: 1, y: -1 } })
@@ -53,26 +55,28 @@ describe('preprinted invoice output', () => {
     expect(body).not.toContain('<table')
   })
   it('retains cancelled status on printed historical receipts', () => {
-    expect(receiptPrintHtml({ ...model(), voided: true }, { paperNumber: '3464' })).toContain('CANCELLED')
+    expect(receiptPrintHtml({ ...model(), voided: true }, { paperNumber: '3464', alignment: { x: -2, y: 0 } })).toContain('CANCELLED')
   })
   it('blocks overflow rather than cutting saved descriptions or printing a second invoice sheet', () => {
     const f = { ...model().preprinted, description: 'Long saved description '.repeat(40) }
     expect(preprintedLayoutError(f)).toContain('too long')
-    expect(() => receiptPrintHtml({ ...model(), preprinted: f }, { paperNumber: '3464' })).toThrow('too long')
+    expect(() => receiptPrintHtml({ ...model(), preprinted: f }, { paperNumber: '3464', alignment: { x: -2, y: 0 } })).toThrow('too long')
     expect(wrapReceiptText('x'.repeat(80)).every((line) => line.length <= 36)).toBe(true)
   })
-  it('opens printing without entering or saving the preprinted paper number', () => {
+  it('opens printing without entering or saving the preprinted paper number', async () => {
     const write = vi.fn()
     const open = vi.fn(() => ({
       addEventListener: vi.fn(),
-      document: { write, close: vi.fn() },
+      document: { write, open: vi.fn(), close: vi.fn() },
+      close: vi.fn(),
     }))
     vi.stubGlobal('window', { open })
     const error = vi.fn()
-    try { printReceipt(model(), error) } finally { vi.unstubAllGlobals() }
+    db.single.mockResolvedValue({ data: { x_mm: -2, y_mm: 0, revision: 1 }, error: null })
+    try { await printReceipt(model(), error) } finally { vi.unstubAllGlobals() }
     expect(open).toHaveBeenCalledOnce()
     expect(error).not.toHaveBeenCalled()
-    const body = write.mock.calls[0][0].split('<body>')[1]
+    const body = write.mock.calls.at(-1)[0].split('<body>')[1]
     expect(body).toContain('11,000.00')
     expect(body).not.toContain('paper-guide')
     expect(body).not.toContain('No. ')

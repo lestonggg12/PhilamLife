@@ -1,4 +1,11 @@
-.lps { display: grid; gap: 12px; }
+.lps { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 12px; }
+.lps > .ss-info { grid-column: auto; }
+.lps > .lps-defaults,
+.lps > .lps-heading,
+.lps > .lps-empty,
+.lps > .lps-table,
+.lps > .lps-add,
+.lps > .ss-message { grid-column: 1 / -1; }
 .lps-defaults,
 .lps-add { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .lps-defaults .ss-field,
@@ -13,3 +20,14 @@
 .lps-link { background: none; border: 0; padding: 4px 8px; color: #1565a8; font-weight: 600; cursor: pointer; }
 .lps-link:disabled { opacity: 0.5; cursor: default; }
 .lps-danger { color: #b3261e; }
+
+@media (max-width: 700px) {
+  .lps { grid-template-columns: 1fr; }
+  .lps > .ss-info,
+  .lps > .lps-defaults,
+  .lps > .lps-heading,
+  .lps > .lps-empty,
+  .lps > .lps-table,
+  .lps > .lps-add,
+  .lps > .ss-message { grid-column: 1; }
+}

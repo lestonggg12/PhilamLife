@@ -181,6 +181,17 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
+  align-items: start;
+}
+
+.ss-penalty-card {
+  grid-column: 1;
+  grid-row: 2 / span 2;
+}
+
+.ss-preferences-card {
+  grid-column: 2;
+  grid-row: 3;
 }
 
 .ss-card {
@@ -544,6 +555,8 @@ button:disabled {
 
 @media (max-width: 900px) {
   .ss-card-grid { grid-template-columns: 1fr; }
+  .ss-penalty-card,
+  .ss-preferences-card { grid-column: auto; grid-row: auto; }
   .ss-export-grid { grid-template-columns: 1fr; }
 }
 
