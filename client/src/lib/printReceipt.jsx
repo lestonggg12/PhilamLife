@@ -3,14 +3,13 @@ import { notifySuccess } from './actionFeedback'
 import { renderToStaticMarkup } from 'react-dom/server'
 import PreprintedReceipt from '../components/PreprintedReceipt'
 import receiptCss from '../components/PreprintedReceipt.css?inline'
-import { alignmentValue, normalizePaperNumber, preprintedLayoutError, RECEIPT_PAPER } from './preprintedReceipt'
+import { alignmentValue, preprintedLayoutError, RECEIPT_PAPER } from './preprintedReceipt'
 
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 
 // Only filled-in values are sent to the printer. No preprinted artwork is in
 // this document, even when the browser's background-printing option is enabled.
 export function receiptPrintHtml(model, setup = {}) {
-  normalizePaperNumber(setup.paperNumber)
   const error = preprintedLayoutError(model.preprinted)
   if (error) throw new Error(error)
   const alignment = { x: alignmentValue(setup.alignment?.x), y: alignmentValue(setup.alignment?.y) }

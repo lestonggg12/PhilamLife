@@ -588,12 +588,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="dash-admin-dashboard">
-      <div className="dash-page-header-copy">
-        <p className="dash-eyebrow">Admin workspace</p>
-        <h1 className="dash-page-title">Admin Dashboard</h1>
-        <p className="dash-page-subtitle">
-          Manage users, homeowner records, finances, and system operations.
-        </p>
+      <div className="dash-page-header">
+        <div className="dash-page-header-copy">
+          <p className="dash-eyebrow">Admin workspace</p>
+          <h1 className="dash-page-title">Admin Dashboard</h1>
+          <p className="dash-page-subtitle">
+            Manage users, homeowner records, finances, and system operations.
+          </p>
+        </div>
       </div>
 
       {pageError && <p className="dash-page-error">{pageError}</p>}

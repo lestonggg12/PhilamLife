@@ -1,629 +1,238 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  AlertCircle,
-  Calendar,
-  ChevronRight,
-  RefreshCw,
-} from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { useOrganization } from '../context/OrganizationContext'
+import Select from '../components/Select'
+import DateField from '../components/DateField'
 import './ActivityLogPage.css'
-import useAnimatedPopover from '../hooks/useAnimatedPopover'
 
-const MANILA_TIME_ZONE = 'Asia/Manila'
-const MANILA_OFFSET = '+08:00'
-const TABLE_COLUMN_COUNT = 5
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-const timestampFormatter = new Intl.DateTimeFormat('en-PH', {
-  dateStyle: 'medium',
-  timeStyle: 'medium',
-  timeZone: MANILA_TIME_ZONE,
-})
-
-const selectedDateFormatter = new Intl.DateTimeFormat('en-PH', {
-  weekday: 'long',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-
-const monthFormatter = new Intl.DateTimeFormat('en-PH', {
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-const triggerDateFormatter = new Intl.DateTimeFormat('en-PH', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-function dateKeyFromDate(value = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: MANILA_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(value)
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-
-  return `${values.year}-${values.month}-${values.day}`
+const ZONE = 'Asia/Manila'
+const dayFormat = new Intl.DateTimeFormat('en-US', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
+const timeFormat = new Intl.DateTimeFormat('en-PH', { timeZone: ZONE, hour: 'numeric', minute: '2-digit', hour12: true })
+const fullFormat = new Intl.DateTimeFormat('en-PH', { timeZone: ZONE, dateStyle: 'full', timeStyle: 'long', hour12: true })
+const groupFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
+const RANGE_LABELS = { all: 'Selected month', today: 'Today', week: 'Last 7 days', month: 'Last 30 days', custom: 'Custom' }
+function dateKey(value = new Date()) {
+  const parts = Object.fromEntries(dayFormat.formatToParts(value).map(({ type, value: part }) => [type, part]))
+  return `${parts.year}-${parts.month}-${parts.day}`
 }
-
-function dateFromKey(dateKey) {
-  return new Date(`${dateKey}T00:00:00Z`)
+function addDays(key, days) {
+  const value = new Date(`${key}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
 }
-
-function addDays(dateKey, amount) {
-  const date = dateFromKey(dateKey)
-  date.setUTCDate(date.getUTCDate() + amount)
-  return date.toISOString().slice(0, 10)
+function shiftMonth(key, amount) {
+  const [year, month] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1 + amount, 1)).toISOString().slice(0, 7)
 }
+function boundary(month) { return new Date(`${month}-01T00:00:00+08:00`).toISOString() }
 
-function monthKeyFromDateKey(dateKey) {
-  return dateKey.slice(0, 7)
-}
-
-function shiftMonth(monthKey, amount) {
-  const [year, month] = monthKey.split('-').map(Number)
-  const date = new Date(Date.UTC(year, month - 1 + amount, 1))
-  return date.toISOString().slice(0, 7)
-}
-
-function monthBoundary(monthKey) {
-  return new Date(`${monthKey}-01T00:00:00${MANILA_OFFSET}`).toISOString()
-}
-
-function getCalendarDays(monthKey) {
-  const firstDateKey = `${monthKey}-01`
-  const firstDay = dateFromKey(firstDateKey).getUTCDay()
-  const gridStart = addDays(firstDateKey, -firstDay)
-
-  return Array.from({ length: 42 }, (_, index) => addDays(gridStart, index))
-}
-
-function getLogStatus(action = '') {
-  const normalizedAction = action.toLowerCase()
-
-  if (
-    normalizedAction.includes('void') ||
-    normalizedAction.includes('delete') ||
-    normalizedAction.includes('cancel') ||
-    normalizedAction.includes('failed')
-  ) {
-    return 'warning'
+// Display-only parsing. Unknown action formats retain the complete original string.
+export function activityDisplay(log) {
+  const raw = String(log.target || log.description || '')
+  const suffix = ` (by ${log.user})`
+  const text = raw.endsWith(suffix) ? raw.slice(0, -suffix.length) : raw
+  const parts = text.split(' — ')
+  const expected = { 'Payment Recorded': 3, 'Charge Added': 3, 'Payment Voided': 4, 'Charge Voided': 4, 'Document Uploaded': 2, 'Document Deleted': 2 }
+  const moneyAction = /^(Payment Recorded|Charge Added|Payment Voided|Charge Voided)$/.test(log.action || '')
+  const parsed = parts.length === expected[log.action] && parts.every((part) => part.trim()) && (!moneyAction || /^₱\s*-?[\d,]+(?:\.\d{1,2})?$/.test(parts[2]))
+  const money = text.match(/₱\s*(-?\d[\d,]*(?:\.\d{1,2})?)(?![\d.])/)
+  const structuredAmount = typeof log.amount === 'number' && Number.isFinite(log.amount) ? log.amount : null
+  const amount = structuredAmount ?? (money ? Number(money[1].replaceAll(',', '')) : null)
+  return {
+    raw, text,
+    subject: log.subject || (parsed ? parts[0] : text) || 'Unknown record',
+    detail: parsed ? parts.slice(1).filter((part) => !/^₱\s*-?[\d,.]+$/.test(part) && part.replace(/\.[^.]+$/, '') !== parts[0]).join(' — ') : '',
+    amount,
+    status: /fail|error/i.test(log.action || '') ? 'failed' : /delet|void|cancel/i.test(log.action || '') ? 'warning' : '',
   }
-
-  if (
-    normalizedAction.includes('update') ||
-    normalizedAction.includes('export') ||
-    normalizedAction.includes('archive') ||
-    normalizedAction.includes('transfer') ||
-    normalizedAction.includes('moved')
-  ) {
-    return 'info'
-  }
-
-  return 'success'
 }
 
-function getStatusIcon(status) {
-  if (status === 'success') return '✓'
-  if (status === 'warning') return '⚠'
-  if (status === 'info') return 'ℹ'
-  return '•'
-}
-
-const STATUS_LABELS = {
-  success: 'Success',
-  warning: 'Warning',
-  info: 'Info',
+function ActivityRow({ log }) {
+  const [expanded, setExpanded] = useState(false)
+  const display = activityDisplay(log)
+  const detailsId = `activity-details-${log.id}`
+  const metadata = log.metadata && typeof log.metadata === 'object' ? Object.entries(log.metadata) : []
+  return (
+    <li className={`al-entry ${display.status ? `al-${display.status}` : ''}`}>
+      <div className="al-row">
+        <div className="al-user"><strong>{log.user}</strong><span>{log.role || 'Unknown role'}</span></div>
+        <div className="al-action"><span className="al-badge" title={log.action || 'Activity'}>{log.action || 'Activity'}</span></div>
+        <div className="al-summary">
+          {display.status && <span className="al-exception" role="img" aria-label={display.status === 'failed' ? 'Failed event' : 'Destructive action'}>{display.status === 'failed' ? '!' : '⚠'}</span>}
+          <div className="al-summary-text"><strong>{display.subject}</strong>{display.detail && <span>{display.detail}</span>}</div>
+        </div>
+        <div className="al-amount">{display.amount !== null ? peso.format(display.amount) : <span aria-label="No amount">—</span>}</div>
+        <time className="al-time" dateTime={log.created_at} title={fullFormat.format(new Date(log.created_at))}>{timeFormat.format(new Date(log.created_at))}</time>
+        <button type="button" className="al-expand" aria-expanded={expanded} aria-controls={expanded ? detailsId : undefined} aria-label={`${expanded ? 'Collapse' : 'Expand'} ${log.action || 'activity'} details for ${log.user}`} onClick={() => setExpanded(!expanded)}>{expanded ? '−' : '+'}</button>
+      </div>
+      {expanded && <dl id={detailsId} className="al-details">
+        <dt>Description</dt><dd>{display.text || 'Unknown record'}</dd>
+        <dt>User</dt><dd>{log.user} · {log.role || 'Unknown role'}</dd>
+        <dt>Recorded</dt><dd>{fullFormat.format(new Date(log.created_at))}</dd>
+        <dt>Record ID</dt><dd>{log.id ?? 'Unknown record'}</dd>
+        {metadata.map(([key, value]) => <React.Fragment key={key}><dt>{key}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')}</dd></React.Fragment>)}
+      </dl>}
+    </li>
+  )
 }
 
 export default function ActivityLogPage() {
-  const { organization } = useOrganization()
-  const initialToday = dateKeyFromDate()
-  const [todayKey, setTodayKey] = useState(initialToday)
-  const [visibleMonth, setVisibleMonth] = useState(
-    monthKeyFromDateKey(initialToday),
-  )
-  const [selectedDate, setSelectedDate] = useState(initialToday)
+  const [today, setToday] = useState(dateKey())
+  const [archiveMonth, setArchiveMonth] = useState(today.slice(0, 7))
+  const [range, setRange] = useState('today')
+  const [start, setStart] = useState(today)
+  const [end, setEnd] = useState(today)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [user, setUser] = useState('')
+  const [role, setRole] = useState('')
+  const [action, setAction] = useState('')
   const [logs, setLogs] = useState([])
-  const [filter, setFilter] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-  const calendar = useAnimatedPopover()
-
-  const calendarWrapRef = useRef(null)
+  const [error, setError] = useState('')
+  const [profileWarning, setProfileWarning] = useState(false)
+  const [limit, setLimit] = useState(25)
+  const [revision, setRevision] = useState(0)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const panelRef = useRef(null)
+  const filterButton = useRef(null)
+  const toolbarRef = useRef(null)
+  const [toolbarHeight, setToolbarHeight] = useState(0)
+  const invalidDates = range === 'custom' && (!start || !end || start > end)
+  const first = range === 'all' ? `${archiveMonth || today.slice(0, 7)}-01` : range === 'custom' ? start : addDays(today, range === 'week' ? -6 : range === 'month' ? -29 : 0)
+  const last = range === 'all' ? addDays(`${shiftMonth(archiveMonth || today.slice(0, 7), 1)}-01`, -1) : range === 'custom' ? end : today
+  // Keep the existing monthly fetchAll query and profile enrichment unchanged.
+  // Each requested month is read separately; filters and 25-row disclosure are local.
+  const firstMonth = first?.slice(0, 7)
+  const lastMonth = last?.slice(0, 7)
 
   useEffect(() => {
-    loadActivityLogs()
-  }, [visibleMonth])
-
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 300)
+    return () => window.clearTimeout(timer)
+  }, [search])
   useEffect(() => {
-    let midnightTimer
-
-    function scheduleManilaDayChange() {
-      const currentToday = dateKeyFromDate()
-      const nextMidnight = new Date(
-        `${addDays(currentToday, 1)}T00:00:00${MANILA_OFFSET}`,
-      )
-      const delay = Math.max(nextMidnight.getTime() - Date.now() + 1000, 1000)
-
-      midnightTimer = window.setTimeout(() => {
-        const newToday = dateKeyFromDate()
-        setTodayKey(newToday)
-        setSelectedDate(newToday)
-        setVisibleMonth(monthKeyFromDateKey(newToday))
-        scheduleManilaDayChange()
-      }, delay)
-    }
-
-    scheduleManilaDayChange()
-    return () => window.clearTimeout(midnightTimer)
+    const timer = window.setInterval(() => setToday(dateKey()), 60000)
+    return () => window.clearInterval(timer)
   }, [])
+  useEffect(() => {
+    const observer = new ResizeObserver(() => setToolbarHeight(toolbarRef.current?.getBoundingClientRect().height || 0))
+    if (toolbarRef.current) observer.observe(toolbarRef.current)
+    return () => observer.disconnect()
+  }, [])
+  useEffect(() => {
+    if (!panelOpen) return undefined
+    panelRef.current?.querySelector('.sel-trigger, input')?.focus()
+    function close(event) {
+      if (event.key === 'Escape') { setPanelOpen(false); filterButton.current?.focus() }
+    }
+    document.addEventListener('keydown', close)
+    return () => document.removeEventListener('keydown', close)
+  }, [panelOpen])
 
   useEffect(() => {
-    if (!calendar.open) return undefined
-
-    function handleClickOutside(event) {
-      if (
-        calendarWrapRef.current &&
-        !calendarWrapRef.current.contains(event.target)
-      ) {
-        calendar.hide()
-      }
+    let cancelled = false
+    async function loadActivityLogs() {
+      if (invalidDates) { setLogs([]); setLoading(false); setError(''); return }
+      setLoading(true)
+      setError('')
+      setProfileWarning(false)
+      try {
+        const activityData = []
+        for (let visibleMonth = firstMonth; visibleMonth <= lastMonth; visibleMonth = shiftMonth(visibleMonth, 1)) {
+          const monthStart = boundary(visibleMonth)
+          const monthEnd = boundary(shiftMonth(visibleMonth, 1))
+          const { data: fetchedLogs, error: activityError } = await fetchAll(() =>
+            supabase
+              .from('activity_log')
+              .select('*')
+              .gte('created_at', monthStart)
+              .lt('created_at', monthEnd)
+              .order('created_at', { ascending: false }),
+          )
+          if (cancelled) return
+          if (activityError) throw activityError
+          activityData.push(...(fetchedLogs || []))
+        }
+        const userIds = [...new Set(activityData.map((log) => log.user_id).filter(Boolean))]
+        let profileMap = new Map()
+        if (userIds.length > 0) {
+          const { data: profiles, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, full_name, email, role')
+            .in('id', userIds)
+          if (cancelled) return
+          if (!profileError) profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]))
+          else setProfileWarning(true)
+        }
+        const prepared = activityData.map((log) => {
+          const profile = profileMap.get(log.user_id)
+          return { ...log, dateKey: dateKey(new Date(log.created_at)), user: profile?.full_name || profile?.email || 'System', role: profile?.role || '', description: log.target || log.description || '' }
+        })
+        prepared.sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || String(a.id).localeCompare(String(b.id)))
+        if (!cancelled) setLogs(prepared)
+      } catch (failure) {
+        if (!cancelled) { setLogs([]); setError(`Activity logs could not be loaded: ${failure.message || 'Please try again.'}`) }
+      } finally { if (!cancelled) setLoading(false) }
     }
+    loadActivityLogs()
+    return () => { cancelled = true }
+  }, [firstMonth, lastMonth, invalidDates, revision])
 
-    function handleEscape(event) {
-      if (event.key === 'Escape') calendar.hide()
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [calendar.open])
-
-  async function loadActivityLogs(isRefresh = false) {
-    if (isRefresh) setRefreshing(true)
-    else setLoading(true)
-
-    setErrorMessage('')
-
-    const monthStart = monthBoundary(visibleMonth)
-    const monthEnd = monthBoundary(shiftMonth(visibleMonth, 1))
-    // Shared helper: pages through every row and adds an `id` tiebreaker so rows
-    // with identical timestamps can't be repeated or skipped between pages.
-    const { data: fetchedLogs, error: activityError } = await fetchAll(() =>
-      supabase
-        .from('activity_log')
-        .select('*')
-        .gte('created_at', monthStart)
-        .lt('created_at', monthEnd)
-        .order('created_at', { ascending: false }),
-    )
-    const activityData = fetchedLogs || []
-
-    if (activityError) {
-      setLogs([])
-      setErrorMessage(
-        `Activity logs could not be loaded: ${activityError.message}`,
-      )
-      setLoading(false)
-      setRefreshing(false)
-      return
-    }
-
-    const userIds = [
-      ...new Set(activityData.map((log) => log.user_id).filter(Boolean)),
-    ]
-    let profileMap = new Map()
-
-    if (userIds.length > 0) {
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .in('id', userIds)
-
-      if (!profileError) {
-        profileMap = new Map(
-          (profiles || []).map((profile) => [profile.id, profile]),
-        )
-      }
-    }
-
-    const preparedLogs = activityData.map((log) => {
-      const profile = profileMap.get(log.user_id)
-      const role = profile?.role
-        ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1)
-        : ''
-
-      return {
-        ...log,
-        dateKey: dateKeyFromDate(new Date(log.created_at)),
-        user: profile?.full_name || profile?.email || 'System User',
-        role,
-        description:
-          log.target || log.description || 'No additional details',
-        status: getLogStatus(log.action),
-      }
-    })
-
-    setLogs(preparedLogs)
-    setLoading(false)
-    setRefreshing(false)
-  }
-
-  const calendarDays = useMemo(
-    () => getCalendarDays(visibleMonth),
-    [visibleMonth],
+  const filtered = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase()
+    return logs.filter((log) => log.dateKey >= first && log.dateKey <= last && (!user || String(log.user_id || 'system') === user) && (!role || log.role.toLowerCase() === role) && (!action || log.action === action) && (!term || `${log.user} ${log.action || ''} ${log.description}`.toLowerCase().includes(term)))
+  }, [logs, first, last, user, role, action, debouncedSearch])
+  useEffect(() => { setLimit(25) }, [first, last, user, role, action, debouncedSearch, revision])
+  const users = [...new Map(logs.map((log) => [String(log.user_id || 'system'), log.user])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  const actions = [...new Set(logs.map((log) => log.action).filter(Boolean))].sort()
+  const chips = [
+    search && { key: 'search', label: `Search: ${search}`, clear: () => { setSearch(''); setDebouncedSearch('') } },
+    user && { key: 'user', label: `User: ${users.find(([id]) => id === user)?.[1] || 'Unknown user'}`, clear: () => setUser('') },
+    role && { key: 'role', label: `Role: ${role}`, clear: () => setRole('') },
+    action && { key: 'action', label: action, clear: () => setAction('') },
+    range !== 'all' && { key: 'date', label: range === 'custom' ? `${start || 'Start'} – ${end || 'End'}` : RANGE_LABELS[range], clear: () => setRange('all') },
+    range === 'all' && archiveMonth !== today.slice(0, 7) && { key: 'archive', label: archiveMonth, clear: () => setArchiveMonth(today.slice(0, 7)) },
+  ].filter(Boolean)
+  function clearFilters() { setSearch(''); setDebouncedSearch(''); setUser(''); setRole(''); setAction(''); setRange('all'); setArchiveMonth(today.slice(0, 7)); setStart(today); setEnd(today) }
+  const groups = new Map()
+  filtered.slice(0, limit).forEach((log) => { if (!groups.has(log.dateKey)) groups.set(log.dateKey, []); groups.get(log.dateKey).push(log) })
+  const dateLabel = (key) => key === today ? 'Today' : key === addDays(today, -1) ? 'Yesterday' : groupFormat.format(new Date(`${key}T00:00:00Z`))
+  const select = (label, value, onChange, options) => (
+    <label key={label}>
+      {label}
+      <Select
+        ariaLabel={label}
+        value={value}
+        onChange={onChange}
+        options={options.map(([key, name]) => ({ value: key, label: name }))}
+      />
+    </label>
   )
 
-  const activityCountByDay = useMemo(() => {
-    return logs.reduce((counts, log) => {
-      counts[log.dateKey] = (counts[log.dateKey] || 0) + 1
-      return counts
-    }, {})
-  }, [logs])
-
-  const selectedDayLogs = useMemo(
-    () => logs.filter((log) => log.dateKey === selectedDate),
-    [logs, selectedDate],
-  )
-
-  const filteredLogs = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase()
-
-    return selectedDayLogs.filter((log) => {
-      const matchesFilter = filter === 'all' || log.status === filter
-      const matchesSearch =
-        !normalizedSearch ||
-        log.user.toLowerCase().includes(normalizedSearch) ||
-        log.role.toLowerCase().includes(normalizedSearch) ||
-        (log.action || '').toLowerCase().includes(normalizedSearch) ||
-        log.description.toLowerCase().includes(normalizedSearch)
-
-      return matchesFilter && matchesSearch
-    })
-  }, [selectedDayLogs, filter, searchTerm])
-
-  const isTodaySelected = selectedDate === todayKey
-  const isArchiveSelected = selectedDate < todayKey
-
-  const calendarTriggerLabel = useMemo(
-    () => triggerDateFormatter.format(dateFromKey(selectedDate)),
-    [selectedDate],
-  )
-  const selectedDayHasActivity = Boolean(activityCountByDay[selectedDate])
-
-  function selectDate(dateKey) {
-    if (dateKey > todayKey) return
-    setSelectedDate(dateKey)
-    setVisibleMonth(monthKeyFromDateKey(dateKey))
-    setSearchTerm('')
-    setFilter('all')
-    calendar.hide()
-  }
-
-  function changeMonth(amount) {
-    const nextMonth = shiftMonth(visibleMonth, amount)
-    const todayMonth = monthKeyFromDateKey(todayKey)
-    if (nextMonth > todayMonth) return
-
-    setVisibleMonth(nextMonth)
-    if (nextMonth === todayMonth) setSelectedDate(todayKey)
-    else setSelectedDate(`${nextMonth}-01`)
-    setSearchTerm('')
-    setFilter('all')
-  }
-
-  function goToToday() {
-    selectDate(todayKey)
-  }
-
-  function formatDescription(description) {
-    return description.replace(/\beffective\b/g, 'Effective')
-  }
-
-  return (
-    <div className="activity-log-page">
-      <div className="activity-header">
-        <div className="header-content">
-          <p className="activity-eyebrow">Secretary workspace</p>
-          <h1>Activity Log</h1>
-          <p>Daily system activity and calendar-based archive</p>
-        </div>
-
-        <div className="activity-header-date">
-          <span
-            className={`day-type-badge header-badge ${
-              isTodaySelected ? 'current' : 'archive'
-            }`}
-          >
-            {isTodaySelected ? 'Current Day' : 'Archived Day'}
-          </span>
-          <div className="header-date-value">
-            {selectedDateFormatter.format(dateFromKey(selectedDate))}
-          </div>
-          <div className="header-date-caption">
-            {selectedDayLogs.length === 0
-              ? isTodaySelected
-                ? 'This daily page is ready for new system activities.'
-                : 'No activity was recorded on this day.'
-              : `${selectedDayLogs.length} recorded ${
-                  selectedDayLogs.length === 1 ? 'activity' : 'activities'
-                } on this day.`}
-          </div>
-        </div>
+  return <div className="activity-log-page" style={{ '--al-toolbar-height': `${toolbarHeight}px` }}>
+    <header className="al-header"><div><h1>Activity Log</h1><p>Search and review system activity across your team.</p></div><span className="al-count" role="status">{loading ? 'Loading activity…' : error ? 'Activity unavailable' : `${filtered.length.toLocaleString('en-PH')} results`}</span></header>
+    <section className="al-toolbar" ref={toolbarRef} aria-label="Activity controls">
+      <div className="al-search-row"><label className="al-search">Search activity<input type="search" placeholder="User, action, or description" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <button type="button" className="al-filter-toggle" ref={filterButton} aria-expanded={panelOpen} aria-controls="activity-filters" onClick={() => setPanelOpen(!panelOpen)}>Filters{chips.length ? ` (${chips.length})` : ''}</button>
+        <button type="button" onClick={() => setRevision((value) => value + 1)} disabled={loading}>Refresh</button></div>
+      <div id="activity-filters" ref={panelRef} className={`al-filters ${panelOpen ? 'al-open' : ''}`}>
+        {select('User', user, setUser, [['', 'All users'], ...users])}
+        {select('Role', role, setRole, [['', 'All roles'], ['admin', 'Admin'], ['secretary', 'Secretary'], ['treasurer', 'Treasurer']])}
+        {select('Action type', action, setAction, [['', 'All actions'], ...actions.map((value) => [value, value])])}
+        {select('Date range', range, setRange, Object.entries(RANGE_LABELS))}
+        {range === 'all' && <label>Archive month<DateField value={archiveMonth} onChange={(value) => setArchiveMonth(value || today.slice(0, 7))} max={today.slice(0, 7)} ariaLabel="Archive month" monthOnly /></label>}
+        {range === 'custom' && <><label>From<DateField value={start} max={end || today} onChange={setStart} ariaLabel="From date" /></label><label>Through<DateField value={end} min={start} max={today} onChange={setEnd} ariaLabel="Through date" /></label></>}
+        <button type="button" className="al-filter-done" onClick={() => { setPanelOpen(false); filterButton.current?.focus() }}>Done</button>
       </div>
-
-      {errorMessage && (
-        <div className="activity-error" role="alert">
-          <AlertCircle size={16} />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      <section className="activity-day-panel">
-        <div className="activity-day-heading">
-          <div>
-            <div className="activity-day-title-row">
-              <h2>{isTodaySelected ? "Today's Log" : 'Archived Log'}</h2>
-            </div>
-            <p>Filter, search, or jump to another day below.</p>
-          </div>
-
-          <div className="activity-day-actions">
-            <div className="calendar-popover-wrap" ref={calendarWrapRef}>
-              <button
-                type="button"
-                className={`calendar-trigger-btn ${
-                  calendar.open ? 'is-open' : ''
-                }`}
-                onClick={calendar.toggle}
-                aria-haspopup="dialog"
-                aria-expanded={calendar.open}
-              >
-                <Calendar size={15} />
-                {calendarTriggerLabel}
-                {selectedDayHasActivity && (
-                  <span className="calendar-trigger-dot" aria-hidden="true" />
-                )}
-              </button>
-
-              {calendar.mounted && (
-                <div
-                  className={`calendar-popover ${calendar.visible ? 'is-visible' : ''}`}
-                  role="dialog"
-                  aria-label="Select a date"
-                >
-                  <div className="calendar-heading">
-                    <button
-                      type="button"
-                      className="calendar-arrow previous"
-                      onClick={() => changeMonth(-1)}
-                      aria-label="Previous month"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                    <strong>
-                      {monthFormatter.format(dateFromKey(`${visibleMonth}-01`))}
-                    </strong>
-                    <button
-                      type="button"
-                      className="calendar-arrow"
-                      onClick={() => changeMonth(1)}
-                      disabled={visibleMonth >= monthKeyFromDateKey(todayKey)}
-                      aria-label="Next month"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </div>
-
-                  <div className="calendar-weekdays" aria-hidden="true">
-                    {WEEKDAYS.map((weekday) => (
-                      <span key={weekday}>{weekday}</span>
-                    ))}
-                  </div>
-
-                  <div className="calendar-grid">
-                    {calendarDays.map((dateKey) => {
-                      const count = activityCountByDay[dateKey] || 0
-                      const isOutsideMonth =
-                        monthKeyFromDateKey(dateKey) !== visibleMonth
-                      const isFuture = dateKey > todayKey
-                      const isToday = dateKey === todayKey
-                      const isSelected = dateKey === selectedDate
-
-                      return (
-                        <button
-                          key={dateKey}
-                          type="button"
-                          className={[
-                            'calendar-day',
-                            isOutsideMonth ? 'outside-month' : '',
-                            isFuture ? 'future-day' : '',
-                            isToday ? 'today' : '',
-                            isSelected ? 'selected' : '',
-                            count ? 'has-activity' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          disabled={isFuture}
-                          onClick={() => selectDate(dateKey)}
-                          aria-label={`${selectedDateFormatter.format(
-                            dateFromKey(dateKey),
-                          )}${
-                            count ? `, ${count} activities` : ', no activities'
-                          }`}
-                          aria-current={isToday ? 'date' : undefined}
-                        >
-                          <span className="calendar-day-number">
-                            {Number(dateKey.slice(-2))}
-                          </span>
-                          {count > 0 && (
-                            <span className="calendar-activity-count">
-                              {count}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <div className="calendar-legend-row">
-                    <div className="calendar-legend">
-                      <span>
-                        <i className="today-key" />
-                        Today
-                      </span>
-                      <span>
-                        <i className="activity-key" />
-                        Has activity
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="calendar-today-link"
-                      onClick={goToToday}
-                      disabled={isTodaySelected}
-                    >
-                      Jump to today
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              className="refresh-btn"
-              onClick={() => loadActivityLogs(true)}
-              disabled={refreshing}
-            >
-              <RefreshCw size={14} className={refreshing ? 'spin-icon' : ''} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
-        </div>
-
-        <div className="activity-controls">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Search this day..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="search-input"
-              aria-label="Search selected day's activity log"
-            />
-          </div>
-
-          <div className="filter-buttons">
-            {[
-              ['all', 'All'],
-              ['success', 'Success'],
-              ['warning', 'Warnings'],
-              ['info', 'Info'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                className={`filter-btn ${filter === value ? 'active' : ''}`}
-                onClick={() => setFilter(value)}
-                aria-pressed={filter === value}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="activity-table-container">
-          <table className="activity-table">
-            <thead>
-              <tr>
-                <th scope="col">Status</th>
-                <th scope="col">User</th>
-                <th scope="col">Action</th>
-                <th scope="col">Description</th>
-                <th scope="col">Timestamp</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={TABLE_COLUMN_COUNT} className="table-loading-cell">
-                    <RefreshCw size={18} className="spin-icon" />
-                    <span>Loading daily activities...</span>
-                  </td>
-                </tr>
-              ) : (
-                filteredLogs.map((log) => (
-                  <tr key={log.id} className={`status-${log.status}`}>
-                    <td className="status-cell">
-                      <span className={`status-badge ${log.status}`} aria-hidden="true">
-                        {getStatusIcon(log.status)}
-                      </span>
-                      <span className="sr-only">
-                        {STATUS_LABELS[log.status] || 'Activity'}
-                      </span>
-                    </td>
-                    <td className="user-cell">
-                      <strong>{log.user}</strong>
-                      {log.role && <small>{log.role}</small>}
-                    </td>
-                    <td className="action-cell">
-                      <span className="action-tag">
-                        {log.action || 'Activity'}
-                      </span>
-                    </td>
-                    <td className="description-cell">
-                      {formatDescription(log.description)}
-                    </td>
-                    <td className="timestamp-cell">
-                      {log.created_at
-                        ? organization.formatDate(log.created_at, { withTime: true })
-                        : '—'}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-
-          {!loading && !errorMessage && filteredLogs.length === 0 && (
-            <div className="no-activities">
-              <Calendar size={46} />
-              <strong>
-                {isTodaySelected ? 'A fresh day is ready' : 'No activities found'}
-              </strong>
-              <p>
-                {searchTerm || filter !== 'all'
-                  ? 'Try changing the search or status filter.'
-                  : isArchiveSelected
-                    ? 'Nothing was recorded for this archived date.'
-                    : 'New system actions will appear here automatically.'}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="activity-footer">
-          Showing {filteredLogs.length} of {selectedDayLogs.length} activities for this day
-        </div>
-      </section>
-    </div>
-  )
+      {chips.length > 0 && <div className="al-chips" aria-label="Active filters">{chips.map((chip) => <button type="button" key={chip.key} onClick={chip.clear} aria-label={`Remove ${chip.label} filter`}>{chip.label}<span aria-hidden="true"> ×</span></button>)}<button type="button" className="al-clear" onClick={clearFilters}>Clear filters</button></div>}
+      {invalidDates && <p role="alert">Choose a valid start and end date.</p>}
+    </section>
+    <section className="al-list" aria-label="Activity entries" aria-busy={loading}>
+      <div className="al-columns" aria-hidden="true"><span>User</span><span>Action</span><span>Summary</span><span>Amount</span><span>Time</span><span /></div>
+      {profileWarning && !loading && <p className="al-notice" role="status">Some user details are unavailable. Activity is still shown; missing profiles use System and Unknown role.</p>}
+      {loading ? <div role="status" aria-label="Loading activity"><span className="al-sr-only">Loading activity</span>{Array.from({ length: 6 }, (_, index) => <div className="al-skeleton" key={index} aria-hidden="true"><i /><i /><i /></div>)}</div> : error ? <div className="al-state" role="alert"><h2>Unable to load activity</h2><p>{error}</p><button type="button" onClick={() => setRevision((value) => value + 1)}>Retry</button></div> : filtered.length === 0 ? <div className="al-state"><h2>{chips.length ? 'No matching activity' : 'No activity yet'}</h2><p>{chips.length ? 'Try another search or date range.' : 'Recorded activity will appear here for the selected month.'}</p>{chips.length > 0 && <button type="button" onClick={clearFilters}>Clear filters</button>}</div> : [...groups.entries()].map(([key, entries]) => <section key={key} aria-label={dateLabel(key)}><h2 className="al-date">{dateLabel(key)}</h2><ul>{entries.map((log) => <ActivityRow key={log.id} log={log} />)}</ul></section>)}
+      {!loading && !error && <footer className="al-footer"><span role="status">Showing {Math.min(limit, filtered.length)} of {filtered.length.toLocaleString('en-PH')}</span>{limit < filtered.length && <button type="button" onClick={() => setLimit((value) => value + 25)}>Load more</button>}</footer>}
+    </section>
+  </div>
 }

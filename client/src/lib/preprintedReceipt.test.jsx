@@ -61,12 +61,20 @@ describe('preprinted invoice output', () => {
     expect(() => receiptPrintHtml({ ...model(), preprinted: f }, { paperNumber: '3464' })).toThrow('too long')
     expect(wrapReceiptText('x'.repeat(80)).every((line) => line.length <= 36)).toBe(true)
   })
-  it('does not open printing without a paper number', () => {
-    const open = vi.fn()
+  it('opens printing without entering or saving the preprinted paper number', () => {
+    const write = vi.fn()
+    const open = vi.fn(() => ({
+      addEventListener: vi.fn(),
+      document: { write, close: vi.fn() },
+    }))
     vi.stubGlobal('window', { open })
     const error = vi.fn()
     try { printReceipt(model(), error) } finally { vi.unstubAllGlobals() }
-    expect(open).not.toHaveBeenCalled()
-    expect(error).toHaveBeenCalled()
+    expect(open).toHaveBeenCalledOnce()
+    expect(error).not.toHaveBeenCalled()
+    const body = write.mock.calls[0][0].split('<body>')[1]
+    expect(body).toContain('11,000.00')
+    expect(body).not.toContain('paper-guide')
+    expect(body).not.toContain('No. ')
   })
 })

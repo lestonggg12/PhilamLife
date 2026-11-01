@@ -90,7 +90,8 @@ export default function Layout({ user, onLogout }) {
         />
 
         <div className="page-content">
-          <div className="motion-page-enter" key={location.key}>
+          {/* State-only replacements must preserve page state, including payment prefill. */}
+          <div className="motion-page-enter" key={location.pathname}>
             <Outlet />
           </div>
         </div>
