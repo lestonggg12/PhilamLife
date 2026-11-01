@@ -207,6 +207,11 @@ function AppContent() {
     navigate('/login')
   }
 
+  const accessAuthenticatedPortal = () => {
+    if (rememberedDevice.hasExpired()) { void expireRememberedSession(); return }
+    navigate(dashboardForRole(user?.role))
+  }
+
   if (loading) {
     return <Loader variant="fullscreen" />
   }
@@ -228,7 +233,7 @@ function AppContent() {
         <Suspense fallback={<Loader variant="fullscreen" />}>
           <Routes>
             {/* Public routes */}
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage onAccessPortal={isAuthenticated ? accessAuthenticatedPortal : undefined} />} />
             <Route path="/guide" element={<GuidePage />} />
 
             <Route

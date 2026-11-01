@@ -43,7 +43,7 @@ function scrollToSection(id) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-export default function LandingPage() {
+export default function LandingPage({ onAccessPortal } = {}) {
   const navigate = useNavigate();
   const { organization } = useOrganization();
   const [rolePickerIntent, setRolePickerIntent] = useState(null); // null | 'login' | 'guide'
@@ -117,7 +117,7 @@ export default function LandingPage() {
 
           {/* CTA Row */}
           <div className="lp-cta-row">
-            <button className="lp-btn lp-btn-primary" onClick={() => setRolePickerIntent('login')}>ACCESS PORTAL</button>
+            <button className="lp-btn lp-btn-primary" onClick={() => onAccessPortal ? onAccessPortal() : setRolePickerIntent('login')}>ACCESS PORTAL</button>
             <div className="lp-cta-divider"></div>
             <a href="#" className="lp-ghost-link" onClick={(e) => { e.preventDefault(); setRolePickerIntent('guide'); }}>Learn more →</a>
           </div>
