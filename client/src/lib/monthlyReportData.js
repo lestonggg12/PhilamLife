@@ -61,7 +61,7 @@ const paymentCategory = (payment) => {
  * @param {string} raw.month          - 'YYYY-MM'
  */
 export function computeMonthlyReportData(raw) {
-  const { payments = [], serviceTransactions = [], expenses = [], properties = [], overdue = [], credits = null, documents = [], events = [], month } = raw
+  const { payments = [], serviceTransactions = [], expenses = [], grievances = null, properties = [], overdue = [], credits = null, documents = [], events = [], month } = raw
   const range = monthBounds(month)
 
   const inRange = (iso) => {
@@ -179,6 +179,7 @@ export function computeMonthlyReportData(raw) {
     documents: {
       thisMonth: monthDocuments,
     },
+    grievances,
     untrackedModules,
   }
 }
@@ -276,7 +277,7 @@ export function reportText(report, { monthLabel, datePrepared }) {
       : 'There are no outstanding homeowner balances as of the report date.')
 
   const scope =
-    'This report covers income, expenses, collections, community activities, and supporting documents. ' +
+    'This report covers income, expenses, collections, community activities, grievance summary counts, and supporting documents. ' +
     `Reporting on ${joinList(report.untrackedModules)} is not included in this edition.`
 
   const basis =
@@ -297,4 +298,25 @@ export const collectionsRows = (receivables) => [
   ...(receivables.creditsHeld.movedTotal > 0
     ? [['Credit held on moved or transferred accounts', `${formatMoney(receivables.creditsHeld.movedTotal)} (${receivables.creditsHeld.movedAccounts} ${receivables.creditsHeld.movedAccounts === 1 ? 'account' : 'accounts'})`]]
     : []),
-] 
+]
+
+// Counts only: no case identifiers, parties, allegations, or evidence.
+export function grievanceRows(summary) {
+  return [
+    ['Open at start of period', String(summary.opening)],
+    ['New complaints received', String(summary.received)],
+    ['Reopened', String(summary.reopened)],
+    ['Resolved', String(summary.resolved)],
+    ['Dismissed', String(summary.dismissed)],
+    ['Withdrawn', String(summary.withdrawn)],
+    ['Open at end of period', String(summary.closing)],
+    ['Open longer than 30 days', String(summary.over_30_days)],
+  ]
+}
+
+export function grievanceNote(summary) {
+  const period = summary?.not_started
+    ? 'The selected reporting period has not started. '
+    : summary?.to ? `Counts cover the selected period through ${formatDateOnly(summary.to)}. ` : ''
+  return period + 'Summary counts only. Confidential case details remain in the Secretary’s grievance records.'
+}

@@ -10,6 +10,8 @@ import {
   formatMoney as money,
   formatReportDate,
   incomeTableRows,
+  grievanceRows,
+  grievanceNote,
   monthBounds,
   monthTitle as monthName,
   periodLabel,
@@ -60,7 +62,7 @@ async function fetchMonth(selectedMonth) {
   const monthStartDate = range.start.slice(0, 10)
   const monthEndDate = range.end.slice(0, 10)
 
-  const [paymentResult, serviceResult, expenseResult, documentResult, eventResult, upcomingResult] = await Promise.all([
+  const [paymentResult, serviceResult, expenseResult, documentResult, eventResult, upcomingResult, grievanceResult] = await Promise.all([
     fetchAll(() => supabase
       .from('payments')
       // charge_type tells the report whether a payment was dues or a fee.
@@ -101,12 +103,17 @@ async function fetchMonth(selectedMonth) {
       .gte('event_date', monthEndDate)
       .order('event_date', { ascending: true })
       .limit(6),
+    supabase.rpc('monthly_report_grievances', {
+      p_from: monthStartDate,
+      p_to: new Date(range.endMs - 1 + 8 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    }),
   ])
 
   // The upcoming-events query is part of the report too, so its failure counts.
-  const failure = paymentResult.error || serviceResult.error || expenseResult.error || documentResult.error || eventResult.error || upcomingResult.error
+  const failure = paymentResult.error || serviceResult.error || expenseResult.error || documentResult.error || eventResult.error || upcomingResult.error || grievanceResult.error
   return {
     failure: failure ? failure.message : '',
+    grievances: grievanceResult.error ? null : grievanceResult.data,
     payments: paymentResult.error ? [] : paymentResult.data || [],
     serviceTransactions: serviceResult.error ? [] : serviceResult.data || [],
     expenses: expenseResult.error ? [] : expenseResult.data || [],
@@ -170,6 +177,7 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [payments, setPayments] = useState([])
   const [serviceTransactions, setServiceTransactions] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [grievances, setGrievances] = useState(null)
   const [properties, setProperties] = useState([])
   const [overdue, setOverdue] = useState([])
   const [credits, setCredits] = useState(null)
@@ -236,6 +244,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     setPayments(result.payments)
     setServiceTransactions(result.serviceTransactions)
     setExpenses(result.expenses)
+    setGrievances(result.grievances)
     setDocuments(result.documents)
     setEvents(result.events)
   }
@@ -258,8 +267,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   }
 
   const report = useMemo(
-    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, properties, overdue, credits, documents, events, month }),
-    [payments, serviceTransactions, expenses, properties, overdue, credits, documents, events, month]
+    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, grievances, properties, overdue, credits, documents, events, month }),
+    [payments, serviceTransactions, expenses, grievances, properties, overdue, credits, documents, events, month]
   )
 
   const loadFailure = error || communityError
@@ -288,6 +297,7 @@ export default function ReportsPage({ user: suppliedUser }) {
         payments: monthly.payments,
         serviceTransactions: monthly.serviceTransactions,
         expenses: monthly.expenses,
+        grievances: monthly.grievances,
         properties: community.properties,
         overdue: community.overdue,
         credits: community.credits,
@@ -357,7 +367,7 @@ export default function ReportsPage({ user: suppliedUser }) {
           <Section title="1. Executive Summary">
             <div className="monthly-figure-band">
               <KeyFigure label="Total revenue" value={money(kpis.totalIncome)} />
-              <KeyFigure label="Total expenditures" value={money(kpis.totalExpenses)} />
+              <KeyFigure label="Disbursements" value={money(kpis.totalExpenses)} />
               <KeyFigure label={kpis.netIncome >= 0 ? 'Net surplus' : 'Net deficit'} value={money(Math.abs(kpis.netIncome))} alert={kpis.netIncome < 0} />
               <KeyFigure label="Outstanding Balances" value={money(kpis.totalOutstanding)} />
             </div>
@@ -437,11 +447,20 @@ export default function ReportsPage({ user: suppliedUser }) {
             )}
           </Section>
 
-          <Section title="5. Scope of This Report">
+          <Section title="5. Grievances">
+            {report.grievances ? (
+              <SimpleTable head={['Measure', 'Cases']} rightCols={[1]} rows={grievanceRows(report.grievances)} />
+            ) : (
+              <p className="monthly-paragraph monthly-note">Grievance summary is unavailable.</p>
+            )}
+            <p className="monthly-paragraph monthly-note">{grievanceNote(report.grievances)}</p>
+          </Section>
+
+          <Section title="6. Scope of This Report">
             <p className="monthly-paragraph">{text.scope}</p>
           </Section>
 
-          <Section title="6. Management Commentary">
+          <Section title="7. Management Commentary">
             <p className="monthly-paragraph">{text.commentary}</p>
             <h3 className="monthly-subheading">Basis of preparation</h3>
             <p className="monthly-paragraph monthly-note">{text.basis}</p>

@@ -8,6 +8,8 @@ import {
   formatMoney as money,
   formatReportDate,
   incomeTableRows,
+  grievanceRows,
+  grievanceNote,
   periodLabel,
   reportText,
 } from './monthlyReportData'
@@ -46,6 +48,7 @@ export function buildMonthlyReportPdf({
   payments = [],
   serviceTransactions = [],
   expenses = [],
+  grievances = null,
   properties = [],
   charges = [],
   overdue = [],
@@ -59,6 +62,7 @@ export function buildMonthlyReportPdf({
     payments,
     serviceTransactions,
     expenses,
+    grievances,
     properties,
     charges,
     overdue,
@@ -253,7 +257,7 @@ export function buildMonthlyReportPdf({
   const netLabel = kpis.netIncome >= 0 ? 'Net surplus' : 'Net deficit'
   const figures = [
     ['Total revenue', money(kpis.totalIncome), INK],
-    ['Total expenditures', money(kpis.totalExpenses), INK],
+    ['Disbursements', money(kpis.totalExpenses), INK],
     [netLabel, money(Math.abs(kpis.netIncome)), kpis.netIncome < 0 ? ALERT : NAVY],
     ['Outstanding balances', money(kpis.totalOutstanding), INK],
   ]
@@ -405,11 +409,22 @@ export function buildMonthlyReportPdf({
     })
   }
 
-  // ======================= 5. SCOPE =======================
-  sectionTitle('5. Scope of This Report')
+  // ======================= 5. GRIEVANCES + 6. SCOPE =======================
+  sectionTitle('5. Grievances')
+  if (data.grievances) {
+    table(['Measure', 'Cases'], grievanceRows(data.grievances), {
+      rightCols: [1],
+      columnStyles: { 1: { cellWidth: 45 } },
+    })
+  } else {
+    paragraph('Grievance summary is unavailable.', { size: 9, color: MUTED, gap: 6 })
+  }
+  paragraph(grievanceNote(data.grievances), { size: 8, color: MUTED, gap: 10 })
+
+  sectionTitle('6. Scope of This Report')
   paragraph(text.scope, { gap: 10 })
 
-  // ======================= 6. COMMENTARY + SIGNATURES (kept together) =======================
+  // ======================= 7. COMMENTARY + SIGNATURES (kept together) =======================
   setText(INK, 9.5)
   const commentaryLines = doc.splitTextToSize(text.commentary, CONTENT_W).length
   setText(MUTED, 8)
@@ -419,7 +434,7 @@ export function buildMonthlyReportPdf({
 
   ensureSpace(closingHeight)
 
-  sectionTitle('6. Management Commentary')
+  sectionTitle('7. Management Commentary')
   paragraph(text.commentary, { gap: 6 })
   subheading('Basis of preparation')
   paragraph(text.basis, { size: 8.5, color: MUTED, gap: 4 })
