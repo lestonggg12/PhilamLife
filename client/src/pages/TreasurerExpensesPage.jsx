@@ -935,7 +935,7 @@ const isReadOnly = !canRecordExpenses
               <div className="tex-form-footer">
                 <button
                   type="button"
-                  className="tex-btn tex-btn-secondary"
+                  className="tex-btn tex-btn-secondary button-cancel"
                   onClick={closeForm}
                   disabled={saving}
                 >

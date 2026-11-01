@@ -543,21 +543,24 @@ async function downloadStatementPdf() {
                   </th>
                 ))}
                 <th scope="col">Available Credit</th>
-                <th scope="col">Status</th>
                 <th className="ledger-actions-heading" aria-label="Actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((entry) => (
                 <tr key={entry.id}>
-                  <td data-label="Homeowner"><strong>{entry.name}</strong></td>
+                  <td data-label="Homeowner">
+                    <span className="ledger-homeowner-name">
+                      <strong>{entry.name}</strong>
+                      <span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span>
+                    </span>
+                  </td>
                   <td data-label="Block / Lot">{entry.block}, {entry.lot}</td>
                   <td data-label="Previous balance">{formatMoney(entry.dueAmount)}</td>
                   <td data-label="Last payment amount">{peso.format(entry.paidAmount)}</td>
                   <td data-label="Outstanding balance" className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
                   <td data-label="Last payment date">{entry.lastPayment}</td>
                   <td data-label="Available credit" className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
-                  <td data-label="Status"><span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span></td>
                   <td className="ledger-row-actions">
                     <div className="ledger-actions-card">
                       <button aria-label={`View statement for ${entry.name}, ${entry.block}, ${entry.lot}`} className="ledger-statement-button" type="button" onClick={() => openStatement(entry)}>Statement</button>

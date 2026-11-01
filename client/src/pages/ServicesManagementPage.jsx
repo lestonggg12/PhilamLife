@@ -1522,7 +1522,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             {collectError && <p className="services-error">{collectError}</p>}
 
             <div className="services-modal-actions">
-              <button type="button" onClick={() => setCollectTarget(null)} disabled={saving}>Cancel</button>
+              <button type="button" className="button-cancel" onClick={() => setCollectTarget(null)} disabled={saving}>Cancel</button>
               <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Collect & Issue Receipt'}</button>
             </div>
           </form>

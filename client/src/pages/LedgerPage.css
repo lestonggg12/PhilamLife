@@ -577,6 +577,7 @@
 .ledger-balance-due { color: var(--danger); font-weight: 700; }
 .ledger-credit { color: var(--success); font-weight: 700; }
 .ledger-empty { text-align: center; padding: 38px !important; color: var(--text-muted); }
+.ledger-homeowner-name { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 /* Actions cell stays a real table cell (display:flex on a <td> breaks the
    table layout). Buttons are inline-block so they wrap as whole units. */

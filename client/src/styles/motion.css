@@ -6,7 +6,7 @@
 }
 
 .motion-page-enter {
-  animation: motion-page-enter var(--motion-base) var(--ease-out) both;
+  animation: motion-page-enter var(--motion-base) var(--ease-out);
 }
 
 .motion-interactive,

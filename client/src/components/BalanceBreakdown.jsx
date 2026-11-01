@@ -236,7 +236,7 @@ export default function BalanceBreakdown({
           />
           {voidError && <p className="bb-error">{voidError}</p>}
           <div className="bb-void-actions">
-            <button type="button" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
+            <button type="button" className="button-cancel" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
             <button type="submit" className="bb-danger" disabled={voiding}>{voiding ? 'Voiding…' : 'Void balance'}</button>
           </div>
         </form>

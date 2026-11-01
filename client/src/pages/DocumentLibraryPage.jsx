@@ -470,6 +470,18 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
 
         <div className="doc-header-actions">
+          {canUploadDocuments && (
+            <button
+              type="button"
+              className="doc-upload-button"
+              onClick={openUploadForm}
+              disabled={storageIsFull}
+              title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
+            >
+              <Plus size={18} />
+              Upload Document
+            </button>
+          )}
           <button
             type="button"
             className="doc-refresh-button"
@@ -529,18 +541,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
         <Select ariaLabel="Filter documents by category" value={category} onChange={setCategory} options={[{ value: 'All', label: 'All Categories' }, ...CATEGORIES.map((item) => ({ value: item, label: item }))]} />
 
-        {canUploadDocuments && (
-          <button
-            type="button"
-            className="doc-upload-button"
-            onClick={openUploadForm}
-            disabled={storageIsFull}
-            title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
-          >
-            <Plus size={18} />
-            Upload Document
-          </button>
-        )}
       </div>
 
       <div className="doc-result-row">

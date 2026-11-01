@@ -67,6 +67,76 @@
   --font-mono: 'IBM Plex Mono', 'DM Sans', monospace;
 }
 
+/* Consistent destructive/exit affordance across dialogs and forms. */
+button[aria-label="Close"],
+button[aria-label^="Close "],
+.modal-close,
+.payments-close,
+.overdue-close-button,
+.ledger-modal-close,
+.doc-close-button,
+.contact-modal-close,
+.homeowner-tracker-close,
+.homeowner-breakdown-close,
+.hod-close,
+.cal-close-button,
+.services-modal-header > button,
+.day-modal-header > button,
+.official-receipt-modal-heading button {
+  color: var(--danger) !important;
+}
+
+button[aria-label="Close"]:hover:not(:disabled),
+button[aria-label^="Close "]:hover:not(:disabled),
+.modal-close:hover:not(:disabled),
+.payments-close:hover:not(:disabled),
+.overdue-close-button:hover:not(:disabled),
+.ledger-modal-close:hover:not(:disabled),
+.doc-close-button:hover:not(:disabled),
+.contact-modal-close:hover:not(:disabled),
+.homeowner-tracker-close:hover:not(:disabled),
+.homeowner-breakdown-close:hover:not(:disabled),
+.hod-close:hover:not(:disabled),
+.cal-close-button:hover:not(:disabled),
+.services-modal-header > button:hover:not(:disabled),
+.day-modal-header > button:hover:not(:disabled),
+.official-receipt-modal-heading button:hover:not(:disabled) {
+  color: var(--danger) !important;
+}
+
+.confirm-button-cancel,
+.action-dialog-btn-secondary,
+.button-cancel,
+.payments-secondary,
+.overdue-cancel-button,
+.ledger-cancel-button,
+.doc-cancel-button,
+.contact-cancel-button,
+.hod-cancel,
+.cal-cancel-button,
+.bb-void-actions button:not(.bb-danger),
+.services-modal-actions button:first-child {
+  color: var(--danger) !important;
+  border-color: rgba(192, 57, 43, .35) !important;
+}
+
+.confirm-button-cancel:hover:not(:disabled),
+.action-dialog-btn-secondary:hover:not(:disabled),
+.button-cancel:hover:not(:disabled),
+.payments-secondary:hover:not(:disabled),
+.overdue-cancel-button:hover:not(:disabled),
+.ledger-cancel-button:hover:not(:disabled),
+.doc-cancel-button:hover:not(:disabled),
+.contact-cancel-button:hover:not(:disabled),
+.hod-cancel:hover:not(:disabled),
+.cal-cancel-button:hover:not(:disabled),
+.bb-void-actions button:not(.bb-danger):hover:not(:disabled),
+.services-modal-actions button:first-child:hover:not(:disabled) {
+  color: #a52f25 !important;
+  border-color: rgba(192, 57, 43, .55) !important;
+  background: rgba(192, 57, 43, .08) !important;
+}
+
 html, body {
   width: 100%;
   height: 100%;

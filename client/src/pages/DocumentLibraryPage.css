@@ -94,6 +94,8 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .doc-refresh-button {
@@ -260,7 +262,6 @@
   justify-content: center;
   gap: 8px;
   flex: 0 0 auto;
-  margin-left: auto;
   padding: 10px 16px;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 12px;

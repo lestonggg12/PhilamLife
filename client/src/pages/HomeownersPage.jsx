@@ -880,11 +880,13 @@ useEffect(() => {
                 <div className="homeowner-profile-title-row">
                   <div>
                     <p>Homeowner profile</p>
-                    <h2>{selectedProperty.homeowner_name}</h2>
+                    <div className="homeowner-name-row">
+                      <h2>{selectedProperty.homeowner_name}</h2>
+                      <span className={`homeowner-account-badge badge-${selectedStatus.key}`}>
+                        {selectedStatus.label}
+                      </span>
+                    </div>
                   </div>
-                  <span className={`homeowner-account-badge badge-${selectedStatus.key}`}>
-                    {selectedStatus.label}
-                  </span>
                 </div>
                 <div className="homeowner-profile-meta">
                   <span><Home size={16} /> {selectedProperty.block}, Lot {selectedProperty.lot_number}</span>
@@ -1390,7 +1392,7 @@ useEffect(() => {
             </label>
             {voidError && <p className="homeowner-void-error">{voidError}</p>}
             <div className="homeowner-void-actions">
-              <button type="button" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
+              <button type="button" className="button-cancel" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
               <button type="submit" className="homeowner-void-confirm" disabled={voiding}>{voiding ? 'Voiding...' : 'Void payment'}</button>
             </div>
           </form>
@@ -1990,7 +1992,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
                       >
                         {blockActionBusyId === block.id ? 'Saving...' : 'Save'}
                       </button>
-                      <button type="button" className="hod-icon-btn" onClick={cancelEditBlock}>Cancel</button>
+                      <button type="button" className="hod-icon-btn button-cancel" onClick={cancelEditBlock}>Cancel</button>
                     </>
                   ) : (
                     <>

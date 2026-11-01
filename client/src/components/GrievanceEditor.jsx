@@ -54,7 +54,7 @@ export default function GrievanceEditor({ initial, busy, error, history, history
           {isGrievanceClosed(initial.status) && !isGrievanceClosed(form.status) && <p className="grievance-help">You are reopening a closed case. Explain why in the update note.</p>}
           <label>{initial.version ? 'Update note (required)' : 'Filing note (required)'}<textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={4000} required /></label>
           {error && <p className="grievance-error" role="alert">{error}</p>}
-          <footer><button type="button" onClick={onClose}>Cancel</button><button type="submit" className="grievance-primary">{busy ? 'Saving...' : initial.version ? 'Save update' : 'Record grievance'}</button></footer>
+          <footer><button type="button" className="button-cancel" onClick={onClose}>Cancel</button><button type="submit" className="grievance-primary">{busy ? 'Saving...' : initial.version ? 'Save update' : 'Record grievance'}</button></footer>
         </fieldset>
       </form>
       {initial.version > 0 && <section className="grievance-history"><h3>Case history</h3>{historyLoading ? <p>Loading history...</p> : historyError ? <p role="alert" className="grievance-error">{historyError}</p> : history.map((event) => <article key={event.id}><strong>{event.previous_status ? `${event.previous_status} → ${event.status}` : 'Complaint received'}</strong><small>{formatDate(event.recorded_at, { withTime: true })} · {event.recorded_by_name}</small><p>{event.note}</p>{event.snapshot?.outcome && <p>Outcome: {event.snapshot.outcome}</p>}{event.snapshot?.decision_authority && <p>Authorized by: {event.snapshot.decision_authority}</p>}</article>)}</section>}

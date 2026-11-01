@@ -82,7 +82,7 @@ export default function ActionDialog({
           {isConfirmStyle && (
             <button
               type="button"
-              className="action-dialog-btn action-dialog-btn-secondary"
+              className="action-dialog-btn action-dialog-btn-secondary button-cancel"
               onClick={onCancel}
             >
               {cancelLabel}

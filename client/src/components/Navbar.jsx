@@ -99,7 +99,7 @@ export default function Navbar({ user, onLogout, menuOpen = false, onMenuToggle 
               <p className="modal-subtitle">You will be redirected to the login page.</p>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={handleCancelLogout}>
+              <button className="btn btn-secondary button-cancel" onClick={handleCancelLogout}>
                 Cancel
               </button>
               <button className="btn btn-primary" onClick={handleConfirmLogout}>
