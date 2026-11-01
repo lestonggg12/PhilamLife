@@ -564,7 +564,7 @@ useEffect(() => {
         category:
           regularPaymentCategory(payment) === 'dues'
             ? 'Association Dues'
-            : 'Other',
+            : payment.charge_type || 'Other',
         receipt: payment.receipt_number || '—',
         description: payment.coverage_period || payment.note || 'Payment',
         amount: Number(payment.amount_paid ?? payment.amount) || 0,
@@ -1281,7 +1281,7 @@ useEffect(() => {
                 ['overview', 'Overview', history.length],
                 ['dues', 'Association Dues', duesPayments.length],
                 ['services', 'Amenities & Services', selectedServices.length],
-                ['other', 'Other Payments', otherPayments.length],
+                ['other', 'Balance / Other Payments', otherPayments.length],
               ].map(([key, label, count]) => (
                 <button
                   type="button"

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { loadOpenCharges } from '../lib/openChargeSearch'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
+import { PAYMENT_PURPOSES, CHARGE_TYPES, isBalanceReducingPurpose, paymentAdvanceConfirmation } from '../lib/paymentPurposes'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import BalanceBreakdown from '../components/BalanceBreakdown'
@@ -40,18 +41,6 @@ const PAYMENT_SEARCH_COLUMNS = [
   'status',
 ]
 
-const PAYMENT_PURPOSES = [
-  'Association Dues',
-  'Balance Payment',
-  'Special Assessment',
-  'Penalty / Late Fee',
-  'Sticker / ID Fee',
-  'Document / Certification Fee',
-  'Other',
-]
-
-// Association Dues are billed automatically every month, so they can't be added by hand.
-const CHARGE_TYPES = PAYMENT_PURPOSES.filter((purpose) => purpose !== 'Association Dues')
 
 const EMPTY_FORM = {
   propertyId: '',
@@ -583,7 +572,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       ? 'Other'
       : ''
   const isBalanceReducingPayment =
-    !purposeType || purposeType === 'Association Dues' || purposeType === 'Balance Payment'
+    isBalanceReducingPurpose(purposeType)
 
   // How much of this homeowner's fee charge is still unpaid. Only this one
   // homeowner's rows are read, and the formula matches the database trigger that
@@ -1227,22 +1216,14 @@ function selectHomeowner(property) {
   }
 }
 
-    if (
-  form.paymentPurpose === 'Association Dues' &&
-  !annualAdvance &&
-  paid > Math.max(previous, 0) &&
-  !advanceApproved
-) {
-      setAdvanceConfirm({ credit: paid - previous, paid })
+    const advance = paymentAdvanceConfirmation({
+      purpose: form.paymentPurpose, paid, previous, openOfType, annualAdvance,
+    })
+    if (advance && !advanceApproved) {
+      setAdvanceConfirm(advance)
       return
     }
 
-    if (purposeType && purposeType !== 'Association Dues' && purposeType !== 'Other' && paid > openOfType + 0.005 && !advanceApproved) {
-      setAdvanceConfirm({ credit: Math.round((paid - openOfType) * 100) / 100, paid, kind: 'fee', feeType: purposeType })
-      return
-    }
-
- 
     if (form.paymentMethod !== 'Cash' && !reference) {
       setFormError('A reference number is required for non-cash payments.')
       return
@@ -2048,7 +2029,7 @@ function selectHomeowner(property) {
       {receipt && (() => {
         const receiptModel = buildReceiptModel('payment', receipt, organization, {
           advanceNote:
-            Number(receipt.remaining_balance) < 0 && (!receipt.charge_type || receipt.charge_type === 'Association Dues')
+            Number(receipt.remaining_balance) < 0 && isBalanceReducingPurpose(receipt.charge_type)
               ? advanceCreditNote(-Number(receipt.remaining_balance), duesSettingsFor(receipt.property_id ?? form.propertyId))
               : '',
         })

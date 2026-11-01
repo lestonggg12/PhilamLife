@@ -43,6 +43,7 @@ const fromCents = (cents) => cents / 100
 // Payments saved before charge types existed have no charge_type. Every one of
 // them reduced the homeowner's dues balance, so they are reported as dues.
 const DUES_LABEL = 'Association Dues'
+const BALANCE_LABEL = 'Balance Payment'
 const paymentCategory = (payment) => {
   const type = String(payment.charge_type || '').trim()
   return type || DUES_LABEL
@@ -70,7 +71,7 @@ export function computeMonthlyReportData(raw) {
     return ms >= range.startMs && ms < range.endMs
   }
 
-  const monthlyPayments = payments.filter((p) => inRange(p.paid_at))
+  const monthlyPayments = payments.filter((p) => inRange(p.paid_at) && p.status !== 'Voided')
   const monthlyServices = serviceTransactions.filter((t) =>
     inRange(t.paid_at) && String(t.payment_status || 'paid').toLowerCase() !== 'voided')
   const monthlyExpenses = expenses
@@ -84,8 +85,9 @@ export function computeMonthlyReportData(raw) {
     paymentCents.set(category, (paymentCents.get(category) || 0) + toCents(p.amount_paid ?? p.amount))
   })
   const duesCents = paymentCents.get(DUES_LABEL) || 0
+  const balanceCents = paymentCents.get(BALANCE_LABEL) || 0
   const feeEntries = Array.from(paymentCents.entries())
-    .filter(([category]) => category !== DUES_LABEL)
+    .filter(([category]) => category !== DUES_LABEL && category !== BALANCE_LABEL)
     .map(([name, cents]) => ({ name, amount: fromCents(cents) }))
     .sort((a, b) => b.amount - a.amount)
   const feesCents = feeEntries.reduce((s, f) => s + toCents(f.amount), 0)
@@ -95,10 +97,11 @@ export function computeMonthlyReportData(raw) {
 
   const duesIncome = fromCents(duesCents)
   const feesIncome = fromCents(feesCents)
+  const balanceIncome = fromCents(balanceCents)
   const serviceIncome = fromCents(serviceCents)
-  const totalIncome = fromCents(duesCents + feesCents + serviceCents)
+  const totalIncome = fromCents(duesCents + balanceCents + feesCents + serviceCents)
   const totalExpenses = fromCents(expenseCents)
-  const netIncome = fromCents(duesCents + feesCents + serviceCents - expenseCents)
+  const netIncome = fromCents(duesCents + balanceCents + feesCents + serviceCents - expenseCents)
 
   const overdueByProperty = new Map(overdue.map((row) => [row.property_id, row]))
   const accountBalances = properties
@@ -147,6 +150,7 @@ export function computeMonthlyReportData(raw) {
     },
     income: {
       duesIncome,
+      balanceIncome,
       feesIncome,
       feeBreakdown: feeEntries,
       serviceIncome,
@@ -161,6 +165,7 @@ export function computeMonthlyReportData(raw) {
     },
     receivables: {
       duesIncome,
+      balanceIncome,
       feesIncome,
       serviceIncome,
       totalOutstanding,
@@ -189,6 +194,7 @@ export function computeMonthlyReportData(raw) {
 export function incomeTableRows(income, formatMoney) {
   return [
     [DUES_LABEL, formatMoney(income.duesIncome)],
+    ['Balance payments collected', formatMoney(income.balanceIncome)],
     ...income.feeBreakdown.map((f) => [`Fees & Charges — ${f.name}`, formatMoney(f.amount)]),
     ...income.serviceByName.map((s) => [`Amenity / Service — ${s.name}`, formatMoney(s.amount)]),
     ['Total Income', formatMoney(income.totalIncome)],
@@ -260,7 +266,7 @@ export function reportText(report, { monthLabel, datePrepared }) {
   const topExpense = expenses.byCategory[0]
   const incomeSentence =
     kpis.totalIncome > 0
-      ? `Association dues accounted for ${formatMoney(income.duesIncome)} (${duesShare}%) of income, fees and charges for ` +
+      ? `Association dues accounted for ${formatMoney(income.duesIncome)} (${duesShare}%) of income, balance payments for ${formatMoney(income.balanceIncome)}, fees and charges for ` +
         `${formatMoney(income.feesIncome)}, and amenity and service revenue for ${formatMoney(income.serviceIncome)}. `
       : 'No income was recorded during the period. '
   const expenseSentence = topExpense
@@ -290,6 +296,7 @@ export function reportText(report, { monthLabel, datePrepared }) {
 
 export const collectionsRows = (receivables) => [
   ['Dues collected this period', formatMoney(receivables.duesIncome)],
+  ['Balance payments collected this period', formatMoney(receivables.balanceIncome)],
   ['Fees and charges collected this period', formatMoney(receivables.feesIncome)],
   ['Amenity and service revenue collected this period', formatMoney(receivables.serviceIncome)],
   ['Outstanding homeowner balances (aggregate, as of report date)', formatMoney(receivables.totalOutstanding)],

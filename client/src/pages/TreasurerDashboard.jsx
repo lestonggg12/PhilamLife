@@ -245,11 +245,11 @@ export default function TreasurerDashboard() {
   }, [finance.expenses, finance.payments, finance.services])
 
   const statCards = [
-    { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Dues and fees collected', icon: TrendingUp, tone: 'green' },
+    { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Dues, balance payments and fees', icon: TrendingUp, tone: 'green' },
     { label: 'Outstanding receivables', value: summary.outstanding, note: `${summary.overdueAccounts} overdue account${summary.overdueAccounts === 1 ? '' : 's'}`, icon: FileText, tone: 'blue' },
     { label: 'Overdue balance', value: summary.overdue, note: 'Across all aging buckets', icon: AlertCircle, tone: 'red' },
     { label: 'Advance credits held', value: summary.creditsHeld, note: `${summary.creditAccounts} active account${summary.creditAccounts === 1 ? '' : 's'}${summary.movedCredit > 0 ? ` + ${peso.format(summary.movedCredit)} on moved accounts` : ''}`, icon: DollarSign, tone: 'navy' },
-    { label: 'Net cash activity', value: summary.netThisMonth, note: 'Dues, fees + amenities − expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
+    { label: 'Net cash activity', value: summary.netThisMonth, note: 'Collections + amenities − expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
   ]
 
   return (

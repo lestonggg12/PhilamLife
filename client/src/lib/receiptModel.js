@@ -1,3 +1,4 @@
+import { isBalanceReducingPurpose } from './paymentPurposes'
 import { buildPreprintedFields } from './preprintedReceipt'
 // Turns a saved payment or service-transaction row into the plain "receipt
 // model" that ReceiptSheet draws. Every receipt in the app (Record Payment,
@@ -167,7 +168,12 @@ const annualDiscountAmount = isAnnualDiscount
   : 0
 
   const notes = []
-  if (advanceNote) notes.push({ label: 'Advance credit', text: advanceNote })
+  const creditNote = advanceNote || (
+    isBalanceReducingPurpose(row.charge_type) && !voided && remaining < 0
+      ? `${money(-remaining)} remains as advance credit on this account.`
+      : ''
+  )
+  if (creditNote) notes.push({ label: 'Advance credit', text: creditNote })
 
   // What was owed just before this payment (saved with the payment). Printed
   // only for homeowners who have an entered balance or late penalties, so
