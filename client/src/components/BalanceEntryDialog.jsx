@@ -68,15 +68,7 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
       return
     }
 
-    if (currentUser?.id) {
-      const { error: logError } = await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Balance Added',
-        target: `${property.homeowner_name} — ${category} — ${peso.format(Number(parsed.value))} as of ${asOf}`,
-      })
-      if (logError) console.warn('Balance saved, but activity logging failed:', logError.message)
-    }
-
+    // The database records this action in the same transaction as the balance.
     setSaving(false)
     onSaved(`Balance of ${peso.format(Number(parsed.value))} added to ${property.homeowner_name}.`)
   }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { monthlyCollection } from '../lib/dashboardCollections'
 import { fetchAll } from '../lib/fetchAll'
 import {
   AlertCircle,
@@ -79,7 +80,7 @@ export default function SecretaryDashboard() {
         // This year's monthly totals, computed by the database (max 12 rows).
         supabase
           .from('monthly_collections')
-          .select('month_start, dues_collected, dues_receipts')
+          .select('month_start, dues_collected, dues_only_collected, dues_only_receipts')
           .gte('month_start', `${manilaDateParts().year}-01-01`)
           .order('month_start'),
       ])
@@ -122,17 +123,17 @@ export default function SecretaryDashboard() {
     const thisMonth = monthlyRows.find(
       (row) => String(row.month_start).slice(0, 7) === currentKey,
     )
-    const monthlyCollections = Number(thisMonth?.dues_collected) || 0
+    const duesThisMonth = monthlyCollection(thisMonth, 'secretary')
 
     const outstandingAccounts = activeProperties.filter(
       (property) => (Number(property.current_balance) || 0) > 0,
     ).length
 
     return {
-      monthlyCollections,
+      monthlyCollections: duesThisMonth.amount,
       yearlyCollections,
       outstandingAccounts,
-      receiptsThisMonth: Number(thisMonth?.dues_receipts) || 0,
+      receiptsThisMonth: duesThisMonth.receipts,
     }
   }, [monthlyRows, activeProperties])
 
@@ -176,7 +177,7 @@ export default function SecretaryDashboard() {
 
         <article className="sec-stat-card">
           <div className="sec-stat-top">
-            <span className="sec-stat-label">Collections This Month</span>
+            <span className="sec-stat-label">Association Dues Collected This Month</span>
             <span className="sec-stat-icon sec-stat-icon-green">
               <TrendingUp size={19} />
             </span>
@@ -186,7 +187,7 @@ export default function SecretaryDashboard() {
           </strong>
           <p className="sec-stat-footer">
             {summary.receiptsThisMonth} receipt
-            {summary.receiptsThisMonth === 1 ? '' : 's'} issued
+            {summary.receiptsThisMonth === 1 ? '' : 's'} for association dues
           </p>
         </article>
 

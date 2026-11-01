@@ -1763,26 +1763,19 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setBlockActionBusyId(block.id)
     setBlockActionError('')
 
-    const { error: renameError } = await supabase
+    // The foreign key cascades the rename to every property in one transaction.
+    const { data: renamedBlock, error: renameError } = await supabase
       .from('blocks')
       .update({ name: newName })
       .eq('id', block.id)
+      .eq('name', block.name)
+      .select('id, name')
+      .single()
 
-    if (renameError) {
-      setBlockActionError(renameError.message)
+    if (renameError || !renamedBlock) {
+      setBlockActionError(renameError?.message || 'The block changed or is no longer available. Refresh and try again.')
       setBlockActionBusyId(null)
       return
-    }
-
-    const { error: cascadeError } = await supabase
-      .from('properties')
-      .update({ block: newName })
-      .eq('block', block.name)
-
-    if (cascadeError) {
-      setBlockActionError(
-        `Block renamed, but existing homeowner records could not be updated: ${cascadeError.message}`,
-      )
     }
 
     await loadBlocks()
@@ -1790,8 +1783,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     cancelEditBlock()
 
     if (onChanged) {
-      onChanged({ message: cascadeError ? '' : `Block ${block.name} was renamed to ${newName}.` })
-      if (cascadeError) notifyAction(`The block was renamed to ${newName}, but some homeowner records could not be updated. Please check Manage Blocks before trying again.`, 'warning')
+      onChanged({ message: `Block ${block.name} was renamed to ${newName}.` })
     }
 
     await logAdminActivity(
@@ -1838,10 +1830,14 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
 
     setBlockActionBusyId(block.id)
 
-    const { error } = await supabase.from('blocks').delete().eq('id', block.id)
+    // The foreign key rechecks assignment atomically, including concurrent inserts.
+    const { data: removedBlock, error } = await supabase.from('blocks').delete()
+      .eq('id', block.id).eq('name', block.name).select('id').single()
 
-    if (error) {
-      setBlockActionError(`Could not delete block: ${error.message}`)
+    if (error || !removedBlock) {
+      setBlockActionError(['23503', '23001'].includes(error?.code)
+        ? 'This block still has homeowner records (active or historical). Reassign them before deleting it.'
+        : `Could not delete block: ${error?.message || 'The block changed or is no longer available. Refresh and try again.'}`)
       setBlockActionBusyId(null)
       return
     }

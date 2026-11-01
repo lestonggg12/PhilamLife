@@ -79,16 +79,17 @@ export async function fetchAll(
  *
  * @param {object} client the Supabase client
  * @param {string} table table name
+ * @param {{ tiebreaker?: string | null }} options stable ordering for tables without an id
  * @returns {Promise<{ data: object[] | null, error: object | null, count: number }>}
  */
-export async function fetchTableVerified(client, table) {
+export async function fetchTableVerified(client, table, options = {}) {
   const { count: expected, error: countError } = await client
     .from(table)
     .select('*', { count: 'exact', head: true })
 
   if (countError) return { data: null, error: countError, count: 0 }
 
-  const { data, error } = await fetchAll(() => client.from(table).select('*'))
+  const { data, error } = await fetchAll(() => client.from(table).select('*'), options)
   if (error) return { data: null, error, count: 0 }
 
   if (typeof expected === 'number' && data.length !== expected) {

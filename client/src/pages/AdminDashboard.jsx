@@ -15,6 +15,7 @@ import {
   Zap,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { monthlyCollection } from '../lib/dashboardCollections'
 import { fetchAll } from '../lib/fetchAll'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
@@ -144,7 +145,7 @@ export default function AdminDashboard() {
       // computed by the database - a few dozen rows instead of every payment.
       fetchAll(() => supabase
         .from('monthly_collections')
-        .select('month_start, dues_only_collected, service_collected')
+        .select('month_start, dues_collected, dues_receipts, dues_only_collected, service_collected')
         .gte('month_start', `${sixMonthsAgoKey}-01`)
         .order('month_start'), { tiebreaker: null }),
       fetchAll(() => supabase
@@ -237,8 +238,13 @@ export default function AdminDashboard() {
   }, [sixMonths, monthlyRows])
 
   const currentMonthLabel = sixMonths[sixMonths.length - 1]?.label || ''
-  const collectedThisMonth = collectionsByMonth.values[collectionsByMonth.values.length - 1] || 0
-  const collectedLastMonth = collectionsByMonth.values[collectionsByMonth.values.length - 2] || 0
+  const currentMonthCollection = monthlyCollection(monthlyRows.find(
+    (row) => String(row.month_start).slice(0, 7) === sixMonths[sixMonths.length - 1]?.key,
+  ), 'admin')
+  const collectedThisMonth = currentMonthCollection.amount
+  const collectedLastMonth = monthlyCollection(monthlyRows.find(
+    (row) => String(row.month_start).slice(0, 7) === sixMonths[sixMonths.length - 2]?.key,
+  ), 'admin').amount
   const collectedTrendPercent = collectedLastMonth > 0
     ? ((collectedThisMonth - collectedLastMonth) / collectedLastMonth) * 100
     : null
@@ -484,14 +490,10 @@ export default function AdminDashboard() {
       tone: 'blue',
     },
     {
-      label: `COLLECTED ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
+      label: `TOTAL COLLECTIONS ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
       value: loading ? '—' : peso.format(collectedThisMonth),
       fitAmount: true,
-      footer: monthlyDuesTarget > 0
-        ? `vs ${peso.format(monthlyDuesTarget)} target${servicesThisMonth > 0 ? ` · +${peso.format(servicesThisMonth)} services` : ''}`
-        : servicesThisMonth > 0
-          ? `Dues only · +${peso.format(servicesThisMonth)} services`
-          : 'Dues collected',
+      footer: `${currentMonthCollection.receipts} homeowner receipt${currentMonthCollection.receipts === 1 ? '' : 's'}${servicesThisMonth > 0 ? ` · Services separately: ${peso.format(servicesThisMonth)}` : ''}`,
       trend: collectedTrendPercent === null
         ? null
         : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs last month`,

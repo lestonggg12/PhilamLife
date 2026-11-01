@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom'
 
 import { supabase, clearRememberMePreference } from './lib/supabaseClient'
+import { normalizeRole, normalizeProfileRole } from './lib/profileRole'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import Loader from './components/Loader'
@@ -86,10 +87,10 @@ function AppContent() {
       admin: '/admin/dashboard',
       treasurer: '/treasurer/dashboard',
       secretary: '/secretary/dashboard',
-    })[role] || '/login'
+    })[normalizeRole(role)] || '/login'
 
   const completeAuthentication = (profile) => {
-    setUser(profile)
+    setUser(normalizeProfileRole(profile))
     setIsAuthenticated(true)
     navigate(dashboardForRole(profile?.role), { replace: true })
   }
@@ -128,7 +129,7 @@ function AppContent() {
             await supabase.auth.signOut()
           } else if (profile && isMounted) {
             setIsAuthenticated(true)
-            setUser(profile)
+            setUser(normalizeProfileRole(profile))
           }
         }
       } catch (restoreError) {

@@ -380,7 +380,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             <h3 className="monthly-subheading">2.1 Income</h3>
             <SimpleTable head={['Revenue category', 'Amount']} rightCols={[1]} totalRow rows={incomeTableRows(report.income, money)} />
 
-            <h3 className="monthly-subheading">2.2 Expenses</h3>
+            <h3 className="monthly-subheading">2.2 Disbursements</h3>
             <p className="monthly-paragraph monthly-note">{text.expenseIntro}</p>
             {report.expenses.byCategory.length > 0 && (
               <SimpleTable

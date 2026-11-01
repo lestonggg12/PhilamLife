@@ -32,6 +32,10 @@ describe('Activity Log presentation', () => {
     expect(activityDisplay({ subject: 'Structured subject', amount: 100, target: 'Raw ₱50.00' })).toMatchObject({ subject: 'Structured subject', amount: 100 })
     expect(activityDisplay({})).toMatchObject({ subject: 'Unknown record', amount: null })
   })
+  it('uses readable labels for settings field names', () => {
+    expect(activityDisplay({ action: 'Settings Updated', target: 'price_per_sqm: 7.00 → 4.00' }).subject)
+      .toBe('Price per square meter: 7.00 → 4.00')
+  })
   it('renders six loading rows, labeled controls, and no status column', () => {
     const html = renderToStaticMarkup(<ActivityLogPage />)
     expect(html.match(/class="al-skeleton"/g)).toHaveLength(6)

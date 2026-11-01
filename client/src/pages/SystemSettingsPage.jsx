@@ -1,40 +1,14 @@
+import { saveSystemSettings as persistSystemSettings } from '../lib/saveSystemSettings'
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useState } from 'react'
 import Select from '../components/Select'
 import { supabase } from '../lib/supabaseClient'
 import { fetchTableVerified } from '../lib/fetchAll'
+import { ADMIN_EXPORT_TABLES, buildAdminDataExport } from '../lib/adminDataExport'
 import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 import PricePerSqmForm from '../components/PricePerSqmForm'
 import LatePenaltySettings from '../components/LatePenaltySettings'
-
-// Every table needed to fully restore the system. Financial tables that used
-// to be missing from this list (property_charges, payment_allocations,
-// account_adjustments, accounting_periods, bank_deposits, collection_actions,
-// violations) are included so a "Full System Data" backup is really complete.
-const TABLES = [
-  'account_adjustments',
-  'accounting_periods',
-  'activity_log',
-  'amenity_services',
-  'bank_deposits',
-  'blocks',
-  'collection_actions',
-  'documents',
-  'events',
-  'expenses',
-  'moved_account_reconciliations',
-  'payment_allocations',
-  'payments',
-  'profiles',
-  'properties',
-  'property_charges',
-  'property_payment_allocations',
-  'service_transactions',
-  'system_settings',
-  'user_management_logs',
-  'violations',
-]
 
 const EXPORTS = [
   { table: 'payments', label: 'Payments', description: 'Payment records, balances, and receipt details' },
@@ -119,7 +93,7 @@ function stamp() {
 }
 
 export default function SystemSettingsPage({ user }) {
-  const { organization } = useOrganization()
+  const { organization, refreshOrganization } = useOrganization()
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
@@ -197,9 +171,20 @@ export default function SystemSettingsPage({ user }) {
     delete payload.late_penalty
     delete payload.late_penalty_rate
     delete payload.late_penalty_first_after_months
-    const { error } = await supabase.from('system_settings').update(payload).eq('id', 1)
-    setSaving(false)
-    setMessage(error ? { type: 'error', text: `Unable to save settings: ${error.message}` } : { type: 'success', text: 'System settings saved successfully.' })
+    try {
+      const { refreshError, cacheError } = await persistSystemSettings(supabase, payload, refreshOrganization)
+      if (refreshError) {
+        setMessage({ type: 'error', text: `Settings were saved, but the shared display could not refresh: ${refreshError.message}. Reload the page before continuing.` })
+      } else if (cacheError) {
+        setMessage({ type: 'error', text: 'Settings were saved and applied to this session, but the browser cache could not be updated. A future session will reload them from the database.' })
+      } else {
+        setMessage({ type: 'success', text: 'System settings saved and applied to this session.' })
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: `Unable to save settings: ${error.message}` })
+    } finally {
+      setSaving(false)
+    }
   }
 
   function recordExport(label, filename) {
@@ -263,18 +248,20 @@ export default function SystemSettingsPage({ user }) {
   async function exportAll() {
     setExporting('all')
     setMessage(null)
-    const results = await Promise.all(TABLES.map(async (table) => ({ table, result: await fetchTableVerified(supabase, table) })))
-    const failed = results.find(({ result }) => result.error)
-    if (failed) setMessage({ type: 'error', text: `Unable to export ${failed.table}: ${failed.result.error.message}` })
-    else {
-      const payload = { exported_at: new Date().toISOString(), timezone: 'Asia/Manila', exported_by: user?.email || user?.full_name || null, tables: Object.fromEntries(results.map(({ table, result }) => [table, result.data || []])) }
+    try {
+      const payload = await buildAdminDataExport(supabase, {
+        exportedBy: user?.email || user?.full_name || null,
+      })
       const filename = `philam-system-data-${stamp()}.json`
-      const totalRows = results.reduce((sum, { result }) => sum + result.count, 0)
+      const totalRows = Object.values(payload.export_scope.row_counts).reduce((sum, count) => sum + count, 0)
       downloadFile(JSON.stringify(payload, null, 2), filename, 'application/json;charset=utf-8')
-      recordExport('Full System Data JSON', filename)
-      setMessage({ type: 'success', text: `Full system data download started (${TABLES.length} tables, ${totalRows} rows, verified complete).` })
+      recordExport('Admin Application Data JSON', filename)
+      setMessage({ type: 'success', text: `Admin application data download started (${ADMIN_EXPORT_TABLES.length} tables, ${totalRows} rows; counts verified per table).` })
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message || 'Unable to export Admin application data. Please try again.' })
+    } finally {
+      setExporting('')
     }
-    setExporting('')
   }
 
   if (loading) return <div className="ss-page"><div className="ss-loading">Loading system settings…</div></div>
@@ -302,7 +289,7 @@ export default function SystemSettingsPage({ user }) {
         <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
         <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
       </SettingsCard>
-        <SettingsCard title="Late-payment penalty" subtitle="Yearly penalty on unpaid entered balances. Set a different rate for any year.">
+        <SettingsCard title="Late-payment penalty" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
           <LatePenaltySettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
         </SettingsCard>
         <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
@@ -328,7 +315,7 @@ export default function SystemSettingsPage({ user }) {
       {activeTab === 'backup' && <div className="ss-backup-layout">
         <SettingsCard title="Export system data" subtitle="Download the records your Admin account is allowed to read." full>
           <div className="ss-export-feature">
-            <div><span className="ss-export-icon"><Icon name="backup" size={22} /></span><div><strong>Full system data</strong><p>Every application data table in one JSON file.</p></div></div>
+            <div><span className="ss-export-icon"><Icon name="backup" size={22} /></span><div><strong>Admin application data</strong><p>All {ADMIN_EXPORT_TABLES.length} Admin-readable application tables in one JSON file, including entered balances and transfers.</p></div></div>
             <button type="button" className="ss-primary" onClick={exportAll} disabled={!!exporting}><Icon name="download" />{exporting === 'all' ? 'Preparing…' : 'Download JSON'}</button>
           </div>
           <div className="ss-export-feature compact">
@@ -338,14 +325,14 @@ export default function SystemSettingsPage({ user }) {
           <div className="ss-export-grid">
             {EXPORTS.map((item) => <div className="ss-export-item" key={item.table}><div><strong>{item.label}</strong><p>{item.description}</p></div><button type="button" onClick={() => exportTable(item.table, item.label)} disabled={!!exporting}>{exporting === item.table ? 'Preparing…' : 'Export CSV'}</button></div>)}
           </div>
-          <p className="ss-info">These downloads are application-data exports, not complete Supabase server backups. Exported rows follow your Row Level Security permissions.</p>
+          <p className="ss-info">Includes document metadata. Confidential grievance cases and history, Auth accounts, stored files, database schema and server configuration are excluded. Access follows your existing permissions. Table counts are verified independently; changes made during export may span different moments.</p>
         </SettingsCard>
         <SettingsCard title="Download history" subtitle="Recent exports made in this browser." full>
           {history.length ? <div className="ss-history">{history.map((item, index) => <div key={`${item.at}-${index}`}><span className="ss-history-icon"><Icon name="check" /></span><div><strong>{item.label}</strong><p>{organization.formatDate(item.at, { withTime: true })} · {item.by}</p></div><span>{item.filename}</span></div>)}</div> : <div className="ss-empty">No exports downloaded from this browser yet.</div>}
         </SettingsCard>
       </div>}
 
-      {activeTab !== 'backup' && <div className="ss-save-bar"><span>Changes apply system-wide after saving.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
+      {activeTab !== 'backup' && <div className="ss-save-bar"><span>Saves organization, billing, regional and security preferences. Dues rate and penalty settings have their own Save buttons.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
     </div>
   )
 }

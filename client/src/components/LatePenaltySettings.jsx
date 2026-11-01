@@ -12,6 +12,7 @@ import './LatePenaltySettings.css'
 export default function LatePenaltySettings({ canEdit = false }) {
   const [defaultRate, setDefaultRate] = useState('')
   const [firstAfter, setFirstAfter] = useState('12')
+  const [effectiveDate, setEffectiveDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessageState] = useState(null)
@@ -22,27 +23,21 @@ export default function LatePenaltySettings({ canEdit = false }) {
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('late_penalty_rate, late_penalty_first_after_months')
-        .eq('id', 1)
-        .maybeSingle()
-
-      if (error) {
-        setMessage({
-          type: 'error',
-          text: `Unable to load penalty settings: ${error.message}`,
-        })
-      } else {
-        setDefaultRate(fractionToPercent(data?.late_penalty_rate))
-        setFirstAfter(
-          String(data?.late_penalty_first_after_months ?? 12)
-        )
+      try {
+        const [policy, settings] = await Promise.all([
+          supabase.from('annual_penalty_policy').select('effective_date').eq('id', 1).single(),
+          supabase.from('system_settings').select('late_penalty_rate, late_penalty_first_after_months').eq('id', 1).single(),
+        ])
+        if (policy.error || settings.error) throw policy.error || settings.error
+        setEffectiveDate(policy.data.effective_date)
+        setDefaultRate(fractionToPercent(settings.data.late_penalty_rate))
+        setFirstAfter(String(settings.data.late_penalty_first_after_months ?? 12))
+      } catch (error) {
+        setMessage({ type: 'error', text: `Unable to load penalty settings: ${error.message}` })
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
     }
-
     load()
   }, [])
 
@@ -52,6 +47,8 @@ export default function LatePenaltySettings({ canEdit = false }) {
 
   async function saveDefaults(event) {
     event.preventDefault()
+
+    if (!effectiveDate) return fail('Install the annual penalty policy before changing these settings.')
 
     if (!canEdit) {
       return fail('Only an Admin can change the penalty settings.')
@@ -74,27 +71,23 @@ export default function LatePenaltySettings({ canEdit = false }) {
     setBusy(true)
     setMessage(null)
 
-    const { data, error } = await supabase
-      .from('system_settings')
-      .update({
-        late_penalty_rate: rate.value,
-        late_penalty_first_after_months: months.value,
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .update({ late_penalty_rate: rate.value, late_penalty_first_after_months: months.value })
+        .eq('id', 1)
+        .select('late_penalty_rate')
+      if (error) throw error
+      if (!data?.length) return fail('Only an Admin can change the penalty settings.')
+      setMessage({
+        type: 'success',
+        text: 'Penalty settings saved. New rates apply to later assessments; existing schedules and posted penalties are unchanged.',
       })
-      .eq('id', 1)
-      .select('late_penalty_rate')
-
-    setBusy(false)
-
-    if (error) return fail(error.message)
-
-    if (!data?.length) {
-      return fail('Only an Admin can change the penalty settings.')
+    } catch (error) {
+      fail(error.message)
+    } finally {
+      setBusy(false)
     }
-
-    setMessage({
-      type: 'success',
-      text: 'Penalty settings saved.',
-    })
   }
 
   if (loading) {
@@ -104,9 +97,16 @@ export default function LatePenaltySettings({ canEdit = false }) {
   return (
     <div className="lps">
       <p className="ss-info">
-        The system uses the default annual rate for system-generated
-        penalties. Previously recorded balances and penalties should
-        be based on verified HOA records.
+        Annual penalties compound on unpaid Association Dues, recorded balances
+        and unpaid penalties. Payments and credits reduce the next assessment base.
+        Historical balances and assessments are not recalculated.
+        {effectiveDate && ` Automatic posting starts ${effectiveDate} (Manila time).`}
+      </p>
+      <p className="ss-info">
+        The first assessment uses the recorded As-of Date plus the configured months;
+        later assessments are 12 months apart. Dates before activation are skipped.
+        Changing the months setting affects newly registered schedules only.
+        The current rate is recorded separately on each future assessment.
       </p>
 
       <form className="lps-defaults" onSubmit={saveDefaults}>
@@ -123,7 +123,7 @@ export default function LatePenaltySettings({ canEdit = false }) {
               setDefaultRate(event.target.value)
               setMessage(null)
             }}
-            disabled={!canEdit || busy}
+            disabled={!canEdit || busy || !effectiveDate}
             placeholder="e.g., 1.5"
           />
         </label>
@@ -141,7 +141,7 @@ export default function LatePenaltySettings({ canEdit = false }) {
               setFirstAfter(event.target.value)
               setMessage(null)
             }}
-            disabled={!canEdit || busy}
+            disabled={!canEdit || busy || !effectiveDate}
             placeholder="12"
           />
         </label>
@@ -150,7 +150,7 @@ export default function LatePenaltySettings({ canEdit = false }) {
           <button
             type="submit"
             className="ss-primary"
-            disabled={busy}
+            disabled={busy || !effectiveDate}
           >
             {busy ? 'Saving…' : 'Save penalty settings'}
           </button>

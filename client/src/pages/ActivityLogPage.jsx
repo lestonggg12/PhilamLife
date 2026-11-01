@@ -11,7 +11,32 @@ const timeFormat = new Intl.DateTimeFormat('en-PH', { timeZone: ZONE, hour: 'num
 const fullFormat = new Intl.DateTimeFormat('en-PH', { timeZone: ZONE, dateStyle: 'full', timeStyle: 'long', hour12: true })
 const groupFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
-const RANGE_LABELS = { all: 'Selected month', today: 'Today', week: 'Last 7 days', month: 'Last 30 days', custom: 'Custom' }
+const RANGE_LABELS = { today: 'Today', week: 'Last 7 days', month: 'Last 30 days', all: 'Selected month', custom: 'Custom' }
+const DEFAULT_RANGE = 'today'
+function middleTruncate(value, limit) {
+  const text = String(value)
+  if (text.length <= limit) return text
+  const extensionIndex = text.lastIndexOf('.')
+  const extension = extensionIndex > 0 ? text.slice(extensionIndex) : ''
+  const available = Math.max(limit - extension.length - 1, 2)
+  const left = Math.ceil(available / 2)
+  const right = Math.floor(available / 2)
+  return `${text.slice(0, left)}…${extension ? text.slice(-right - extension.length, -extension.length) : text.slice(-right)}${extension}`
+}
+
+function actionIcon(action) {
+  const value = String(action || '')
+  const path = /payment|charge|expense|revenue/i.test(value)
+    ? <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18M7 14h3" /></>
+    : /document/i.test(value)
+      ? <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></>
+      : /grievance/i.test(value)
+        ? <><path d="M5 5h14v10H9l-4 4z" /><path d="M9 9h6M9 12h4" /></>
+        : /homeowner|block|lot/i.test(value)
+          ? <><path d="m3 11 9-7 9 7" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>
+          : <circle cx="12" cy="12" r="3" />
+  return <svg className="al-action-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{path}</svg>
+}
 function dateKey(value = new Date()) {
   const parts = Object.fromEntries(dayFormat.formatToParts(value).map(({ type, value: part }) => [type, part]))
   return `${parts.year}-${parts.month}-${parts.day}`
@@ -28,10 +53,21 @@ function shiftMonth(key, amount) {
 function boundary(month) { return new Date(`${month}-01T00:00:00+08:00`).toISOString() }
 
 // Display-only parsing. Unknown action formats retain the complete original string.
+const ACTIVITY_FIELD_LABELS = {
+  price_per_sqm: 'Price per square meter',
+}
+
+function humanizeActivityFields(value) {
+  return String(value).replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (key) => (
+    ACTIVITY_FIELD_LABELS[key] || key.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+  ))
+}
+
 export function activityDisplay(log) {
   const raw = String(log.target || log.description || '')
-  const suffix = ` (by ${log.user})`
-  const text = raw.endsWith(suffix) ? raw.slice(0, -suffix.length) : raw
+  const actor = String(log.user || '').trim()
+  const suffixPattern = actor ? new RegExp(` \\((?:by )?${actor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)$`) : null
+  const text = humanizeActivityFields(suffixPattern ? raw.replace(suffixPattern, '') : raw)
   const parts = text.split(' — ')
   const expected = { 'Payment Recorded': 3, 'Charge Added': 3, 'Payment Voided': 4, 'Charge Voided': 4, 'Document Uploaded': 2, 'Document Deleted': 2 }
   const moneyAction = /^(Payment Recorded|Charge Added|Payment Voided|Charge Voided)$/.test(log.action || '')
@@ -39,12 +75,41 @@ export function activityDisplay(log) {
   const money = text.match(/₱\s*(-?\d[\d,]*(?:\.\d{1,2})?)(?![\d.])/)
   const structuredAmount = typeof log.amount === 'number' && Number.isFinite(log.amount) ? log.amount : null
   const amount = structuredAmount ?? (money ? Number(money[1].replaceAll(',', '')) : null)
+  const action = String(log.action || '')
+  const expenseParts = action === 'Expense Recorded' ? parts : null
+  const grievanceMatch = /^(GR-[\w-]+) - (.+) - (.+)$/.exec(text)
+  const blockMatch = action === 'Block Added' ? /^[\w-]+$/.exec(text) : null
+  const homeownerMatch = action === 'Homeowner Added' ? /^(.+) — (\S+), Lot (\S+)$/.exec(text) : null
+  const documentMatch = /^(Document Uploaded|Document Deleted)$/.test(action) && parts.length === 2 ? parts : null
+  const expenseSubject = expenseParts?.[0]
+  const expenseDetail = expenseParts?.filter((part) => !/₱\s*-?[\d,]+(?:\.\d{1,2})?/.test(part)).slice(1).join(' — ')
+  const parsedSubject = action === 'Expense Recorded' && expenseSubject
+    ? expenseSubject
+    : grievanceMatch
+      ? grievanceMatch[1]
+      : blockMatch
+        ? `Block ${blockMatch[0]}`
+        : homeownerMatch
+          ? homeownerMatch[1]
+          : documentMatch
+            ? middleTruncate(documentMatch[0], 44)
+            : parsed ? parts[0] : text
+  const parsedDetail = action === 'Expense Recorded' && expenseSubject
+    ? expenseDetail
+    : grievanceMatch
+      ? `${grievanceMatch[2]} · ${grievanceMatch[3]}`
+      : homeownerMatch
+        ? `Block ${homeownerMatch[2]}, Lot ${homeownerMatch[3]}`
+        : documentMatch
+          ? ''
+          : parsed ? parts.slice(1).filter((part) => !/^₱\s*-?[\d,.]+$/.test(part) && part.replace(/\.[^.]+$/, '') !== parts[0]).join(' — ') : ''
+  const subject = documentMatch ? parsedSubject : (log.subject || parsedSubject || 'Unknown record')
   return {
     raw, text,
-    subject: log.subject || (parsed ? parts[0] : text) || 'Unknown record',
-    detail: parsed ? parts.slice(1).filter((part) => !/^₱\s*-?[\d,.]+$/.test(part) && part.replace(/\.[^.]+$/, '') !== parts[0]).join(' — ') : '',
+    subject,
+    detail: parsedDetail,
     amount,
-    status: /fail|error/i.test(log.action || '') ? 'failed' : /delet|void|cancel/i.test(log.action || '') ? 'warning' : '',
+    status: /fail|error/i.test(action) ? 'failed' : /delet|void|cancel/i.test(action) ? 'warning' : '',
   }
 }
 
@@ -57,12 +122,12 @@ function ActivityRow({ log }) {
     <li className={`al-entry ${display.status ? `al-${display.status}` : ''}`}>
       <div className="al-row">
         <div className="al-user"><strong>{log.user}</strong><span>{log.role || 'Unknown role'}</span></div>
-        <div className="al-action"><span className="al-badge" title={log.action || 'Activity'}>{log.action || 'Activity'}</span></div>
+        <div className="al-action"><span className="al-badge" title={log.action || 'Activity'}>{actionIcon(log.action)}<span>{log.action || 'Activity'}</span></span></div>
         <div className="al-summary">
           {display.status && <span className="al-exception" role="img" aria-label={display.status === 'failed' ? 'Failed event' : 'Destructive action'}>{display.status === 'failed' ? '!' : '⚠'}</span>}
-          <div className="al-summary-text"><strong>{display.subject}</strong>{display.detail && <span>{display.detail}</span>}</div>
+          <div className="al-summary-text" title={display.text}><strong>{display.subject}</strong>{display.detail && <span>{display.detail}</span>}</div>
         </div>
-        <div className="al-amount">{display.amount !== null ? peso.format(display.amount) : <span aria-label="No amount">—</span>}</div>
+        <div className="al-amount">{display.amount !== null ? peso.format(display.amount) : null}</div>
         <time className="al-time" dateTime={log.created_at} title={fullFormat.format(new Date(log.created_at))}>{timeFormat.format(new Date(log.created_at))}</time>
         <button type="button" className="al-expand" aria-expanded={expanded} aria-controls={expanded ? detailsId : undefined} aria-label={`${expanded ? 'Collapse' : 'Expand'} ${log.action || 'activity'} details for ${log.user}`} onClick={() => setExpanded(!expanded)}>{expanded ? '−' : '+'}</button>
       </div>
@@ -80,7 +145,7 @@ function ActivityRow({ log }) {
 export default function ActivityLogPage() {
   const [today, setToday] = useState(dateKey())
   const [archiveMonth, setArchiveMonth] = useState(today.slice(0, 7))
-  const [range, setRange] = useState('today')
+  const [range, setRange] = useState(DEFAULT_RANGE)
   const [start, setStart] = useState(today)
   const [end, setEnd] = useState(today)
   const [search, setSearch] = useState('')
@@ -191,16 +256,16 @@ export default function ActivityLogPage() {
     user && { key: 'user', label: `User: ${users.find(([id]) => id === user)?.[1] || 'Unknown user'}`, clear: () => setUser('') },
     role && { key: 'role', label: `Role: ${role}`, clear: () => setRole('') },
     action && { key: 'action', label: action, clear: () => setAction('') },
-    range !== 'all' && { key: 'date', label: range === 'custom' ? `${start || 'Start'} – ${end || 'End'}` : RANGE_LABELS[range], clear: () => setRange('all') },
+    range !== DEFAULT_RANGE && { key: 'date', label: range === 'custom' ? `${start || 'Start'} – ${end || 'End'}` : RANGE_LABELS[range], clear: () => setRange(DEFAULT_RANGE) },
     range === 'all' && archiveMonth !== today.slice(0, 7) && { key: 'archive', label: archiveMonth, clear: () => setArchiveMonth(today.slice(0, 7)) },
   ].filter(Boolean)
-  function clearFilters() { setSearch(''); setDebouncedSearch(''); setUser(''); setRole(''); setAction(''); setRange('all'); setArchiveMonth(today.slice(0, 7)); setStart(today); setEnd(today) }
+  function clearFilters() { setSearch(''); setDebouncedSearch(''); setUser(''); setRole(''); setAction(''); setRange(DEFAULT_RANGE); setArchiveMonth(today.slice(0, 7)); setStart(today); setEnd(today) }
   const groups = new Map()
   filtered.slice(0, limit).forEach((log) => { if (!groups.has(log.dateKey)) groups.set(log.dateKey, []); groups.get(log.dateKey).push(log) })
   const dateLabel = (key) => key === today ? 'Today' : key === addDays(today, -1) ? 'Yesterday' : groupFormat.format(new Date(`${key}T00:00:00Z`))
   const select = (label, value, onChange, options) => (
     <label key={label}>
-      {label}
+      <span className="al-sr-only">{label}</span>
       <Select
         ariaLabel={label}
         value={value}
@@ -211,12 +276,13 @@ export default function ActivityLogPage() {
   )
 
   return <div className="activity-log-page" style={{ '--al-toolbar-height': `${toolbarHeight}px` }}>
-    <header className="al-header"><div><h1>Activity Log</h1><p>Search and review system activity across your team.</p></div><span className="al-count" role="status">{loading ? 'Loading activity…' : error ? 'Activity unavailable' : `${filtered.length.toLocaleString('en-PH')} results`}</span></header>
+    <header className="al-header"><div><h1>Activity Log</h1><p>Search and review system activity across your team.</p></div></header>
     <section className="al-toolbar" ref={toolbarRef} aria-label="Activity controls">
-      <div className="al-search-row"><label className="al-search">Search activity<input type="search" placeholder="User, action, or description" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+      <div className="al-toolbar-main">
+        <div className="al-search-row"><label className="al-search"><span className="al-sr-only">Search activity</span><input type="search" aria-label="Search activity" placeholder="User, action, or description" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <button type="button" className="al-filter-toggle" ref={filterButton} aria-expanded={panelOpen} aria-controls="activity-filters" onClick={() => setPanelOpen(!panelOpen)}>Filters{chips.length ? ` (${chips.length})` : ''}</button>
-        <button type="button" onClick={() => setRevision((value) => value + 1)} disabled={loading}>Refresh</button></div>
-      <div id="activity-filters" ref={panelRef} className={`al-filters ${panelOpen ? 'al-open' : ''}`}>
+        <button type="button" className="al-refresh" onClick={() => setRevision((value) => value + 1)} disabled={loading} aria-label="Refresh activity" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-14.9-4.3L3 9" /><path d="M3 4v5h5" /><path d="M4 13a8.1 8.1 0 0 0 14.9 4.3L21 15" /><path d="M21 20v-5h-5" /></svg></button></div>
+        <div id="activity-filters" ref={panelRef} className={`al-filters ${panelOpen ? 'al-open' : ''}`}>
         {select('User', user, setUser, [['', 'All users'], ...users])}
         {select('Role', role, setRole, [['', 'All roles'], ['admin', 'Admin'], ['secretary', 'Secretary'], ['treasurer', 'Treasurer']])}
         {select('Action type', action, setAction, [['', 'All actions'], ...actions.map((value) => [value, value])])}
@@ -224,14 +290,16 @@ export default function ActivityLogPage() {
         {range === 'all' && <label>Archive month<DateField value={archiveMonth} onChange={(value) => setArchiveMonth(value || today.slice(0, 7))} max={today.slice(0, 7)} ariaLabel="Archive month" monthOnly /></label>}
         {range === 'custom' && <><label>From<DateField value={start} max={end || today} onChange={setStart} ariaLabel="From date" /></label><label>Through<DateField value={end} min={start} max={today} onChange={setEnd} ariaLabel="Through date" /></label></>}
         <button type="button" className="al-filter-done" onClick={() => { setPanelOpen(false); filterButton.current?.focus() }}>Done</button>
+        </div>
       </div>
       {chips.length > 0 && <div className="al-chips" aria-label="Active filters">{chips.map((chip) => <button type="button" key={chip.key} onClick={chip.clear} aria-label={`Remove ${chip.label} filter`}>{chip.label}<span aria-hidden="true"> ×</span></button>)}<button type="button" className="al-clear" onClick={clearFilters}>Clear filters</button></div>}
       {invalidDates && <p role="alert">Choose a valid start and end date.</p>}
     </section>
     <section className="al-list" aria-label="Activity entries" aria-busy={loading}>
+      <p className="al-result-count" role="status">{loading ? 'Loading activity…' : error ? 'Activity unavailable' : `${filtered.length.toLocaleString('en-PH')} results`}</p>
       <div className="al-columns" aria-hidden="true"><span>User</span><span>Action</span><span>Summary</span><span>Amount</span><span>Time</span><span /></div>
       {profileWarning && !loading && <p className="al-notice" role="status">Some user details are unavailable. Activity is still shown; missing profiles use System and Unknown role.</p>}
-      {loading ? <div role="status" aria-label="Loading activity"><span className="al-sr-only">Loading activity</span>{Array.from({ length: 6 }, (_, index) => <div className="al-skeleton" key={index} aria-hidden="true"><i /><i /><i /></div>)}</div> : error ? <div className="al-state" role="alert"><h2>Unable to load activity</h2><p>{error}</p><button type="button" onClick={() => setRevision((value) => value + 1)}>Retry</button></div> : filtered.length === 0 ? <div className="al-state"><h2>{chips.length ? 'No matching activity' : 'No activity yet'}</h2><p>{chips.length ? 'Try another search or date range.' : 'Recorded activity will appear here for the selected month.'}</p>{chips.length > 0 && <button type="button" onClick={clearFilters}>Clear filters</button>}</div> : [...groups.entries()].map(([key, entries]) => <section key={key} aria-label={dateLabel(key)}><h2 className="al-date">{dateLabel(key)}</h2><ul>{entries.map((log) => <ActivityRow key={log.id} log={log} />)}</ul></section>)}
+      {loading ? <div role="status" aria-label="Loading activity"><span className="al-sr-only">Loading activity</span>{Array.from({ length: 6 }, (_, index) => <div className="al-skeleton" key={index} aria-hidden="true"><i /><i /><i /></div>)}</div> : error ? <div className="al-state" role="alert"><h2>Unable to load activity</h2><p>{error}</p><button type="button" onClick={() => setRevision((value) => value + 1)}>Retry</button></div> : filtered.length === 0 ? <div className="al-state"><h2>{chips.length ? 'No matching activity' : range === DEFAULT_RANGE ? 'No activity today' : 'No activity yet'}</h2><p>{chips.length ? 'Try another search or date range.' : range === DEFAULT_RANGE ? 'Activity recorded today will appear here. Choose Last 7 days to see earlier entries.' : 'Recorded activity will appear here for the selected month.'}</p>{chips.length > 0 && <button type="button" onClick={clearFilters}>Clear filters</button>}</div> : [...groups.entries()].map(([key, entries]) => <section key={key} aria-label={dateLabel(key)}><h2 className="al-date">{dateLabel(key)}</h2><ul>{entries.map((log) => <ActivityRow key={log.id} log={log} />)}</ul></section>)}
       {!loading && !error && <footer className="al-footer"><span role="status">Showing {Math.min(limit, filtered.length)} of {filtered.length.toLocaleString('en-PH')}</span>{limit < filtered.length && <button type="button" onClick={() => setLimit((value) => value + 25)}>Load more</button>}</footer>}
     </section>
   </div>

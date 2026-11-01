@@ -4,6 +4,7 @@ import { Turnstile } from '@marsidev/react-turnstile';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { setRememberMePreference, supabase } from '../lib/supabaseClient';
+import { normalizeProfileRole } from '../lib/profileRole';
 import { useOrganization } from '../context/OrganizationContext';
 
 const VALID_ROLES = ['Admin', 'Secretary', 'Treasurer'];
@@ -112,7 +113,8 @@ export default function LoginPage({ onAuthenticated }) {
     }
 
     // Verify the tab they picked matches their actual role
-    if (profile.role !== selectedRole.toLowerCase()) {
+    const normalizedProfile = normalizeProfileRole(profile);
+    if (normalizedProfile.role !== selectedRole.toLowerCase()) {
       resetCaptcha();
       setError(`This account is registered as ${profile.role}, not ${selectedRole}. Please select the correct portal.`);
       await supabase.auth.signOut();
@@ -121,7 +123,7 @@ export default function LoginPage({ onAuthenticated }) {
     }
 
     setLoading(false);
-    onAuthenticated(profile);
+    onAuthenticated(normalizedProfile);
   };
 
   const handleBackHome = () => {

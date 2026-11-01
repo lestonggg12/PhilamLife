@@ -68,23 +68,39 @@ function readCachedOrganization() {
 export function OrganizationProvider({ enabled, children }) {
   const [organization, setOrganization] = useState(readCachedOrganization)
 
-  const refreshOrganization = useCallback(async () => {
-    if (!enabled) {
-      return
+  // A confirmed UPDATE result can refresh the shared state without a second
+  // network request. Existing callers can still refresh from the database.
+  const refreshOrganization = useCallback(async (savedSettings) => {
+    if (!enabled) return { error: new Error('The authenticated session is no longer available') }
+
+    let data = savedSettings
+    if (!data) {
+      try {
+        const result = await supabase
+          .from('system_settings')
+          .select(
+            'hoa_name, address, contact_email, contact_phone, currency, timezone, session_timeout, date_format, require_strong_password',
+          )
+          .eq('id', 1)
+          .maybeSingle()
+        if (result.error || !result.data) {
+          return { error: result.error || new Error('The settings row was not found') }
+        }
+        data = result.data
+      } catch (error) {
+        return { error }
+      }
     }
 
-    const { data, error } = await supabase
-      .from('system_settings')
-      .select(
-        'hoa_name, address, contact_email, contact_phone, currency, timezone, session_timeout, date_format, require_strong_password',
-      )
-      .eq('id', 1)
-      .maybeSingle()
-
-    if (!error && data) {
-      const nextOrganization = mapSettings(data)
-      setOrganization(nextOrganization)
+    const nextOrganization = mapSettings(data)
+    setOrganization(nextOrganization)
+    try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(nextOrganization))
+      return { error: null, cacheError: null }
+    } catch (cacheError) {
+      // Browser storage restrictions must not undo a committed database save
+      // or prevent this session from receiving the confirmed settings.
+      return { error: null, cacheError }
     }
   }, [enabled])
 
