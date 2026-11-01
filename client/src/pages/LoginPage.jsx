@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Turnstile } from '@marsidev/react-turnstile';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
-import { setRememberMePreference, supabase } from '../lib/supabaseClient';
+import { setRememberMePreference, clearRememberMePreference, supabase } from '../lib/supabaseClient';
 import { normalizeProfileRole } from '../lib/profileRole';
 import { useOrganization } from '../context/OrganizationContext';
 
@@ -54,6 +54,11 @@ export default function LoginPage({ onAuthenticated }) {
     setShowPassword((prev) => !prev);
   };
 
+  const cancelSignIn = async () => {
+    try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* Still clear local persistence. */ }
+    try { clearRememberMePreference(); } catch { /* Storage can be blocked by browser settings. */ }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -72,58 +77,68 @@ export default function LoginPage({ onAuthenticated }) {
     }
 
     setLoading(true);
-    setRememberMePreference(rememberMe);
+    try {
+      setRememberMePreference(rememberMe);
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-      options: { captchaToken },
-    });
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+        options: { captchaToken },
+      });
 
-    if (authError) {
-      resetCaptcha();
-      failedAttempts.current += 1;
-      if (failedAttempts.current >= MAX_FAILED_ATTEMPTS) {
-        sessionStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
-        failedAttempts.current = 0;
-        setError('Too many failed attempts. Please wait a minute before trying again.');
-      } else if (/captcha/i.test(authError.message || '')) {
-        setError('Verification failed. Please try again.');
-      } else {
-        setError('Invalid email or password');
+      if (authError) {
+        await cancelSignIn();
+        resetCaptcha();
+        failedAttempts.current += 1;
+        if (failedAttempts.current >= MAX_FAILED_ATTEMPTS) {
+          sessionStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+          failedAttempts.current = 0;
+          setError('Too many failed attempts. Please wait a minute before trying again.');
+        } else if (/captcha/i.test(authError.message || '')) {
+          setError('Verification failed. Please try again.');
+        } else {
+          setError('Invalid email or password');
+        }
+        setLoading(false);
+        return;
       }
+
+      failedAttempts.current = 0;
+      sessionStorage.removeItem(LOCKOUT_KEY);
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        await cancelSignIn();
+        resetCaptcha();
+        setError('Account exists but has no profile. Contact an admin.');
+        setLoading(false);
+        return;
+      }
+
+      // Verify the tab they picked matches their actual role
+      const normalizedProfile = normalizeProfileRole(profile);
+      if (normalizedProfile.role !== selectedRole.toLowerCase()) {
+        resetCaptcha();
+        setError(`This account is registered as ${profile.role}, not ${selectedRole}. Please select the correct portal.`);
+        await cancelSignIn();
+        setLoading(false);
+        return;
+      }
+
       setLoading(false);
-      return;
-    }
-
-    failedAttempts.current = 0;
-    sessionStorage.removeItem(LOCKOUT_KEY);
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', authData.user.id)
-      .single();
-
-    if (profileError || !profile) {
+      onAuthenticated(normalizedProfile);
+    } catch {
+      await cancelSignIn();
       resetCaptcha();
-      setError('Account exists but has no profile. Contact an admin.');
+      setError('Unable to sign in. Check your connection and browser storage, then try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // Verify the tab they picked matches their actual role
-    const normalizedProfile = normalizeProfileRole(profile);
-    if (normalizedProfile.role !== selectedRole.toLowerCase()) {
-      resetCaptcha();
-      setError(`This account is registered as ${profile.role}, not ${selectedRole}. Please select the correct portal.`);
-      await supabase.auth.signOut();
-      setLoading(false);
-      return;
-    }
-
-    setLoading(false);
-    onAuthenticated(normalizedProfile);
   };
 
   const handleBackHome = () => {
@@ -155,6 +170,9 @@ export default function LoginPage({ onAuthenticated }) {
           <h1 className="login-brand-name">{organization.hoaName}</h1>
           <div className="login-portal-label">PORTAL LOGIN</div>
           <p className="login-hint-text">Select your role and sign in to access your dashboard</p>
+          {searchParams.get('reason') === 'remembered-expired' && (
+            <p className="login-remember-expired" role="status">Your remembered sign-in has expired. Enter your credentials to sign in again.</p>
+          )}
         </div>
 
         <div className="login-tabs-container">
@@ -247,6 +265,7 @@ export default function LoginPage({ onAuthenticated }) {
                 type="checkbox"
                 className="login-checkbox"
                 checked={rememberMe}
+                aria-describedby="remember-device-policy"
                 onChange={(e) => setRememberMe(e.target.checked)}
               />
               <span>Remember me on this device</span>
@@ -258,6 +277,11 @@ export default function LoginPage({ onAuthenticated }) {
               Forgot password?
             </a>
           </div>
+
+          <p id="remember-device-policy" className="login-remember-policy">
+            Remember this device for up to 7 working days (Monday–Friday).
+            After that, enter your credentials to sign in again. Idle timeout and manual sign-out still apply.
+          </p>
 
           <div
             className="login-turnstile"

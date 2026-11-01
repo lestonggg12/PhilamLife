@@ -598,3 +598,13 @@
 
   
 }
+.login-remember-policy,
+.login-remember-expired {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #2a5470;
+}
+
+.login-remember-policy { margin: -10px 0 16px; }
+.login-remember-expired { margin: 12px 0 0; }

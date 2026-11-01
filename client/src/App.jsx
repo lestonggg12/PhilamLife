@@ -1,12 +1,14 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import {
   BrowserRouter,
   Routes,
   Route,
   useNavigate,
+  Navigate,
 } from 'react-router-dom'
 
-import { supabase, clearRememberMePreference } from './lib/supabaseClient'
+import { supabase, clearRememberMePreference, rememberedDevice } from './lib/supabaseClient'
+import { watchRememberedDevice } from './lib/rememberDevice'
 import { normalizeRole, normalizeProfileRole } from './lib/profileRole'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -82,6 +84,30 @@ function AppContent() {
 
   const navigate = useNavigate()
 
+  const expiring = useRef(false)
+  const expireRememberedSession = useCallback(async () => {
+    if (expiring.current) return
+    expiring.current = true
+    setIsAuthenticated(false)
+    setUser(null)
+    setLoading(false)
+    navigate('/login?reason=remembered-expired', { replace: true })
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch {
+      // Expiry still clears this device when offline.
+    } finally {
+      // Keep the expired deadline as a barrier against late token refreshes.
+      try { rememberedDevice.discardSession() } catch { /* Browser storage may be unavailable. */ }
+      expiring.current = false
+    }
+  }, [navigate])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    return watchRememberedDevice(rememberedDevice, () => { void expireRememberedSession() })
+  }, [isAuthenticated, expireRememberedSession])
+
   const dashboardForRole = (role) =>
     ({
       admin: '/admin/dashboard',
@@ -90,6 +116,7 @@ function AppContent() {
     })[normalizeRole(role)] || '/login'
 
   const completeAuthentication = (profile) => {
+    if (rememberedDevice.hasExpired()) { void expireRememberedSession(); return }
     setUser(normalizeProfileRole(profile))
     setIsAuthenticated(true)
     navigate(dashboardForRole(profile?.role), { replace: true })
@@ -106,6 +133,11 @@ function AppContent() {
           return
         }
 
+        if (rememberedDevice.hasExpired()) {
+          await expireRememberedSession()
+          return
+        }
+
         const {
           data: { session },
           error: sessionError,
@@ -114,6 +146,7 @@ function AppContent() {
         if (sessionError) {
           throw sessionError
         }
+        if (rememberedDevice.hasExpired()) { await expireRememberedSession(); return }
 
         if (session) {
           const { data: profile, error } = await supabase
@@ -128,6 +161,7 @@ function AppContent() {
           } else if (profile?.is_active === false) {
             await supabase.auth.signOut()
           } else if (profile && isMounted) {
+            if (rememberedDevice.hasExpired()) { await expireRememberedSession(); return }
             setIsAuthenticated(true)
             setUser(normalizeProfileRole(profile))
           }
@@ -147,6 +181,11 @@ function AppContent() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session && rememberedDevice.hasExpired()) {
+        // Run outside the SDK callback's auth lock.
+        window.setTimeout(() => { if (isMounted) void expireRememberedSession() }, 0)
+        return
+      }
       if (!session) {
         setIsAuthenticated(false)
         setUser(null)
@@ -208,7 +247,9 @@ function AppContent() {
             <Route
               path="/login"
               element={
-                <LoginPage onAuthenticated={completeAuthentication} />
+                isAuthenticated
+                  ? <Navigate to={dashboardForRole(user?.role)} replace />
+                  : <LoginPage onAuthenticated={completeAuthentication} />
               }
             />
             <Route
