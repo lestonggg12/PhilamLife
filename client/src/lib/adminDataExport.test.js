@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { ADMIN_EXPORT_TABLES, buildAdminDataExport } from './adminDataExport'
+import { describe, expect, it, vi } from 'vitest'
+import { ADMIN_EXPORT_TABLES, buildAdminDataExport, requestAdminDataExport } from './adminDataExport'
 
 function fakeClient({ rows = {}, failTable, countDifference = 0, rejectTable } = {}) {
   const calls = []
@@ -86,5 +86,21 @@ describe('Admin application data export', () => {
     const payload = await buildAdminDataExport(fakeClient())
     expect(payload.tables.homeowners).toEqual([])
     expect(payload.export_scope.row_counts.homeowners).toBe(0)
+  })
+})
+
+describe('Audited export requests', () => {
+  it('requires a confirmed server request before the caller can continue', async () => {
+    const client = { rpc: vi.fn().mockResolvedValue({ data: true, error: null }) }
+    await requestAdminDataExport(client, 'ledger')
+    expect(client.rpc).toHaveBeenCalledWith('record_data_export_request', { p_scope: 'ledger' })
+  })
+  it.each([false,null])('rejects an unconfirmed request: %s', async (data) => {
+    await expect(requestAdminDataExport({ rpc: async () => ({ data, error: null }) }, 'ledger')).rejects.toThrow('No download was started')
+  })
+  it('propagates a denied or failed request', async () => {
+    const error = { message: 'Only Admin can export' }
+    await expect(requestAdminDataExport({ rpc: async () => ({ data: null, error }) }, 'ledger')).rejects.toBe(error)
+    await expect(requestAdminDataExport({ rpc: async () => { throw new Error('Offline') } }, 'ledger')).rejects.toThrow('Offline')
   })
 })

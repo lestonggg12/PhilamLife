@@ -315,20 +315,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       return
     }
 
-    const { error: activityError } = await supabase
-      .from('activity_log')
-      .insert({
-        user_id: currentUser.id,
-        action: 'Document Uploaded',
-        target: `${data.title} — ${data.original_file_name} (by ${actorName})`,
-      })
 
-    if (activityError) {
-      console.warn(
-        'Document uploaded, but activity logging failed:',
-        activityError.message,
-      )
-    }
 
     setDocuments((current) => [data, ...current])
     setHighlightedDocumentId(data.id)

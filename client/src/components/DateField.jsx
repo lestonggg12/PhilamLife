@@ -27,6 +27,10 @@ const buildDays = (year, month) => {
 }
 
 export { todayKey, parseDateKey, buildDays }
+export function isMonthDisabled(key, min, max) {
+  return Boolean((min && key < min.slice(0, 7)) || (max && key > max.slice(0, 7)))
+}
+export function todayMonthKey(today) { return today.slice(0, 7) }
 
 export default function DateField({
   value, onChange, min, max, placeholder = 'Any date', ariaLabel, required = false,
@@ -81,7 +85,7 @@ export default function DateField({
   }, [open, view])
 
   const disabledDate = (key) => Boolean((min && key < min) || (max && key > max))
-  const disabledMonth = (key) => Boolean((min && `${key}-31` < min) || (max && `${key}-01` > max))
+  const disabledMonth = (key) => isMonthDisabled(key, min, max)
   const openPicker = () => {
     const next = parseDateKey(value) || parseDateKey(today)
     setView({ year: next.year, month: next.month })
@@ -93,7 +97,7 @@ export default function DateField({
     return { year: next.getUTCFullYear(), month: next.getUTCMonth() }
   })
   const pick = (key) => {
-    if (disabledDate(key)) return
+    if (monthOnly ? disabledMonth(key) : disabledDate(key)) return
     onChange(key)
     setOpen(false)
   }
@@ -132,7 +136,7 @@ export default function DateField({
           )}
           <div className="tsr-date-legend-row">
             <div className="tsr-date-legend"><span><i className="tsr-date-key-today" />Today</span>{markedDates.length > 0 && <span><i className="tsr-date-key-marker" />{markedDatesLabel}</span>}</div>
-            <button type="button" className="tsr-date-today-link" onClick={() => monthOnly ? pickMonth(Number(today.slice(5, 7)) - 1) : pick(today)} disabled={monthOnly ? disabledMonth(today.slice(0, 7)) : disabledDate(today)}>Jump to today</button>
+            <button type="button" className="tsr-date-today-link" onClick={() => monthOnly ? pick(todayMonthKey(today)) : pick(today)} disabled={monthOnly ? disabledMonth(today.slice(0, 7)) : disabledDate(today)}>Jump to today</button>
           </div>
           {!monthOnly && clearable && <button type="button" className="tsr-date-clear" onClick={() => { onChange(''); setOpen(false) }} disabled={!value}>Clear</button>}
         </div>

@@ -785,11 +785,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setShowServiceForm(false)
     setSaving(false)
 
-    await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: editingServiceId ? 'Service Updated' : 'Service Added',
-      target: `${data.name} (${recorderName})`,
-    })
+
   }
 
   async function saveTransaction(event) {
@@ -874,15 +870,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setSaving(false)
     setReloadTick((tick) => tick + 1)
 
-    const { error: activityError } = await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: 'Service Payment Recorded',
-      target: `${data.receipt_number} — ${data.service_name} for ${data.customer_name}`,
-    })
 
-    if (activityError) {
-      console.warn('Service saved, but activity logging failed:', activityError.message)
-    }
   }
 
   // --- Collecting the unpaid balance of a partial payment (creates a new, linked receipt) ---
@@ -954,11 +942,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
     setReloadTick((tick) => tick + 1)
 
-    await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: 'Service Balance Collected',
-      target: `${data.receipt_number} — ${peso.format(amount)} for ${collectTarget.receipt_number} — ${collectTarget.customer_name}`,
-    })
+
   }
 
   return (

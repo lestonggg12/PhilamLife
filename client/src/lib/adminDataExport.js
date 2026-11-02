@@ -69,3 +69,10 @@ export async function buildAdminDataExport(client, {
     tables: Object.fromEntries(results.map(({ table, rows }) => [table, rows])),
   }
 }
+
+// Records a server-verified request, not a client claim of completed delivery.
+export async function requestAdminDataExport(client, scope) {
+  const { data, error } = await client.rpc('record_data_export_request', { p_scope: scope })
+  if (error) throw error
+  if (data !== true) throw new Error('The export request could not be audited. No download was started.')
+}

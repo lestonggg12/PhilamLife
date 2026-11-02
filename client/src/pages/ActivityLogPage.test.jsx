@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 vi.mock('../lib/supabaseClient', () => ({ supabase: {} }))
-import ActivityLogPage, { activityDisplay } from './ActivityLogPage'
+import ActivityLogPage, { activityDisplay, matchesActivitySearch } from './ActivityLogPage'
 
 const actor = { user: 'Philam Admin' }
 describe('Activity Log presentation', () => {
@@ -43,5 +43,33 @@ describe('Activity Log presentation', () => {
     expect(html).toContain('Action type')
     expect(html).toContain('aria-controls="activity-filters"')
     expect(html).not.toContain('>Status<')
+  })
+})
+
+describe('Activity Log audit regressions', () => {
+  it('preserves document identifiers and exact source text', () => {
+    const raw = 'board_minutes_2026 — board_minutes_2026.pdf (by Philam Admin)'
+    expect(activityDisplay({ ...actor, action: 'Document Uploaded', target: raw })).toMatchObject({ raw, subject: 'board_minutes_2026', text: 'board_minutes_2026 — board_minutes_2026.pdf' })
+  })
+  it('does not rewrite unknown formats or values inside settings descriptions', () => {
+    expect(activityDisplay({ action: 'Unknown', target: 'original_file: some_value' }).text).toBe('original_file: some_value')
+    expect(activityDisplay({ action: 'Settings Updated', target: 'hoa_name: old_name → new_name; price_per_sqm: 5 → 6' }).text).toBe('Hoa Name: old_name → new_name; Price per square meter: 5 → 6')
+  })
+  it.each(['Block Removed','Homeowner Removed','Service Removed','Expense Voided','Event Deleted'])('marks %s as destructive', (action) => {
+    expect(activityDisplay({ action }).status).toBe('warning')
+  })
+  it('keeps genuine expense descriptions that include peso amounts', () => {
+    const target = 'Office Supplies — ₱500.00 (Fixture Treasurer) [Expense: fixture-id] — Reimbursed ₱500 for paper'
+    for (const action of ['Expense Recorded','Expense Voided']) expect(activityDisplay({ action, target })).toMatchObject({ subject: 'Office Supplies', amount: 500, detail: 'Reimbursed ₱500 for paper', raw: target })
+  })
+  it.each(['price_per_sqm','Price per square meter','ADMIN','settings updated'])('matches original and displayed activity text: %s', (term) => {
+    expect(matchesActivitySearch({ user: 'Admin', action: 'Settings Updated', target: 'price_per_sqm: 5 → 6' }, term)).toBe(true)
+  })
+  it('does not match unrelated terms, and treats blank searches as unfiltered', () => {
+    expect(matchesActivitySearch({ target: 'Original text' }, 'missing')).toBe(false)
+    expect(matchesActivitySearch({}, '  ')).toBe(true)
+  })
+  it('does not misparse a non-grievance description as a grievance', () => {
+    expect(activityDisplay({ action: 'Other', target: 'GR-1 - Original - Text' }).subject).toBe('GR-1 - Original - Text')
   })
 })

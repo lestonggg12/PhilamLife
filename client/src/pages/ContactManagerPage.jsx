@@ -80,11 +80,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageContacts = role === 'admin' || role === 'secretary'
-  const actorName =
-    currentUser?.full_name ||
-    currentUser?.name ||
-    currentUser?.email ||
-    'Staff member'
+
 
   // The homeowner list is never loaded up front. It is read from the database only for a
   // search of 2+ characters (or the small Moved / Transferred lists), one page at a time.
@@ -309,23 +305,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     // Re-read the current page and the header counts from the database.
     setReloadTick((tick) => tick + 1)
 
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase
-        .from('activity_log')
-        .insert({
-          user_id: currentUser.id,
-          action: 'Contact Updated',
-          target: `${data.homeowner_name} — ${data.block}, Lot ${data.lot_number} (by ${actorName})`,
-        })
-
-      if (activityError) {
-        console.warn(
-          'Contact saved, but activity logging failed:',
-          activityError.message,
-        )
-      }
-    }
-
     setSelectedContact(null)
     setForm(EMPTY_FORM)
     setSaving(false)
@@ -432,21 +411,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     }
 
     setReloadTick((tick) => tick + 1)
-
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: `Homeowner ${transferForm.status === 'moved' ? 'Moved' : 'Transferred'}`,
-        target: `${contact.homeowner_name} — ${contact.block}, Lot ${contact.lot_number}; Effective ${transferForm.effectiveDate} (by ${actorName})`,
-      })
-
-      if (activityError) {
-        console.warn(
-          'Homeowner status updated, but activity logging failed:',
-          activityError.message,
-        )
-      }
-    }
 
     const statusLabel = transferForm.status === 'moved' ? 'Moved' : 'Transferred'
     setTransferringContactId(null)
@@ -737,8 +701,6 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 />
               </>
             )}
-
-
 
             {transferForm.status === 'transferred' && transferForm.transferTo === 'existing' && (
               <TransferHomeownerPicker previousProperty={pendingTransferContact}

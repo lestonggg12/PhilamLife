@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import Select from '../components/Select'
 import { supabase } from '../lib/supabaseClient'
 import { fetchTableVerified } from '../lib/fetchAll'
-import { ADMIN_EXPORT_TABLES, buildAdminDataExport } from '../lib/adminDataExport'
+import { ADMIN_EXPORT_TABLES, buildAdminDataExport, requestAdminDataExport } from '../lib/adminDataExport'
 import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 import PricePerSqmForm from '../components/PricePerSqmForm'
@@ -188,67 +188,68 @@ export default function SystemSettingsPage({ user }) {
   }
 
   function recordExport(label, filename) {
+    // The server already recorded the export request before data was fetched.
     const next = [{ label, filename, by: user?.full_name || user?.email || 'Administrator', at: new Date().toISOString() }, ...history].slice(0, 8)
     setHistory(next)
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
-
-    // Also write a real, persisted audit record. localStorage is per-browser
-    // and clears easily, so it can't be relied on as an actual audit trail —
-    // this activity_log entry is the source of truth for "who exported what,
-    // and when," visible to any admin from any device via the Activity Log.
-    if (user?.id) {
-      supabase.from('activity_log').insert({
-        user_id: user.id,
-        action: 'Data Exported',
-        target: `${label} (${filename})`,
-      }).then(({ error }) => {
-        if (error) console.warn('Export completed, but audit logging failed:', error.message)
-      })
-    }
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)) }
+    catch { /* Optional device history must not disguise a completed download request as a failed export. */ }
   }
 
   async function exportTable(table, label) {
     setExporting(table)
     setMessage(null)
-    const { data, error, count } = await fetchTableVerified(supabase, table)
-    if (error) setMessage({ type: 'error', text: `Unable to export ${label}: ${error.message}` })
-    else {
-      const filename = `${table}-${stamp()}.csv`
-      downloadFile('\uFEFF' + rowsToCsv(data || []), filename, 'text/csv;charset=utf-8')
-      recordExport(`${label} CSV`, filename)
-      setMessage({ type: 'success', text: `${label} download started (${count} rows, verified complete).` })
+    try {
+      await requestAdminDataExport(supabase, table)
+      const { data, error, count } = await fetchTableVerified(supabase, table)
+      if (error) setMessage({ type: 'error', text: `Unable to export ${label}: ${error.message}` })
+      else {
+        const filename = `${table}-${stamp()}.csv`
+        downloadFile('\uFEFF' + rowsToCsv(data || []), filename, 'text/csv;charset=utf-8')
+        recordExport(`${label} CSV`, filename)
+        setMessage({ type: 'success', text: `${label} download started (${count} rows, verified complete).` })
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: `Unable to export: ${error.message}` })
+    } finally {
+      setExporting('')
     }
-    setExporting('')
   }
 
   async function exportLedger() {
     setExporting('ledger')
     setMessage(null)
-    const [payments, expenses, services] = await Promise.all([
-      fetchTableVerified(supabase, 'payments'),
-      fetchTableVerified(supabase, 'expenses'),
-      fetchTableVerified(supabase, 'service_transactions'),
-    ])
-    const error = payments.error || expenses.error || services.error
-    if (error) setMessage({ type: 'error', text: `Unable to export ledger: ${error.message}` })
-    else {
-      const rows = [
-        ...(payments.data || []).filter((row) => String(row.status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Payment', transaction_date: row.paid_at || row.payment_date || row.created_at, description: `${row.homeowner_name || ''} ${row.coverage_period || ''}`.trim(), amount: row.amount_paid ?? row.amount, reference_number: row.receipt_number || row.reference_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by, payment_reference: row.reference_number })),
-        ...(services.data || []).filter((row) => String(row.payment_status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Amenity/Service Revenue', transaction_date: row.paid_at || row.service_date || row.created_at, description: `${row.service_name || ''} — ${row.customer_name || ''}`.trim(), amount: row.amount_paid, reference_number: row.receipt_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by, payment_reference: row.reference_number })),
-        ...(expenses.data || []).filter((row) => String(row.status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Expense', transaction_date: row.expense_date || row.created_at, description: row.description, amount: row.amount, reference_number: row.reference_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by })),
-      ].sort((a, b) => String(b.transaction_date || '').localeCompare(String(a.transaction_date || '')))
-      const filename = `combined-ledger-${stamp()}.csv`
-      downloadFile('\uFEFF' + rowsToCsv(rows), filename, 'text/csv;charset=utf-8')
-      recordExport('Combined Ledger CSV', filename)
-      setMessage({ type: 'success', text: 'Combined ledger download started.' })
+    try {
+      await requestAdminDataExport(supabase, 'ledger')
+      const [payments, expenses, services] = await Promise.all([
+        fetchTableVerified(supabase, 'payments'),
+        fetchTableVerified(supabase, 'expenses'),
+        fetchTableVerified(supabase, 'service_transactions'),
+      ])
+      const error = payments.error || expenses.error || services.error
+      if (error) setMessage({ type: 'error', text: `Unable to export ledger: ${error.message}` })
+      else {
+        const rows = [
+          ...(payments.data || []).filter((row) => String(row.status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Payment', transaction_date: row.paid_at || row.payment_date || row.created_at, description: `${row.homeowner_name || ''} ${row.coverage_period || ''}`.trim(), amount: row.amount_paid ?? row.amount, reference_number: row.receipt_number || row.reference_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by, payment_reference: row.reference_number })),
+          ...(services.data || []).filter((row) => String(row.payment_status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Amenity/Service Revenue', transaction_date: row.paid_at || row.service_date || row.created_at, description: `${row.service_name || ''} — ${row.customer_name || ''}`.trim(), amount: row.amount_paid, reference_number: row.receipt_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by, payment_reference: row.reference_number })),
+          ...(expenses.data || []).filter((row) => String(row.status || '').toLowerCase() !== 'voided').map((row) => ({ ...row, transaction_type: 'Expense', transaction_date: row.expense_date || row.created_at, description: row.description, amount: row.amount, reference_number: row.reference_number, recorded_by: row.recorded_by_name, recorded_by_id: row.recorded_by })),
+        ].sort((a, b) => String(b.transaction_date || '').localeCompare(String(a.transaction_date || '')))
+        const filename = `combined-ledger-${stamp()}.csv`
+        downloadFile('\uFEFF' + rowsToCsv(rows), filename, 'text/csv;charset=utf-8')
+        recordExport('Combined Ledger CSV', filename)
+        setMessage({ type: 'success', text: 'Combined ledger download started.' })
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: `Unable to export: ${error.message}` })
+    } finally {
+      setExporting('')
     }
-    setExporting('')
   }
 
   async function exportAll() {
     setExporting('all')
     setMessage(null)
     try {
+      await requestAdminDataExport(supabase, 'admin_application_data')
       const payload = await buildAdminDataExport(supabase, {
         exportedBy: user?.email || user?.full_name || null,
       })

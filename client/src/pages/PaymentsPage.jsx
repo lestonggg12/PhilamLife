@@ -848,8 +848,6 @@ function updateField(event) {
   setFormError('')
 }
 
-
-
 function updateHomeownerSearch(event) {
   const { value } = event.target
   const wasAnnualAdvance = annualAdvance
@@ -1011,12 +1009,6 @@ function selectHomeowner(property) {
       return
     }
 
-    await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: 'Charge Added',
-      target: `${chargeForm.chargeType} — ${property.homeowner_name} — ${peso.format(amount)}`,
-    })
-
     setProperties((current) =>
       current.map((item) =>
         item.id === property.id
@@ -1107,11 +1099,7 @@ function selectHomeowner(property) {
             : property,
         ),
       )
-      await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Payment Voided',
-        target: `${item.receipt_number} — ${item.homeowner_name} — ${peso.format(Number(item.amount_paid) || 0)} — ${reason}`,
-      })
+
     } else {
       const { data, error } = await supabase
         .from('property_charges')
@@ -1135,11 +1123,7 @@ function selectHomeowner(property) {
             : property,
         ),
       )
-      await supabase.from('activity_log').insert({
-        user_id: currentUser.id,
-        action: 'Charge Voided',
-        target: `${item.charge_type} — ${owner?.homeowner_name || 'Homeowner'} — ${peso.format(Number(item.amount) || 0)} — ${reason}`,
-      })
+
     }
 
     setVoiding(false)
@@ -1277,22 +1261,7 @@ function selectHomeowner(property) {
       return
     }
 
-    const { error: activityError } = await supabase
-      .from('activity_log')
-      .insert({
-        user_id: currentUser.id,
-        action: 'Payment Recorded',
-        target: `${data.receipt_number} — ${data.homeowner_name} — ${peso.format(
-          data.amount_paid ?? data.amount,
-        )}`,
-      })
 
-    if (activityError) {
-      console.warn(
-        'Payment saved, but activity logging failed:',
-        activityError.message,
-      )
-    }
 
     goToPage(0)
     // Jump to today so the new receipt is visible even if another day was open.

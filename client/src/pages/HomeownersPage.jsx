@@ -253,8 +253,7 @@ useEffect(() => {
   // Treasurers are read-only here: they can view history but cannot void payments or edit contacts.
   const canVoidPayments = userRole === 'secretary'
   const canManageHomeowners = userRole === 'admin' || userRole === 'secretary'
-  const actorName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+
   const canEditContact = userRole === 'admin' || userRole === 'secretary'
 
   function openVoid(item) {
@@ -313,11 +312,7 @@ useEffect(() => {
           : property,
       ),
     )
-    await supabase.from('activity_log').insert({
-      user_id: currentUser.id,
-      action: 'Payment Voided',
-      target: `${voidTarget.receipt_number} — ${voidTarget.homeowner_name} — ${peso.format(Number(voidTarget.amount_paid) || 0)} — ${reason}`,
-    })
+
 
     setVoiding(false)
     notifySuccess(`Payment ${voidTarget.receipt_number || ""} was cancelled for ${voidTarget.homeowner_name}.`)
@@ -377,11 +372,7 @@ useEffect(() => {
     setNotice(`Homeowner ${entry.homeowner_name} was removed.`)
     loadHomeowners(true)
 
-    await logAdminActivity(
-      currentUser,
-      'Homeowner Removed',
-      `${entry.homeowner_name} — ${entry.block}, Lot ${entry.lot_number} (by ${actorName})`,
-    )
+
   }
 
   async function loadHomeowners(isRefresh = false) {
@@ -1428,26 +1419,15 @@ useEffect(() => {
 // same rule, so a Treasurer could not save a change even if the dialog were opened.
 // ---------------------------------------------------------------------------
 
-// Writes one activity-log row. A logging failure never blocks the action that just succeeded.
-async function logAdminActivity(user, action, target) {
-  if (!user?.id) return
-  const { error } = await supabase.from('activity_log').insert({
-    user_id: user.id,
-    action,
-    target,
-  })
-  if (error) {
-    console.warn(`${action} succeeded, but activity logging failed:`, error.message)
-  }
-}
+// Management actions are audited transactionally by the database.
+
 
 // dialog: null | { type: 'blocks' } | { type: 'homeowner' | 'lot', property }
 // canManage: true only for Admin or Secretary
 // onChanged: called after a change the page should reload for; receives { message }
 function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChanged }) {
   const confirm = useConfirm()
-  const actorName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+
 
   const [blocks, setBlocks] = useState([])
   const [blocksLoading, setBlocksLoading] = useState(false)
@@ -1634,11 +1614,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
       })
     }
 
-    await logAdminActivity(
-      currentUser,
-      wasEditing ? 'Homeowner Updated' : 'Homeowner Added',
-      `${homeownerName} — ${blockName}, Lot ${lotNumber} (by ${actorName})`,
-    )
+
   }
 
   // ------------------------------------------------------------ Quick add block
@@ -1691,7 +1667,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setHomeownerForm((current) => ({ ...current, blockName: data.name }))
     notifySuccess(`Block ${data.name} was added.`)
 
-    await logAdminActivity(currentUser, 'Block Added', `${data.name} (by ${actorName})`)
+
   }
 
   // ------------------------------------------------------------- Manage Blocks
@@ -1732,7 +1708,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setSavingBlock(false)
     notifySuccess(`Block ${name} was added.`)
 
-    await logAdminActivity(currentUser, 'Block Added', `${name} (by ${actorName})`)
+
   }
 
   function startEditBlock(block) {
@@ -1793,11 +1769,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
       onChanged({ message: `Block ${block.name} was renamed to ${newName}.` })
     }
 
-    await logAdminActivity(
-      currentUser,
-      'Block Renamed',
-      `${block.name} → ${newName} (by ${actorName})`,
-    )
+
   }
 
   async function handleDeleteBlock(block) {
@@ -1853,7 +1825,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     setBlockActionBusyId(null)
 
     notifySuccess(`Block ${block.name} was deleted.`)
-    await logAdminActivity(currentUser, 'Block Removed', `${block.name} (by ${actorName})`)
+
   }
 
   if (!dialog) return null

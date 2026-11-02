@@ -1,5 +1,5 @@
 import { useSuccessNotice } from '../lib/useSuccessNotice'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import {
   Clock,
@@ -12,7 +12,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
+import { calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues, isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent } from '../lib/eventCalendar'
 import ActionDialog from '../components/ActionDialog'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import './EventCalendarPage.css'
@@ -28,76 +28,33 @@ const EMPTY_FORM = {
 
 const eventDateFormatter = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'full',
-  timeZone: 'Asia/Manila',
+  timeZone: 'UTC',
 })
 
 const monthFormatter = new Intl.DateTimeFormat('en-PH', {
   month: 'short',
-  timeZone: 'Asia/Manila',
+  timeZone: 'UTC',
 })
 
 const fullMonthFormatter = new Intl.DateTimeFormat('en-PH', {
   month: 'long',
   year: 'numeric',
-  timeZone: 'Asia/Manila',
+  timeZone: 'UTC',
 })
 
 const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
-  timeZone: 'Asia/Manila',
+  timeZone: 'UTC',
 })
-
-function datePickerDays(cursor) {
-  const [year, month] = cursor.split('-').map(Number)
-  const firstDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
-  const daysInPreviousMonth = new Date(Date.UTC(year, month - 1, 0)).getUTCDate()
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const dayOffset = index - firstDay + 1
-    let day = dayOffset
-    let displayMonth = month
-    let displayYear = year
-    let outside = false
-
-    if (dayOffset <= 0) {
-      day = daysInPreviousMonth + dayOffset
-      displayMonth -= 1
-      outside = true
-    } else if (dayOffset > daysInMonth) {
-      day = dayOffset - daysInMonth
-      displayMonth += 1
-      outside = true
-    }
-
-    if (displayMonth === 0) {
-      displayMonth = 12
-      displayYear -= 1
-    }
-    if (displayMonth === 13) {
-      displayMonth = 1
-      displayYear += 1
-    }
-
-    return {
-      key: `${displayYear}-${String(displayMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      day,
-      outside,
-    }
-  })
-}
-
-function shiftDatePickerMonth(cursor, offset) {
-  const [year, month] = cursor.split('-').map(Number)
-  const next = new Date(Date.UTC(year, month - 1 + offset, 1))
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`
-}
 
 function EventDatePicker({ value, onChange, disabled }) {
   const picker = useAnimatedPopover()
   const [cursor, setCursor] = useState(value ? value.slice(0, 7) : manilaToday().slice(0, 7))
   const pickerRef = React.useRef(null)
-  const days = datePickerDays(cursor)
+  const triggerRef = useRef(null)
+  const pickerId = React.useId()
+  useEffect(() => { if (value) setCursor(value.slice(0, 7)) }, [value])
+  const days = calendarMonthDays(cursor)
 
   useEffect(() => {
     function closeOnOutside(event) {
@@ -110,27 +67,33 @@ function EventDatePicker({ value, onChange, disabled }) {
   function selectDate(dateKey) {
     onChange({ target: { name: 'eventDate', value: dateKey } })
     picker.hide()
+    triggerRef.current?.focus()
   }
 
   return (
     <div className="cal-date-picker" ref={pickerRef}>
       <button
         type="button"
+        ref={triggerRef}
+        aria-label="Event date"
+        aria-controls={pickerId}
+        onKeyDown={(event) => { if (event.key === 'Escape' && picker.open) { event.preventDefault(); event.stopPropagation(); picker.hide() } }}
         className={`cal-date-trigger ${picker.open ? 'is-open' : ''}`}
         onClick={picker.toggle}
         disabled={disabled}
         aria-expanded={picker.open}
         aria-haspopup="dialog"
       >
-        <span>{value ? dateInManila(value).toLocaleDateString('en-PH') : 'Select event date'}</span>
+        <span>{value ? calendarDate(value).toLocaleDateString('en-PH', { timeZone: 'UTC' }) : 'Select event date'}</span>
         <span className="cal-date-trigger-icon" aria-hidden="true">▣</span>
       </button>
       {picker.mounted && (
-        <div className={`cal-date-popover ${picker.visible ? 'is-visible' : ''}`} role="dialog" aria-label="Select event date">
+        <div className={`cal-date-popover ${picker.visible ? 'is-visible' : ''}`} id={pickerId} role="dialog" aria-label="Select event date" aria-hidden={!picker.open} inert={picker.open ? undefined : ''}
+          onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); picker.hide(); triggerRef.current?.focus() } }}>
           <div className="cal-date-popover-header">
-            <button type="button" onClick={() => setCursor(shiftDatePickerMonth(cursor, -1))} aria-label="Previous month">‹</button>
-            <strong>{fullMonthFormatter.format(dateInManila(`${cursor}-01`))}</strong>
-            <button type="button" onClick={() => setCursor(shiftDatePickerMonth(cursor, 1))} aria-label="Next month">›</button>
+            <button type="button" onClick={() => setCursor(shiftCalendarMonth(cursor, -1))} aria-label="Previous month">‹</button>
+            <strong>{fullMonthFormatter.format(calendarDate(`${cursor}-01`))}</strong>
+            <button type="button" onClick={() => setCursor(shiftCalendarMonth(cursor, 1))} aria-label="Next month">›</button>
           </div>
           <div className="cal-date-weekdays">
             {Array.from({ length: 7 }, (_, index) => weekdayFormatter.format(new Date(Date.UTC(2026, 0, 4 + index)))).map((day) => (
@@ -143,6 +106,9 @@ function EventDatePicker({ value, onChange, disabled }) {
                 key={day.key}
                 type="button"
                 className={`${day.outside ? 'is-outside' : ''} ${day.key === value ? 'is-selected' : ''}`}
+                disabled={!isCalendarDate(day.key)}
+                aria-label={day.key}
+                aria-pressed={day.key === value}
                 onClick={() => selectDate(day.key)}
               >
                 {day.day}
@@ -156,33 +122,24 @@ function EventDatePicker({ value, onChange, disabled }) {
   )
 }
 
-function manilaToday() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
+function manilaToday() { return calendarToday() }
 
-  const part = (type) => parts.find((item) => item.type === type)?.value
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-function dateInManila(date) {
-  return new Date(`${date}T00:00:00+08:00`)
+// PostgreSQL DATE is a civil calendar day, not a timezone-converted instant.
+function calendarDate(date) {
+  return new Date(`${date}T00:00:00Z`)
 }
 
 function formatTime(time) {
   if (!time) return ''
 
-  const [hourValue, minute = '00'] = time.split(':')
+  const [hourValue, minute = '00', second = '00'] = time.split(':')
   const hour = Number(hourValue)
 
   if (Number.isNaN(hour)) return time
 
-  const period = hour >= 12 ? 'PM' : 'AM'
+  const period = hour % 24 >= 12 ? 'PM' : 'AM'
   const displayHour = hour % 12 || 12
-  return `${displayHour}:${minute} ${period}`
+  return `${displayHour}:${minute}${Number(second) ? `:${second}` : ''} ${period}${hour === 24 ? ' (next day)' : ''}`
 }
 
 function formatTimeRange(event) {
@@ -219,7 +176,7 @@ function timeParts(value) {
   return {
     hour: String(hour % 12 || 12).padStart(2, '0'),
     minute: minute.slice(0, 2),
-    period: hour >= 12 ? 'PM' : 'AM',
+    period: hour % 24 >= 12 ? 'PM' : 'AM',
   }
 }
 
@@ -232,6 +189,8 @@ function timeValue({ hour, minute, period }) {
 function TimeSegment({ value, placeholder, options, onChange, disabled, label }) {
   const picker = useAnimatedPopover()
   const segmentRef = React.useRef(null)
+  const triggerRef = useRef(null)
+  const optionsId = React.useId()
 
   useEffect(() => {
     function closeOnOutside(event) {
@@ -245,6 +204,9 @@ function TimeSegment({ value, placeholder, options, onChange, disabled, label })
     <div className="cal-time-segment" ref={segmentRef}>
       <button
         type="button"
+        ref={triggerRef}
+        aria-controls={optionsId}
+        onKeyDown={(event) => { if (event.key === 'Escape' && picker.open) { event.preventDefault(); event.stopPropagation(); picker.hide() } }}
         className={`cal-time-segment-trigger ${picker.open ? 'is-open' : ''}`}
         onClick={picker.toggle}
         disabled={disabled}
@@ -256,7 +218,8 @@ function TimeSegment({ value, placeholder, options, onChange, disabled, label })
         <span className="cal-time-segment-chevron" aria-hidden="true">⌄</span>
       </button>
       {picker.mounted && (
-        <div className={`cal-time-options ${picker.visible ? 'is-visible' : ''}`} role="listbox" aria-label={label}>
+        <div className={`cal-time-options ${picker.visible ? 'is-visible' : ''}`} id={optionsId} role="listbox" aria-label={label} aria-hidden={!picker.open} inert={picker.open ? undefined : ''}
+          onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); picker.hide(); triggerRef.current?.focus() } }}>
           {options.map((option) => (
             <button
               key={option}
@@ -267,6 +230,7 @@ function TimeSegment({ value, placeholder, options, onChange, disabled, label })
               onClick={() => {
                 onChange(option)
                 picker.hide()
+                triggerRef.current?.focus()
               }}
             >
               {option}
@@ -299,7 +263,7 @@ function TimePicker({ label, name, value, onChange, disabled }) {
   return (
     <div className="cal-time-field">
       <div className="cal-time-label">
-        <span>{label}</span>
+        <span>{label}{value.startsWith('24:') ? ' (next day)' : ''}</span>
         <span className="cal-optional-label">Optional</span>
       </div>
 
@@ -362,9 +326,16 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const [loadError, setLoadError] = useState(false)
+  const [today, setToday] = useState(manilaToday)
+  const request = useRef(0)
+  const mounted = useRef(false)
+  const busy = useRef(false)
+  const modalRef = useRef(null)
   const [notice, setNotice] = useSuccessNotice()
   const [showForm, setShowForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
+  const [creationId, setCreationId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -373,67 +344,81 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [highlightedEventId, setHighlightedEventId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageEvents = role === 'secretary'
-  const actorName =
-    currentUser?.full_name ||
-    currentUser?.name ||
-    currentUser?.email ||
-    'Secretary'
-
+  const canManageEvents = role === 'secretary' && currentUser?.is_active !== false
   useEffect(() => {
+    mounted.current = true
     loadEvents()
-    resolveCurrentUser()
+    const tick = () => setToday(manilaToday())
+    const timer = window.setInterval(tick, 60000)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      mounted.current = false
+      request.current += 1
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', tick)
+    }
   }, [])
 
-  async function resolveCurrentUser() {
-    if (suppliedUser) {
-      setCurrentUser(suppliedUser)
-      return
+  useEffect(() => {
+    let cancelled = false
+    async function resolve() {
+      if (suppliedUser) { setCurrentUser(suppliedUser); return }
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        if (error) throw error
+        if (!data.user) throw new Error('Sign in again to verify your calendar access.')
+        const result = await supabase.from('profiles').select('id, full_name, email, role, is_active').eq('id', data.user.id).single()
+        if (result.error) throw result.error
+        if (!cancelled && mounted.current) setCurrentUser(result.data)
+      } catch (error) {
+        if (!cancelled && mounted.current) setPageError(`Calendar account could not be verified: ${error.message}`)
+      }
     }
+    resolve()
+    return () => { cancelled = true }
+  }, [suppliedUser])
 
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser()
+  useEffect(() => {
+    if (!showForm) return undefined
+    const previous = document.activeElement
+    modalRef.current?.querySelector('input')?.focus()
+    return () => { if (previous?.isConnected) previous.focus() }
+  }, [showForm])
 
-    if (authError || !authUser) return
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!profileError) setCurrentUser(profile)
-  }
+  useEffect(() => {
+    if (saving) modalRef.current?.focus()
+  }, [saving])
 
   async function loadEvents(isRefresh = false) {
-    if (isRefresh) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-
+    if (busy.current) return
+    const sequence = ++request.current
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
     setPageError('')
     setNotice('')
-
-    const { data, error } = await fetchAll(() => supabase
-      .from('events')
-      .select(
-        'id, title, description, event_date, start_time, end_time, location, created_by, created_by_name, created_at, updated_at',
-      )
-      .order('event_date', { ascending: true })
-      .order('start_time', { ascending: true, nullsFirst: true }))
-
-    if (error) {
+    try {
+      const data = await loadCalendarEvents(supabase)
+      if (!mounted.current || sequence !== request.current) return
+      setEvents(data)
+      setLoadError(false)
+    } catch (error) {
+      if (!mounted.current || sequence !== request.current) return
       setEvents([])
-      setPageError(`Events could not be loaded: ${error.message}`)
-    } else {
-      setEvents(data || [])
+      setLoadError(true)
+      setPageError(`Events could not be loaded: ${error.message || 'Connection failed.'}`)
+    } finally {
+      if (mounted.current && sequence === request.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
+  }
 
+  function startMutation() {
+    request.current += 1
     setLoading(false)
     setRefreshing(false)
+    busy.current = true
   }
 
   function updateForm(event) {
@@ -443,6 +428,10 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   }
 
   function openCreateForm() {
+    if (!canManageEvents || busy.current) return
+    const id = globalThis.crypto?.randomUUID?.()
+    if (!id) { setPageError('Open the app over HTTPS or localhost before scheduling an event.'); return }
+    setCreationId(id)
     setEditingEvent(null)
     setForm({
       ...EMPTY_FORM,
@@ -454,15 +443,9 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   }
 
   function openEditForm(event) {
+    if (!canManageEvents || busy.current) return
     setEditingEvent(event)
-    setForm({
-      title: event.title || '',
-      eventDate: event.event_date || '',
-      startTime: event.start_time?.slice(0, 5) || '',
-      endTime: event.end_time?.slice(0, 5) || '',
-      location: event.location || '',
-      description: event.description || '',
-    })
+    setForm(calendarFormValues(event))
     setFormError('')
     setNotice('')
     setShowForm(true)
@@ -476,168 +459,60 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     setFormError('')
   }
 
-  function validateForm() {
-    const title = form.title.trim().replace(/\s+/g, ' ')
-    const location = form.location.trim().replace(/\s+/g, ' ')
-    const description = form.description.trim().replace(/\s+/g, ' ')
-
-    if (!title) return { error: 'Enter an event title.' }
-    if (!form.eventDate) return { error: 'Choose an event date.' }
-    if (title.length > 160) {
-      return { error: 'Event title must be 160 characters or fewer.' }
-    }
-    if (location.length > 160) {
-      return { error: 'Location must be 160 characters or fewer.' }
-    }
-    if (description.length > 1000) {
-      return { error: 'Description must be 1,000 characters or fewer.' }
-    }
-    if (form.endTime && !form.startTime) {
-      return { error: 'Add a start time before adding an end time.' }
-    }
-    if (form.startTime && form.endTime && form.endTime <= form.startTime) {
-      return { error: 'End time must be later than the start time.' }
-    }
-
-    return {
-      payload: {
-        title,
-        description: description || null,
-        event_date: form.eventDate,
-        start_time: form.startTime || null,
-        end_time: form.endTime || null,
-        location: location || null,
-        updated_at: new Date().toISOString(),
-      },
-    }
-  }
-
   async function saveEvent(event) {
     event.preventDefault()
-
-    if (!canManageEvents || !currentUser?.id) {
-      setFormError('Only a verified Secretary can manage events.')
-      return
-    }
-
-    const validation = validateForm()
-
-    if (validation.error) {
-      setFormError(validation.error)
-      return
-    }
-
+    if (!canManageEvents || !currentUser?.id) { setFormError('Only a verified Secretary can manage events.'); return }
+    if (busy.current) return
+    const validation = validateCalendarForm(form)
+    if (validation.error) { setFormError(validation.error); return }
+    startMutation()
     setSaving(true)
     setFormError('')
-
-    const fields =
-      'id, title, description, event_date, start_time, end_time, location, created_by, created_by_name, created_at, updated_at'
-    let result
-
-    if (editingEvent) {
-      result = await supabase
-        .from('events')
-        .update(validation.payload)
-        .eq('id', editingEvent.id)
-        .select(fields)
-        .single()
-    } else {
-      result = await supabase
-        .from('events')
-        .insert({
-          ...validation.payload,
-          created_by: currentUser.id,
-          created_by_name: actorName,
-        })
-        .select(fields)
-        .single()
-    }
-
-    if (result.error) {
-      setFormError(result.error.message)
-      setSaving(false)
-      return
-    }
-
-    const savedEvent = result.data
-    const action = editingEvent ? 'Event Updated' : 'Event Scheduled'
-    const { error: activityError } = await supabase
-      .from('activity_log')
-      .insert({
-        user_id: currentUser.id,
-        action,
-        target: `${savedEvent.title} — ${savedEvent.event_date} (by ${actorName})`,
+    try {
+      const savedEvent = await saveCalendarEvent(supabase, validation.payload, editingEvent, currentUser, creationId)
+      if (!mounted.current) return
+      setEvents((current) => {
+        const next = editingEvent ? current.map((item) => item.id === savedEvent.id ? savedEvent : item) : [...current, savedEvent]
+        return next.sort((left, right) => eventSortValue(left).localeCompare(eventSortValue(right)))
       })
-
-    if (activityError) {
-      console.warn(
-        'Event saved, but activity logging failed:',
-        activityError.message,
-      )
+      if (!editingEvent) setHighlightedEventId(savedEvent.id)
+      setShowForm(false)
+      setEditingEvent(null)
+      setForm(EMPTY_FORM)
+      setNotice(editingEvent ? `“${savedEvent.title}” was updated.` : `“${savedEvent.title}” was scheduled.`)
+    } catch (error) {
+      if (mounted.current) setFormError(`${error.message || 'The event could not be saved.'} Refresh if the result is uncertain before starting another scheduling attempt.`)
+    } finally {
+      busy.current = false
+      if (mounted.current) setSaving(false)
     }
-
-    setEvents((current) => {
-      const next = editingEvent
-        ? current.map((item) => (item.id === savedEvent.id ? savedEvent : item))
-        : [...current, savedEvent]
-
-      return next.sort((left, right) =>
-        eventSortValue(left).localeCompare(eventSortValue(right)),
-      )
-    })
-    if (!editingEvent) setHighlightedEventId(savedEvent.id)
-
-    setShowForm(false)
-    setEditingEvent(null)
-    setForm(EMPTY_FORM)
-    setSaving(false)
-    setNotice(
-      editingEvent
-        ? `“${savedEvent.title}” was updated.`
-        : `“${savedEvent.title}” was scheduled.`,
-    )
   }
 
   function requestDeleteEvent(event) {
-    if (!canManageEvents || !currentUser?.id) return
+    if (!canManageEvents || !currentUser?.id || busy.current) return
     setPendingDelete(event)
   }
 
   async function deleteEvent(event) {
+    if (!event || !canManageEvents || !currentUser?.id || busy.current) return
+    startMutation()
     setPendingDelete(null)
     setDeletingId(event.id)
     setPageError('')
     setNotice('')
-
-    const { error } = await supabase.from('events').delete().eq('id', event.id)
-
-    if (error) {
-      setPageError(`Event could not be deleted: ${error.message}`)
-      setDeletingId(null)
-      return
+    try {
+      await deleteCalendarEvent(supabase, event)
+      if (!mounted.current) return
+      setEvents((current) => current.filter((item) => item.id !== event.id))
+      setNotice(`“${event.title}” was deleted.`)
+    } catch (error) {
+      if (mounted.current) setPageError(`Event could not be deleted: ${error.message || 'Connection failed.'}`)
+    } finally {
+      busy.current = false
+      if (mounted.current) setDeletingId(null)
     }
-
-    const { error: activityError } = await supabase
-      .from('activity_log')
-      .insert({
-        user_id: currentUser.id,
-        action: 'Event Deleted',
-        target: `${event.title} — ${event.event_date} (by ${actorName})`,
-      })
-
-    if (activityError) {
-      console.warn(
-        'Event deleted, but activity logging failed:',
-        activityError.message,
-      )
-    }
-
-    setEvents((current) => current.filter((item) => item.id !== event.id))
-    setDeletingId(null)
-    setNotice(`“${event.title}” was deleted.`)
   }
 
-  const today = manilaToday()
   const upcomingCount = events.filter((event) => event.event_date >= today).length
   const thisMonth = today.slice(0, 7)
   const thisMonthCount = events.filter((event) =>
@@ -675,9 +550,9 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     <div className="cal-page">
       <header className="cal-header">
         <div>
-          <p className="cal-eyebrow">Secretary workspace</p>
+          <p className="cal-eyebrow">{canManageEvents ? 'Secretary workspace' : 'Community calendar'}</p>
           <h1>Event Calendar</h1>
-          <p>Schedule and manage community meetings and events.</p>
+          <p>{canManageEvents ? 'Schedule and manage community meetings and events.' : 'View community meetings and events. Calendar changes are managed by the Secretary.'}</p>
         </div>
 
         <div className="cal-header-actions">
@@ -685,7 +560,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
             type="button"
             className="cal-refresh-button"
             onClick={() => loadEvents(true)}
-            disabled={refreshing}
+            disabled={refreshing || loading || saving || Boolean(deletingId)}
           >
             <RefreshCw size={17} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -695,6 +570,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
               type="button"
               className="cal-primary-button"
               onClick={openCreateForm}
+              disabled={loading || refreshing || loadError || saving || Boolean(deletingId)}
             >
               <Plus size={18} />
               Schedule Event
@@ -706,15 +582,15 @@ export default function EventCalendarPage({ user: suppliedUser }) {
       <section className="cal-summary" aria-label="Event summaries">
         <article>
           <span>Total events</span>
-          <strong>{loading ? '—' : events.length}</strong>
+          <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : events.length}</strong>
         </article>
         <article>
           <span>Upcoming</span>
-          <strong>{loading ? '—' : upcomingCount}</strong>
+          <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : upcomingCount}</strong>
         </article>
         <article>
           <span>This month</span>
-          <strong>{loading ? '—' : thisMonthCount}</strong>
+          <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : thisMonthCount}</strong>
         </article>
       </section>
 
@@ -733,10 +609,12 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         <Select ariaLabel="Filter events by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'upcoming', label: 'Upcoming Events' }, { value: 'past', label: 'Past Events' }, { value: 'all', label: 'All Events' }]} />
       </div>
 
-      {pageError && <p className="cal-message cal-error">{pageError}</p>}
+      {pageError && <p className="cal-message cal-error" role="alert">{pageError}</p>}
       <section className="cal-list glass-card" aria-live="polite">
         {loading ? (
           <p className="cal-empty">Loading events...</p>
+        ) : loadError ? (
+          <div className="cal-empty"><p>Calendar data is unavailable.</p><button type="button" className="cal-refresh-button" onClick={() => loadEvents(true)} disabled={refreshing}>Retry</button></div>
         ) : filteredEvents.length === 0 ? (
           <p className="cal-empty">
             {events.length === 0
@@ -745,7 +623,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           </p>
         ) : (
           filteredEvents.map((event) => {
-            const eventDate = dateInManila(event.event_date)
+            const eventDate = calendarDate(event.event_date)
             const isPast = event.event_date < today
 
             return (
@@ -795,7 +673,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                     type="button"
                     className="cal-icon-button"
                     onClick={() => openEditForm(event)}
-                    disabled={!canManageEvents || deletingId === event.id}
+                    disabled={!canManageEvents || Boolean(deletingId) || saving || refreshing}
                     aria-label={`Edit ${event.title}`}
                   >
                     <Edit size={17} />
@@ -804,7 +682,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                     type="button"
                     className="cal-icon-button cal-delete-button"
                     onClick={() => requestDeleteEvent(event)}
-                    disabled={!canManageEvents || deletingId === event.id}
+                    disabled={!canManageEvents || Boolean(deletingId) || saving || refreshing}
                     aria-label={`Delete ${event.title}`}
                   >
                     <Trash2 size={17} />
@@ -816,7 +694,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         )}
       </section>
 
-      {showForm && (
+      {showForm && canManageEvents && (
         <div
           className="cal-modal-backdrop"
           role="presentation"
@@ -826,6 +704,18 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         >
           <section
             className="cal-modal"
+            ref={modalRef}
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !event.defaultPrevented) { event.stopPropagation(); closeForm() }
+              if (event.key === 'Tab') {
+                const controls = Array.from(modalRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),textarea:not(:disabled)')).filter((control) => !control.closest('[aria-hidden="true"]'))
+                const first = controls[0], last = controls.at(-1)
+                if (!first) { event.preventDefault(); return }
+                if (event.shiftKey && (event.target === first || event.target === modalRef.current)) { event.preventDefault(); last.focus() }
+                else if (!event.shiftKey && (event.target === last || event.target === modalRef.current)) { event.preventDefault(); first.focus() }
+              }
+            }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="cal-form-title"
@@ -863,7 +753,6 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                   maxLength={160}
                   placeholder="e.g. Homeowners General Assembly"
                   disabled={saving}
-                  autoFocus
                   required
                 />
               </label>
@@ -916,7 +805,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
               </label>
 
               {formError && (
-                <p className="cal-form-error cal-field-full">{formError}</p>
+                <p className="cal-form-error cal-field-full" role="alert">{formError}</p>
               )}
 
               <div className="cal-modal-actions cal-field-full">

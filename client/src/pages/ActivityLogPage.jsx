@@ -58,8 +58,8 @@ const ACTIVITY_FIELD_LABELS = {
 }
 
 function humanizeActivityFields(value) {
-  return String(value).replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (key) => (
-    ACTIVITY_FIELD_LABELS[key] || key.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+  return String(value).replace(/(^|; )([a-z][a-z0-9]*(?:_[a-z0-9]+)+)(?=:)/g, (_, prefix, key) => (
+    prefix + (ACTIVITY_FIELD_LABELS[key] || key.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()))
   ))
 }
 
@@ -67,7 +67,8 @@ export function activityDisplay(log) {
   const raw = String(log.target || log.description || '')
   const actor = String(log.user || '').trim()
   const suffixPattern = actor ? new RegExp(` \\((?:by )?${actor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)$`) : null
-  const text = humanizeActivityFields(suffixPattern ? raw.replace(suffixPattern, '') : raw)
+  const cleaned = suffixPattern ? raw.replace(suffixPattern, '') : raw
+  const text = log.action === 'Settings Updated' ? humanizeActivityFields(cleaned) : cleaned
   const parts = text.split(' — ')
   const expected = { 'Payment Recorded': 3, 'Charge Added': 3, 'Payment Voided': 4, 'Charge Voided': 4, 'Document Uploaded': 2, 'Document Deleted': 2 }
   const moneyAction = /^(Payment Recorded|Charge Added|Payment Voided|Charge Voided)$/.test(log.action || '')
@@ -76,14 +77,14 @@ export function activityDisplay(log) {
   const structuredAmount = typeof log.amount === 'number' && Number.isFinite(log.amount) ? log.amount : null
   const amount = structuredAmount ?? (money ? Number(money[1].replaceAll(',', '')) : null)
   const action = String(log.action || '')
-  const expenseParts = action === 'Expense Recorded' ? parts : null
-  const grievanceMatch = /^(GR-[\w-]+) - (.+) - (.+)$/.exec(text)
+  const expenseParts = /^(Expense Recorded|Expense Voided)$/.test(action) ? parts : null
+  const grievanceMatch = /^Grievance (Recorded|Updated)$/.test(action) ? /^(GR-[\w-]+) - (.+) - (.+)$/.exec(text) : null
   const blockMatch = action === 'Block Added' ? /^[\w-]+$/.exec(text) : null
   const homeownerMatch = action === 'Homeowner Added' ? /^(.+) — (\S+), Lot (\S+)$/.exec(text) : null
-  const documentMatch = /^(Document Uploaded|Document Deleted)$/.test(action) && parts.length === 2 ? parts : null
+  const documentMatch = /^(Document Uploaded|Document Deleted)$/.test(action) && parsed ? parts : null
   const expenseSubject = expenseParts?.[0]
-  const expenseDetail = expenseParts?.filter((part) => !/₱\s*-?[\d,]+(?:\.\d{1,2})?/.test(part)).slice(1).join(' — ')
-  const parsedSubject = action === 'Expense Recorded' && expenseSubject
+  const expenseDetail = expenseParts?.slice(1).filter((part, index) => !(index === 0 && /^₱\s*-?[\d,]+(?:\.\d{1,2})?(?:\s+\([^)]*\))?(?:\s+\[Expense: [^\]]+\])?$/.test(part))).join(' — ')
+  const parsedSubject = expenseParts && expenseSubject
     ? expenseSubject
     : grievanceMatch
       ? grievanceMatch[1]
@@ -94,7 +95,7 @@ export function activityDisplay(log) {
           : documentMatch
             ? middleTruncate(documentMatch[0], 44)
             : parsed ? parts[0] : text
-  const parsedDetail = action === 'Expense Recorded' && expenseSubject
+  const parsedDetail = expenseParts && expenseSubject
     ? expenseDetail
     : grievanceMatch
       ? `${grievanceMatch[2]} · ${grievanceMatch[3]}`
@@ -109,8 +110,14 @@ export function activityDisplay(log) {
     subject,
     detail: parsedDetail,
     amount,
-    status: /fail|error/i.test(action) ? 'failed' : /delet|void|cancel/i.test(action) ? 'warning' : '',
+    status: /fail|error/i.test(action) ? 'failed' : /\b(deleted|voided|cancelled|canceled|removed)\b/i.test(action) ? 'warning' : '',
   }
+}
+
+export function matchesActivitySearch(log, search) {
+  const term = String(search || '').trim().toLowerCase()
+  const display = activityDisplay(log)
+  return !term || `${log.user || ''} ${log.action || ''} ${display.raw} ${display.text} ${display.subject} ${display.detail}`.toLowerCase().includes(term)
 }
 
 function ActivityRow({ log }) {
@@ -133,6 +140,7 @@ function ActivityRow({ log }) {
       </div>
       {expanded && <dl id={detailsId} className="al-details">
         <dt>Description</dt><dd>{display.text || 'Unknown record'}</dd>
+        {display.raw !== display.text && <><dt>Original description</dt><dd>{display.raw}</dd></>}
         <dt>User</dt><dd>{log.user} · {log.role || 'Unknown role'}</dd>
         <dt>Recorded</dt><dd>{fullFormat.format(new Date(log.created_at))}</dd>
         <dt>Record ID</dt><dd>{log.id ?? 'Unknown record'}</dd>
@@ -246,7 +254,7 @@ export default function ActivityLogPage() {
 
   const filtered = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase()
-    return logs.filter((log) => log.dateKey >= first && log.dateKey <= last && (!user || String(log.user_id || 'system') === user) && (!role || log.role.toLowerCase() === role) && (!action || log.action === action) && (!term || `${log.user} ${log.action || ''} ${log.description}`.toLowerCase().includes(term)))
+    return logs.filter((log) => log.dateKey >= first && log.dateKey <= last && (!user || String(log.user_id || 'system') === user) && (!role || log.role.toLowerCase() === role) && (!action || log.action === action) && matchesActivitySearch(log, term))
   }, [logs, first, last, user, role, action, debouncedSearch])
   useEffect(() => { setLimit(25) }, [first, last, user, role, action, debouncedSearch, revision])
   const users = [...new Map(logs.map((log) => [String(log.user_id || 'system'), log.user])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
