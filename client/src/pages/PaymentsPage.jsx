@@ -393,6 +393,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [popupNotice, setPopupNotice] = useState('')
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
+  const [annualAdvancePrompt, setAnnualAdvancePrompt] = useState(false)
   const [annualAdvance, setAnnualAdvance] = useState(false)
   const [monthlyDuesByProperty, setMonthlyDuesByProperty] = useState(new Map())
   // Advance-credit notes use the selected homeowner's own monthly dues (lot size x rate).
@@ -845,6 +846,29 @@ function updateField(event) {
       : {}),
   }))
 
+  if (
+    name === 'paymentPurpose' &&
+    value === 'Association Dues' &&
+    Boolean(form.propertyId) &&
+    selectedMonthlyDues > 0 &&
+    Number(form.previousBalance) <= 0
+  ) {
+    setAnnualAdvancePrompt(true)
+  }
+
+  setFormError('')
+}
+
+function chooseAnnualAdvance(enabled) {
+  setAnnualAdvancePrompt(false)
+  setAnnualAdvance(enabled)
+  setForm((current) => ({
+    ...current,
+    amountPaid: enabled ? annualDiscountedPayment.toFixed(2) : '',
+    coveragePeriod: enabled
+      ? '12-month advance payment (1 month free)'
+      : '',
+  }))
   setFormError('')
 }
 
@@ -915,12 +939,14 @@ function selectHomeowner(property) {
     setForm(EMPTY_FORM)
     setFormError('')
     setHomeownerMenuOpen(false)
+    setAnnualAdvancePrompt(false)
     setAnnualAdvance(false)
     setShowForm(true)
   }
 
   function closeForm() {
     if (saving) return
+    setAnnualAdvancePrompt(false)
     setAnnualAdvance(false)
     setShowForm(false)
     setFormError('')
@@ -1649,56 +1675,6 @@ function selectHomeowner(property) {
                 />
               </label>
 
-                    {canOfferAnnualDiscount && (
-      <div className="payment-span-2 annual-advance-option">
-        <label className="annual-advance-toggle">
-          <input
-            type="checkbox"
-            checked={annualAdvance}
-            onChange={(event) => {
-              const enabled = event.target.checked
-              setAnnualAdvance(enabled)
-              setForm((current) => ({
-                ...current,
-                amountPaid: enabled
-                  ? annualDiscountedPayment.toFixed(2)
-                  : '',
-                coveragePeriod: enabled
-                  ? '12-month advance payment (1 month free)'
-                  : '',
-              }))
-              setFormError('')
-            }}
-          />
-          <span>
-            <strong>12-month advance payment — 1 month free</strong>
-            <small>
-              Available for this homeowner's Association Dues.
-            </small>
-          </span>
-        </label>
-
-        <dl className="annual-advance-breakdown">
-          <div>
-            <dt>Regular dues for 12 months</dt>
-            <dd>{peso.format(annualGross)}</dd>
-          </div>
-          <div>
-            <dt>One month free</dt>
-            <dd>− {peso.format(annualDiscount)}</dd>
-          </div>
-          <div className="annual-advance-total">
-            <dt>Amount to collect</dt>
-            <dd>{peso.format(annualDiscountedPayment)}</dd>
-          </div>
-          <div>
-            <dt>Coverage</dt>
-            <dd>12 months</dd>
-          </div>
-        </dl>
-      </div>
-    )}
-
               <label>Amount paid
   <input
     name="amountPaid"
@@ -1994,6 +1970,16 @@ function selectHomeowner(property) {
           </div>
         )
       })()}
+
+      <ActionDialog
+        open={annualAdvancePrompt}
+        title="12-month advance payment?"
+        message="Is this Association Dues payment an advance payment for 12 months? Yes applies one month free. No lets you continue with a regular advance payment."
+        confirmLabel="Yes, 12 months"
+        cancelLabel="No, regular payment"
+        onConfirm={() => chooseAnnualAdvance(true)}
+        onCancel={() => chooseAnnualAdvance(false)}
+      />
 
       {receipt && (() => {
         const receiptModel = buildReceiptModel('payment', receipt, organization, {
