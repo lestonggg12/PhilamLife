@@ -1,7 +1,7 @@
 import TransferHomeownerPicker from '../components/TransferHomeownerPicker'
 import { transferRequest } from '../lib/homeownerTransfer'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { useSearchParams } from 'react-router-dom'
@@ -9,7 +9,9 @@ import { Edit, FileArchive, Mail, Phone, RefreshCw, Search } from '../components
 import { supabase } from '../lib/supabaseClient'
 import { Pager } from '../components/PagerControls'
 import useDebouncedValue from '../hooks/useDebouncedValue'
-import { ilikeAny, pageWindow, searchTokens } from '../lib/pagedQuery'
+import { pageWindow } from '../lib/pagedQuery'
+import { CONTACT_COLUMNS, contactSearchTokens, loadContactCounts, loadContactPage, saveContactDetails, moveContact, requireEffectiveDate, confirmedTransfer } from '../lib/contactManager'
+import useContactDialog from './useContactDialog'
 import './ContactManagerPage.css'
 
 const EMPTY_FORM = {
@@ -36,34 +38,20 @@ const EMPTY_TRANSFER_FORM = {
 
 const MIN_SEARCH_LENGTH = 2
 
-const CONTACT_COLUMNS =
-  'id, homeowner_id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at'
-
-// Text columns searched for every typed word. lot_number is an INTEGER column, so it is
-// matched separately with .eq (never ilike).
-const SEARCH_COLUMNS = [
-  'homeowner_name',
-  'block',
-  'contact_phone',
-  'contact_email',
-  'homeowner_status',
-  'status_reason',
-]
-
-// Words that describe a field instead of matching one ("Block C Lot 12").
-const IGNORED_WORDS = new Set(['lot'])
-
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
-  const [counts, setCounts] = useState({ active: 0, moved: 0, transferred: 0 })
+  const [counts, setCounts] = useState(null)
   const [countsLoading, setCountsLoading] = useState(true)
   const [listLoading, setListLoading] = useState(false)
   const [countError, setCountError] = useState('')
   const [listError, setListError] = useState('')
+  const [identityError, setIdentityError] = useState('')
+  const [linkError, setLinkError] = useState('')
+  const submitting = useRef(false)
   const [reloadTick, setReloadTick] = useState(0)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
@@ -78,16 +66,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [transferringContactId, setTransferringContactId] = useState(null)
   const [transferError, setTransferError] = useState('')
 
-  const role = currentUser?.role?.trim().toLowerCase()
+  const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
   const canManageContacts = role === 'admin' || role === 'secretary'
+  const contactDialogRef = useContactDialog(Boolean(selectedContact), saving, closeContactForm)
+  const transferDialogRef = useContactDialog(Boolean(pendingTransferContact), Boolean(transferringContactId), closeTransferForm)
 
 
   // The homeowner list is never loaded up front. It is read from the database only for a
   // search of 2+ characters (or the small Moved / Transferred lists), one page at a time.
   const debouncedSearch = useDebouncedValue(search, 350)
-  const tokens = searchTokens(debouncedSearch).filter(
-    (token) => !IGNORED_WORDS.has(normalize(token)),
-  )
+  const tokens = contactSearchTokens(debouncedSearch)
   const hasSearch = debouncedSearch.trim().length >= MIN_SEARCH_LENGTH && tokens.length > 0
   const listsByStatus = statusFilter === 'moved' || statusFilter === 'transferred'
   const shouldList = hasSearch || listsByStatus
@@ -108,15 +96,20 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     let cancelled = false
 
     async function openFromLink() {
-      if (canManageContacts && /^\d+$/.test(editId)) {
-        const { data } = await supabase
-          .from('properties')
-          .select(CONTACT_COLUMNS)
-          .eq('id', Number(editId))
-          .maybeSingle()
-        if (!cancelled && data) openContactForm(data)
+      try {
+        setLinkError('')
+        if (canManageContacts && /^\d+$/.test(editId)) {
+          const { data, error } = await supabase.from('properties').select(CONTACT_COLUMNS)
+            .eq('id', editId).maybeSingle()
+          if (error) throw error
+          if (!data) throw new Error('This contact was not found. Refresh the directory.')
+          if (!cancelled) openContactForm(data)
+        }
+      } catch (error) {
+        if (!cancelled) setLinkError(`Could not open the contact: ${error.message || 'Please retry.'}`)
+      } finally {
+        if (!cancelled) { const next = new URLSearchParams(searchParams); next.delete('edit'); setSearchParams(next, { replace: true }) }
       }
-      if (!cancelled) setSearchParams({}, { replace: true })
     }
 
     openFromLink()
@@ -125,31 +118,24 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   }, [searchParams, role])
 
   useEffect(() => {
-    resolveCurrentUser()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  async function resolveCurrentUser() {
-    if (suppliedUser) {
-      setCurrentUser(suppliedUser)
-      return
+    let cancelled = false
+    async function resolveCurrentUser() {
+      try {
+        setIdentityError('')
+        if (suppliedUser) { setCurrentUser(suppliedUser); return }
+        const { data, error } = await supabase.auth.getUser()
+        if (error) throw error
+        if (!data?.user) throw new Error('Sign in again to load your account.')
+        const result = await supabase.from('profiles').select('id, full_name, email, role, is_active').eq('id', data.user.id).single()
+        if (result.error) throw result.error
+        if (!cancelled) setCurrentUser(result.data)
+      } catch (error) {
+        if (!cancelled) { setCurrentUser(null); setIdentityError(`Account details could not be loaded: ${error.message || 'Please retry.'}`) }
+      }
     }
-
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !authUser) return
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!profileError) setCurrentUser(profile)
-  }
+    resolveCurrentUser()
+    return () => { cancelled = true }
+  }, [suppliedUser, reloadTick])
 
   // Header counts: three tiny count queries, no homeowner rows are downloaded.
   useEffect(() => {
@@ -157,26 +143,15 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
     async function loadCounts() {
       setCountsLoading(true)
-      const results = await Promise.all(
-        ['active', 'moved', 'transferred'].map((status) =>
-          supabase
-            .from('properties')
-            .select('id', { count: 'exact', head: true })
-            .eq('homeowner_status', status),
-        ),
-      )
-      if (cancelled) return
-
-      const failed = results.find((result) => result.error)
-      setCountError(
-        failed ? `Homeowner counts could not be loaded: ${failed.error.message}` : '',
-      )
-      setCounts({
-        active: results[0].count || 0,
-        moved: results[1].count || 0,
-        transferred: results[2].count || 0,
-      })
-      setCountsLoading(false)
+      setCountError('')
+      try {
+        const next = await loadContactCounts(supabase)
+        if (!cancelled) setCounts(next)
+      } catch (error) {
+        if (!cancelled) { setCounts(null); setCountError(`Property-account counts could not be loaded: ${error.message || 'Please retry.'}`) }
+      } finally {
+        if (!cancelled) setCountsLoading(false)
+      }
     }
 
     loadCounts()
@@ -197,39 +172,19 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
     async function loadRows() {
       setListLoading(true)
-      const { from, to } = pageWindow(page)
-
-      let query = supabase.from('properties').select(CONTACT_COLUMNS, { count: 'exact' })
-      if (statusFilter !== 'all') query = query.eq('homeowner_status', statusFilter)
-
-      // Every typed word must match something. Small numbers also match the lot number.
-      tokens.forEach((token) => {
-        const parts = [ilikeAny(SEARCH_COLUMNS, token)]
-        if (/^\d{1,6}$/.test(token)) parts.push(`lot_number.eq.${token}`)
-        query = query.or(parts.join(','))
-      })
-
-      const { data, error, count } = await query
-        .order('homeowner_name', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to)
-
-      if (cancelled) return
-
-      if (error) {
-        setListError(`Contact directory could not be loaded: ${error.message}`)
-        setRows([])
-        setTotal(0)
-      } else if ((data || []).length === 0 && page > 0 && (count || 0) > 0) {
-        // The page emptied (for example after a status change): step back one page.
-        goToPage(page - 1)
-        return
-      } else {
-        setListError('')
-        setRows(data || [])
-        setTotal(count || 0)
+      setListError('')
+      setRows([])
+      try {
+        const result = await loadContactPage(supabase, statusFilter, tokens, page)
+        if (cancelled) return
+        if (!result.rows.length && page > 0 && result.total > 0) { goToPage(page - 1); return }
+        setRows(result.rows)
+        setTotal(result.total)
+      } catch (error) {
+        if (!cancelled) { setRows([]); setTotal(0); setListError(`Contact directory could not be loaded: ${error.message || 'Please retry.'}`) }
+      } finally {
+        if (!cancelled) setListLoading(false)
       }
-      setListLoading(false)
     }
 
     loadRows()
@@ -238,6 +193,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   }, [scopeKey, page, reloadTick, shouldList])
 
   function openContactForm(contact) {
+    if (!canManageContacts || submitting.current) return
+    setPendingTransferContact(null)
     setSelectedContact(contact)
     setForm({
       phone: contact.contact_phone || '',
@@ -248,7 +205,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   }
 
   function closeContactForm() {
-    if (saving) return
+    if (submitting.current) return
     setSelectedContact(null)
     setForm(EMPTY_FORM)
     setFormError('')
@@ -262,57 +219,28 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
   async function saveContact(event) {
     event.preventDefault()
-
-    if (!selectedContact || !canManageContacts) {
-      setFormError('Only an Admin or Secretary can update contact details.')
-      return
-    }
-
-    const phone = form.phone.trim().replace(/\s+/g, ' ')
-    const email = form.email.trim().toLowerCase()
-
-    if (phone.length > 30) {
-      setFormError('Phone number must be 30 characters or fewer.')
-      return
-    }
-
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setFormError('Enter a valid email address.')
-      return
-    }
-
+    if (submitting.current) return
+    if (!selectedContact || !canManageContacts) { setFormError('Only an Admin or Secretary can update contact details.'); return }
+    submitting.current = true
     setSaving(true)
     setFormError('')
-
-    const contactUpdatedAt = new Date().toISOString()
-    const { data, error } = await supabase
-      .from('properties')
-      .update({
-        contact_phone: phone || null,
-        contact_email: email || null,
-        contact_updated_at: contactUpdatedAt,
-      })
-      .eq('id', selectedContact.id)
-      .select(CONTACT_COLUMNS)
-      .single()
-
-    if (error) {
-      setFormError(error.message)
+    try {
+      const data = await saveContactDetails(supabase, selectedContact, form)
+      setReloadTick((tick) => tick + 1)
+      setSelectedContact(null)
+      setForm(EMPTY_FORM)
+      setNotice(`Contact details for ${data.homeowner_name} were saved across their linked lots.`)
+    } catch (error) {
+      setFormError(`${error.message || 'Could not save this contact.'} If the connection was interrupted, reload before retrying.`)
+    } finally {
+      submitting.current = false
       setSaving(false)
-      return
     }
-
-    // Re-read the current page and the header counts from the database.
-    setReloadTick((tick) => tick + 1)
-
-    setSelectedContact(null)
-    setForm(EMPTY_FORM)
-    setSaving(false)
-    setNotice(`Contact details for ${data.homeowner_name} were saved.`)
   }
 
   function requestTransferContact(contact) {
-    if (!canManageContacts) return
+    if (!canManageContacts || submitting.current) return
+    setSelectedContact(null)
     setTransferError('')
     setTransferForm({
       ...EMPTY_TRANSFER_FORM,
@@ -325,7 +253,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   }
 
   function closeTransferForm() {
-    if (transferringContactId) return
+    if (submitting.current) return
     setPendingTransferContact(null)
     setTransferForm(EMPTY_TRANSFER_FORM)
     setTransferError('')
@@ -333,104 +261,49 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
   async function markMovedOrTransferred(event) {
     event.preventDefault()
-
+    if (submitting.current) return
     const contact = pendingTransferContact
     if (!contact || !canManageContacts) return
-
-    if (!['moved', 'transferred'].includes(transferForm.status)) {
-      setTransferError('Choose whether the homeowner moved or transferred.')
-      return
-    }
-
-    if (!transferForm.effectiveDate) {
-      setTransferError('Enter the Effective date.')
-      return
-    }
-
-    let request
-    if (transferForm.status === 'transferred') {
-      try { request = transferRequest(contact.id, transferForm) }
-      catch (error) { setTransferError(error.message); return }
-    }
-
+    submitting.current = true
     setTransferringContactId(contact.id)
     setTransferError('')
-
-
-    if (transferForm.status === 'transferred') {
-      const targetName = transferForm.transferTo === 'existing'
-        ? transferForm.targetProperty.homeowner_name : transferForm.newHomeownerName.trim()
-      const { data, error } = await supabase.rpc(request.name, request.args)
-
-      if (error) {
-        setTransferringContactId(null)
-        setTransferError(`Could not transfer homeowner: ${error.message}`)
-        return
+    try {
+      if (!['moved', 'transferred'].includes(transferForm.status)) throw new Error('Choose whether the homeowner moved or transferred.')
+      requireEffectiveDate(transferForm.effectiveDate)
+      let message
+      if (transferForm.status === 'transferred') {
+        const request = transferRequest(contact.id, transferForm)
+        const { data, error } = await supabase.rpc(request.name, request.args)
+        if (error) throw error
+        const result = confirmedTransfer(data)
+        const targetName = transferForm.transferTo === 'existing' ? transferForm.targetProperty.homeowner_name : transferForm.newHomeownerName.trim()
+        message = `${contact.block}, Lot ${contact.lot_number} was transferred to ${targetName}. Balance transferred: ${result.transferred_balance.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}. Previous payment history was preserved.`
+      } else {
+        await moveContact(supabase, contact, transferForm)
+        message = `${contact.homeowner_name} was marked as Moved. Their profile and payment history were preserved.`
       }
-
-      const result = Array.isArray(data) ? data[0] : data
-
       setReloadTick((tick) => tick + 1)
-      setTransferringContactId(null)
       setPendingTransferContact(null)
       setTransferForm(EMPTY_TRANSFER_FORM)
-
-      setNotice(
-        `${contact.block}, Lot ${contact.lot_number} was transferred to ${targetName}. Balance transferred: ${Number(
-          result?.transferred_balance ?? 0
-        ).toLocaleString('en-PH', {
-          style: 'currency',
-          currency: 'PHP',
-        })}. Previous payment history was preserved.`
-      )
-
-      return
-    }
-
-
-    const statusUpdatedAt = new Date().toISOString()
-    const { error } = await supabase
-      .from('properties')
-
-      .update({
-        homeowner_status: transferForm.status,
-        status_effective_date: transferForm.effectiveDate,
-        status_reason: transferForm.reason.trim() || null,
-        status_updated_at: statusUpdatedAt,
-      })
-      .eq('id', contact.id)
-      .select(
-        'id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at',
-      )
-      .single()
-
-    if (error) {
+      setNotice(message)
+    } catch (error) {
+      setTransferError(`${error.message || 'Could not save the account status.'} If the connection was interrupted, reload before retrying.`)
+    } finally {
+      submitting.current = false
       setTransferringContactId(null)
-      setTransferError(`Could not update homeowner status: ${error.message}`)
-      return
     }
-
-    setReloadTick((tick) => tick + 1)
-
-    const statusLabel = transferForm.status === 'moved' ? 'Moved' : 'Transferred'
-    setTransferringContactId(null)
-    setPendingTransferContact(null)
-    setTransferForm(EMPTY_TRANSFER_FORM)
-    setNotice(
-      `${contact.homeowner_name} was marked as ${statusLabel}. Their profile and payment history were preserved.`,
-    )
   }
 
   const { from: pageFrom } = pageWindow(page)
   const rangeStart = total === 0 ? 0 : pageFrom + 1
   const rangeEnd = pageFrom + rows.length
-  const pageError = [countError, listError].filter(Boolean).join(' ')
+  const pageError = [identityError, linkError, countError, listError].filter(Boolean).join(' ')
 
   return (
     <div className="contact-page">
       <div className="contact-header">
         <div>
-          <p className="contact-eyebrow">Secretary workspace</p>
+          <p className="contact-eyebrow">Homeowner contacts</p>
           <h1>Contact Manager</h1>
           <p>Homeowner directory and contact information.</p>
         </div>
@@ -450,16 +323,16 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       <div className="contact-summary">
         <div className="contact-summary-item is-active">
-          <strong>{countsLoading ? '—' : String(counts.active).padStart(2, '0')}</strong>
-          <span>Active homeowners</span>
+          <strong>{countsLoading || !counts ? '—' : String(counts.active).padStart(2, '0')}</strong>
+          <span>Active property accounts</span>
         </div>
         <div className="contact-summary-item is-moved">
-          <strong>{countsLoading ? '—' : String(counts.moved).padStart(2, '0')}</strong>
-          <span>Moved homeowners</span>
+          <strong>{countsLoading || !counts ? '—' : String(counts.moved).padStart(2, '0')}</strong>
+          <span>Moved property accounts</span>
         </div>
         <div className="contact-summary-item is-transferred">
-          <strong>{countsLoading ? '—' : String(counts.transferred).padStart(2, '0')}</strong>
-          <span>Transferred homeowners</span>
+          <strong>{countsLoading || !counts ? '—' : String(counts.transferred).padStart(2, '0')}</strong>
+          <span>Transferred property accounts</span>
         </div>
       </div>
 
@@ -476,7 +349,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           />
         </div>
         <Select ariaLabel="Filter homeowners by residency status" value={statusFilter} onChange={setStatusFilter} options={[['active', 'Active'], ['moved', 'Moved'], ['transferred', 'Transferred'], ['all', 'All statuses']].map(([value, label]) => ({ value, label }))} />
-        {shouldList && (
+        {shouldList && !listError && !listLoading && (
           <span className="contact-result-count">
             Showing {rangeStart}-{rangeEnd} of {total}
           </span>
@@ -508,8 +381,10 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             page stays fast as the roster grows.
           </p>
         </div>
-      ) : listLoading && rows.length === 0 ? (
+      ) : listLoading ? (
         <div className="contact-empty glass-card">Loading contacts...</div>
+      ) : listError ? (
+        <div className="contact-empty glass-card">Contacts could not be loaded. Use Refresh to try again.</div>
       ) : rows.length === 0 ? (
         <div className="contact-empty glass-card">
           {hasSearch
@@ -623,7 +498,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
       )}
 
-      {shouldList && total > 0 && (
+      {shouldList && !listError && !listLoading && total > 0 && (
         <Pager page={page} total={total} onPageChange={goToPage} disabled={listLoading} />
       )}
 
@@ -638,6 +513,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           <form
             className="contact-modal contact-transfer-modal glass-card"
             onSubmit={markMovedOrTransferred}
+            ref={transferDialogRef}
+            tabIndex={-1}
+            aria-busy={Boolean(transferringContactId)}
             role="dialog"
             aria-modal="true"
             aria-labelledby="transfer-homeowner-title"
@@ -654,6 +532,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 type="button"
                 className="contact-modal-close"
                 onClick={closeTransferForm}
+                disabled={Boolean(transferringContactId)}
                 aria-label="Close move or transfer form"
               >
                 ×
@@ -761,6 +640,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           <form
             className="contact-modal glass-card"
             onSubmit={saveContact}
+            ref={contactDialogRef}
+            tabIndex={-1}
+            aria-busy={saving}
             role="dialog"
             aria-modal="true"
             aria-labelledby="contact-modal-title"
@@ -778,12 +660,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 type="button"
                 className="contact-modal-close"
                 onClick={closeContactForm}
+                disabled={saving}
                 aria-label="Close contact form"
               >
                 ×
               </button>
             </div>
 
+            <fieldset className="contact-edit-fields" disabled={saving}>
             <label htmlFor="contact-phone">Phone Number</label>
             <input
               id="contact-phone"
@@ -806,10 +690,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             />
 
             <p className="contact-form-note">
-              Leave a field blank if that contact method is unavailable.
+              These contact details are shared across every lot linked to this homeowner. Leave a field blank if that contact method is unavailable.
             </p>
 
-            {formError && <p className="contact-form-error">{formError}</p>}
+            </fieldset>
+            {formError && <p className="contact-form-error" role="alert">{formError}</p>}
 
             <div className="contact-modal-actions">
               <button

@@ -1175,3 +1175,19 @@
 .transfer-selected-owner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; margin-bottom: 10px; border: 1px solid #b8cfe3; border-radius: 8px; background: #edf5fc; }
 .transfer-selected-owner button { padding: 6px 10px; border: 1px solid #b8cfe3; border-radius: 6px; background: white; color: #1464a0; cursor: pointer; }
 @media (max-width: 520px) { .contact-transfer-modal { padding: 16px; } .contact-transfer-modal .contact-form-row { grid-template-columns: 1fr; gap: 0; } }
+
+.contact-edit-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 0;
+}
+
+.contact-page :is(button, input, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.contact-modal[aria-busy="true"] { cursor: progress; }
