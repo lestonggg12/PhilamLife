@@ -462,17 +462,17 @@
 .activity-log-page .al-skeleton {
   height: 56px;
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr;
-  gap: 20px;
+  grid-template-columns: var(--al-columns);
+  gap: 12px;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--paper);
+  padding: 10px 14px 10px 11px;
+  border-bottom: 1px solid var(--brass-soft);
+  background: var(--paper-raised);
 }
 
-.activity-log-page .al-skeleton i {
-  height: 14px;
-  border-radius: 4px;
-  background: var(--brass-soft);
+.activity-log-page .al-skeleton .skeleton {
+  min-width: 0;
+  height: 1em;
 }
 
 .activity-log-page .al-sr-only {

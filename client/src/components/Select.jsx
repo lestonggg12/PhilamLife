@@ -19,7 +19,7 @@ const CheckIcon = () => (
  * Keyboard: Arrow keys, Home/End, Enter/Space to choose, Escape to close.
  * The list opens upward when there is no room below (e.g. inside a modal).
  */
-export default function Select({ value, options, onChange, ariaLabel, placeholder = 'Select', disabled = false }) {
+export default function Select({ value, options, onChange, ariaLabel, placeholder = 'Select', disabled = false, className = '' }) {
   const [open, setOpen] = useState(false)
   const [openUp, setOpenUp] = useState(false)
   const [popPosition, setPopPosition] = useState(null)
@@ -106,7 +106,7 @@ export default function Select({ value, options, onChange, ariaLabel, placeholde
   }
 
   return (
-    <div className="sel-root" ref={rootRef}>
+    <div className={`sel-root ${className}`.trim()} ref={rootRef}>
       <button
         type="button"
         className={`sel-trigger${open ? ' is-open' : ''}`}
@@ -124,7 +124,7 @@ export default function Select({ value, options, onChange, ariaLabel, placeholde
       </button>
 
       {open && createPortal((
-        <ul className={`sel-popover${openUp ? ' open-up' : ''}`} id={listId} role="listbox" ref={listRef} style={popPosition || { visibility: 'hidden' }}>
+        <ul className={`sel-popover${openUp ? ' open-up' : ''}${className ? ` ${className}-popover` : ''}`} id={listId} role="listbox" ref={listRef} style={popPosition || { visibility: 'hidden' }}>
           {options.map((option, index) => (
             <li
               key={option.value}

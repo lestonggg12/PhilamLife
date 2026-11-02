@@ -9,6 +9,7 @@ import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { useOrganization } from '../context/OrganizationContext'
 import './TreasurerExpenses.css'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -582,14 +583,14 @@ const isReadOnly = !canRecordExpenses
             Total {monthLabel(selectedMonth)}
           </span>
           <h3 className="tex-stat-value">
-            {loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.totalSelectedMonth)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalSelectedMonth)}
           </h3>
         </div>
 
         <div className="tex-stat-card">
           <span className="tex-stat-label">Total Recorded</span>
           <h3 className="tex-stat-value">
-            {loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.totalAllTime)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalAllTime)}
           </h3>
         </div>
 
@@ -598,7 +599,7 @@ const isReadOnly = !canRecordExpenses
             {monthLabel(selectedMonth)} Entries
           </span>
           <h3 className="tex-stat-value">
-            {loading ? '—' : summary.count}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.count}
           </h3>
         </div>
 
@@ -749,7 +750,7 @@ const isReadOnly = !canRecordExpenses
         </div>
 
         {loading ? (
-          <div className="tex-state">Loading expenses...</div>
+          <div className="tex-state" aria-busy="true"><Skeleton variant="rect" width="100%" height="56px" /><Skeleton variant="rect" width="100%" height="56px" /><Skeleton variant="rect" width="100%" height="56px" /><Skeleton variant="rect" width="100%" height="56px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : visibleExpenses.length === 0 ? (
           <div className="tex-state">
             {expenses.length === 0

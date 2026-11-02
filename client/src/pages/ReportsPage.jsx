@@ -1,6 +1,7 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import Skeleton from '../components/skeleton/Skeleton'
 import { fetchAll } from '../lib/fetchAll'
 import {
   collectionsRows,
@@ -348,7 +349,7 @@ export default function ReportsPage({ user: suppliedUser }) {
       {loadFailure && <p className="reports-error">Could not load every record needed for this report ({loadFailure}). Totals may be incomplete, so PDF download is disabled until the data loads. Refresh the page to try again.</p>}
 
       {loading ? (
-        <p className="reports-empty">Loading financial records...</p>
+        <div className="reports-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="96px" /><Skeleton variant="rect" width="100%" height="220px" /><Skeleton variant="rect" width="100%" height="220px" /><span className="skeleton-region-status" role="status">Loading</span></div>
       ) : (
         <main className="monthly-report-doc">
           <div className="monthly-cover">

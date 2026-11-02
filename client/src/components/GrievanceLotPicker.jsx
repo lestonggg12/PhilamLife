@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import Skeleton from './skeleton/Skeleton'
 import { supabase } from '../lib/supabaseClient'
 import { applySearch } from '../lib/pagedQuery'
 import useDebouncedValue from '../hooks/useDebouncedValue'
@@ -26,7 +27,7 @@ export default function GrievanceLotPicker({ value, label, onChange }) {
     <input aria-label="Find an affected lot" value={search} placeholder="Search homeowner or block (optional)" onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)} onChange={(e) => { setSearch(e.target.value); setOpen(true); if (value) onChange(null) }} role="combobox" aria-expanded={open} aria-controls="grievance-lot-options" />
     {value && <button type="button" className="grievance-text-button" onClick={() => { setSearch(''); onChange(null); setOpen(false) }}>Clear linked lot</button>}
     {open && <div id="grievance-lot-options" role="listbox" className="grievance-lot-options">
-      {error || (loading ? 'Loading lots...' : term.trim().length < 2 ? 'Type at least two characters.' : !rows.length ? 'No matching lots.' : '')}
+      {error || (loading ? <span className="grievance-lot-skeleton" aria-busy="true"><Skeleton variant="rect" width="100%" height="36px" /><span className="skeleton-region-status" role="status">Loading</span></span> : term.trim().length < 2 ? 'Type at least two characters.' : !rows.length ? 'No matching lots.' : '')}
       {!loading && rows.map((lot) => <button type="button" role="option" aria-selected={String(lot.id) === String(value)} key={lot.id} onMouseDown={(e) => e.preventDefault()} onClick={() => { setSearch(`${lot.homeowner_name} — ${lot.block}, Lot ${lot.lot_number}`); setOpen(false); onChange(lot) }}>{lot.homeowner_name} — {lot.block}, Lot {lot.lot_number}</button>)}
       {rows.length === 20 && <small>Showing up to 20 lots. Refine your search to find another.</small>}
     </div>}

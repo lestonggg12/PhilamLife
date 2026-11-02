@@ -11,6 +11,7 @@ import Select from '../components/Select'
 import { applySearch } from '../lib/pagedQuery'
 import { canUseGrievances, GRIEVANCE_CATEGORIES, GRIEVANCE_STATUSES, grievanceNumber, grievanceRequest, newGrievance, manilaDateKey, statementMovement, statementRows } from '../lib/grievances'
 import './GrievancesPage.css'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const PAGE_SIZE = 25
 const SUMMARY_COLUMNS = 'id,case_number,title,category,status,complainant,respondent,location,assigned_handler,follow_up_date,filed_at,updated_at,block,lot_number'
@@ -128,7 +129,8 @@ export default function GrievancesPage({ user }) {
     {tab==='register' ? <section className="grievance-panel">
       <div className="grievance-filters"><label>Search<input type="search" placeholder="Search people, title, location or handler..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} /></label><label>Status<Select ariaLabel="Status" value={status} onChange={(value) => { setStatus(value); setPage(0) }} options={[{ value: 'All', label: 'All' }, ...GRIEVANCE_STATUSES.map((v) => ({ value: v, label: v }))]} /></label><label>Category<Select ariaLabel="Category" value={category} onChange={(value) => { setCategory(value); setPage(0) }} options={[{ value: 'All', label: 'All' }, ...GRIEVANCE_CATEGORIES.map((v) => ({ value: v, label: v }))]} /></label></div>
       {error && <p className="grievance-error" role="alert">{error}</p>}
-      <p className="grievance-help">{loading ? 'Loading cases...' : `${total.toLocaleString('en-PH')} matching cases`}</p>
+      <p className="grievance-help">{loading ? <Skeleton variant="rect" width="140px" height="1em" /> : `${total.toLocaleString('en-PH')} matching cases`}</p>
+      {loading && <div className="grievance-loading-list" aria-busy="true"><Skeleton variant="rect" width="100%" height="78px" /><Skeleton variant="rect" width="100%" height="78px" /><Skeleton variant="rect" width="100%" height="78px" /><span className="skeleton-region-status" role="status">Loading</span></div>}
       {!loading && !error && !rows.length && <div className="grievance-empty"><h2>No grievances found</h2><p>Record a complaint or adjust your search filters.</p></div>}
       {!loading && rows.map((row) => <article className={`grievance-case${row.id === highlightedCaseId ? ' motion-record-highlight' : ''}`} key={row.id}><div><span className="grievance-case-number">{grievanceNumber(row.case_number)} · {row.category}</span><h2>{row.title}</h2><p>{row.complainant} <span>— complaint concerns —</span> {row.respondent}</p><small>{row.location} · Filed {organization.formatDate(row.filed_at)}</small><small>Handler: {row.assigned_handler || 'Not assigned'}{row.follow_up_date ? ` · Follow up ${organization.formatDate(row.follow_up_date)}` : ''}</small></div><div className="grievance-case-actions"><span className="grievance-badge">{row.status}</span><button onClick={() => openCase(row)} disabled={opening}>View / update</button></div></article>)}
       <Pager page={page} total={total} size={PAGE_SIZE} onPageChange={setPage} disabled={loading} />

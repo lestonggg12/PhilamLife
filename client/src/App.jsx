@@ -12,7 +12,8 @@ import { watchRememberedDevice } from './lib/rememberDevice'
 import { normalizeRole, normalizeProfileRole } from './lib/profileRole'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
-import Loader from './components/Loader'
+import Skeleton from './components/skeleton/Skeleton'
+import SkeletonRegion from './components/skeleton/SkeletonRegion'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { OrganizationProvider } from './context/OrganizationContext'
 import NetworkStatus from './components/NetworkStatus'
@@ -213,7 +214,20 @@ function AppContent() {
   }
 
   if (loading) {
-    return <Loader variant="fullscreen" />
+    return (
+      <div className="app-skeleton-shell" aria-busy="true">
+        <Skeleton variant="rect" width="100%" height="72px" radius="0" />
+        <div className="app-skeleton-body">
+          <Skeleton variant="rect" width="232px" height="calc(100vh - 72px)" radius="0" />
+          <main className="app-skeleton-main">
+            <Skeleton variant="text" width="42%" lines={2} />
+            <Skeleton variant="rect" width="100%" height="180px" />
+            <Skeleton variant="rect" width="100%" height="320px" />
+          </main>
+        </div>
+        <span className="skeleton-region-status" role="status">Loading</span>
+      </div>
+    )
   }
 
   // Keep role-based access checks consistent across protected routes.
@@ -230,7 +244,20 @@ function AppContent() {
   return (
     <OrganizationProvider enabled={isAuthenticated}>
       <ConfirmProvider>
-        <Suspense fallback={<Loader variant="fullscreen" />}>
+        <Suspense fallback={
+          <SkeletonRegion
+            loading
+            skeleton={(
+              <div className="app-skeleton-route">
+                <Skeleton variant="text" width="38%" lines={2} />
+                <Skeleton variant="rect" width="100%" height="140px" />
+                <Skeleton variant="rect" width="100%" height="360px" />
+              </div>
+            )}
+          >
+            <div className="app-skeleton-route" aria-hidden="true" />
+          </SkeletonRegion>
+        }>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<LandingPage onAccessPortal={isAuthenticated ? accessAuthenticatedPortal : undefined} />} />

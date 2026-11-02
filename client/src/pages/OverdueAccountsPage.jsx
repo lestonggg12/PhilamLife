@@ -9,6 +9,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
 import { Pager } from '../components/PagerControls'
 import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const STATUS_FILTERS = ['Overdue', 'Pending', 'Partial', 'Paid', 'All']
 
@@ -323,19 +324,19 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       <div className="overdue-summary">
         <div className="overdue-summary-item overdue-summary-flag">
           <span>Overdue accounts</span>
-          <strong>{loading ? '—' : summary.overdueCount}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.overdueCount}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Overdue balance</span>
-          <strong>{loading ? '—' : organization.formatMoney(summary.overdueBalance)}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.overdueBalance)}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Penalties accrued</span>
-          <strong>{loading ? '—' : organization.formatMoney(summary.overduePenalties)}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.overduePenalties)}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Total accounts</span>
-          <strong>{loading ? '—' : summary.totalAccounts}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.totalAccounts}</strong>
         </div>
       </div>
 
@@ -398,7 +399,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       {actionsError && <p className="overdue-error" role="alert">{actionsError}</p>}
       <div className="overdue-list glass-card" aria-live="polite">
         {loading ? (
-          <p className="overdue-empty">Loading accounts...</p>
+          <div className="overdue-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : filtered.length === 0 ? (
           <p className="overdue-empty">
             {statusFilter === 'Overdue' ? 'No homeowners are currently overdue.' : 'No homeowners match your filters.'}
@@ -464,7 +465,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                   </td>
                   <td>{account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2)) : 'No payments yet'}</td>
                   <td>
-                    {actionsLoading ? <span className="overdue-no-action">Loading follow-ups...</span> : actionsError ? <span className="overdue-no-action">History unavailable</span> : account.lastAction ? (
+                    {actionsLoading ? <span className="overdue-no-action"><Skeleton variant="rect" width="100px" height="1em" /></span> : actionsError ? <span className="overdue-no-action">History unavailable</span> : account.lastAction ? (
                       <button type="button" className="overdue-action-link" onClick={() => setHistoryTarget(account)}>
                         {account.lastAction.action_type}
                         <small>{organization.formatDate(account.lastAction.action_date).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2))}{account.actionCount > 1 ? ` (+${account.actionCount - 1} more)` : ''}</small>

@@ -13,6 +13,7 @@ import { pageWindow } from '../lib/pagedQuery'
 import { CONTACT_COLUMNS, contactSearchTokens, loadContactCounts, loadContactPage, saveContactDetails, moveContact, requireEffectiveDate, confirmedTransfer } from '../lib/contactManager'
 import useContactDialog from './useContactDialog'
 import './ContactManagerPage.css'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const EMPTY_FORM = {
   phone: '',
@@ -382,7 +383,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           </p>
         </div>
       ) : listLoading ? (
-        <div className="contact-empty glass-card">Loading contacts...</div>
+        <div className="contact-empty glass-card" aria-busy="true"><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><span className="skeleton-region-status" role="status">Loading</span></div>
       ) : listError ? (
         <div className="contact-empty glass-card">Contacts could not be loaded. Use Refresh to try again.</div>
       ) : rows.length === 0 ? (

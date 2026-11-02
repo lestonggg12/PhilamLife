@@ -14,6 +14,7 @@ import {
   Users,
 } from '../components/Icons'
 import { useOrganization } from '../context/OrganizationContext'
+import Skeleton from '../components/skeleton/Skeleton'
 import { formatDate as formatDateValue } from '../config/organization'
 import './SecretaryDashboard.css'
 
@@ -170,7 +171,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value">
-            {loading ? '—' : activeProperties.length.toLocaleString('en-PH')}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : activeProperties.length.toLocaleString('en-PH')}
           </strong>
           <p className="sec-stat-footer">Active homeowners in the ledger</p>
         </article>
@@ -183,7 +184,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value sec-stat-currency">
-            {loading ? '—' : peso.format(summary.monthlyCollections)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : peso.format(summary.monthlyCollections)}
           </strong>
           <p className="sec-stat-footer">
             {summary.receiptsThisMonth} receipt
@@ -199,7 +200,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value sec-stat-currency">
-            {loading ? '—' : peso.format(summary.yearlyCollections)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : peso.format(summary.yearlyCollections)}
           </strong>
           <p className="sec-stat-footer">Annual recorded payments</p>
         </article>
@@ -212,7 +213,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value">
-            {loading ? '—' : summary.outstandingAccounts.toLocaleString('en-PH')}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.outstandingAccounts.toLocaleString('en-PH')}
           </strong>
           <p className="sec-stat-footer">Accounts with a remaining balance</p>
         </article>
@@ -244,7 +245,7 @@ export default function SecretaryDashboard() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="sec-empty">Loading payments...</td>
+                    <td colSpan="5" className="sec-empty"><div aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div></td>
                   </tr>
                 ) : recentPayments.length === 0 ? (
                   <tr>
@@ -369,7 +370,7 @@ export default function SecretaryDashboard() {
 
         <div className="sec-activity-list">
           {loading ? (
-            <p className="sec-empty">Loading activities...</p>
+            <div className="sec-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div>
           ) : activities.length === 0 ? (
             <p className="sec-empty">No activities recorded yet.</p>
           ) : (

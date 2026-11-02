@@ -11,6 +11,7 @@ import {
   RefreshCw,
   X,
 } from '../components/Icons'
+import Skeleton from '../components/skeleton/Skeleton'
 
 // Small inline icons so this page doesn't depend on extra exports from
 // components/Icons.jsx (Calendar / ChevronLeft / ChevronRight aren't there).
@@ -1059,22 +1060,22 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       <section className="services-summary" aria-label="Service summaries">
         <article>
           <span>Active Services</span>
-          <strong>{loading ? '—' : summary.activeServices}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.activeServices}</strong>
           <small>Available village amenities</small>
         </article>
         <article>
           <span>Transactions This Month</span>
-          <strong>{loading ? '—' : summary.monthlyTransactions}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.monthlyTransactions}</strong>
           <small>Service payments recorded</small>
         </article>
         <article>
           <span>Collections This Month</span>
-          <strong>{loading ? '—' : peso.format(summary.monthlyCollections)}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : peso.format(summary.monthlyCollections)}</strong>
           <small>Based on Manila time</small>
         </article>
         <article>
           <span>Receipts Issued</span>
-          <strong>{loading ? '—' : summary.receipts}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.receipts}</strong>
           <small>Permanent service records</small>
         </article>
       </section>
@@ -1122,7 +1123,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
 
         {loading ? (
-          <div className="services-state">Loading services...</div>
+          <div className="services-state" aria-busy="true"><Skeleton variant="rect" width="100%" height="100px" /><Skeleton variant="rect" width="100%" height="100px" /><Skeleton variant="rect" width="100%" height="100px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : services.length === 0 ? (
           <div className="services-state">No services have been added yet.</div>
         ) : (
@@ -1354,7 +1355,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               <p className="services-field-error" role="alert">{endTimeError}</p>
             )}
                         {bookedLoading && (
-              <p className="services-booked-note" role="status">Checking booked times…</p>
+              <span className="services-booked-note" role="status"><Skeleton variant="rect" width="140px" height="1em" /></span>
             )}
             {bookedError && (
               <p className="services-field-error" role="alert">{bookedError}</p>
@@ -1554,7 +1555,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
             <div className="day-modal-list">
               {dayLoading && dayModalTransactions.length === 0 ? (
-                <p className="services-day-empty">Loading...</p>
+                <div className="services-day-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><span className="skeleton-region-status" role="status">Loading</span></div>
               ) : dayModalTransactions.length === 0 ? (
                 <p className="services-day-empty">No service transactions recorded on this day.</p>
               ) : (

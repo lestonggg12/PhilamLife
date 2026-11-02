@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import Skeleton from './skeleton/Skeleton'
 import { supabase } from '../lib/supabaseClient'
 import { ilikeAny, searchTokens } from '../lib/pagedQuery'
 import useDebouncedValue from '../hooks/useDebouncedValue'
@@ -41,7 +42,7 @@ export default function TransferHomeownerPicker({ previousProperty, selected, on
     <label htmlFor="transfer-owner-search">Find the existing homeowner</label>
     <input id="transfer-owner-search" value={search} disabled={disabled} placeholder="Search name, block or lot" onChange={(event) => setSearch(event.target.value)} />
     <div className="transfer-owner-results" aria-label="Matching homeowners" aria-busy={result.loading}>
-      {result.loading ? <p role="status">Loading homeowners…</p> : result.error ? <p role="alert">{result.error}</p> : !result.choices.length ? <p>No matching active homeowners.</p> : result.choices.map((person) =>
+      {result.loading ? <div className="transfer-owner-skeleton" aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div> : result.error ? <p role="alert">{result.error}</p> : !result.choices.length ? <p>No matching active homeowners.</p> : result.choices.map((person) =>
         <button type="button" key={person.homeowner_id} disabled={disabled} onClick={() => onSelect(person)}>
           <strong>{person.homeowner_name}</strong><small>{person.lots.join(' · ')}</small>
         </button>)}

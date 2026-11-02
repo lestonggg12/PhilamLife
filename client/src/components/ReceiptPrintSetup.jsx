@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { loadReceiptAlignment, receiptAlignmentOffsets, saveReceiptAlignment } from '../lib/receiptAlignment'
+import Skeleton from './skeleton/Skeleton'
 
 export default function ReceiptPrintSetup({ model, onReady }) {
   const [saved, setSaved] = useState(null)
@@ -98,7 +99,7 @@ export default function ReceiptPrintSetup({ model, onReady }) {
         </div>
       </form>
     </details>
-      {loading && <p role="status">Loading shared printer alignment…</p>}
+      {loading && <div className="receipt-print-setup-skeleton" aria-busy="true" aria-label="Loading shared printer alignment"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div>}
       {dirty && saved && !saving && <p role="status">Unsaved alignment changes. Save them before printing.</p>}
       {error && <p className="receipt-setup-error" role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}

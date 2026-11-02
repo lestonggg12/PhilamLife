@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { buildLedgerStatement, ledgerStatementNotes } from '../lib/ledgerStatement'
 import { useOrganization } from '../context/OrganizationContext'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const SORT_COLUMNS = [
   { key: 'name', label: 'Homeowner' },
@@ -505,7 +506,7 @@ async function downloadStatementPdf() {
 
       {loading ? (
         <div className="ledger-table-wrap glass-card">
-          <div className="ledger-empty">Loading ledger...</div>
+          <div className="ledger-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         </div>
       ) : !hasActiveQuery ? (
         <div className="ledger-search-prompt glass-card">

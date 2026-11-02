@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock, Search, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
-import Loader from '../components/Loader'
+import Skeleton from '../components/skeleton/Skeleton'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { loadServiceRevenue, transactionPaymentStatus } from '../lib/treasurerFinance'
@@ -192,7 +192,7 @@ export default function TreasurerServiceRevenuePage() {
               <DollarSign size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.collectedThisMonth)}</h3>
+          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.collectedThisMonth)}</h3>
         </div>
 
         <div className="tsr-stat-card">
@@ -202,7 +202,7 @@ export default function TreasurerServiceRevenuePage() {
               <TrendingUp size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.totalCollected)}</h3>
+          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalCollected)}</h3>
         </div>
 
         <div className="tsr-stat-card">
@@ -212,7 +212,7 @@ export default function TreasurerServiceRevenuePage() {
               <Clock size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</h3>
+          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</h3>
         </div>
 
         <div className="tsr-stat-card">
@@ -297,7 +297,7 @@ export default function TreasurerServiceRevenuePage() {
           <div className="tsr-breakdown-collapse-inner">
             <div className="tsr-breakdown-panel">
               {loading ? (
-                <Loader variant="panel" />
+                <div aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div>
               ) : pageError ? (
                 <p className="tsr-empty">Service breakdown is unavailable. Refresh to retry.</p>
               ) : summary.byService.length === 0 ? (

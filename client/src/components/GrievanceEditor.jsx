@@ -3,6 +3,7 @@ import GrievanceLotPicker from './GrievanceLotPicker'
 import { GRIEVANCE_CATEGORIES, GRIEVANCE_STATUSES, grievanceNumber, isGrievanceClosed, manilaDateKey } from '../lib/grievances'
 import DateField from './DateField'
 import Select from './Select'
+import Skeleton from './skeleton/Skeleton'
 
 export default function GrievanceEditor({ initial, busy, error, history, historyLoading, historyError, onSave, onClose, formatDate }) {
   const [form, setForm] = useState(initial)
@@ -57,7 +58,7 @@ export default function GrievanceEditor({ initial, busy, error, history, history
           <footer><button type="button" className="button-cancel" onClick={onClose}>Cancel</button><button type="submit" className="grievance-primary">{busy ? 'Saving...' : initial.version ? 'Save update' : 'Record grievance'}</button></footer>
         </fieldset>
       </form>
-      {initial.version > 0 && <section className="grievance-history"><h3>Case history</h3>{historyLoading ? <p>Loading history...</p> : historyError ? <p role="alert" className="grievance-error">{historyError}</p> : history.map((event) => <article key={event.id}><strong>{event.previous_status ? `${event.previous_status} → ${event.status}` : 'Complaint received'}</strong><small>{formatDate(event.recorded_at, { withTime: true })} · {event.recorded_by_name}</small><p>{event.note}</p>{event.snapshot?.outcome && <p>Outcome: {event.snapshot.outcome}</p>}{event.snapshot?.decision_authority && <p>Authorized by: {event.snapshot.decision_authority}</p>}</article>)}</section>}
+      {initial.version > 0 && <section className="grievance-history"><h3>Case history</h3>{historyLoading ? <div aria-busy="true"><Skeleton variant="text" lines={3} /><Skeleton variant="text" lines={3} /><span className="skeleton-region-status" role="status">Loading</span></div> : historyError ? <p role="alert" className="grievance-error">{historyError}</p> : history.map((event) => <article key={event.id}><strong>{event.previous_status ? `${event.previous_status} → ${event.status}` : 'Complaint received'}</strong><small>{formatDate(event.recorded_at, { withTime: true })} · {event.recorded_by_name}</small><p>{event.note}</p>{event.snapshot?.outcome && <p>Outcome: {event.snapshot.outcome}</p>}{event.snapshot?.decision_authority && <p>Authorized by: {event.snapshot.decision_authority}</p>}</article>)}</section>}
     </section>
   </div>
 }

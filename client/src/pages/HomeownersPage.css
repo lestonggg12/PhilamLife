@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  scrollbar-gutter: stable;
   --ho-blue: #1464a0;
   --ho-blue-dark: #0f3f6a;
   --ho-blue-tint: #e9f3fb;
@@ -26,6 +27,16 @@
 
   padding: 22px;
   color: var(--text-dark);
+}
+
+.homeowners-finder {
+  min-height: 158px;
+}
+
+.homeowners-finder-count {
+  display: inline-flex;
+  min-height: 14px;
+  align-items: center;
 }
 
 .homeowners-header {
@@ -502,6 +513,7 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--ho-space-3);
+  min-height: 258px;
   padding: 14px 20px 0;
 }
 
@@ -1674,12 +1686,86 @@
 
 .homeowner-payment-analytics {
   margin: 18px 20px 0;
+  min-height: 390px;
   padding: 22px 24px 18px;
   border: 1px solid #d8e5ef;
   border-radius: 20px;
   background: linear-gradient(145deg, #f7fbff 0%, #eaf4fd 100%);
   box-shadow: 0 8px 24px rgba(42, 92, 132, 0.08);
   color: #17354b;
+}
+
+.homeowner-profile-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--paper, #eef5fc);
+}
+
+.homeowner-profile-skeleton-hero {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.homeowner-profile-skeleton-identity {
+  min-width: 0;
+}
+
+.homeowner-profile-skeleton-name,
+.homeowner-profile-skeleton-meta,
+.homeowner-profile-skeleton-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.homeowner-profile-skeleton-meta {
+  margin-top: 11px;
+  gap: 16px;
+}
+
+.homeowner-profile-skeleton-actions {
+  gap: 8px;
+}
+
+.homeowner-profile-skeleton-tabs {
+  margin: 0 24px;
+  padding: 0 0 20px;
+  border-bottom: 1px solid var(--profile-line, #dfe7ef);
+}
+
+.homeowner-profile-skeleton-grid {
+  min-height: 258px;
+}
+
+.homeowner-profile-skeleton-card {
+  display: flex;
+  min-height: 112px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 17px 18px;
+  border: 1px solid var(--profile-line, #dfe7ef);
+  border-radius: 9px;
+  background: var(--skeleton-surface, #eef5fc);
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.homeowner-profile-skeleton-analytics {
+  min-height: 390px;
+}
+
+.homeowner-profile-skeleton-analytics > .skeleton {
+  display: block;
+  min-height: 245px;
+}
+
+.homeowner-summary-skeleton-card {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.homeowner-analytics-skeleton {
+  display: block;
+  min-height: 245px;
 }
 
 .homeowner-payment-analytics-header {
@@ -1720,6 +1806,15 @@
   background: #fff;
   color: #17354b;
   font: inherit;
+}
+
+.homeowner-analytics-year .homeowner-analytics-select {
+  flex: 0 0 76px;
+  width: 76px;
+}
+
+.homeowner-analytics-select-popover {
+  min-width: 104px;
 }
 
 .homeowner-analytics-chart {

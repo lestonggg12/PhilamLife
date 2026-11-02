@@ -16,6 +16,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
 import { ReceiptDialog } from '../components/ReceiptSheet'
+import Skeleton from '../components/skeleton/Skeleton'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import './OfficialReceiptsPage.css'
@@ -974,7 +975,7 @@ export default function OfficialReceiptsPage() {
 
             <p>
               {loading
-                ? 'Loading saved transactions...'
+                ? <Skeleton variant="rect" width="180px" height="1em" />
                 : scopeKind === 'month'
                   ? `${countLabel(pageInfo, 'receipt', 'receipts')} in ${monthLabel(monthKey)} — search to look through every month`
                   : scopeKind === 'search'
@@ -1067,7 +1068,7 @@ export default function OfficialReceiptsPage() {
                     colSpan="8"
                     className="official-receipts-empty"
                   >
-                    Loading payment receipts...
+                    <div aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div>
                   </td>
                 </tr>
               ) : invalidDateRange ? (

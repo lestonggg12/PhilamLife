@@ -3,6 +3,7 @@ import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useState } from 'react'
 import Select from '../components/Select'
 import './DocumentLibraryPage.css'
+import Skeleton from '../components/skeleton/Skeleton'
 import {
   AlertCircle,
   Download,
@@ -456,7 +457,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       <div className="doc-summary">
         <div className="doc-summary-item">
           <span>Total documents</span>
-          <strong>{loading ? '—' : documents.length}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : documents.length}</strong>
         </div>
         <div className="doc-summary-item">
           <span>Storage used</span>
@@ -468,7 +469,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
         <div className="doc-summary-item">
           <span>Categories used</span>
-          <strong>{loading ? '—' : categoryCount}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : categoryCount}</strong>
         </div>
       </div>
 
@@ -511,7 +512,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       {pageError && <p className="doc-message doc-error">{pageError}</p>}
       <div className="doc-list glass-card" aria-live="polite">
         {loading ? (
-          <p className="doc-empty">Loading documents...</p>
+          <div className="doc-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : filteredDocuments.length === 0 ? (
           <p className="doc-empty">
             {documents.length === 0

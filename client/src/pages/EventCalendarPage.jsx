@@ -14,6 +14,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues, isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent } from '../lib/eventCalendar'
 import ActionDialog from '../components/ActionDialog'
+import Skeleton from '../components/skeleton/Skeleton'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import './EventCalendarPage.css'
 
@@ -612,7 +613,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
       {pageError && <p className="cal-message cal-error" role="alert">{pageError}</p>}
       <section className="cal-list glass-card" aria-live="polite">
         {loading ? (
-          <p className="cal-empty">Loading events...</p>
+          <div className="cal-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : loadError ? (
           <div className="cal-empty"><p>Calendar data is unavailable.</p><button type="button" className="cal-refresh-button" onClick={() => loadEvents(true)} disabled={refreshing}>Retry</button></div>
         ) : filteredEvents.length === 0 ? (

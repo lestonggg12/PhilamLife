@@ -14,7 +14,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { loadTreasurerDashboard } from '../lib/treasurerFinance'
 import { useOrganization } from '../context/OrganizationContext'
-import Loader from '../components/Loader'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -203,7 +203,7 @@ export default function TreasurerDashboard() {
         {statCards.map(({ label, value, note, icon: Icon, tone }) => (
           <article className={`treasurer-stat-card tone-${tone}`} key={label}>
             <div className="treasurer-stat-heading"><span>{label}</span><Icon size={18} /></div>
-            <strong>{loading ? '—' : pageError ? 'Unavailable' : peso.format(value)}</strong>
+            <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(value)}</strong>
             <small>{loading ? 'Loading finance data…' : pageError ? 'Financial data could not be verified' : note}</small>
           </article>
         ))}
@@ -213,7 +213,7 @@ export default function TreasurerDashboard() {
         <article className="treasurer-panel aging-panel">
           <div className="treasurer-panel-heading">
             <div><span className="treasurer-kicker">Receivables</span><h2>Aging overview</h2></div>
-            <strong>{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</strong>
+            <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</strong>
           </div>
           <div className="treasurer-aging-grid">
             {[
@@ -224,7 +224,7 @@ export default function TreasurerDashboard() {
               ['90+ days', summary.aging.days90Plus, 'critical'],
             ].map(([label, value, tone]) => (
               <div className={`treasurer-aging-item ${tone}`} key={label}>
-                <span>{label}</span><strong>{loading ? '—' : pageError ? 'Unavailable' : peso.format(value)}</strong>
+                <span>{label}</span><strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(value)}</strong>
               </div>
             ))}
           </div>
@@ -242,7 +242,7 @@ export default function TreasurerDashboard() {
 
         <article className="treasurer-panel activity-panel">
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent cash activity</h2></div></div>
-          {loading ? <Loader variant="panel" /> : pageError ? <p className="treasurer-empty">Activity is unavailable. Use Refresh data to retry.</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
+          {loading ? <div aria-busy="true"><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><span className="skeleton-region-status" role="status">Loading</span></div> : pageError ? <p className="treasurer-empty">Activity is unavailable. Use Refresh data to retry.</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
             <div className="treasurer-activity-list">
               {recentActivity.map((row) => (
                 <div className="treasurer-activity-row" key={row.id}>

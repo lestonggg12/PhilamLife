@@ -9,6 +9,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 import PricePerSqmForm from '../components/PricePerSqmForm'
 import LatePenaltySettings from '../components/LatePenaltySettings'
+import Skeleton from '../components/skeleton/Skeleton'
 
 const EXPORTS = [
   { table: 'payments', label: 'Payments', description: 'Payment records, balances, and receipt details' },
@@ -265,7 +266,7 @@ export default function SystemSettingsPage({ user }) {
     }
   }
 
-  if (loading) return <div className="ss-page"><div className="ss-loading">Loading system settings…</div></div>
+  if (loading) return <div className="ss-page" aria-busy="true"><Skeleton variant="text" width="42%" lines={2} /><Skeleton variant="rect" width="100%" height="52px" /><div className="ss-card-grid"><Skeleton variant="rect" width="100%" height="240px" /><Skeleton variant="rect" width="100%" height="240px" /><Skeleton variant="rect" width="100%" height="240px" /></div><span className="skeleton-region-status" role="status">Loading</span></div>
 
   return (
     <div className="ss-page">

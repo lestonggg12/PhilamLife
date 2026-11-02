@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Skeleton from '../components/skeleton/Skeleton'
 import { useNavigate } from 'react-router-dom'
 import './AdminDashboard.css'
 import AutoFitAmount from '../components/AutoFitAmount'
@@ -511,7 +512,7 @@ export default function AdminDashboard() {
     {
       label: 'ACTIVE USERS',
       value: loading ? '—' : activeUserCount.toLocaleString('en-PH'),
-      footer: loading ? 'Loading accounts' : (activeRoleLabels.join(', ') || 'No active accounts'),
+      footer: loading ? '' : (activeRoleLabels.join(', ') || 'No active accounts'),
       trend: null,
       icon: Zap,
       tone: 'navy',
@@ -647,7 +648,7 @@ export default function AdminDashboard() {
         <div className="dash-chart-card">
           <h3 className="dash-chart-title">Payment Status</h3>
           <p className="dash-chart-subtitle">
-            {loading ? 'Loading…' : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
+            {loading ? <Skeleton variant="rect" width="120px" height="1em" /> : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
           </p>
           <div className="dash-donut-container">
             <div className="dash-donut-canvas">
@@ -746,7 +747,7 @@ export default function AdminDashboard() {
           </div>
           <div className="dash-activities-list">
             {loading ? (
-              <p className="dash-empty-state">Loading activity...</p>
+              <div className="dash-empty-state" aria-busy="true"><Skeleton variant="rect" width="100%" height="52px" /><Skeleton variant="rect" width="100%" height="52px" /><Skeleton variant="rect" width="100%" height="52px" /><span className="skeleton-region-status" role="status">Loading</span></div>
             ) : recentActivities.length === 0 ? (
               <p className="dash-empty-state">
                 No activity has been recorded yet.

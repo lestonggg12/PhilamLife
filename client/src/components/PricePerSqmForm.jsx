@@ -2,6 +2,7 @@ import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { formatRate, parsePositiveAmount } from '../lib/lotDues'
+import Skeleton from './skeleton/Skeleton'
 
 export default function PricePerSqmForm({ canEdit = false }) {
   const [current, setCurrent] = useState(null)
@@ -60,7 +61,17 @@ export default function PricePerSqmForm({ canEdit = false }) {
     setMessage({ type: 'success', text: 'Price per square meter updated. All homeowner dues now use this rate.' })
   }
 
-  if (loading) return <p className="ss-info">Loading rate…</p>
+  if (loading) {
+    return (
+      <div className="ss-field wide" aria-busy="true">
+        <Skeleton variant="text" width="46%" />
+        <Skeleton variant="text" width="64%" />
+        <Skeleton variant="rect" width="100%" height="40px" />
+        <Skeleton variant="rect" width="120px" height="40px" />
+        <span className="skeleton-region-status" role="status">Loading</span>
+      </div>
+    )
+  }
 
   return (
     <form onSubmit={handleSubmit} className="ss-field wide">

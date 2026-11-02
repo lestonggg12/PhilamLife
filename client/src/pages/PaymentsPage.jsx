@@ -18,6 +18,7 @@ import './PaymentsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import useDebouncedValue from '../hooks/useDebouncedValue'
 import { Pager } from '../components/PagerControls'
+import Skeleton from '../components/skeleton/Skeleton'
 import {
   applySearch,
   applyTimeRange,
@@ -644,7 +645,7 @@ const canOfferAnnualDiscount =
   const remainingBalance = useMemo(() => {
   const previous = Number(form.previousBalance) || 0
   const paid = annualAdvance
-    ? annualGross
+      ? annualDiscountedPayment
     : Math.round((Number(form.amountPaid) || 0) * 100) / 100
 
   const effect =
@@ -657,7 +658,7 @@ const canOfferAnnualDiscount =
   form.previousBalance,
   form.amountPaid,
   annualAdvance,
-  annualGross,
+  annualDiscountedPayment,
   isBalanceReducingPayment,
   purposeType,
   openOfType,
@@ -866,7 +867,7 @@ function chooseAnnualAdvance(enabled) {
     ...current,
     amountPaid: enabled ? annualDiscountedPayment.toFixed(2) : '',
     coveragePeriod: enabled
-      ? '12-month advance payment (1 month free)'
+      ? '12-month payment (1 month free)'
       : '',
   }))
   setFormError('')
@@ -1478,7 +1479,7 @@ function selectHomeowner(property) {
           </thead>
           <tbody>
             {listLoading && rows.length === 0 ? (
-              <tr><td colSpan="6" className="payments-empty">Loading payments...</td></tr>
+              <tr><td colSpan="6" className="payments-empty"><div aria-busy="true"><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><span className="skeleton-region-status" role="status">Loading</span></div></td></tr>
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan="6" className="payments-empty">
@@ -1579,7 +1580,7 @@ function selectHomeowner(property) {
                   {homeownerMenuOpen && (
                     <div className="payment-homeowner-options" id="payment-homeowner-options" role="listbox">
                       {loading ? (
-                        <p className="payment-homeowner-empty">Loading ledger homeowners...</p>
+                        <div className="payment-homeowner-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="38px" /><Skeleton variant="rect" width="100%" height="38px" /><span className="skeleton-region-status" role="status">Loading</span></div>
                       ) : matchingHomeowners.length === 0 ? (
                         <p className="payment-homeowner-empty">No matching homeowner found in the ledger.</p>
                       ) : (
@@ -1693,7 +1694,7 @@ function selectHomeowner(property) {
                 <strong>{formatBalance(remainingBalance)}</strong>
               </div>
 
-              {form.propertyId && isBalanceReducingPayment && remainingBalance < 0 && (
+              {form.propertyId && isBalanceReducingPayment && remainingBalance < 0 && !annualAdvance && (
                 <div className="payment-credit-note payment-span-2" role="status">
                   <strong>Advance payment</strong>
                   <span>{advanceCreditNote(-remainingBalance, duesSettingsFor(form.propertyId))}</span>
@@ -1782,7 +1783,7 @@ function selectHomeowner(property) {
                   {chargeMenuOpen && (
                     <div className="payment-homeowner-options" id="charge-homeowner-options" role="listbox">
                       {loading ? (
-                        <p className="payment-homeowner-empty">Loading ledger homeowners...</p>
+                        <div className="payment-homeowner-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="38px" /><Skeleton variant="rect" width="100%" height="38px" /><span className="skeleton-region-status" role="status">Loading</span></div>
                       ) : matchingChargeHomeowners.length === 0 ? (
                         <p className="payment-homeowner-empty">No matching homeowner found in the ledger.</p>
                       ) : (
@@ -1866,7 +1867,7 @@ function selectHomeowner(property) {
 
             <div className="charge-list">
               {chargesError ? <p className="payments-error" role="alert">{chargesError}</p> : chargesLoading && chargeRows.length === 0 ? (
-                <p className="charge-list-empty">Loading charges...</p>
+                <div className="charge-list-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><span className="skeleton-region-status" role="status">Loading</span></div>
               ) : chargeRows.length === 0 ? (
                 <p className="charge-list-empty">No charges found.</p>
               ) : (
@@ -1973,8 +1974,8 @@ function selectHomeowner(property) {
 
       <ActionDialog
         open={annualAdvancePrompt}
-        title="12-month advance payment?"
-        message="Is this Association Dues payment an advance payment for 12 months? Yes applies one month free. No lets you continue with a regular advance payment."
+        title="12-month payment?"
+        message="Does this Association Dues payment cover 12 months? Yes applies one month free. No lets you continue with a regular payment."
         confirmLabel="Yes, 12 months"
         cancelLabel="No, regular payment"
         onConfirm={() => chooseAnnualAdvance(true)}

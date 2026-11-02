@@ -8,6 +8,7 @@ import {
   percentToFraction,
 } from '../lib/latepenalty'
 import './LatePenaltySettings.css'
+import Skeleton from './skeleton/Skeleton'
 
 export default function LatePenaltySettings({ canEdit = false }) {
   const [defaultRate, setDefaultRate] = useState('')
@@ -91,7 +92,15 @@ export default function LatePenaltySettings({ canEdit = false }) {
   }
 
   if (loading) {
-    return <p className="ss-info">Loading penalty settings…</p>
+    return (
+      <div className="lps" aria-busy="true">
+        <Skeleton variant="text" lines={3} />
+        <Skeleton variant="text" lines={3} />
+        <Skeleton variant="rect" width="100%" height="42px" />
+        <Skeleton variant="rect" width="120px" height="40px" />
+        <span className="skeleton-region-status" role="status">Loading</span>
+      </div>
+    )
   }
 
   return (
