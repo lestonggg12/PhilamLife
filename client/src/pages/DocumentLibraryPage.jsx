@@ -15,6 +15,7 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import { deleteDocumentSafely } from '../lib/documentDeletion'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 
@@ -155,7 +156,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     const { data, error } = await fetchAll(() => supabase
       .from('documents')
       .select(
-        'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at',
+        'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at, deletion_requested_at, deletion_requested_by',
       )
       .order('created_at', { ascending: false }))
 
@@ -339,6 +340,10 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   }
 
   async function downloadDocument(document) {
+    if (document.deletion_requested_at) {
+      setPageError('This document is pending deletion and cannot be downloaded.')
+      return
+    }
     setDownloadingId(document.id)
     setPageError('')
     setNotice('')
@@ -382,52 +387,19 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     setPageError('')
     setNotice('')
 
-    // Remove the actual file from Storage first — that's what frees up
-    // space against the 1 GB limit. The metadata row alone takes up
-    // negligible space, so removing only that wouldn't help.
-    const { error: storageError } = await supabase.storage
-      .from(BUCKET)
-      .remove([document.storage_path])
-
-    if (storageError) {
-      setPageError(`Could not delete file: ${storageError.message}`)
+    try {
+      const result = await deleteDocumentSafely(supabase, document.id, (pending) => {
+        setDocuments((current) => current.map((item) => item.id === pending.id ? pending : item))
+      })
+      setDocuments((current) => current.filter((doc) => doc.id !== document.id))
+      setNotice(result.alreadyDeleted
+        ? `“${document.title}” was already removed. The list has been updated.`
+        : `“${document.title}” was deleted and its storage space freed.`)
+    } catch (error) {
+      setPageError(error.message)
+    } finally {
       setDeletingId(null)
-      return
     }
-
-    const { error: metadataError } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', document.id)
-
-    if (metadataError) {
-      setPageError(
-        `The file was removed, but its record could not be deleted: ${metadataError.message}`,
-      )
-      setDeletingId(null)
-      return
-    }
-
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase
-        .from('activity_log')
-        .insert({
-          user_id: currentUser.id,
-          action: 'Document Deleted',
-          target: `${document.title} — ${document.original_file_name} (by ${actorName})`,
-        })
-
-      if (activityError) {
-        console.warn(
-          'Document deleted, but activity logging failed:',
-          activityError.message,
-        )
-      }
-    }
-
-    setDocuments((current) => current.filter((doc) => doc.id !== document.id))
-    setDeletingId(null)
-    setNotice(`“${document.title}” was deleted and its storage space freed.`)
   }
 
   const filteredDocuments = useMemo(() => {
@@ -570,6 +542,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                 <p className="doc-file-name">{document.original_file_name}</p>
                 <p className="doc-meta">
                   <span className="doc-category">{document.category}</span>
+                  {document.deletion_requested_at && <span role="status">Deletion pending</span>}
                   <span>{formatFileSize(document.file_size)}</span>
                   <span>{organization.formatDate(document.created_at, { withTime: true })}</span>
                   <span>Uploaded by {document.uploaded_by_name}</span>
@@ -581,7 +554,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                   type="button"
                   className="doc-download-button"
                   onClick={() => downloadDocument(document)}
-                  disabled={downloadingId === document.id}
+                  disabled={downloadingId === document.id || Boolean(document.deletion_requested_at)}
                   aria-label={`Download ${document.title}`}
                 >
                   <Download size={17} />
@@ -591,13 +564,14 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                 {canDeleteDocuments && (
                   <button
                     type="button"
-                    className="doc-delete-button"
+                    className={`doc-delete-button${document.deletion_requested_at ? ' doc-delete-retry' : ''}`}
                     onClick={() => requestDeleteDocument(document)}
                     disabled={deletingId === document.id}
-                    aria-label={`Delete ${document.title}`}
-                    title="Delete this document"
+                    aria-label={`${document.deletion_requested_at ? 'Retry deletion of' : 'Delete'} ${document.title}`}
+                    title={document.deletion_requested_at ? 'Retry deletion' : 'Delete this document'}
                   >
                     <Trash2 size={17} />
+                    {document.deletion_requested_at && 'Retry deletion'}
                   </button>
                 )}
               </div>
@@ -608,13 +582,15 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
       <ActionDialog
         open={!!pendingDelete}
-        title="Delete Document?"
+        title={pendingDelete?.deletion_requested_at ? 'Finish Document Deletion?' : 'Delete Document?'}
         message={
           pendingDelete
-            ? `Delete "${pendingDelete.title}" (${pendingDelete.original_file_name})? This cannot be undone and will free up ${formatFileSize(pendingDelete.file_size)} of storage.`
+            ? pendingDelete.deletion_requested_at
+              ? `Finish deleting "${pendingDelete.title}"? The previous attempt is pending. This cannot be undone.`
+              : `Delete "${pendingDelete.title}" (${pendingDelete.original_file_name})? This cannot be undone and will free up ${formatFileSize(pendingDelete.file_size)} of storage.`
             : ''
         }
-        confirmLabel="Delete"
+        confirmLabel={pendingDelete?.deletion_requested_at ? 'Retry deletion' : 'Delete'}
         tone="danger"
         onConfirm={() => deleteDocument(pendingDelete)}
         onCancel={() => setPendingDelete(null)}

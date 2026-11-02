@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock, Search, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
+import { loadServiceRevenue, transactionPaymentStatus } from '../lib/treasurerFinance'
 import './TreasurerServiceRevenue.css'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -31,21 +32,10 @@ function manilaDateKey(value) {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-function transactionPaymentStatus(transaction, owedIds) {
-  if (transaction.payment_status === 'partial') {
-    return owedIds.has(transaction.id) ? 'outstanding' : 'paid'
-  }
-  const amountDue = Number(transaction.amount_due) || 0
-  const amountPaid = Number(transaction.amount_paid) || 0
-  return transaction.payment_status === 'paid' || amountPaid >= amountDue
-    ? 'paid'
-    : 'outstanding'
-}
-
 export default function TreasurerServiceRevenuePage() {
   const { organization } = useOrganization()
   const [transactions, setTransactions] = useState([])
-  const [totals, setTotals] = useState({ total: 0, month: 0, owed: 0, byService: [] })
+  const [totals, setTotals] = useState({ total: null, month: null, owed: null, byService: [] })
   const [owedIds, setOwedIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
@@ -62,8 +52,10 @@ export default function TreasurerServiceRevenuePage() {
     }
   })
 
+  const request = useRef(0)
   useEffect(() => {
     loadTransactions()
+    return () => { request.current += 1 }
   }, [fromDate, toDate])
 
   useEffect(() => {
@@ -75,33 +67,21 @@ export default function TreasurerServiceRevenuePage() {
   }, [showBreakdown])
 
   async function loadTransactions() {
+    const sequence = ++request.current
     setLoading(true)
     setPageError('')
-
-    let query = supabase.from('service_transactions').select('*')
-      .order('paid_at', { ascending: false }).limit(500)
-    if (fromDate) query = query.gte('paid_at', `${fromDate}T00:00:00+08:00`)
-    if (toDate) query = query.lte('paid_at', `${toDate}T23:59:59.999+08:00`)
-    const [{ data, error }, summaryResult, balanceResult] = await Promise.all([
-      query,
-      supabase.rpc('service_revenue_summary'),
-      supabase.from('service_balances').select('id, balance_due'),
-    ])
-    const s = summaryResult.data || {}
-    setTotals({
-      total: Number(s.total_collected) || 0,
-      month: Number(s.collected_this_month) || 0,
-      owed: (balanceResult.data || []).reduce((sum, r) => sum + (Number(r.balance_due) || 0), 0),
-      byService: (s.by_service || []).map((r) => [r.name, Number(r.amount) || 0]),
-    })
-    setOwedIds(new Set((balanceResult.data || []).map((r) => r.id)))
-
-    if (error) {
-      setPageError(`Service revenue could not be loaded: ${error.message}`)
+    try {
+      const result = await loadServiceRevenue(supabase, { fromDate, toDate })
+      if (sequence !== request.current) return
+      setTotals(result.totals); setOwedIds(result.owedIds); setTransactions(result.transactions)
+    } catch (error) {
+      if (sequence !== request.current) return
+      setPageError(`Service revenue is unavailable: ${error.message}`)
+      setTotals({ total: null, month: null, owed: null, byService: [] })
+      setTransactions([]); setOwedIds(new Set())
+    } finally {
+      if (sequence === request.current) setLoading(false)
     }
-
-    setTransactions(data || [])
-    setLoading(false)
   }
 
   const serviceNames = useMemo(() => {
@@ -212,7 +192,7 @@ export default function TreasurerServiceRevenuePage() {
               <DollarSign size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? '—' : peso.format(summary.collectedThisMonth)}</h3>
+          <h3 className="tsr-stat-value">{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.collectedThisMonth)}</h3>
         </div>
 
         <div className="tsr-stat-card">
@@ -222,7 +202,7 @@ export default function TreasurerServiceRevenuePage() {
               <TrendingUp size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? '—' : peso.format(summary.totalCollected)}</h3>
+          <h3 className="tsr-stat-value">{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.totalCollected)}</h3>
         </div>
 
         <div className="tsr-stat-card">
@@ -232,7 +212,7 @@ export default function TreasurerServiceRevenuePage() {
               <Clock size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? '—' : peso.format(summary.outstanding)}</h3>
+          <h3 className="tsr-stat-value">{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</h3>
         </div>
 
         <div className="tsr-stat-card">
@@ -318,6 +298,8 @@ export default function TreasurerServiceRevenuePage() {
             <div className="tsr-breakdown-panel">
               {loading ? (
                 <Loader variant="panel" />
+              ) : pageError ? (
+                <p className="tsr-empty">Service breakdown is unavailable. Refresh to retry.</p>
               ) : summary.byService.length === 0 ? (
                 <div className="tsr-state">No data yet.</div>
               ) : (
@@ -389,6 +371,7 @@ export default function TreasurerServiceRevenuePage() {
                   { value: 'all', label: 'All Statuses' },
                   { value: 'paid', label: 'Fully Paid' },
                   { value: 'outstanding', label: 'Partial / Outstanding' },
+                  { value: 'voided', label: 'Voided' },
                 ]}
               />
             </div>
@@ -414,12 +397,16 @@ export default function TreasurerServiceRevenuePage() {
           </div>
 
           <p className="tsr-result-count">
-            Showing {filteredTransactions.length} of {transactions.length}
-            {transactions.length >= 500 ? '+ (latest 500; narrow the dates for older)' : ''} transactions
+            {pageError ? 'Transaction count unavailable' : <>
+              Showing {filteredTransactions.length} of {transactions.length}
+              {transactions.length >= 500 ? '+ (latest 500; narrow the dates for older)' : ''} transactions
+            </>}
           </p>
 
           {loading ? (
             <Loader variant="panel" />
+          ) : pageError ? (
+            <p className="tsr-empty">Service data is unavailable. Refresh to retry.</p>
           ) : filteredTransactions.length === 0 ? (
             <div className="tsr-state">No service transactions found.</div>
           ) : (

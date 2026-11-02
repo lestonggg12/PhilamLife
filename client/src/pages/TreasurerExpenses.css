@@ -828,3 +828,4 @@
     padding: 24px 20px;
   }
 }
+.tex-page .tex-void-details { display: block; margin-top: 4px; font-size: 0.78rem; overflow-wrap: anywhere; }

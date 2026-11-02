@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import ActionDialog from '../components/ActionDialog'
+import ExpenseVoidDialog from './ExpenseVoidDialog'
+import { recordExpense, voidExpense } from '../lib/treasurerFinance'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { useOrganization } from '../context/OrganizationContext'
@@ -113,6 +114,7 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const [voidingId, setVoidingId] = useState(null)
   const [pendingVoid, setPendingVoid] = useState(null)
   const [voidError, setVoidError] = useState('')
+  const [voidReason, setVoidReason] = useState('')
 
   const role = String(currentUser?.role || '').trim().toLowerCase()
 
@@ -371,7 +373,7 @@ const isReadOnly = !canRecordExpenses
       return
     }
 
-    if (!amount || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       setFormError('Please enter a valid amount greater than zero.')
       return
     }
@@ -398,36 +400,15 @@ const isReadOnly = !canRecordExpenses
       recorded_by_name: recorderName,
     }
 
-    const { data, error } = await supabase
-      .from('expenses')
-      .insert(payload)
-      .select('*')
-      .single()
-
-    setSaving(false)
-
-    if (error) {
+    try {
+      const data = await recordExpense(supabase, payload)
+      setExpenses((current) => [data, ...current])
+      setShowForm(false)
+      notifySuccess(`Expense of ${peso.format(data.amount)} recorded: ${data.description}.`)
+    } catch (error) {
       setFormError(error.message)
-      return
-    }
-
-    setExpenses((current) => [data, ...current])
-    setShowForm(false)
-    notifySuccess(`Expense of ${peso.format(data.amount)} recorded: ${data.description}.`)
-
-    const { error: activityError } = await supabase
-      .from('activity_log')
-      .insert({
-        user_id: currentUser.id,
-        action: 'Expense Recorded',
-        target: `${data.category} — ${peso.format(data.amount)} (${recorderName})`,
-      })
-
-    if (activityError) {
-      console.warn(
-        'Expense saved, but activity logging failed:',
-        activityError.message,
-      )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -440,6 +421,7 @@ const isReadOnly = !canRecordExpenses
       return
     }
 
+    setVoidReason(''); setVoidError('')
     setPendingVoid(expense)
   }
 
@@ -455,44 +437,17 @@ const isReadOnly = !canRecordExpenses
 
     if (voidingId) return
 
-    setPendingVoid(null)
     setVoidError('')
     setVoidingId(expense.id)
-
-    const { data, error } = await supabase
-      .from('expenses')
-      .update({ status: 'Voided' })
-      .eq('id', expense.id)
-      .select('*')
-      .single()
-
-    setVoidingId(null)
-
-    if (error) {
+    try {
+      const data = await voidExpense(supabase, expense.id, voidReason)
+      setExpenses((current) => current.map((item) => item.id === expense.id ? data : item))
+      setPendingVoid(null)
+      notifySuccess(`Expense of ${peso.format(expense.amount)} was cancelled: ${expense.description}.`)
+    } catch (error) {
       setVoidError(`Could not void expense: ${error.message}`)
-      return
-    }
-
-    notifySuccess(`Expense of ${peso.format(expense.amount)} was cancelled: ${expense.description}.`)
-    setExpenses((current) =>
-      current.map((item) => (item.id === expense.id ? data : item)),
-    )
-
-    if (currentUser?.id) {
-      const { error: activityError } = await supabase
-        .from('activity_log')
-        .insert({
-          user_id: currentUser.id,
-          action: 'Expense Voided',
-          target: `${expense.category} — ${peso.format(expense.amount)} (${recorderName})`,
-        })
-
-      if (activityError) {
-        console.warn(
-          'Expense was voided, but activity logging failed:',
-          activityError.message,
-        )
-      }
+    } finally {
+      setVoidingId(null)
     }
   }
 
@@ -541,7 +496,11 @@ const isReadOnly = !canRecordExpenses
                   </span>
                 </td>
 
-                <td>{expense.description}</td>
+                <td>{expense.description}
+                  {expense.status === 'Voided' && <small className="tex-void-details">{expense.void_reason
+                    ? `Reason: ${expense.void_reason} · ${expense.voided_by_name} · ${organization.formatDate(expense.voided_at, { withTime: true })}`
+                    : 'Legacy cancellation: actor, time and reason were not recorded.'}</small>}
+                </td>
                 <td>{expense.reference_number || '—'}</td>
                 <td>{expense.recorded_by_name || '—'}</td>
 
@@ -623,14 +582,14 @@ const isReadOnly = !canRecordExpenses
             Total {monthLabel(selectedMonth)}
           </span>
           <h3 className="tex-stat-value">
-            {loading ? '—' : peso.format(summary.totalSelectedMonth)}
+            {loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.totalSelectedMonth)}
           </h3>
         </div>
 
         <div className="tex-stat-card">
           <span className="tex-stat-label">Total Recorded</span>
           <h3 className="tex-stat-value">
-            {loading ? '—' : peso.format(summary.totalAllTime)}
+            {loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.totalAllTime)}
           </h3>
         </div>
 
@@ -955,31 +914,14 @@ const isReadOnly = !canRecordExpenses
         </div>
       )}
 
-      <ActionDialog
-        open={canVoidExpenses && !!pendingVoid}
-        title="Void This Expense?"
-        message={
-          pendingVoid
-            ? `${pendingVoid.category} — ${peso.format(
-                pendingVoid.amount,
-              )}\n${pendingVoid.description}\n\nVoided expenses stay on record but are excluded from totals.`
-            : ''
-        }
-        confirmLabel="Void Expense"
-        tone="danger"
-        onConfirm={() => {
-          if (canVoidExpenses && pendingVoid) {
-            handleVoid(pendingVoid)
-          }
-        }}
-        onCancel={() => setPendingVoid(null)}
-      />
-
-      <ActionDialog
-        open={!!voidError}
-        title="Could Not Void Expense"
-        message={voidError}
-        onConfirm={() => setVoidError('')}
+      <ExpenseVoidDialog
+        expense={canVoidExpenses ? pendingVoid : null}
+        reason={voidReason}
+        onReason={setVoidReason}
+        error={voidError}
+        busy={Boolean(voidingId)}
+        onConfirm={() => { if (pendingVoid) handleVoid(pendingVoid) }}
+        onCancel={() => { if (!voidingId) { setPendingVoid(null); setVoidError('') } }}
       />
     </div>
   )

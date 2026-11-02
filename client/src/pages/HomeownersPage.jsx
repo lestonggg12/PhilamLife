@@ -15,6 +15,7 @@ import {
   Users,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { updateHomeowner, removeHomeowner } from '../lib/homeownerWrites'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
@@ -365,9 +366,9 @@ useEffect(() => {
     })
     if (!confirmed) return
 
-    const { error } = await supabase.from('properties').delete().eq('id', entry.id)
-
-    if (error) {
+    try {
+      await removeHomeowner(supabase, entry.id)
+    } catch (error) {
       setPageError(`Could not remove homeowner: ${error.message}`)
       return
     }
@@ -1597,11 +1598,17 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
       lot_number: lotNumber,
       ...(lotSizeSqm !== null && { lot_size_sqm: lotSizeSqm }),
     }
-    const { data, error } = editingHomeownerId
-      ? await supabase.from('properties').update(payload).eq('id', editingHomeownerId)
-      : await supabase.from('properties').insert(payload).select('id').single()
-
-    if (error) {
+    let data
+    try {
+      if (editingHomeownerId) {
+        data = await updateHomeowner(supabase, editingHomeownerId, payload)
+      } else {
+        const result = await supabase.from('properties').insert(payload).select('id').single()
+        if (result.error) throw result.error
+        if (result.data?.id == null) throw new Error('The new homeowner could not be confirmed. Refresh before trying again.')
+        data = result.data
+      }
+    } catch (error) {
       setFormError(
         isDuplicateLotError(error)
           ? duplicateLotMessage(blockName, lotNumber)

@@ -672,3 +672,11 @@
     width: 100%;
   }
 }
+
+.doc-delete-retry {
+  width: auto;
+  min-width: 38px;
+  gap: 7px;
+  padding: 0 10px;
+  white-space: nowrap;
+}

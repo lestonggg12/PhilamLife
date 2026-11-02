@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './TreasurerDashboard.css'
 import {
@@ -12,7 +12,7 @@ import {
   TrendingUp,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
+import { loadTreasurerDashboard } from '../lib/treasurerFinance'
 import { useOrganization } from '../context/OrganizationContext'
 import Loader from '../components/Loader'
 
@@ -43,18 +43,6 @@ const amount = (row, keys) => {
 const isVoided = (row) => String(row?.status || '').toLowerCase() === 'voided'
 
 
-async function optionalRows(table, orderColumn, fetchOptions = {}) {
-  // Fetch every page without exceeding the API's 1,000-row limit.
-  // Views without an "id" column must disable fetchAll's default tiebreaker.
-  const { data, error } = await fetchAll(() => {
-    const query = supabase.from(table).select('*')
-    return orderColumn ? query.order(orderColumn, { ascending: false }) : query
-  }, fetchOptions)
-
-  return { table, data: data || [], error }
-}
-
-
 export default function TreasurerDashboard() {
   const { organization } = useOrganization()
   const [finance, setFinance] = useState({
@@ -72,60 +60,24 @@ export default function TreasurerDashboard() {
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
 
+  const request = useRef(0)
   useEffect(() => {
     loadDashboard()
+    return () => { request.current += 1 }
   }, [])
 
   async function loadDashboard() {
+    const sequence = ++request.current
     setLoading(true)
     setPageError('')
-
-    const results = await Promise.all([
-      // Only the 8 newest payments feed the activity list; this month's totals
-      // come from the database as a single row.
-      supabase.from('payments').select('*').neq('status', 'Voided').order('paid_at', { ascending: false }).limit(8)
-        .then(({ data, error }) => ({ table: 'payments', data: data || [], error })),
-      optionalRows('expenses', 'expense_date'),
-      supabase.from('service_transactions').select('*').neq('payment_status', 'voided').order('paid_at', { ascending: false }).limit(8)
-        .then(({ data, error }) => ({ table: 'service_transactions', data: data || [], error })),
-      supabase.from('monthly_collections').select('month_start, dues_collected, service_collected')
-        .eq('month_start', `${manilaMonthKey()}-01`).maybeSingle()
-        .then(({ data, error }) => ({ table: 'monthly_collections', data: data ? [data] : [], error })),
-      optionalRows('properties', 'homeowner_name'),
-        optionalRows('property_overdue_summary', 'property_id', {
-          tiebreaker: null,
-        }),
-      supabase.from('credit_liability_summary').select('*').maybeSingle()
-        .then(({ data, error }) => ({ table: 'credit_liability_summary', data: data ? [data] : [], error })),
-      optionalRows('account_adjustments', 'created_at'),
-      optionalRows('bank_deposits', 'recorded_at'),
-      optionalRows('accounting_periods', 'starts_on'),
-    ])
-
-    const byTable = Object.fromEntries(results.map((result) => [result.table, result.data]))
-    const criticalError = results.find(
-      (result) =>
-        result.error &&
-        ['payments', 'expenses', 'properties', 'monthly_collections', 'property_overdue_summary', 'credit_liability_summary'].includes(result.table),
-    )
-
-    if (criticalError) {
-      setPageError(`Finance data could not be fully loaded: ${criticalError.error.message}`)
+    try {
+      const result = await loadTreasurerDashboard(supabase, `${manilaMonthKey()}-01`)
+      if (sequence === request.current) setFinance(result)
+    } catch (error) {
+      if (sequence === request.current) setPageError(`Finance data is unavailable: ${error.message}`)
+    } finally {
+      if (sequence === request.current) setLoading(false)
     }
-
-    setFinance({
-      payments: byTable.payments || [],
-      monthly: (byTable.monthly_collections || [])[0] || null,
-      expenses: byTable.expenses || [],
-      services: byTable.service_transactions || [],
-      properties: byTable.properties || [],
-      overdue: byTable.property_overdue_summary || [],
-      credits: (byTable.credit_liability_summary || [])[0] || null,
-      adjustments: byTable.account_adjustments || [],
-      deposits: byTable.bank_deposits || [],
-      periods: byTable.accounting_periods || [],
-    })
-    setLoading(false)
   }
 
   const summary = useMemo(() => {
@@ -139,35 +91,7 @@ export default function TreasurerDashboard() {
       .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
       .reduce((sum, row) => sum + amount(row, ['amount']), 0)
 
-    // Balances and overdue come from the property_overdue_summary view, the
-    // same source as the Admin dashboard and the Overdue Accounts page.
-    const overdueByProperty = new Map(finance.overdue.map((row) => [row.property_id, row]))
-    const accountRows = finance.properties
-      .filter((property) => (property.homeowner_status || 'active') === 'active')
-      .map((property) => {
-        const row = overdueByProperty.get(property.id)
-        return {
-          balance: Number(row?.balance) || 0,
-          isOverdue: Boolean(row?.is_overdue),
-          daysOverdue: Number(row?.days_overdue) || 0,
-          overdueAmount: Number(row?.overdue_amount) || 0,
-        }
-      })
-
-    const outstanding = accountRows.reduce((sum, row) => sum + row.balance, 0)
-    const aging = accountRows.reduce(
-      (result, row) => {
-        if (row.balance <= 0) return result
-        const late = row.isOverdue ? Math.min(row.overdueAmount, row.balance) : 0
-        const next = { ...result, current: result.current + (row.balance - late) }
-        if (late <= 0) return next
-        if (row.daysOverdue <= 30) return { ...next, days1To30: next.days1To30 + late }
-        if (row.daysOverdue <= 60) return { ...next, days31To60: next.days31To60 + late }
-        if (row.daysOverdue <= 90) return { ...next, days61To90: next.days61To90 + late }
-        return { ...next, days90Plus: next.days90Plus + late }
-      },
-      { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
-    )
+    const { outstanding = 0, aging = { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 }, overdue = 0, overdueAccounts = 0 } = finance.agingSummary || {}
 
     return {
       collectedThisMonth,
@@ -175,12 +99,12 @@ export default function TreasurerDashboard() {
       expensesThisMonth,
       netThisMonth: collectedThisMonth + servicesThisMonth - expensesThisMonth,
       outstanding,
-      overdue: aging.days1To30 + aging.days31To60 + aging.days61To90 + aging.days90Plus,
+      overdue,
       creditsHeld: Number(finance.credits?.active_credit_total) || 0,
       creditAccounts: Number(finance.credits?.active_credit_accounts) || 0,
       movedCredit: Number(finance.credits?.moved_credit_total) || 0,
       aging,
-      overdueAccounts: accountRows.filter((row) => row.isOverdue).length,
+      overdueAccounts,
     }
   }, [finance])
 
@@ -279,8 +203,8 @@ export default function TreasurerDashboard() {
         {statCards.map(({ label, value, note, icon: Icon, tone }) => (
           <article className={`treasurer-stat-card tone-${tone}`} key={label}>
             <div className="treasurer-stat-heading"><span>{label}</span><Icon size={18} /></div>
-            <strong>{loading ? '—' : peso.format(value)}</strong>
-            <small>{loading ? 'Loading finance data…' : note}</small>
+            <strong>{loading ? '—' : pageError ? 'Unavailable' : peso.format(value)}</strong>
+            <small>{loading ? 'Loading finance data…' : pageError ? 'Financial data could not be verified' : note}</small>
           </article>
         ))}
       </section>
@@ -289,7 +213,7 @@ export default function TreasurerDashboard() {
         <article className="treasurer-panel aging-panel">
           <div className="treasurer-panel-heading">
             <div><span className="treasurer-kicker">Receivables</span><h2>Aging overview</h2></div>
-            <strong>{peso.format(summary.outstanding)}</strong>
+            <strong>{loading ? '—' : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</strong>
           </div>
           <div className="treasurer-aging-grid">
             {[
@@ -300,7 +224,7 @@ export default function TreasurerDashboard() {
               ['90+ days', summary.aging.days90Plus, 'critical'],
             ].map(([label, value, tone]) => (
               <div className={`treasurer-aging-item ${tone}`} key={label}>
-                <span>{label}</span><strong>{loading ? '—' : peso.format(value)}</strong>
+                <span>{label}</span><strong>{loading ? '—' : pageError ? 'Unavailable' : peso.format(value)}</strong>
               </div>
             ))}
           </div>
@@ -310,15 +234,15 @@ export default function TreasurerDashboard() {
         <article className="treasurer-panel exception-panel">
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Attention</span><h2>Finance checks</h2></div></div>
           <div className="treasurer-check-list">
-            <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{summary.overdueAccounts} overdue accounts</strong><small>{peso.format(summary.overdue)} needs collection follow-up</small></p></div>
-            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{exceptions.unreconciledDeposits} unreconciled deposits</strong><small>Match deposits with bank records</small></p></div>
-            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{exceptions.pendingAdjustments} pending adjustments</strong><small>{exceptions.currentPeriod ? 'Accounting period is open' : 'No open accounting period found'}</small></p></div>
+            <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${summary.overdueAccounts} overdue accounts`}</strong><small>{loading ? 'Checking collections…' : pageError ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`}</small></p></div>
+            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.unreconciledDeposits} unreconciled deposits`}</strong><small>Match deposits with bank records</small></p></div>
+            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.pendingAdjustments} pending adjustments`}</strong><small>{loading ? 'Checking accounting period…' : pageError ? 'Finance checks could not be verified' : exceptions.currentPeriod ? 'Accounting period is open' : 'No open accounting period found'}</small></p></div>
           </div>
         </article>
 
         <article className="treasurer-panel activity-panel">
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent cash activity</h2></div></div>
-          {loading ? <Loader variant="panel" /> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
+          {loading ? <Loader variant="panel" /> : pageError ? <p className="treasurer-empty">Activity is unavailable. Use Refresh data to retry.</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
             <div className="treasurer-activity-list">
               {recentActivity.map((row) => (
                 <div className="treasurer-activity-row" key={row.id}>
