@@ -1686,11 +1686,6 @@ function selectHomeowner(property) {
                 />
               </label>
 
-              <label className="payment-span-2">Final Due Date (Required)
-                <input name="dueDate" type="date" min={todayDateKey()} value={chargeForm.dueDate} onChange={updateChargeField} required />
-                <small className="payment-homeowner-help">The charge is added to the account now. Its unpaid remainder becomes overdue the day after this date (Manila time). No additional monthly grace period is applied.</small>
-              </label>
-
               <label>Lot number
                 <input
                   name="lotNumber"
@@ -1891,6 +1886,21 @@ function selectHomeowner(property) {
 
               <label>Amount
                 <input name="amount" type="number" min="0.01" step="0.01" value={chargeForm.amount} onChange={updateChargeField} required />
+              </label>
+
+              <label className="payment-span-2">
+                Final Due Date (Required)
+                <input
+                  name="dueDate"
+                  type="date"
+                  min={todayDateKey()}
+                  value={chargeForm.dueDate}
+                  onChange={updateChargeField}
+                  required
+                />
+                <small className="payment-homeowner-help">
+                  The unpaid amount becomes overdue the day after this date (Manila time).
+                </small>
               </label>
 
               {chargeProperty && chargePreviewAmount > 0 && (
