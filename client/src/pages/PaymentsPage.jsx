@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { readPropertyBalance } from '../lib/paymentBalanceRefresh'
 import { loadOpenCharges } from '../lib/openChargeSearch'
+import { paymentSetupErrors } from '../lib/paymentSetup'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { PAYMENT_PURPOSES, CHARGE_TYPES, isBalanceReducingPurpose, paymentAdvanceConfirmation } from '../lib/paymentPurposes'
 import { useOrganization } from '../context/OrganizationContext'
@@ -429,7 +430,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
-  const role = currentUser?.role?.trim().toLowerCase()
+  const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
     role === 'admin' || role === 'secretary' || role === 'treasurer'
   // Adding or voiding a charge changes a homeowner's balance directly, so treasurers are excluded.
@@ -515,6 +516,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setLoading(true)
     setPageError('')
 
+    try {
     const [propertyResult, settingsResult, billedResult, duesResult] = await Promise.all([
       fetchAll(() => supabase
         .from('properties')
@@ -539,24 +541,22 @@ export default function PaymentsPage({ user: suppliedUser }) {
         .order('property_id'), { tiebreaker: null }),
     ])
 
-    if (!settingsResult.error && settingsResult.data) {
-      setDuesSettings({
-        ...settingsResult.data,
-        billed_this_month: !billedResult.error && (billedResult.data || []).length > 0,
-      })
-    }
-
-    if (!duesResult.error) {
-      setMonthlyDuesByProperty(new Map((duesResult.data || []).map((row) => [Number(row.property_id), row.monthly_dues])))
-    }
-
-    const errors = [propertyResult.error, settingsResult.error, billedResult.error, duesResult.error]
-      .filter(Boolean)
+    const errors = paymentSetupErrors({ propertyResult, settingsResult, billedResult, duesResult })
     if (errors.length) {
-      setPageError(`Payment setup could not be fully loaded: ${errors.map((error) => error.message).join(' ')}`)
+      setPageError(`Payment setup could not be fully loaded: ${errors.join(' ')}`)
+      return
     }
-    if (!propertyResult.error) setProperties(propertyResult.data || [])
-    setLoading(false)
+    setDuesSettings({
+      ...settingsResult.data,
+      billed_this_month: billedResult.data.length > 0,
+    })
+    setMonthlyDuesByProperty(new Map(duesResult.data.map((row) => [Number(row.property_id), row.monthly_dues])))
+    setProperties(propertyResult.data)
+    } catch (error) {
+      setPageError(`Payment setup could not be loaded: ${error?.message || 'Connection failed.'}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // A profile's Record Payment button carries only its lot ID. Wait for the
@@ -612,6 +612,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     const propertyId = Number(form.propertyId)
 
     async function loadOpenAmount() {
+      try {
       const [chargeResult, paidResult] = await Promise.all([
         fetchAll(() => supabase
           .from('property_charges')
@@ -624,7 +625,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
           .select('balance_effect, effect_released')
           .eq('property_id', propertyId)
           .eq('charge_type', purposeType)
-          .neq('status', 'Voided')),
+          .or('status.is.null,status.neq.Voided')),
       ])
 
       if (cancelled) return
@@ -641,6 +642,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
         0,
       )
       setOpenOfType(Math.max(Math.round((charged - applied) * 100) / 100, 0))
+      } catch {
+        if (!cancelled) {
+          setOpenOfType(0)
+          setOpenOfTypeError('Unable to verify unpaid charges. Refresh and try again.')
+        }
+      }
     }
 
     loadOpenAmount()
@@ -713,6 +720,7 @@ const canOfferAnnualDiscount =
 
     async function loadRows() {
       setListLoading(true)
+      try {
       const { from, to } = pageWindow(page)
 
       // Browsing a day gets an exact total (cheap: it uses the date index).
@@ -746,7 +754,15 @@ const canOfferAnnualDiscount =
         setRows(result.rows)
         setPageInfo({ total: result.total, minimum: result.minimum })
       }
-      setListLoading(false)
+      } catch (failure) {
+        if (!cancelled) {
+          setListError(`Could not load payments: ${failure?.message || 'Connection failed.'}`)
+          setRows([])
+          setPageInfo({ total: 0, minimum: 0 })
+        }
+      } finally {
+        if (!cancelled) setListLoading(false)
+      }
     }
 
     loadRows()
@@ -930,13 +946,16 @@ function updateHomeownerSearch(event) {
   async function handlePenaltiesPosted() {
     const id = form.propertyId
     if (!id) return
-    const { data } = await supabase.from('properties').select('current_balance').eq('id', Number(id)).maybeSingle()
-    if (!data) return
-    const balance = Number(data.current_balance) || 0
-    setProperties((current) =>
-      current.map((property) => (String(property.id) === String(id) ? { ...property, current_balance: balance } : property)),
-    )
-    setForm((current) => (String(current.propertyId) === String(id) ? { ...current, previousBalance: String(balance) } : current))
+    try {
+      const balance = await readPropertyBalance(supabase, Number(id))
+      setProperties((current) =>
+        current.map((property) => (String(property.id) === String(id) ? { ...property, current_balance: balance } : property)),
+      )
+      setForm((current) => (String(current.propertyId) === String(id) ? { ...current, previousBalance: String(balance) } : current))
+    } catch (error) {
+      setPageError(`Penalties may have been posted, but the updated balance could not be verified. Refresh before recording another payment. ${error.message}`)
+      setForm((current) => (String(current.propertyId) === String(id) ? { ...current, previousBalance: '' } : current))
+    }
   }
 
   
@@ -1097,13 +1116,22 @@ function selectHomeowner(property) {
       setChargeRows([])
       setChargesError('')
 
+      try {
       const { data, error, count } = await loadOpenCharges(supabase, properties, debouncedChargeSearch)
 
       if (cancelled) return
       setChargeRows(error ? [] : data || [])
       setChargesError(error ? 'Charges could not be loaded. Close this window and try again.' : '')
       setChargeTotal(error ? 0 : count || 0)
-      setChargesLoading(false)
+      } catch {
+        if (!cancelled) {
+          setChargeRows([])
+          setChargeTotal(0)
+          setChargesError('Charges could not be loaded. Close this window and try again.')
+        }
+      } finally {
+        if (!cancelled) setChargesLoading(false)
+      }
     }
 
     loadCharges()
@@ -1137,11 +1165,11 @@ function selectHomeowner(property) {
         .from('payments')
         .update({ status: 'Voided', void_reason: reason })
         .eq('id', item.id)
-        .neq('status', 'Voided')
+        .or('status.is.null,status.neq.Voided')
         .select('id')
 
-      if (error || !data?.length) {
-        setVoidError(error?.message || 'Could not void this payment. It may already be voided, or you may not have permission.')
+      if (error || !Array.isArray(data) || data.length !== 1 || String(data[0]?.id) !== String(item.id)) {
+        setVoidError(error?.message || 'Could not confirm this payment cancellation. Refresh before trying again.')
         setVoiding(false)
         return
       }
@@ -1157,8 +1185,8 @@ function selectHomeowner(property) {
         .is('voided_at', null)
         .select('id')
 
-      if (error || !data?.length) {
-        setVoidError(error?.message || 'Could not void this charge. It may already be voided, or you may not have permission.')
+      if (error || !Array.isArray(data) || data.length !== 1 || String(data[0]?.id) !== String(item.id)) {
+        setVoidError(error?.message || 'Could not confirm this charge cancellation. Refresh before trying again.')
         setVoiding(false)
         return
       }
