@@ -1,4 +1,4 @@
-﻿-- Emergency rollback of Stage 2 only.
+-- Emergency rollback of Stage 2 only.
 -- Preserves Stage 1 and all historical records.
 BEGIN;
 SET LOCAL lock_timeout = '5s';

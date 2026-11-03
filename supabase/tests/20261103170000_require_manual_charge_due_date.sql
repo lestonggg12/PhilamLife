@@ -1,4 +1,4 @@
-﻿-- Stage 2 regression tests.
+-- Stage 2 regression tests.
 -- Run only AFTER applying the reviewed Stage 2 migration.
 -- The outer transaction is rolled back, including test charges.
 BEGIN;

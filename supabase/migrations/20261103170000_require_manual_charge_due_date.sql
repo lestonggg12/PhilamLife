@@ -1,4 +1,4 @@
-﻿-- Stage 2: enforce due dates for manual charges.
+-- Stage 2: enforce due dates for manual charges.
 -- Existing charges remain unchanged.
 -- Automatic billing functions are not rewritten.
 BEGIN;
