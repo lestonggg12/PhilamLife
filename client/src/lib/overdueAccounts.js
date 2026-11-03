@@ -50,3 +50,29 @@ export function summarizeOverdueAccounts(accounts) {
     byTier,
   }
 }
+
+// Validate a complete read before it can replace the financial dashboard snapshot.
+export function verifyOverdueSnapshot(properties, payments, settings, agingRows) {
+  if (![properties, payments, agingRows].every(Array.isArray) || !settings) {
+    throw new Error('Incomplete overdue data was returned. Refresh before relying on the totals.')
+  }
+  if (![settings.due_day, settings.grace_period_days].every((value) =>
+    Number.isInteger(Number(value)) && Number(value) >= 0)) {
+    throw new Error('Billing settings could not be verified.')
+  }
+  const seen = new Set()
+  for (const row of agingRows) {
+    const id = Number(row.property_id)
+    if (!Number.isSafeInteger(id) || seen.has(id) ||
+        ![row.balance, row.overdue_amount].every((value) => value !== null && value !== '' && Number.isFinite(Number(value))) ||
+        row.aging_complete == null) {
+      throw new Error('An overdue summary is missing or contains invalid financial data.')
+    }
+    seen.add(id)
+  }
+  if (seen.size !== properties.length || properties.some((property) =>
+    !seen.has(Number(property.id)) || property.current_balance == null ||
+    !Number.isFinite(Number(property.current_balance)))) {
+    throw new Error('Overdue summaries do not match the homeowner accounts. Refresh before relying on the totals.')
+  }
+}

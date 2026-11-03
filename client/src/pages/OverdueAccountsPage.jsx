@@ -1,10 +1,10 @@
 import { notifySuccess } from '../lib/actionFeedback'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { describeOverdueAccount, summarizeOverdueAccounts } from '../lib/overdueAccounts'
+import { describeOverdueAccount, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
@@ -53,6 +53,9 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const [dataAvailable, setDataAvailable] = useState(false)
+  const loadSequence = useRef(0)
+  const logSubmitting = useRef(false)
   const [search, setSearch] = useState('')
   const [blockFilter, setBlockFilter] = useState('All')
   const [overdueSummaries, setOverdueSummaries] = useState([])
@@ -85,51 +88,52 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   }
 
   async function loadData(isRefresh = false) {
+    const sequence = ++loadSequence.current
     isRefresh ? setRefreshing(true) : setLoading(true)
     setPageError('')
+    try {
+      const [propertyResult, paymentResult, settingsResult, overdueResult] = await Promise.all([
+        fetchAll(() => supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance')),
+        // One small row per homeowner (latest payment) computed by the database.
+        fetchAll(() => supabase.from('property_payment_summary').select('property_id, latest_paid_at, latest_amount_paid').order('property_id'), { tiebreaker: null }),
+        supabase
+          .from('system_settings')
+          .select('due_day, grace_period_days, late_penalty')
+          .eq('id', 1)
+          .maybeSingle(),
+        fetchAll(() => supabase
+          .from('property_overdue_summary')
+          .select('property_id, balance, overdue_amount, is_overdue, days_overdue, aging_complete, aging_date_fallback_count')
+          .order('property_id'), { tiebreaker: null }),
+      ])
+      if (sequence !== loadSequence.current) return
+      const errors = [propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error].filter(Boolean)
+      if (errors.length) throw new Error(errors.map((error) => error.message).join(' '))
+      verifyOverdueSnapshot(propertyResult.data, paymentResult.data, settingsResult.data, overdueResult.data)
 
-    const [propertyResult, paymentResult, settingsResult, overdueResult] = await Promise.all([
-      fetchAll(() => supabase.from('properties').select('id, homeowner_name, block, lot_number, contact_phone, contact_email, homeowner_status, current_balance')),
-      // One small row per homeowner (latest payment) computed by the database.
-      fetchAll(() => supabase.from('property_payment_summary').select('property_id, latest_paid_at, latest_amount_paid').order('property_id'), { tiebreaker: null }),
-      supabase
-        .from('system_settings')
-        .select('due_day, grace_period_days, late_penalty')
-        .eq('id', 1)
-        .maybeSingle(),
-      fetchAll(() => supabase
-        .from('property_overdue_summary')
-        .select('property_id, balance, overdue_amount, is_overdue, days_overdue, aging_complete, aging_date_fallback_count')
-        .order('property_id'), { tiebreaker: null }),
-    ])
-
-    const errors = [propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error].filter(Boolean)
-    if (errors.length > 0) {
-      // Financial data must fail closed. A partial view could falsely say
-      // "Paid" or "No homeowners are currently overdue".
-      setPageError(`Unable to load complete overdue data: ${errors.map((e) => e.message).join(' ')}`)
-      setProperties([])
-      setPaymentSummaries([])
-      setOverdueSummaries([])
-      setLoading(false)
-      setRefreshing(false)
-      return
+      const unaged = overdueResult.data.filter((row) => row.aging_complete === false)
+      if (unaged.length) setPageError(`${unaged.length} account(s) have unreconciled aging data. Their overdue classification requires review.`)
+      setProperties(propertyResult.data)
+      setPaymentSummaries(paymentResult.data)
+      setOverdueSummaries(overdueResult.data)
+      setPenaltySettings({
+        dueDay: Number(settingsResult.data.due_day),
+        gracePeriodDays: Number(settingsResult.data.grace_period_days),
+        latePenalty: Number(settingsResult.data.late_penalty) || 0,
+      })
+      setDataAvailable(true)
+      setActionsReload((value) => value + 1)
+    } catch (error) {
+      if (sequence === loadSequence.current) {
+        // Preserve a previously verified snapshot, never replace it with partial results.
+        setPageError(`Unable to load complete overdue data: ${error.message || 'Connection failed.'}`)
+      }
+    } finally {
+      if (sequence === loadSequence.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
-
-    const unaged = (overdueResult.data || []).filter((r) => r.aging_complete === false)
-    if (unaged.length) setPageError(`${unaged.length} account(s) have unreconciled aging data. Their overdue classification requires review.`)
-
-    setProperties(propertyResult.data || [])
-    setPaymentSummaries(paymentResult.data || [])
-    setActionsReload((value) => value + 1)
-    setOverdueSummaries(overdueResult.data || [])
-    setPenaltySettings({
-      dueDay: Number(settingsResult.data?.due_day) || 5,
-      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
-      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
-    })
-    setLoading(false)
-    setRefreshing(false)
   }
 
   const actionsByProperty = useMemo(() => {
@@ -206,15 +210,23 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     if (!ids.length) { setActionsLoading(false); return undefined }
     setActionsLoading(true)
     async function loadVisibleActions() {
-      const { data, error } = await fetchAll(() => supabase
-        .from('collection_actions')
-        .select('id, property_id, action_type, action_date, details, document_reference, created_by')
-        .in('property_id', ids)
-        .order('action_date', { ascending: false }))
-      if (cancelled) return
-      setCollectionActions(data || [])
-      setActionsError(error ? 'Follow-up history could not be loaded. Please refresh to try again.' : '')
-      setActionsLoading(false)
+      try {
+        const { data, error } = await fetchAll(() => supabase
+          .from('collection_actions')
+          .select('id, property_id, action_type, action_date, details, document_reference, created_by')
+          .in('property_id', ids)
+          .order('action_date', { ascending: false }))
+        if (error) throw error
+        if (!Array.isArray(data)) throw new Error('Incomplete follow-up history response.')
+        if (!cancelled) setCollectionActions(data)
+      } catch (error) {
+        if (!cancelled) {
+          setCollectionActions([])
+          setActionsError(`Follow-up history could not be loaded: ${error.message || 'Connection failed.'}`)
+        }
+      } finally {
+        if (!cancelled) setActionsLoading(false)
+      }
     }
     loadVisibleActions()
     return () => { cancelled = true }
@@ -237,6 +249,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
   async function submitLogAction(event) {
     event.preventDefault()
+    if (logSubmitting.current) return
     if (!logTarget || !currentUser?.id) {
       setLogError('Unable to identify the current user. Please refresh and try again.')
       return
@@ -246,32 +259,35 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       return
     }
 
+    logSubmitting.current = true
     setLogSaving(true)
     setLogError('')
-
-    const { data, error } = await supabase
-      .from('collection_actions')
-      .insert({
-        property_id: logTarget.id,
-        action_type: logForm.action_type,
-        details: logForm.details.trim(),
-        document_reference: logForm.document_reference.trim() || null,
-        created_by: currentUser.id,
-      })
-      .select('id, property_id, action_type, action_date, details, document_reference, created_by')
-      .single()
-
-    if (error) {
-      setLogError(error.message)
+    try {
+      const { data, error } = await supabase
+        .from('collection_actions')
+        .insert({
+          property_id: logTarget.id,
+          action_type: logForm.action_type,
+          details: logForm.details.trim(),
+          document_reference: logForm.document_reference.trim() || null,
+          created_by: currentUser.id,
+        })
+        .select('id, property_id, action_type, action_date, details, document_reference, created_by')
+        .single()
+      if (error) throw error
+      if (!data?.id || Number(data.property_id) !== Number(logTarget.id)) {
+        throw new Error('The follow-up save could not be confirmed. Refresh before retrying.')
+      }
+      setCollectionActions((current) => [data, ...current])
+      setActionsReload((value) => value + 1)
+      notifySuccess(`${logForm.action_type} follow-up saved for ${logTarget.name || logTarget.homeowner_name || 'this homeowner'}.`)
+      setLogTarget(null)
+    } catch (error) {
+      setLogError(`${error.message || 'The follow-up could not be saved.'} If the connection was interrupted, refresh the history before retrying.`)
+    } finally {
+      logSubmitting.current = false
       setLogSaving(false)
-      return
     }
-
-    setCollectionActions((current) => [data, ...current])
-    setActionsReload((value) => value + 1)
-    setLogSaving(false)
-    notifySuccess(`${logForm.action_type} follow-up saved for ${logTarget.name || logTarget.homeowner_name || "this homeowner"}.`)
-    setLogTarget(null)
   }
 
   return (
@@ -294,19 +310,19 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       <div className="overdue-summary">
         <div className="overdue-summary-item overdue-summary-flag">
           <span>Overdue accounts</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.overdueCount}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : summary.overdueCount}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Overdue balance</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.overdueBalance)}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : organization.formatMoney(summary.overdueBalance)}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Not yet overdue (on overdue accounts)</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.currentPortion)}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : organization.formatMoney(summary.currentPortion)}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Total accounts</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.totalAccounts}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : summary.totalAccounts}</strong>
         </div>
       </div>
 
@@ -370,6 +386,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       <div className="overdue-list glass-card" aria-live="polite">
         {loading ? (
           <div className="overdue-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+        ) : !dataAvailable ? (
+          <p className="overdue-empty">Overdue information is unavailable. Refresh to retry.</p>
         ) : filtered.length === 0 ? (
           <p className="overdue-empty">
             {pageError && accounts.length === 0 ? 'Overdue information is unavailable. Refresh to retry.' : statusFilter === 'Overdue' ? 'No homeowners are currently overdue.' : 'No homeowners match your filters.'}

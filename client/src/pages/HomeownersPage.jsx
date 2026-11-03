@@ -19,6 +19,7 @@ import Skeleton from '../components/skeleton/Skeleton'
 import useDelayedLoading from '../components/skeleton/useDelayedLoading'
 import { updateHomeowner, removeHomeowner } from '../lib/homeownerWrites'
 import { fetchAll } from '../lib/fetchAll'
+import { requireHomeownerSnapshot } from '../lib/homeownerDirectorySnapshot'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import { useConfirm } from '../components/ConfirmDialog'
@@ -322,6 +323,7 @@ useEffect(() => {
 
   async function confirmVoid(event) {
     event.preventDefault()
+    if (voiding || !canVoidPayments || !voidTarget) return
     const reason = voidReason.trim()
 
     if (reason.length < 5) {
@@ -331,55 +333,32 @@ useEffect(() => {
 
     setVoiding(true)
     setVoidError('')
-
-    const { data, error } = await supabase
-      .from('payments')
-      .update({ status: 'Voided', void_reason: reason })
-      .eq('id', voidTarget.id)
-      .neq('status', 'Voided')
-      .select('id')
-
-    if (error || !data?.length) {
-      setVoidError(error?.message || 'Could not void this payment. It may already be voided, or you may not have permission.')
-      setVoiding(false)
-      return
-    }
-
-    const effect = Math.max(
-  (Number(voidTarget.balance_effect ?? voidTarget.amount_paid ?? voidTarget.amount) || 0)
-    - (Number(voidTarget.effect_released) || 0),
-  0,
-)
-    setDetailData((current) => {
-      const payments = current.payments.map((row) =>
-        row.id === voidTarget.id ? { ...row, status: 'Voided', void_reason: reason } : row,
-      )
-      if (current.propertyId != null) {
-        detailCacheRef.current.set(Number(current.propertyId), {
-          payments,
-          serviceTransactions: current.serviceTransactions,
-        })
+    const payment = voidTarget
+    try {
+      // Include legacy NULL statuses. The database owns the balance/credit
+      // adjustments; never reconstruct financial figures in browser state.
+      const { data, error } = await supabase
+        .from('payments')
+        .update({ status: 'Voided', void_reason: reason })
+        .eq('id', payment.id)
+        .or('status.is.null,status.neq.Voided')
+        .select('id')
+      if (error) throw error
+      if (!Array.isArray(data) || data.length !== 1 || String(data[0].id) !== String(payment.id)) {
+        throw new Error('The void could not be confirmed. Refresh before trying again.')
       }
-      return { ...current, payments }
-    })
-    setPaymentCounts((current) => {
-      const next = new Map(current)
-      const key = Number(voidTarget.property_id)
-      next.set(key, Math.max((next.get(key) || 0) - 1, 0))
-      return next
-    })
-    setProperties((current) =>
-      current.map((property) =>
-        Number(property.id) === Number(voidTarget.property_id)
-          ? { ...property, current_balance: (Number(property.current_balance) || 0) + effect }
-          : property,
-      ),
-    )
 
-
-    setVoiding(false)
-    notifySuccess(`Payment ${voidTarget.receipt_number || ""} was cancelled for ${voidTarget.homeowner_name}.`)
-    setVoidTarget(null)
+      // Clear cached payment details and fetch authoritative account balances,
+      // payment counts, and history instead of making a guessed adjustment.
+      detailCacheRef.current.clear()
+      setVoidTarget(null)
+      notifySuccess(`Payment ${payment.receipt_number || ''} was cancelled for ${payment.homeowner_name}.`)
+      await loadHomeowners(true)
+    } catch (error) {
+      setVoidError(error?.message || 'Could not void this payment. Please refresh before retrying.')
+    } finally {
+      setVoiding(false)
+    }
   }
 
   async function handleAdminChanged(result) {
@@ -443,56 +422,42 @@ useEffect(() => {
     else if (!homeownerDirectoryCache.properties) setLoading(true)
     setPageError('')
 
-    const [duesResult, propertyResult, paymentResult] = await Promise.all([
-      fetchAll(() => supabase
-  .from('property_monthly_dues')
-  .select('property_id, lot_size_sqm, price_per_sqm, monthly_dues')
-  .order('property_id'), { tiebreaker: null }),
-      fetchAll(() => supabase
-        .from('properties')
-        .select(
-          'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
-        )
-        .order('homeowner_name')),
-      // One tiny row per homeowner: how many active payments they have.
-      fetchAll(() => supabase
-        .from('property_payment_summary')
-        .select('property_id, active_payment_count')
-        .order('property_id'), { tiebreaker: null }),
-    ])
-
-    const errors = [
-      duesResult.error,
-      propertyResult.error,
-      paymentResult.error,
-    ].filter(Boolean)
-
-    // Moved/transferred homeowners are dropped here, before anything else
-    // in the component ever sees them — they cannot appear in the
-    // directory, search results, or be selected via a stale URL.
-    const nextProperties = (propertyResult.data || []).filter(isActiveHomeowner)
-    const nextPaymentCounts = new Map((paymentResult.data || []).map((row) => [Number(row.property_id), Number(row.active_payment_count) || 0]))
-    const nextDuesByProperty = new Map((duesResult.data || []).map((row) => [Number(row.property_id), row]))
-    homeownerDirectoryCache.properties = nextProperties
-    homeownerDirectoryCache.paymentCounts = nextPaymentCounts
-    homeownerDirectoryCache.duesByProperty = nextDuesByProperty
-    setProperties(nextProperties)
-    setPaymentCounts(nextPaymentCounts)
-    setDuesByProperty(nextDuesByProperty)
-
-    // Refresh also reloads the open homeowner's records.
-    setDetailReloadKey((key) => key + 1)
-
-    if (errors.length) {
-      setPageError(
-        `Some homeowner information could not be loaded: ${errors
-          .map((error) => error.message)
-          .join(' ')}`,
-      )
+    try {
+      const [duesResult, propertyResult, paymentResult] = await Promise.all([
+        fetchAll(() => supabase
+          .from('property_monthly_dues')
+          .select('property_id, lot_size_sqm, price_per_sqm, monthly_dues')
+          .order('property_id'), { tiebreaker: null }),
+        fetchAll(() => supabase
+          .from('properties')
+          .select(
+            'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
+          )
+          .order('homeowner_name')),
+        fetchAll(() => supabase
+          .from('property_payment_summary')
+          .select('property_id, active_payment_count')
+          .order('property_id'), { tiebreaker: null }),
+      ])
+      const verified = requireHomeownerSnapshot(duesResult, propertyResult, paymentResult)
+      // Commit an all-or-nothing snapshot. Never replace reliable cached
+      // financial figures with zeros after a failed or partial request.
+      const nextProperties = verified.properties.filter(isActiveHomeowner)
+      const nextPaymentCounts = new Map(verified.payments.map((row) => [Number(row.property_id), Number(row.active_payment_count) || 0]))
+      const nextDuesByProperty = new Map(verified.dues.map((row) => [Number(row.property_id), row]))
+      homeownerDirectoryCache.properties = nextProperties
+      homeownerDirectoryCache.paymentCounts = nextPaymentCounts
+      homeownerDirectoryCache.duesByProperty = nextDuesByProperty
+      setProperties(nextProperties)
+      setPaymentCounts(nextPaymentCounts)
+      setDuesByProperty(nextDuesByProperty)
+      setDetailReloadKey((key) => key + 1)
+    } catch (error) {
+      setPageError(`Homeowner information could not be refreshed: ${error?.message || 'Connection failed.'} Previously loaded information is retained; retry before making decisions.`)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-
-    setLoading(false)
-    setRefreshing(false)
   }
 
   const directoryEntries = useMemo(
