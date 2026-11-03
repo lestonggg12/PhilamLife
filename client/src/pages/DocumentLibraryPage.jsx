@@ -1,6 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import './DocumentLibraryPage.css'
 import Skeleton from '../components/skeleton/Skeleton'
@@ -106,8 +106,10 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [highlightedDocumentId, setHighlightedDocumentId] = useState(null)
+  const loadSequence = useRef(0)
+  const uploadInProgress = useRef(false)
 
-  const role = currentUser?.role?.trim().toLowerCase()
+  const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
   const canUploadDocuments = role === 'secretary'
   const canDeleteDocuments = ['admin', 'secretary'].includes(role)
   const actorName =
@@ -127,48 +129,50 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       return
     }
 
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !authUser) return
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!profileError) setCurrentUser(profile)
+    try {
+      const { data, error: authError } = await supabase.auth.getUser()
+      if (authError) throw authError
+      if (!data?.user) throw new Error('Sign in again to verify document access.')
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, is_active')
+        .eq('id', data.user.id)
+        .single()
+      if (profileError) throw profileError
+      if (!profile?.id || profile.is_active === false) throw new Error('Your staff account is unavailable or inactive.')
+      setCurrentUser(profile)
+    } catch (error) {
+      setCurrentUser(null)
+      setPageError(`Document access could not be verified: ${error.message || 'Please sign in again.'}`)
+    }
   }
 
   async function loadDocuments(isRefresh = false) {
-    if (isRefresh) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-
+    const requestId = ++loadSequence.current
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
     setPageError('')
     setNotice('')
-
-    const { data, error } = await fetchAll(() => supabase
-      .from('documents')
-      .select(
-        'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at, deletion_requested_at, deletion_requested_by',
-      )
-      .order('created_at', { ascending: false }))
-
-    if (error) {
-      // Retain the last successful list rather than misreport a failed refresh as empty.
-      setPageError(`Documents could not be loaded: ${error.message}`)
-    } else {
-      setDocuments(data || [])
+    try {
+      const { data, error } = await fetchAll(() => supabase
+        .from('documents')
+        .select(
+          'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at, deletion_requested_at, deletion_requested_by',
+        )
+        .order('created_at', { ascending: false }))
+      if (requestId !== loadSequence.current) return
+      if (error) throw error
+      if (!Array.isArray(data)) throw new Error('The document list response was incomplete.')
+      setDocuments(data)
+    } catch (error) {
+      // Never replace an authoritative document list with a failed/partial response.
+      if (requestId === loadSequence.current) setPageError(`Documents could not be loaded: ${error.message || 'Connection failed.'}`)
+    } finally {
+      if (requestId === loadSequence.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
-
-    setLoading(false)
-    setRefreshing(false)
   }
 
   function openUploadForm() {
@@ -225,6 +229,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
   async function uploadDocument(event) {
     event.preventDefault()
+    if (uploadInProgress.current) return
 
     if (!canUploadDocuments || !currentUser?.id) {
       setFormError('Only a verified Secretary can upload documents.')
@@ -254,24 +259,24 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       return
     }
 
+    uploadInProgress.current = true
     setUploading(true)
     setFormError('')
 
-    const objectPath = `documents/${Date.now()}-${crypto.randomUUID()}-${safeFileName(
-      selectedFile.name,
-    )}`
-    const payload = {
-      title,
-      category: form.category,
-      storage_path: objectPath,
-      original_file_name: selectedFile.name,
-      mime_type: selectedFile.type,
-      file_size: selectedFile.size,
-      uploaded_by: currentUser.id,
-      uploaded_by_name: actorName,
-    }
-
     try {
+      const randomId = globalThis.crypto?.randomUUID?.()
+      if (!randomId) throw new Error('Secure document uploads require HTTPS or localhost.')
+      const objectPath = `documents/${Date.now()}-${randomId}-${safeFileName(selectedFile.name)}`
+      const payload = {
+        title,
+        category: form.category,
+        storage_path: objectPath,
+        original_file_name: selectedFile.name,
+        mime_type: selectedFile.type,
+        file_size: selectedFile.size,
+        uploaded_by: currentUser.id,
+        uploaded_by_name: actorName,
+      }
       const data = await uploadDocumentSafely(supabase, BUCKET, objectPath, selectedFile, payload)
       setDocuments((current) => [data, ...current])
       setHighlightedDocumentId(data.id)
@@ -282,6 +287,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     } catch (error) {
       setFormError(error.message || 'Document upload failed. Try again.')
     } finally {
+      uploadInProgress.current = false
       setUploading(false)
     }
   }
