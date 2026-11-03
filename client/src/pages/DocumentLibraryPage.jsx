@@ -17,15 +17,14 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { deleteDocumentSafely } from '../lib/documentDeletion'
+import { uploadDocumentSafely } from '../lib/documentUpload'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 
 const BUCKET = 'hoa-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-// Supabase's free tier includes 1 GiB of Storage across the whole project,
-// shared by every bucket. This isn't just this library's own budget.
-const STORAGE_LIMIT = 1024 * 1024 * 1024
-const STORAGE_WARNING_THRESHOLD = 0.8 // start warning at 80% used
+// Metadata totals below describe library files only, NOT Supabase project usage.
+// Other buckets, orphaned objects, and plan-specific storage limits are omitted.
 const CATEGORIES = [
   'Minutes',
   'Reports',
@@ -162,7 +161,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       .order('created_at', { ascending: false }))
 
     if (error) {
-      setDocuments([])
+      // Retain the last successful list rather than misreport a failed refresh as empty.
       setPageError(`Documents could not be loaded: ${error.message}`)
     } else {
       setDocuments(data || [])
@@ -235,13 +234,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     const title = form.title.trim().replace(/\s+/g, ' ')
     const fileError = validateFile(selectedFile)
 
-    if (selectedFile && totalSize + selectedFile.size > STORAGE_LIMIT) {
-      setFormError(
-        `This upload would exceed the ${formatFileSize(STORAGE_LIMIT)} storage limit. Free up space or ask your administrator to upgrade the plan.`,
-      )
-      return
-    }
-
     if (!title) {
       setFormError('Enter a document title.')
       return
@@ -268,21 +260,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     const objectPath = `documents/${Date.now()}-${crypto.randomUUID()}-${safeFileName(
       selectedFile.name,
     )}`
-
-    const { error: storageError } = await supabase.storage
-      .from(BUCKET)
-      .upload(objectPath, selectedFile, {
-        cacheControl: '3600',
-        contentType: selectedFile.type,
-        upsert: false,
-      })
-
-    if (storageError) {
-      setFormError(storageError.message)
-      setUploading(false)
-      return
-    }
-
     const payload = {
       title,
       category: form.category,
@@ -294,37 +271,19 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       uploaded_by_name: actorName,
     }
 
-    const { data, error: metadataError } = await supabase
-      .from('documents')
-      .insert(payload)
-      .select(
-        'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at',
-      )
-      .single()
-
-    if (metadataError) {
-      const { error: cleanupError } = await supabase.storage
-        .from(BUCKET)
-        .remove([objectPath])
-
-      if (cleanupError) {
-        console.warn('Failed upload could not be cleaned up:', cleanupError.message)
-      }
-
-      setFormError(metadataError.message)
+    try {
+      const data = await uploadDocumentSafely(supabase, BUCKET, objectPath, selectedFile, payload)
+      setDocuments((current) => [data, ...current])
+      setHighlightedDocumentId(data.id)
+      setShowUpload(false)
+      setForm(EMPTY_FORM)
+      setSelectedFile(null)
+      setNotice(`“${data.title}” was uploaded successfully.`)
+    } catch (error) {
+      setFormError(error.message || 'Document upload failed. Try again.')
+    } finally {
       setUploading(false)
-      return
     }
-
-
-
-    setDocuments((current) => [data, ...current])
-    setHighlightedDocumentId(data.id)
-    setShowUpload(false)
-    setForm(EMPTY_FORM)
-    setSelectedFile(null)
-    setUploading(false)
-    setNotice(`“${data.title}” was uploaded successfully.`)
   }
 
   async function downloadDocument(document) {
@@ -336,26 +295,31 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     setPageError('')
     setNotice('')
 
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .download(document.storage_path)
+    let downloadUrl
+    try {
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .download(document.storage_path)
+      if (error) throw error
+      if (!data) throw new Error('No file was returned by Storage.')
 
-    if (error) {
-      setPageError(`Download failed: ${error.message}`)
+      downloadUrl = URL.createObjectURL(data)
+      const link = window.document.createElement('a')
+      link.href = downloadUrl
+      link.download = document.original_file_name
+      window.document.body.appendChild(link)
+      try {
+        link.click()
+      } finally {
+        link.remove()
+      }
+      notifySuccess(`Download started for “${document.title}”.`)
+    } catch (error) {
+      setPageError(`Download failed: ${error.message || 'Please try again.'}`)
+    } finally {
+      if (downloadUrl) window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
       setDownloadingId(null)
-      return
     }
-
-    const downloadUrl = URL.createObjectURL(data)
-    const link = window.document.createElement('a')
-    link.href = downloadUrl
-    link.download = document.original_file_name
-    window.document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
-    setDownloadingId(null)
-    notifySuccess(`Download started for “${document.title}”.`)
   }
 
   function requestDeleteDocument(document) {
@@ -414,9 +378,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     0,
   )
   const categoryCount = new Set(documents.map((document) => document.category)).size
-  const storageUsedRatio = totalSize / STORAGE_LIMIT
-  const storageIsFull = totalSize >= STORAGE_LIMIT
-  const storageIsNearlyFull = storageUsedRatio >= STORAGE_WARNING_THRESHOLD
 
   return (
     <div className="doc-library">
@@ -435,8 +396,6 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
               type="button"
               className="doc-upload-button"
               onClick={openUploadForm}
-              disabled={storageIsFull}
-              title={storageIsFull ? 'Storage is full — delete files to free up space' : undefined}
             >
               <Plus size={18} />
               Upload Document
@@ -460,12 +419,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : documents.length}</strong>
         </div>
         <div className="doc-summary-item">
-          <span>Storage used</span>
-          <strong>
-            {loading
-              ? '—'
-              : `${formatFileSize(totalSize)} of ${formatFileSize(STORAGE_LIMIT)} (${Math.round(storageUsedRatio * 100)}%)`}
-          </strong>
+          <span>Library file sizes</span>
+          <strong>{loading ? '—' : formatFileSize(totalSize)}</strong>
         </div>
         <div className="doc-summary-item">
           <span>Categories used</span>
@@ -473,16 +428,10 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      {!loading && storageIsFull && canUploadDocuments && (
-        <p className="doc-storage-alert doc-storage-alert-full">
-          <AlertCircle size={16} />
-          Storage is full. Delete some documents to free up space before uploading more.
-        </p>
-      )}
-      {!loading && !storageIsFull && storageIsNearlyFull && canUploadDocuments && (
-        <p className="doc-storage-alert doc-storage-alert-warning">
-          <AlertCircle size={16} />
-          Storage is {Math.round(storageUsedRatio * 100)}% full. Consider removing unneeded files soon.
+      {!loading && canUploadDocuments && (
+        <p className="doc-storage-note">
+          Library totals are calculated from document records, not total Supabase Storage usage.
+          Storage quota is checked by Supabase during upload.
         </p>
       )}
 
@@ -513,6 +462,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       <div className="doc-list glass-card" aria-live="polite">
         {loading ? (
           <div className="doc-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+        ) : pageError && documents.length === 0 ? (
+          <p className="doc-empty" role="alert">Unable to display the document list. Use Refresh to retry.</p>
         ) : filteredDocuments.length === 0 ? (
           <p className="doc-empty">
             {documents.length === 0
