@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import { parseExpenseAmount, isValidExpenseDate, isVoidedExpense, summarizeExpenses } from '../lib/expenseSummary'
 import ExpenseVoidDialog from './ExpenseVoidDialog'
 import { recordExpense, voidExpense } from '../lib/treasurerFinance'
 import DateField from '../components/DateField'
@@ -88,9 +89,6 @@ function emptyForm() {
   }
 }
 
-const toCents = (value) =>
-  Math.round((Number(value) + Number.EPSILON) * 100) / 100
-
 export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
 
@@ -111,6 +109,9 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const [form, setForm] = useState(emptyForm())
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  // Refs close the same-tick double-click gap before React re-renders.
+  const savingRef = useRef(false)
+  const voidingRef = useRef(false)
 
   const [voidingId, setVoidingId] = useState(null)
   const [pendingVoid, setPendingVoid] = useState(null)
@@ -253,68 +254,28 @@ const isReadOnly = !canRecordExpenses
   async function loadExpenses() {
     setLoading(true)
     setPageError('')
-
-    const { data, error } = await fetchAll(() =>
-      supabase
-        .from('expenses')
-        .select('*')
-        .order('expense_date', { ascending: false })
-        .order('created_at', { ascending: false }),
-    )
-
-    if (error) {
-      setPageError(`Expenses could not be loaded: ${error.message}`)
+    try {
+      const { data, error } = await fetchAll(() =>
+        supabase
+          .from('expenses')
+          .select('*')
+          .order('expense_date', { ascending: false })
+          .order('created_at', { ascending: false }),
+      )
+      if (error) throw error
+      if (!Array.isArray(data)) throw new Error('Expense data is incomplete.')
+      // Validate all money before replacing previously verified records.
+      summarizeExpenses(data, selectedMonth)
+      setExpenses(data)
+    } catch (error) {
+      setPageError(`Expenses could not be loaded: ${error?.message || 'Connection failed.'}`)
+      // Keep the last verified dataset instead of falsely showing an empty ledger.
+    } finally {
+      setLoading(false)
     }
-
-    setExpenses(data || [])
-    setLoading(false)
   }
 
-  const summary = useMemo(() => {
-    const activeExpenses = expenses.filter(
-      (expense) => expense.status !== 'Voided',
-    )
-
-    const selectedMonthExpenses = activeExpenses.filter(
-      (expense) =>
-        (expense.expense_date || '').startsWith(selectedMonth),
-    )
-
-    const totalAllTime = activeExpenses.reduce(
-      (sum, expense) => sum + (Number(expense.amount) || 0),
-      0,
-    )
-
-    const totalSelectedMonth = selectedMonthExpenses.reduce(
-      (sum, expense) => sum + (Number(expense.amount) || 0),
-      0,
-    )
-
-    const byCategory = new Map()
-
-    selectedMonthExpenses.forEach((expense) => {
-      const category = expense.category || 'Uncategorized'
-
-      byCategory.set(
-        category,
-        (byCategory.get(category) || 0) +
-          (Number(expense.amount) || 0),
-      )
-    })
-
-    const topCategory = [...byCategory.entries()].sort(
-      (a, b) => b[1] - a[1],
-    )[0]
-
-    return {
-      totalAllTime,
-      totalSelectedMonth,
-      count: selectedMonthExpenses.length,
-      topCategory: topCategory
-        ? { name: topCategory[0], amount: topCategory[1] }
-        : null,
-    }
-  }, [expenses, selectedMonth])
+  const summary = useMemo(() => summarizeExpenses(expenses, selectedMonth), [expenses, selectedMonth])
 
   const visibleExpenses = useMemo(
     () =>
@@ -353,6 +314,7 @@ const isReadOnly = !canRecordExpenses
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (savingRef.current) return
     setFormError('')
 
     if (!canRecordExpenses) {
@@ -361,36 +323,32 @@ const isReadOnly = !canRecordExpenses
     }
 
     if (!currentUser?.id) {
-      setFormError(
-        'Your user profile could not be verified. Please sign in again.',
-      )
+      setFormError('Your user profile could not be verified. Please sign in again.')
       return
     }
 
-    const amount = toCents(form.amount)
-
+    let amount
+    try {
+      amount = parseExpenseAmount(form.amount)
+    } catch (error) {
+      setFormError(error.message)
+      return
+    }
     if (!form.description.trim()) {
       setFormError('Please enter a description.')
       return
     }
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setFormError('Please enter a valid amount greater than zero.')
+    if (!isValidExpenseDate(form.expense_date)) {
+      setFormError('Select a valid expense date.')
+      return
+    }
+    if (!CATEGORIES.includes(form.category)) {
+      setFormError('Please select a valid category.')
       return
     }
 
-    if (!form.expense_date) {
-      setFormError('Please select a date.')
-      return
-    }
-
-    if (!form.category) {
-      setFormError('Please select a category.')
-      return
-    }
-
+    savingRef.current = true
     setSaving(true)
-
     const payload = {
       expense_date: form.expense_date,
       category: form.category,
@@ -404,11 +362,13 @@ const isReadOnly = !canRecordExpenses
     try {
       const data = await recordExpense(supabase, payload)
       setExpenses((current) => [data, ...current])
+      setSelectedMonth(String(data.expense_date).slice(0, 7))
       setShowForm(false)
       notifySuccess(`Expense of ${peso.format(data.amount)} recorded: ${data.description}.`)
     } catch (error) {
-      setFormError(error.message)
+      setFormError(`${error?.message || 'Connection failed.'} If the request timed out, refresh the history to verify it before trying again.`)
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -427,17 +387,12 @@ const isReadOnly = !canRecordExpenses
   }
 
   async function handleVoid(expense) {
-    if (
-      !canVoidExpenses ||
-      !expense ||
-      expense.status === 'Voided'
-    ) {
+    if (!canVoidExpenses || !expense || isVoidedExpense(expense)) {
       setPendingVoid(null)
       return
     }
-
-    if (voidingId) return
-
+    if (voidingRef.current) return
+    voidingRef.current = true
     setVoidError('')
     setVoidingId(expense.id)
     try {
@@ -446,19 +401,15 @@ const isReadOnly = !canRecordExpenses
       setPendingVoid(null)
       notifySuccess(`Expense of ${peso.format(expense.amount)} was cancelled: ${expense.description}.`)
     } catch (error) {
-      setVoidError(`Could not void expense: ${error.message}`)
+      setVoidError(`Could not void expense: ${error?.message || 'Connection failed.'}`)
     } finally {
+      voidingRef.current = false
       setVoidingId(null)
     }
   }
 
-  const recordedExpenses = visibleExpenses.filter(
-    (expense) => expense.status !== 'Voided',
-  )
-
-  const voidedExpenses = visibleExpenses.filter(
-    (expense) => expense.status === 'Voided',
-  )
+  const recordedExpenses = visibleExpenses.filter((expense) => !isVoidedExpense(expense))
+  const voidedExpenses = visibleExpenses.filter(isVoidedExpense)
 
   function renderExpenseTable(records, includeActions = false) {
     return (
@@ -572,9 +523,10 @@ const isReadOnly = !canRecordExpenses
       </div>
 
       {pageError && (
-        <p className="tex-error">
+        <div className="tex-error" role="alert">
           <AlertCircle size={14} /> {pageError}
-        </p>
+          <button type="button" className="tex-btn tex-btn-secondary" onClick={loadExpenses} disabled={loading}>Retry loading</button>
+        </div>
       )}
 
       <div className="tex-stats-grid">
@@ -588,7 +540,7 @@ const isReadOnly = !canRecordExpenses
         </div>
 
         <div className="tex-stat-card">
-          <span className="tex-stat-label">Total Recorded</span>
+          <span className="tex-stat-label">Net Expenses (Excl. Voided)</span>
           <h3 className="tex-stat-value">
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalAllTime)}
           </h3>
@@ -599,7 +551,7 @@ const isReadOnly = !canRecordExpenses
             {monthLabel(selectedMonth)} Entries
           </span>
           <h3 className="tex-stat-value">
-            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.count}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : pageError ? 'Unavailable' : summary.count}
           </h3>
         </div>
 
@@ -751,6 +703,8 @@ const isReadOnly = !canRecordExpenses
 
         {loading ? (
           <div className="tex-state" aria-busy="true"><Skeleton variant="rect" width="100%" height="56px" /><Skeleton variant="rect" width="100%" height="56px" /><Skeleton variant="rect" width="100%" height="56px" /><Skeleton variant="rect" width="100%" height="56px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+        ) : pageError ? (
+          <div className="tex-state" role="status">Expense history is temporarily unavailable. Retry loading to verify these records.</div>
         ) : visibleExpenses.length === 0 ? (
           <div className="tex-state">
             {expenses.length === 0
