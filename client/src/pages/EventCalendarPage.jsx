@@ -12,7 +12,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues, isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent } from '../lib/eventCalendar'
+import { calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues, isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent, preserveCalendarTimePrecision } from '../lib/eventCalendar'
 import ActionDialog from '../components/ActionDialog'
 import Skeleton from '../components/skeleton/Skeleton'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
@@ -254,7 +254,7 @@ function TimePicker({ label, name, value, onChange, disabled }) {
       [part]: nextValue,
     }
 
-    onChange({ target: { name, value: timeValue(nextParts) } })
+    onChange({ target: { name, value: preserveCalendarTimePrecision(value, timeValue(nextParts)) } })
   }
 
   function clearTime() {

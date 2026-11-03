@@ -36,6 +36,15 @@ export function calendarFormValues(event) {
   return { title: event.title || '', eventDate: event.event_date || '', startTime: event.start_time || '', endTime: event.end_time || '', location: event.location || '', description: event.description || '' }
 }
 
+// The picker edits hours and minutes, but historical event times can contain
+// seconds and fractional seconds. Keep that precision instead of silently
+// changing the stored time whenever one picker segment is adjusted.
+export function preserveCalendarTimePrecision(previous, nextHourMinute) {
+  if (!/^\d{2}:\d{2}$/.test(nextHourMinute)) throw new Error('Choose a valid hour and minute.')
+  const suffix = /^\d{2}:\d{2}(:\d{2}(?:\.\d{1,6})?)?$/.exec(String(previous || ''))?.[1] || ''
+  return `${nextHourMinute}${suffix}`
+}
+
 function seconds(value) {
   const match = /^(\d{2}):(\d{2})(?::(\d{2})(\.\d{1,6})?)?$/.exec(value)
   if (!match) return null
