@@ -120,8 +120,8 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
 
   const role = String(currentUser?.role || '').trim().toLowerCase()
 
-  const canRecordExpenses = role === 'treasurer'
-const canVoidExpenses = role === 'treasurer'
+  const canRecordExpenses = currentUser?.is_active !== false && role === 'treasurer'
+  const canVoidExpenses = canRecordExpenses
 const isReadOnly = !canRecordExpenses
 
   const recorderName =

@@ -97,6 +97,6 @@ export async function voidExpense(client, id, reason) {
   if (text.length < 5 || text.length > 500) throw new Error('Enter a cancellation reason of 5 to 500 characters.')
   const { data, error } = await client.from('expenses').update({ status: 'Voided', void_reason: text }).eq('id', id).neq('status', 'Voided').select('*').single()
   if (error) throw error
-  if (!data?.id || data.status !== 'Voided') throw new Error('The expense cancellation could not be confirmed. Refresh before trying again.')
+  if (!data?.id || String(data.id) !== String(id) || data.status !== 'Voided') throw new Error('The expense cancellation could not be confirmed. Refresh before trying again.')
   return data
 }

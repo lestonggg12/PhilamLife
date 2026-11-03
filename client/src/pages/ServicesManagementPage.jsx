@@ -44,6 +44,7 @@ function ChevronRightIcon({ size = 16 }) {
 import { supabase } from '../lib/supabaseClient'
 import { useSettledAmount } from '../lib/useSettledAmount'
 import { fetchAll } from '../lib/fetchAll'
+import { verifiedServiceStats } from '../lib/serviceStats'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import { ReceiptDialog } from '../components/ReceiptSheet'
@@ -355,6 +356,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   // the page never downloads the full list of service receipts.
   const [stats, setStats] = useState({ monthCount: 0, monthCollected: 0, totalReceipts: 0 })
   const [balances, setBalances] = useState([])
+  const [statsError, setStatsError] = useState('')
   const [collectTarget, setCollectTarget] = useState(null)
   const [collectForm, setCollectForm] = useState(emptyCollect)
   const [collectError, setCollectError] = useState('')
@@ -377,7 +379,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const loadedMonthsRef = useRef(new Set())
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageServices = role === 'secretary'
+  const canManageServices = currentUser?.is_active !== false && role === 'secretary'
   const recorderName =
     currentUser?.full_name || currentUser?.name || currentUser?.email || 'Secretary'
 
@@ -483,54 +485,50 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   async function loadPage() {
     setLoading(true)
     setPageError('')
-
-    const [serviceResult, propertyResult] = await Promise.all([
-      supabase.from('amenity_services').select('*').order('name'),
-      fetchAll(() => supabase
-        .from('properties')
-        .select('id, homeowner_name, block, lot_number, homeowner_status')
-        .order('homeowner_name')),
-    ])
-
-    const errors = [serviceResult.error, propertyResult.error].filter(Boolean)
-    if (errors.length) {
-      setPageError(
-        `Some service records could not be loaded: ${errors
-          .map((error) => error.message)
-          .join(' ')}`,
-      )
+    try {
+      const [serviceResult, propertyResult] = await Promise.all([
+        supabase.from('amenity_services').select('*').order('name'),
+        fetchAll(() => supabase
+          .from('properties')
+          .select('id, homeowner_name, block, lot_number, homeowner_status')
+          .order('homeowner_name')),
+      ])
+      if (serviceResult.error) throw serviceResult.error
+      if (propertyResult.error) throw propertyResult.error
+      if (!Array.isArray(serviceResult.data) || !Array.isArray(propertyResult.data)) {
+        throw new Error('The service catalog or homeowner list is incomplete.')
+      }
+      setServices(serviceResult.data)
+      setProperties(propertyResult.data)
+      setReloadTick((tick) => tick + 1)
+    } catch (error) {
+      setPageError(`Service records could not be loaded: ${error?.message || 'Connection failed.'}`)
+    } finally {
+      setLoading(false)
     }
-
-    setServices(serviceResult.data || [])
-    setProperties(propertyResult.data || [])
-    setReloadTick((tick) => tick + 1)
-    setLoading(false)
   }
 
   // This month's totals, the all-time receipt count and the unpaid balances.
   useEffect(() => {
     let cancelled = false
+    setStatsError('')
 
     async function loadStats() {
-      const range = monthRangeOf(today().slice(0, 7))
-      const [summaryResult, countResult, balanceResult] = await Promise.all([
-        supabase.rpc('receipts_period_summary', { p_from: range.from, p_to: range.to }),
-        supabase.from('service_transactions').select('id', { count: 'exact', head: true }),
-        supabase
-          .from('service_balances')
-          .select('*')
-          .order('paid_at', { ascending: true })
-          .limit(200),
-      ])
-      if (cancelled) return
-
-      const summaryRow = Array.isArray(summaryResult.data) ? summaryResult.data[0] : summaryResult.data
-      setStats({
-        monthCount: Number(summaryRow?.service_count) || 0,
-        monthCollected: Number(summaryRow?.service_collected) || 0,
-        totalReceipts: countResult.count || 0,
-      })
-      setBalances(balanceResult.error ? [] : balanceResult.data || [])
+      try {
+        const range = monthRangeOf(today().slice(0, 7))
+        const [summaryResult, countResult, balanceResult] = await Promise.all([
+          supabase.rpc('receipts_period_summary', { p_from: range.from, p_to: range.to }),
+          supabase.from('service_transactions').select('id', { count: 'exact', head: true }),
+          fetchAll(() => supabase.from('service_balances').select('*')
+            .order('paid_at', { ascending: true }).order('id'), { tiebreaker: null }),
+        ])
+        const verified = verifiedServiceStats(summaryResult, countResult, balanceResult)
+        if (cancelled) return
+        setStats(verified.stats)
+        setBalances(verified.balances)
+      } catch (error) {
+        if (!cancelled) setStatsError(`Service totals and unpaid balances are unavailable: ${error?.message || 'Connection failed.'}`)
+      }
     }
 
     loadStats()
@@ -617,7 +615,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const dayModalTransactions = dayRows
 
   const dayModalTotal = useMemo(
-    () => toCents(dayModalTransactions.reduce((sum, item) => sum + (Number(item.amount_paid) || 0), 0)),
+    () => toCents(dayModalTransactions
+      .filter((item) => String(item.payment_status || '').toLowerCase() !== 'voided')
+      .reduce((sum, item) => sum + (Number(item.amount_paid) || 0), 0)),
     [dayModalTransactions],
   )
 
@@ -766,25 +766,27 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
           .from('amenity_services')
           .insert({ ...payload, created_by: currentUser.id })
 
-    const { data, error } = await query.select('*').single()
-
-    if (error) {
-      setPageError(error.message)
+    try {
+      const { data, error } = await query.select('*').single()
+      if (error) throw error
+      if (!data?.id || (editingServiceId && data.id !== editingServiceId)) {
+        throw new Error('Service save could not be confirmed. Refresh before retrying.')
+      }
+      setServices((current) => {
+        const updated = editingServiceId
+          ? current.map((item) => (item.id === data.id ? data : item))
+          : [...current, data]
+        return updated.sort((left, right) => left.name.localeCompare(right.name))
+      })
+      notifySuccess(`${data.name} was ${editingServiceId ? 'updated' : 'added'}.`)
+      setServiceForm(emptyService)
+      setEditingServiceId(null)
+      setShowServiceForm(false)
+    } catch (error) {
+      setPageError(`Service save could not be confirmed. ${error?.message || 'Connection failed.'}`)
+    } finally {
       setSaving(false)
-      return
     }
-
-    setServices((current) => {
-      const updated = editingServiceId
-        ? current.map((item) => (item.id === data.id ? data : item))
-        : [...current, data]
-      return updated.sort((left, right) => left.name.localeCompare(right.name))
-    })
-    notifySuccess(`${data.name} was ${editingServiceId ? 'updated' : 'added'}.`)
-    setServiceForm(emptyService)
-    setEditingServiceId(null)
-    setShowServiceForm(false)
-    setSaving(false)
 
 
   }
@@ -858,18 +860,21 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       .select('*')
       .single()
 
-    if (error) {
-      setPageError(error.message)
+    try {
+      if (error) throw error
+      if (!data?.id || data.property_id !== Number(property.id) || !data.receipt_number) {
+        throw new Error('The receipt could not be confirmed. Refresh history before retrying to avoid a duplicate.')
+      }
+      setTransactionForm(emptyTransaction)
+      setShowPaymentForm(false)
+      setReceipt(data)
+      notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
+      setReloadTick((tick) => tick + 1)
+    } catch (error) {
+      setPageError(`Service payment could not be confirmed. Check receipt history before retrying. ${error?.message || 'Connection failed.'}`)
+    } finally {
       setSaving(false)
-      return
     }
-
-    setTransactionForm(emptyTransaction)
-    setShowPaymentForm(false)
-    setReceipt(data)
-    notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
-    setSaving(false)
-    setReloadTick((tick) => tick + 1)
 
 
   }
@@ -931,17 +936,20 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       .select('*')
       .single()
 
-    setSaving(false)
-
-    if (error) {
-      setCollectError(error.message)
-      return
+    try {
+      if (error) throw error
+      if (!data?.id || String(data.balance_of) !== String(collectTarget.id) || !data.receipt_number) {
+        throw new Error('The collection receipt could not be verified.')
+      }
+      setCollectTarget(null)
+      setReceipt(data)
+      notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
+      setReloadTick((tick) => tick + 1)
+    } catch (error) {
+      setCollectError(`Collection could not be confirmed. Check receipts before retrying. ${error?.message || 'Connection failed.'}`)
+    } finally {
+      setSaving(false)
     }
-
-    setCollectTarget(null)
-    setReceipt(data)
-    notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
-    setReloadTick((tick) => tick + 1)
 
 
   }
@@ -1065,22 +1073,23 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </article>
         <article>
           <span>Transactions This Month</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.monthlyTransactions}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.monthlyTransactions}</strong>
           <small>Service payments recorded</small>
         </article>
         <article>
           <span>Collections This Month</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : peso.format(summary.monthlyCollections)}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : statsError ? 'Unavailable' : peso.format(summary.monthlyCollections)}</strong>
           <small>Based on Manila time</small>
         </article>
         <article>
           <span>Receipts Issued</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.receipts}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.receipts}</strong>
           <small>Permanent service records</small>
         </article>
       </section>
 
-      {balances.length > 0 && (
+      {statsError && <p role="alert" className="services-error">{statsError}</p>}
+      {!statsError && balances.length > 0 && (
         <section className="service-catalog svc-balances">
           <div className="services-section-heading">
             <div>

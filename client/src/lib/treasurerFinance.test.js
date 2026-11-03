@@ -84,6 +84,10 @@ describe('confirmed and audited expense actions', () => {
     await voidExpense(c, 'e', '  Wrong amount  ')
     expect(c.calls).toContainEqual(['update', { status: 'Voided', void_reason: 'Wrong amount' }]); expect(c.calls).toContainEqual(['neq','status','Voided'])
   })
+  it('rejects a successful-looking cancellation for a different expense', async () => {
+    const c = writes({ data: { id: 'different-expense', status: 'Voided' }, error: null })
+    await expect(voidExpense(c, 'expected-expense', 'Wrong amount')).rejects.toThrow('could not be confirmed')
+  })
   it.each(['','four','x'.repeat(501)])('requires a valid reason', async (reason) => {
     const c = writes({}); await expect(voidExpense(c, 'e', reason)).rejects.toThrow('reason'); expect(c.calls).toEqual([])
   })
