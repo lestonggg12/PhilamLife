@@ -24,7 +24,9 @@ function chargeEntries(charge) {
     reference_number: charge.billing_month ? String(charge.billing_month).slice(0, 7) : '',
     details: voided
       ? [`Original charge ${money(amount)}; not counted in the totals or balance.`, ...(charge.void_reason ? [`Reason for cancellation: ${charge.void_reason.startsWith('fixed-balance-inclusive-20261031150000:') ? 'The entered balance already includes penalties, so this extra penalty was cancelled.' : charge.void_reason}`] : [])]
-      : [],
+      : charge.due_date
+        ? [`Final due date: ${charge.due_date} (overdue the following Manila calendar day if unpaid).`]
+        : [],
     debit: voided ? 0 : amount,
     credit: 0,
     voided,

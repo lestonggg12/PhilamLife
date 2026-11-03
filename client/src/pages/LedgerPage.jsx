@@ -6,6 +6,7 @@ import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Ico
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { buildLedgerStatement, ledgerStatementNotes } from '../lib/ledgerStatement'
+import { accountLedgerStatus } from '../lib/manualChargeDueDate'
 import { useOrganization } from '../context/OrganizationContext'
 import Skeleton from '../components/skeleton/Skeleton'
 
@@ -65,6 +66,7 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [paymentSummaries, setPaymentSummaries] = useState([])
   const [overdueSummaries, setOverdueSummaries] = useState([])
+  const [paymentProgress, setPaymentProgress] = useState([])
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
     gracePeriodDays: 0,
@@ -125,7 +127,7 @@ const actorName =
     setPageError('')
 
     try {
-    const [blockResult, propertyResult, paymentResult, settingsResult, overdueResult] =
+    const [blockResult, propertyResult, paymentResult, settingsResult, overdueResult, progressResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
         fetchAll(() => supabase
@@ -138,15 +140,17 @@ const actorName =
         supabase.from('system_settings').select('due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         fetchAll(() => supabase
           .from('property_overdue_summary')
-          .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due, aging_complete')
+          .select('property_id, overdue_amount, current_amount, is_overdue, days_overdue, penalty_amount, total_due, aging_complete')
           .order('property_id'), { tiebreaker: null }),
+        fetchAll(() => supabase.from('property_payment_progress')
+          .select('property_id, has_partial_payment').order('property_id'), { tiebreaker: null }),
       ])
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error]
+    const errors = [blockResult.error, propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error, progressResult.error]
       .filter(Boolean)
       .map((error) => error.message)
     if (!Array.isArray(blockResult.data) || !Array.isArray(propertyResult.data) ||
-        !Array.isArray(paymentResult.data) || !Array.isArray(overdueResult.data)) {
+        !Array.isArray(paymentResult.data) || !Array.isArray(overdueResult.data) || !Array.isArray(progressResult.data)) {
       errors.push('One or more ledger queries returned an incomplete response.')
     }
     if (propertyResult.data?.some((property) =>
@@ -166,6 +170,7 @@ const actorName =
     setProperties(propertyResult.data || [])
     setPaymentSummaries(paymentResult.data || [])
     setOverdueSummaries(overdueResult.data || [])
+    setPaymentProgress(progressResult.data || [])
     setOrgSettings(settingsResult.data || null)
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
@@ -349,6 +354,10 @@ async function downloadStatementPdf() {
     () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
     [overdueSummaries],
   )
+  const progressByProperty = useMemo(
+    () => new Map(paymentProgress.map((row) => [Number(row.property_id), row])),
+    [paymentProgress],
+  )
 
   const ledgerEntries = useMemo(() => {
     return properties
@@ -367,15 +376,12 @@ async function downloadStatementPdf() {
       const lastPaidAt = summary?.latest_paid_at || null
       const lateFee = overdueByProperty.get(Number(property.id))
       const agingVerified = Boolean(lateFee && lateFee.aging_complete === true)
-      const status = !agingVerified
-        ? 'Review'
-        : stored <= 0
-          ? 'Paid'
-          : lateFee.is_overdue
-            ? 'Overdue'
-            : paidAmount > 0
-              ? 'Partial'
-              : 'Pending'
+      const status = accountLedgerStatus({
+        balance: stored,
+        agingComplete: agingVerified,
+        isOverdue: lateFee?.is_overdue,
+        hasPartialPayment: progressByProperty.get(Number(property.id))?.has_partial_payment === true && totalPaid > 0,
+      })
 
       return {
         id: property.id,
@@ -396,6 +402,7 @@ async function downloadStatementPdf() {
         totalDue: Number(lateFee?.total_due ?? balance),
         daysOverdue: Number(lateFee?.days_overdue) || 0,
         overdueAmount: Number(lateFee?.overdue_amount) || 0,
+        currentAmount: Number(lateFee?.current_amount) || 0,
         lastPayment: lastPaidAt
           ? organization.formatDate(lastPaidAt)
           : '—',
@@ -403,7 +410,7 @@ async function downloadStatementPdf() {
         status,
       }
     })
-  }, [properties, summaryByProperty, overdueByProperty])
+  }, [properties, summaryByProperty, overdueByProperty, progressByProperty])
 
   const filtered = useMemo(() => {
     const term = normalize(search)
@@ -520,7 +527,7 @@ async function downloadStatementPdf() {
           />
         </div>
         <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} disabled={loading} options={[{ value: 'all', label: loading ? 'Loading blocks...' : 'All Blocks' }, ...blocks.map((block) => ({ value: block.name, label: block.name }))]} />
-        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'Paid', 'Partial', 'Pending', 'Overdue', 'Review'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
+        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'Paid', 'Partially Paid', 'Pending', 'Overdue', 'Review'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
         {hasActiveQuery && (
           <span className="ledger-result-count">
             {sorted.length <= MAX_VISIBLE_ROWS
@@ -579,13 +586,13 @@ async function downloadStatementPdf() {
                   <td data-label="Homeowner">
                     <span className="ledger-homeowner-name">
                       <strong>{entry.name}</strong>
-                      <span className={`ledger-badge ledger-badge-${entry.status.toLowerCase()}`}>{entry.status}</span>
+                      <span className={`ledger-badge ledger-badge-${entry.status.toLowerCase().replace(/\s+/g, '-')}`}>{entry.status}</span>
                     </span>
                   </td>
                   <td data-label="Block / Lot">{entry.block}, {entry.lot}</td>
                   <td data-label="Previous balance">{formatMoney(entry.dueAmount)}</td>
                   <td data-label="Last payment amount">{peso.format(entry.paidAmount)}</td>
-                  <td data-label="Outstanding balance" className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}</td>
+                  <td data-label="Outstanding balance" className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}{entry.overdueAmount > 0 && entry.currentAmount > 0 && <small className="ledger-aging-note">Overdue {peso.format(entry.overdueAmount)} · Current {peso.format(entry.currentAmount)}</small>}</td>
                   <td data-label="Last payment date">{entry.lastPayment}</td>
                   <td data-label="Available credit" className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
                   <td className="ledger-row-actions">

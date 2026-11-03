@@ -1,6 +1,6 @@
 import { ilikeAny, searchTokens } from './pagedQuery'
 
-const COLUMNS = 'id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at'
+const COLUMNS = 'id, property_id, charge_type, amount, billing_month, due_date, description, created_by_name, created_at'
 const SEARCH_COLUMNS = ['charge_type', 'description']
 const OWNER_BATCH = 100
 const RESULT_LIMIT = 50

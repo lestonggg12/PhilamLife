@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { buildLedgerStatement, ledgerStatementNotes } from './ledgerStatement'
 
 describe('buildLedgerStatement', () => {
+  it('shows a custom manual charge deadline without changing the charge total', () => {
+    const result = buildLedgerStatement({
+      storedBalance: 5000,
+      charges: [{ id: 'manual', amount: 5000, charge_type: 'Special Assessment', due_date: '2026-11-15', created_at: '2026-11-03' }],
+    })
+    const item = result.lines.find((line) => line.kind === 'charge')
+    expect(item.details).toContain('Final due date: 2026-11-15 (overdue the following Manila calendar day if unpaid).')
+    expect(result.totals.finalBalance).toBe(5000)
+  })
+
   it('includes charges, payments, and voided history while ending at stored balance', () => {
     const result = buildLedgerStatement({
       storedBalance: 500,

@@ -7,6 +7,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { readPropertyBalance } from '../lib/paymentBalanceRefresh'
 import { loadOpenCharges } from '../lib/openChargeSearch'
 import { paymentSetupErrors } from '../lib/paymentSetup'
+import { isValidManualChargeDueDate } from '../lib/manualChargeDueDate'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { PAYMENT_PURPOSES, CHARGE_TYPES, isBalanceReducingPurpose, paymentAdvanceConfirmation } from '../lib/paymentPurposes'
 import { useOrganization } from '../context/OrganizationContext'
@@ -68,6 +69,7 @@ const EMPTY_CHARGE = {
   chargeType: 'Penalty / Late Fee',
   description: '',
   amount: '',
+  dueDate: '',
 }
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -1062,23 +1064,36 @@ function selectHomeowner(property) {
       setChargeError('Charge amount must be greater than zero.')
       return
     }
+    if (!CHARGE_TYPES.includes(chargeForm.chargeType)) {
+      setChargeError('Select a valid charge type.')
+      return
+    }
+    if (!isValidManualChargeDueDate(chargeForm.dueDate, todayDateKey())) {
+      setChargeError('Select a valid final due date (today or later).')
+      return
+    }
 
     chargeSubmitRef.current = true
     setChargeSaving(true)
     setChargeError('')
 
     try {
-    const { error } = await supabase.from('property_charges').insert({
+    const { data, error } = await supabase.from('property_charges').insert({
       property_id: property.id,
       charge_type: chargeForm.chargeType,
       description: chargeForm.description.trim() || null,
       amount,
+      due_date: chargeForm.dueDate,
       created_by: currentUser.id,
       created_by_name: recorderName,
-    }).select('id, property_id, charge_type, amount, billing_month, description, created_by_name, created_at').single()
+    }).select('id, property_id, charge_type, amount, billing_month, due_date, description, created_by_name, created_at').single()
 
     if (error) {
       setChargeError(error.message)
+      return
+    }
+    if (!data?.id || String(data.property_id) !== String(property.id) || data.due_date !== chargeForm.dueDate) {
+      setChargeError('Charge save could not be verified. Refresh charge history before retrying to avoid a duplicate.')
       return
     }
 
@@ -1671,6 +1686,11 @@ function selectHomeowner(property) {
                 />
               </label>
 
+              <label className="payment-span-2">Final Due Date (Required)
+                <input name="dueDate" type="date" min={todayDateKey()} value={chargeForm.dueDate} onChange={updateChargeField} required />
+                <small className="payment-homeowner-help">The charge is added to the account now. Its unpaid remainder becomes overdue the day after this date (Manila time). No additional monthly grace period is applied.</small>
+              </label>
+
               <label>Lot number
                 <input
                   name="lotNumber"
@@ -1935,6 +1955,8 @@ function selectHomeowner(property) {
                           {charge.billing_month ? ` · ${String(charge.billing_month).slice(0, 7)}` : ''}
                           {charge.description ? ` · ${charge.description}` : ''}
                         </small>
+                        {charge.due_date && <small>Final due date: {organization.formatDate(charge.due_date)} · Overdue from the next day if unpaid</small>}
+                        {!charge.due_date && !charge.billing_month && <small>Legacy/system charge — no custom deadline recorded; existing aging rules apply</small>}
                         <small>{organization.formatDate(charge.created_at)} · {charge.created_by_name || 'System'}</small>
                       </div>
                       <strong className="charge-list-amount">{peso.format(Number(charge.amount) || 0)}</strong>

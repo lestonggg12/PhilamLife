@@ -683,7 +683,8 @@
 }
 
 .ledger-badge-paid { background: rgba(26, 138, 96, 0.14); color: var(--success); }
-.ledger-badge-partial { background: rgba(212, 146, 10, 0.16); color: #a06400; }
+.ledger-badge-partially-paid { background: rgba(212, 146, 10, 0.16); color: #a06400; }
+.ledger-aging-note { display: block; margin-top: 3px; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); white-space: normal; }
 .ledger-badge-pending { background: rgba(90, 122, 146, 0.14); color: var(--text-muted); }
 .ledger-badge-overdue { background: rgba(192, 57, 43, 0.14); color: var(--danger); }
 
