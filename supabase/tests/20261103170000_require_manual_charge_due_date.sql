@@ -11,9 +11,15 @@ DECLARE
   expected_error boolean;
   deadline date := public.hoa_manila_today();
 BEGIN
-  SELECT id INTO test_property_id
-  FROM public.properties
-  ORDER BY id
+  SELECT p.id INTO test_property_id
+  FROM public.properties p
+  WHERE p.homeowner_status = 'active'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.homeowner_balance_transfers t
+      WHERE t.previous_property_id = p.id
+    )
+  ORDER BY p.id
   LIMIT 1;
 
   IF test_property_id IS NULL THEN
