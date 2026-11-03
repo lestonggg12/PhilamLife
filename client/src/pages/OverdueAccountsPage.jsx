@@ -4,6 +4,7 @@ import Select from '../components/Select'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
+import { describeOverdueAccount, summarizeOverdueAccounts } from '../lib/overdueAccounts'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
@@ -11,7 +12,7 @@ import { Pager } from '../components/PagerControls'
 import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 import Skeleton from '../components/skeleton/Skeleton'
 
-const STATUS_FILTERS = ['Overdue', 'Pending', 'Partial', 'Paid', 'All']
+const STATUS_FILTERS = ['Overdue', 'Pending', 'Partial', 'Paid', 'Review', 'All']
 
 const AGING_TIERS = ['1-30 days', '31-60 days', '61-90 days', '90+ days']
 
@@ -31,13 +32,9 @@ function agingTierOf(daysOverdue) {
   return '90+ days'
 }
 
-// This page answers a question the rest of the app couldn't: "who hasn't
-// paid past the due day, right now" — independent of whether anyone has
-// posted a monthly assessment charge for them. It uses the same Due Day /
-// Grace Period / Late Penalty settings and computeLateFee() logic as the
-// Ledger page's own fallback view, applied to every property directly from
-// raw payment history rather than the homeowner_ledger_summary DB view
-// (which only reflects posted `homeowner_charges` rows).
+// Age the actual UNPAID balance items from property_overdue_summary, not raw
+// payments or a hypothetical penalty. Pending penalties must never be shown
+// as posted debt; the database posts actual penalties separately.
 export default function OverdueAccountsPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const navigate = useNavigate()
@@ -102,14 +99,25 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         .maybeSingle(),
       fetchAll(() => supabase
         .from('property_overdue_summary')
-        .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+        .select('property_id, balance, overdue_amount, is_overdue, days_overdue, aging_complete, aging_date_fallback_count')
         .order('property_id'), { tiebreaker: null }),
     ])
 
     const errors = [propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error].filter(Boolean)
     if (errors.length > 0) {
-      setPageError(`Some records could not be loaded: ${errors.map((e) => e.message).join(' ')}`)
+      // Financial data must fail closed. A partial view could falsely say
+      // "Paid" or "No homeowners are currently overdue".
+      setPageError(`Unable to load complete overdue data: ${errors.map((e) => e.message).join(' ')}`)
+      setProperties([])
+      setPaymentSummaries([])
+      setOverdueSummaries([])
+      setLoading(false)
+      setRefreshing(false)
+      return
     }
+
+    const unaged = (overdueResult.data || []).filter((r) => r.aging_complete === false)
+    if (unaged.length) setPageError(`${unaged.length} account(s) have unreconciled aging data. Their overdue classification requires review.`)
 
     setProperties(propertyResult.data || [])
     setPaymentSummaries(paymentResult.data || [])
@@ -149,42 +157,22 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       .filter((property) => (property.homeowner_status || 'active') === 'active')
       .map((property) => {
       const latestPayment = summaryByProperty.get(Number(property.id))
-      const paidAmount = latestPayment ? Number(latestPayment.latest_amount_paid) || 0 : 0
-      const storedBalance = Number(property.current_balance) || 0
-      const balance = Math.max(storedBalance, 0)
-      const lateFee = overdueByProperty.get(Number(property.id)) || {
-        is_overdue: false,
-        overdue_amount: 0,
-        penalty_amount: 0,
-        total_due: balance,
-        days_overdue: 0,
-      }
-
-      const status = balance <= 0
-        ? 'Paid'
-        : lateFee.is_overdue
-          ? 'Overdue'
-          : paidAmount > 0
-            ? 'Partial'
-            : 'Pending'
+      const aging = overdueByProperty.get(Number(property.id))
+      // No summary is not the same as a zero balance.
+      const classified = describeOverdueAccount(property, aging, latestPayment)
 
       const propertyActions = (actionsByProperty.get(property.id) || [])
       const lastAction = propertyActions[0] || null
 
       return {
+        ...classified,
         id: property.id,
         name: property.homeowner_name,
         block: property.block,
         lot: `Lot ${property.lot_number}`,
         phone: property.contact_phone || '',
         email: property.contact_email || '',
-        balance,
-        penaltyAmount: Number(lateFee.penalty_amount) || 0,
-        totalDue: Number(lateFee.total_due) || balance,
-        daysOverdue: Number(lateFee.days_overdue) || 0,
-        agingTier: status === 'Overdue' ? agingTierOf(Number(lateFee.days_overdue) || 0) : null,
         lastPaymentAt: latestPayment?.latest_paid_at || null,
-        status,
         lastAction,
         actionCount: propertyActions.length,
         actions: propertyActions,
@@ -233,25 +221,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   }, [visibleIds, loading, actionsReload])
 
   const summary = useMemo(() => {
-    const overdueAccounts = accounts.filter((a) => a.status === 'Overdue')
-    const byTier = Object.fromEntries(
-      AGING_TIERS.map((tier) => [
-        tier,
-        {
-          count: overdueAccounts.filter((a) => a.agingTier === tier).length,
-          balance: overdueAccounts
-            .filter((a) => a.agingTier === tier)
-            .reduce((sum, a) => sum + a.balance, 0),
-        },
-      ]),
-    )
-    return {
-      overdueCount: overdueAccounts.length,
-      overdueBalance: overdueAccounts.reduce((sum, a) => sum + a.balance, 0),
-      overduePenalties: overdueAccounts.reduce((sum, a) => sum + a.penaltyAmount, 0),
-      totalAccounts: accounts.length,
-      byTier,
-    }
+    return summarizeOverdueAccounts(accounts)
   }, [accounts])
 
   function openLogForm(account) {
@@ -312,7 +282,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           <h1>Overdue Accounts</h1>
           <p>
             Homeowners past Due Day {penaltySettings.dueDay} (+{penaltySettings.gracePeriodDays}-day grace period),
-            based on their actual payment history — not on whether a monthly assessment has been posted.
+            based on outstanding balance items. Only posted penalties are included in balances.
           </p>
         </div>
         <button type="button" className="overdue-refresh-button" onClick={() => loadData(true)} disabled={refreshing}>
@@ -331,8 +301,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.overdueBalance)}</strong>
         </div>
         <div className="overdue-summary-item">
-          <span>Penalties accrued</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.overduePenalties)}</strong>
+          <span>Not yet overdue (on overdue accounts)</span>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : organization.formatMoney(summary.currentPortion)}</strong>
         </div>
         <div className="overdue-summary-item">
           <span>Total accounts</span>
@@ -402,7 +372,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           <div className="overdue-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : filtered.length === 0 ? (
           <p className="overdue-empty">
-            {statusFilter === 'Overdue' ? 'No homeowners are currently overdue.' : 'No homeowners match your filters.'}
+            {pageError && accounts.length === 0 ? 'Overdue information is unavailable. Refresh to retry.' : statusFilter === 'Overdue' ? 'No homeowners are currently overdue.' : 'No homeowners match your filters.'}
           </p>
         ) : (
           <table className="overdue-table">
@@ -425,7 +395,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                 <th>Block / Lot</th>
                 <th>Days overdue</th>
                 <th>Balance</th>
-                <th>Total due</th>
+                <th>Past due</th>
                 <th>Last pmt</th>
                 <th>Last action</th>
                 <th>Status</th>
@@ -459,9 +429,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                   <td>{account.block}, {account.lot}</td>
                   <td>{account.status === 'Overdue' ? `${account.daysOverdue}d` : '—'}</td>
                   <td>{organization.formatMoney(account.balance)}</td>
-                  <td title={account.penaltyAmount > 0 ? `Includes ${organization.formatMoney(account.penaltyAmount)} penalty` : undefined}>
-                    {organization.formatMoney(account.totalDue)}
-                    {account.penaltyAmount > 0 && <span className="overdue-penalty-flag">+penalty</span>}
+                  <td>
+                    {organization.formatMoney(account.overdueAmount)}
                   </td>
                   <td>{account.lastPaymentAt ? organization.formatDate(account.lastPaymentAt).replace(/(\d{4})(?=$|,)/, (year) => year.slice(-2)) : 'No payments yet'}</td>
                   <td>
