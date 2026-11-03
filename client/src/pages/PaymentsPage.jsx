@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import { readPropertyBalance } from '../lib/paymentBalanceRefresh'
 import { loadOpenCharges } from '../lib/openChargeSearch'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { PAYMENT_PURPOSES, CHARGE_TYPES, isBalanceReducingPurpose, paymentAdvanceConfirmation } from '../lib/paymentPurposes'
@@ -370,6 +371,9 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const location = useLocation()
   const navigate = useNavigate()
   const handledPaymentRequestRef = useRef(null)
+  const paymentSubmitRef = useRef(false)
+  const chargeSubmitRef = useRef(false)
+  const voidSubmitRef = useRef(false)
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   // One page (50) of payments at a time, read from the database.
@@ -382,6 +386,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [reloadTick, setReloadTick] = useState(0)
   const [activeDays, setActiveDays] = useState({})
   const [openOfType, setOpenOfType] = useState(0)
+  const [openOfTypeError, setOpenOfTypeError] = useState('')
   const [properties, setProperties] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
@@ -493,6 +498,19 @@ export default function PaymentsPage({ user: suppliedUser }) {
     if (!profileError) setCurrentUser(profile)
   }
 
+  async function refreshPropertyBalance(propertyId) {
+    try {
+      const balance = await readPropertyBalance(supabase, propertyId)
+      setProperties((current) => current.map((property) =>
+        Number(property.id) === Number(propertyId)
+          ? { ...property, current_balance: balance }
+          : property))
+    } catch (error) {
+      // The mutation may already have committed; never invent a replacement balance.
+      setPageError(`The change was saved, but the latest homeowner balance could not be loaded. Refresh before the next transaction. ${error.message}`)
+    }
+  }
+
   async function loadPage() {
     setLoading(true)
     setPageError('')
@@ -511,6 +529,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
       supabase
         .from('property_charges')
         .select('id')
+        .eq('charge_type', 'Association Dues')
+        .is('voided_at', null)
         .eq('billing_month', `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).slice(0, 7)}-01`)
         .limit(1),
       fetchAll(() => supabase
@@ -530,11 +550,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
       setMonthlyDuesByProperty(new Map((duesResult.data || []).map((row) => [Number(row.property_id), row.monthly_dues])))
     }
 
-    if (propertyResult.error) {
-      setPageError(`Could not load ledger homeowners: ${propertyResult.error.message}`)
-    } else {
-      setProperties(propertyResult.data || [])
+    const errors = [propertyResult.error, settingsResult.error, billedResult.error, duesResult.error]
+      .filter(Boolean)
+    if (errors.length) {
+      setPageError(`Payment setup could not be fully loaded: ${errors.map((error) => error.message).join(' ')}`)
     }
+    if (!propertyResult.error) setProperties(propertyResult.data || [])
     setLoading(false)
   }
 
@@ -582,8 +603,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
   useEffect(() => {
     if (!form.propertyId || isBalanceReducingPayment) {
       setOpenOfType(0)
+      setOpenOfTypeError('')
       return undefined
     }
+    setOpenOfTypeError('Checking unpaid charges…')
 
     let cancelled = false
     const propertyId = Number(form.propertyId)
@@ -607,8 +630,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
       if (cancelled) return
       if (chargeResult.error || paidResult.error) {
         setOpenOfType(0)
+        setOpenOfTypeError('Unable to verify unpaid charges. Refresh and try again.')
         return
       }
+      setOpenOfTypeError('')
 
       const charged = (chargeResult.data || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
       const applied = (paidResult.data || []).reduce(
@@ -999,6 +1024,7 @@ function selectHomeowner(property) {
 
   async function addCharge(event) {
     event.preventDefault()
+    if (chargeSubmitRef.current) return
 
     if (!canManageCharges || !currentUser?.id) {
       setChargeError('Only an Admin or Secretary can add charges.')
@@ -1018,9 +1044,11 @@ function selectHomeowner(property) {
       return
     }
 
+    chargeSubmitRef.current = true
     setChargeSaving(true)
     setChargeError('')
 
+    try {
     const { error } = await supabase.from('property_charges').insert({
       property_id: property.id,
       charge_type: chargeForm.chargeType,
@@ -1032,21 +1060,19 @@ function selectHomeowner(property) {
 
     if (error) {
       setChargeError(error.message)
-      setChargeSaving(false)
       return
     }
 
-    setProperties((current) =>
-      current.map((item) =>
-        item.id === property.id
-          ? { ...item, current_balance: (Number(item.current_balance) || 0) + amount }
-          : item,
-      ),
-    )
+    await refreshPropertyBalance(property.id)
     setReloadTick((tick) => tick + 1)
     notifySuccess(`${chargeForm.chargeType} charge of ${peso.format(amount)} added for ${property.homeowner_name}, ${property.block}, Lot ${property.lot_number}.`)
     setShowCharge(false)
-    setChargeSaving(false)
+    } catch (error) {
+      setChargeError(`The charge could not be confirmed. Refresh before retrying. ${error.message}`)
+    } finally {
+      chargeSubmitRef.current = false
+      setChargeSaving(false)
+    }
   }
 
   // Treasurers can record new payments but cannot void payments.
@@ -1092,6 +1118,7 @@ function selectHomeowner(property) {
 
   async function confirmVoid(event) {
     event.preventDefault()
+    if (voidSubmitRef.current || !voidTarget) return
     const reason = voidReason.trim()
 
     if (reason.length < 5) {
@@ -1099,9 +1126,11 @@ function selectHomeowner(property) {
       return
     }
 
+    voidSubmitRef.current = true
     setVoiding(true)
     setVoidError('')
     const { kind, item } = voidTarget
+    try {
 
     if (kind === 'payment') {
       const { data, error } = await supabase
@@ -1117,15 +1146,8 @@ function selectHomeowner(property) {
         return
       }
 
-      const effect = Number(item.balance_effect ?? item.amount_paid ?? item.amount) || 0
       setReloadTick((tick) => tick + 1)
-      setProperties((current) =>
-        current.map((property) =>
-          Number(property.id) === Number(item.property_id)
-            ? { ...property, current_balance: (Number(property.current_balance) || 0) + effect }
-            : property,
-        ),
-      )
+      await refreshPropertyBalance(item.property_id)
 
     } else {
       const { data, error } = await supabase
@@ -1141,23 +1163,21 @@ function selectHomeowner(property) {
         return
       }
 
-      const owner = propertyById.get(Number(item.property_id))
       setReloadTick((tick) => tick + 1)
-      setProperties((current) =>
-        current.map((property) =>
-          Number(property.id) === Number(item.property_id)
-            ? { ...property, current_balance: (Number(property.current_balance) || 0) - (Number(item.amount) || 0) }
-            : property,
-        ),
-      )
+      await refreshPropertyBalance(item.property_id)
 
     }
 
-    setVoiding(false)
     notifySuccess(kind === 'payment'
       ? `Payment ${item.receipt_number || ''} was cancelled.`
       : `${item.charge_type} charge was cancelled.`)
     setVoidTarget(null)
+    } catch (error) {
+      setVoidError(`Cancellation could not be confirmed. Refresh before retrying. ${error.message}`)
+    } finally {
+      voidSubmitRef.current = false
+      setVoiding(false)
+    }
   }
 
   function confirmAdvancePayment() {
@@ -1168,6 +1188,7 @@ function selectHomeowner(property) {
 
   async function recordPayment(event) {
     event.preventDefault()
+    if (paymentSubmitRef.current) return
     const advanceApproved = advanceApprovedRef.current
     advanceApprovedRef.current = false
 
@@ -1239,7 +1260,12 @@ function selectHomeowner(property) {
       setFormError('A reference number is required for non-cash payments.')
       return
     }
+    if (!isBalanceReducingPayment && openOfTypeError) {
+      setFormError('Unpaid charges are still being checked. Please retry when the check finishes.')
+      return
+    }
 
+    paymentSubmitRef.current = true
     setSaving(true)
     setFormError('')
 
@@ -1276,6 +1302,7 @@ function selectHomeowner(property) {
   recorded_by_name: recorderName,
 }
 
+    try {
     const { data, error } = await supabase
       .from('payments')
       .insert(payload)
@@ -1284,7 +1311,6 @@ function selectHomeowner(property) {
 
     if (error) {
       setFormError(error.message)
-      setSaving(false)
       return
     }
 
@@ -1294,18 +1320,17 @@ function selectHomeowner(property) {
     // Jump to today so the new receipt is visible even if another day was open.
     setSelectedDateKey(todayDateKey())
     setReloadTick((tick) => tick + 1)
-    setProperties((current) =>
-      current.map((property) =>
-        String(property.id) === String(data.property_id)
-          ? { ...property, current_balance: Number(data.remaining_balance) || 0 }
-          : property,
-      ),
-    )
+    await refreshPropertyBalance(data.property_id)
     setShowForm(false)
     setForm(EMPTY_FORM)
     setReceipt(data)
     notifySuccess(`Payment ${data.receipt_number} recorded for ${data.homeowner_name}, ${data.block_name || ""}, Lot ${data.lot_number || ""}.`)
-    setSaving(false)
+    } catch (error) {
+      setFormError(`The payment could not be confirmed. Refresh payment history before retrying to avoid a duplicate. ${error.message}`)
+    } finally {
+      paymentSubmitRef.current = false
+      setSaving(false)
+    }
   }
 
   // Preview for the Add Charge dialog: credit is used up first, then a balance remains.
