@@ -273,7 +273,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       requireEffectiveDate(transferForm.effectiveDate)
       let message
       if (transferForm.status === 'transferred') {
-        const request = transferRequest(contact.id, transferForm)
+        const request = transferRequest(contact, transferForm)
         const { data, error } = await supabase.rpc(request.name, request.args)
         if (error) throw error
         const result = confirmedTransfer(data)

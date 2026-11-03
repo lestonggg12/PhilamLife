@@ -13,17 +13,21 @@ export function transferChoices(lots, previousProperty) {
   return [...people.values()]
 }
 
-export function transferRequest(previousPropertyId, form) {
+export function transferRequest(previousProperty, form) {
+  if (!previousProperty?.id || !previousProperty.homeowner_id || previousProperty.homeowner_status !== 'active') {
+    throw new Error('Reload the active homeowner account before transferring it.')
+  }
   const common = {
-    p_previous_property_id: previousPropertyId,
+    p_previous_property_id: previousProperty.id,
+    p_expected_homeowner_id: previousProperty.homeowner_id,
     p_effective_date: form.effectiveDate,
     p_note: form.reason.trim() || null,
   }
   if (form.transferTo === 'existing') {
     if (!form.targetProperty?.homeowner_id) throw new Error('Select an existing homeowner from the results.')
-    return { name: 'transfer_homeowner_to_existing', args: { ...common, p_target_property_id: form.targetProperty.id } }
+    return { name: 'transfer_homeowner_to_existing_guarded', args: { ...common, p_target_property_id: form.targetProperty.id, p_expected_target_homeowner_id: form.targetProperty.homeowner_id } }
   }
   const name = form.newHomeownerName.trim()
   if (!name) throw new Error('Enter the new homeowner name.')
-  return { name: 'transfer_homeowner', args: { ...common, p_new_homeowner_name: name } }
+  return { name: 'transfer_homeowner_guarded', args: { ...common, p_new_homeowner_name: name } }
 }
