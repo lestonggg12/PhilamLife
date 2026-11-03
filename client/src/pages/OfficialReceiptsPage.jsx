@@ -540,6 +540,7 @@ export default function OfficialReceiptsPage() {
   const [summary, setSummary] = useState(null)
   const [reloadTick, setReloadTick] = useState(0)
   const [activeDays, setActiveDays] = useState({})
+  const [summaryError, setSummaryError] = useState('')
   const [openingId, setOpeningId] = useState('')
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
@@ -633,6 +634,7 @@ export default function OfficialReceiptsPage() {
 
     async function loadRows() {
       setLoading(true)
+      try {
       const { from, to } = pageWindow(page)
 
       // Browsing a month or a date range gets an exact total (cheap: it uses the date
@@ -653,11 +655,11 @@ export default function OfficialReceiptsPage() {
 
       if (cancelled) return
 
-      if (error) {
-        setPageError(`Could not load receipts: ${error.message}`)
-        setRows([])
-        setPageInfo({ total: 0, minimum: 0 })
-      } else if ((data || []).length === 0 && page > 0 && (!exact || (count || 0) > 0)) {
+      if (error) throw error
+      if (!Array.isArray(data) || (exact && (!Number.isSafeInteger(count) || count < 0))) {
+        throw new Error('The receipt list response is incomplete.')
+      }
+      if (data.length === 0 && page > 0 && (!exact || count > 0)) {
         goToPage(exact ? pageCount(count) - 1 : page - 1)
         return
       } else {
@@ -666,7 +668,15 @@ export default function OfficialReceiptsPage() {
         setRows(result.rows.map(mapFeedRow))
         setPageInfo({ total: result.total, minimum: result.minimum })
       }
-      setLoading(false)
+      } catch (failure) {
+        if (!cancelled) {
+          setPageError(`Could not load receipts: ${failure?.message || 'Connection failed.'}`)
+          setRows([])
+          setPageInfo({ total: 0, minimum: 0 })
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
 
     loadRows()
@@ -690,18 +700,24 @@ export default function OfficialReceiptsPage() {
   useEffect(() => {
     let cancelled = false
     setSummary(null)
-
-    supabase
-      .rpc('receipts_period_summary', { p_from: summaryRange.from, p_to: summaryRange.to })
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.warn('Could not load receipt totals:', error.message)
-          return
+    setSummaryError('')
+    async function loadSummary() {
+      try {
+        const { data, error } = await supabase.rpc('receipts_period_summary', {
+          p_from: summaryRange.from, p_to: summaryRange.to,
+        })
+        if (error) throw error
+        const row = Array.isArray(data) ? data[0] : data
+        if (!row || ['completed_count', 'service_count', 'voided_count', 'dues_collected', 'service_collected']
+          .some((key) => row[key] == null || !Number.isFinite(Number(row[key])) || Number(row[key]) < 0)) {
+          throw new Error('Receipt totals are incomplete.')
         }
-        setSummary(Array.isArray(data) ? data[0] || null : data)
-      })
-
+        if (!cancelled) setSummary(row)
+      } catch (failure) {
+        if (!cancelled) setSummaryError(`Receipt totals are unavailable: ${failure?.message || 'Connection failed.'}`)
+      }
+    }
+    loadSummary()
     return () => { cancelled = true }
   }, [summaryRange.from, summaryRange.to, reloadTick])
 
@@ -728,17 +744,17 @@ export default function OfficialReceiptsPage() {
     const key = `${year}-${String(month + 1).padStart(2, '0')}` // month is 0-based
     if (loadedMonthsRef.current.has(key)) return
     loadedMonthsRef.current.add(key)
-
-    const { data, error } = await supabase.rpc('receipt_active_days', {
-      p_month: `${key}-01`,
-      p_include_services: true,
-    })
-
-    if (error) {
+    try {
+      const { data, error } = await supabase.rpc('receipt_active_days', {
+        p_month: `${key}-01`,
+        p_include_services: true,
+      })
+      if (error) throw error
+      if (!Array.isArray(data)) throw new Error('Calendar response is incomplete.')
+      setActiveDays((current) => ({ ...current, [key]: new Set(data) }))
+    } catch {
       loadedMonthsRef.current.delete(key)
-      return
     }
-    setActiveDays((current) => ({ ...current, [key]: new Set(data || []) }))
   }
 
   const activeDateKeys = useMemo(() => {
@@ -751,24 +767,21 @@ export default function OfficialReceiptsPage() {
   async function openReceipt(receipt) {
     if (openingId) return
     setOpeningId(receipt.id)
-
-    const table = receipt.type === 'service' ? 'service_transactions' : 'payments'
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .eq('id', receipt.sourceId)
-      .maybeSingle()
-
-    setOpeningId('')
-
-    if (error || !data) {
-      setPageError(`Could not open receipt ${receipt.receiptNumber}: ${error?.message || 'it no longer exists.'}`)
-      return
+    try {
+      const table = receipt.type === 'service' ? 'service_transactions' : 'payments'
+      const { data, error } = await supabase.from(table)
+        .select('*').eq('id', receipt.sourceId).maybeSingle()
+      if (error) throw error
+      if (!data || String(data.id) !== String(receipt.sourceId)) {
+        throw new Error('The requested receipt could not be verified.')
+      }
+      setPageError('')
+      setSelectedReceipt(receipt.type === 'service' ? mapServiceReceipt(data) : mapPaymentReceipt(data))
+    } catch (failure) {
+      setPageError(`Could not open receipt ${receipt.receiptNumber}: ${failure?.message || 'Connection failed.'}`)
+    } finally {
+      setOpeningId('')
     }
-
-    setSelectedReceipt(
-      receipt.type === 'service' ? mapServiceReceipt(data) : mapPaymentReceipt(data),
-    )
   }
 
   function clearFilters() {
@@ -861,6 +874,7 @@ export default function OfficialReceiptsPage() {
           {pageError}
         </p>
       )}
+      {summaryError && <p className="official-receipts-error" role="alert">{summaryError}</p>}
 
       <section
         className="official-receipts-summary"
