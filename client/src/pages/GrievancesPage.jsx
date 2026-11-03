@@ -56,38 +56,68 @@ export default function GrievancesPage({ user }) {
     let cancelled = false
     setLoading(true); setError('')
     async function load() {
-      let query = supabase.from('grievance_cases').select(SUMMARY_COLUMNS, { count: 'exact' })
-      if (status !== 'All') query = query.eq('status',status)
-      if (category !== 'All') query = query.eq('category',category)
-      const number = /^GR-\d+$/i.test(term.trim()) ? Number(term.trim().slice(3)) : null
-      const searched = number === null ? applySearch(query, ['title','complainant','respondent','location','assigned_handler'],term) : query.eq('case_number',number)
-      const result = await searched
-        .order('filed_at',{ascending:false}).order('id').range(page*PAGE_SIZE,(page+1)*PAGE_SIZE-1)
-      if (cancelled) return
-      setRows(result.data || []); setTotal(result.count || 0); setError(result.error ? readableError(result.error) : ''); setLoading(false)
-      if (!result.error && page && page*PAGE_SIZE >= result.count) setPage(Math.max(0,Math.ceil(result.count/PAGE_SIZE)-1))
+      try {
+        let query = supabase.from('grievance_cases').select(SUMMARY_COLUMNS, { count: 'exact' })
+        if (status !== 'All') query = query.eq('status', status)
+        if (category !== 'All') query = query.eq('category', category)
+        const number = /^GR-\d+$/i.test(term.trim()) ? Number(term.trim().slice(3)) : null
+        const searched = number === null ? applySearch(query, ['title', 'complainant', 'respondent', 'location', 'assigned_handler'], term) : query.eq('case_number', number)
+        const result = await searched
+          .order('filed_at', { ascending: false }).order('id').range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+        if (cancelled) return
+        if (result.error) throw result.error
+        if (!Array.isArray(result.data) || !Number.isInteger(result.count) || result.count < 0) throw new Error('The grievance register response was incomplete.')
+        setRows(result.data)
+        setTotal(result.count)
+        setError('')
+        if (page && page * PAGE_SIZE >= result.count) setPage(Math.max(0, Math.ceil(result.count / PAGE_SIZE) - 1))
+      } catch (failure) {
+        if (!cancelled) { setRows([]); setTotal(0); setError(readableError(failure)) }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
     load()
     return () => { cancelled = true }
   }, [allowed,term,status,category,page,revision])
 
   useEffect(() => {
-    if (!selected?.version) { setHistory([]); return undefined }
+    if (!selected?.version) { setHistory([]); setHistoryLoading(false); setHistoryError(''); return undefined }
     let cancelled = false
-    setHistoryLoading(true); setHistoryError('')
-    fetchAll(() => supabase.from('grievance_events').select('*').eq('case_id',selected.id).order('recorded_at',{ascending:false}).order('id',{ascending:false}), { tiebreaker: null }).then(({data,error}) => {
-      if (cancelled) return
-      setHistory(data || []); setHistoryError(error ? readableError(error) : ''); setHistoryLoading(false)
-    })
+    setHistory([])
+    setHistoryLoading(true)
+    setHistoryError('')
+    async function loadHistory() {
+      try {
+        const { data, error } = await fetchAll(() => supabase.from('grievance_events').select('*').eq('case_id', selected.id).order('recorded_at', { ascending: false }).order('id', { ascending: false }), { tiebreaker: null })
+        if (error) throw error
+        if (!Array.isArray(data)) throw new Error('The grievance history response was incomplete.')
+        if (!cancelled) setHistory(data)
+      } catch (failure) {
+        if (!cancelled) { setHistory([]); setHistoryError(readableError(failure)) }
+      } finally {
+        if (!cancelled) setHistoryLoading(false)
+      }
+    }
+    loadHistory()
     return () => { cancelled = true }
   }, [selected?.id, selected?.version])
 
   async function openCase(row) {
-    setOpening(true); setError('')
-    const {data,error} = await supabase.from('grievance_cases').select('*').eq('id',row.id).single()
-    setOpening(false)
-    if (error) { setError(readableError(error)); return }
-    setSaveError(''); setSelected(data)
+    if (opening) return
+    setOpening(true)
+    setError('')
+    try {
+      const { data, error } = await supabase.from('grievance_cases').select('*').eq('id', row.id).single()
+      if (error) throw error
+      if (!data || data.id !== row.id) throw new Error('The requested grievance could not be verified. Refresh and try again.')
+      setSaveError('')
+      setSelected(data)
+    } catch (failure) {
+      setError(readableError(failure))
+    } finally {
+      setOpening(false)
+    }
   }
   async function save(form, note) {
     setSaveError('')

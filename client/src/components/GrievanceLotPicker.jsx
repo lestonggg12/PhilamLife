@@ -16,9 +16,17 @@ export default function GrievanceLotPicker({ value, label, onChange }) {
     let cancelled = false
     setLoading(true); setError('')
     async function load() {
-      const query = supabase.from('properties').select('id,homeowner_name,block,lot_number').eq('homeowner_status', 'active')
-      const { data, error: failure } = await applySearch(query, ['homeowner_name','block'], term).order('homeowner_name').order('id').limit(20)
-      if (!cancelled) { setRows(data || []); setError(failure ? 'Lots could not be loaded. Try again.' : ''); setLoading(false) }
+      try {
+        const query = supabase.from('properties').select('id,homeowner_name,block,lot_number').eq('homeowner_status', 'active')
+        const { data, error: failure } = await applySearch(query, ['homeowner_name','block'], term).order('homeowner_name').order('id').limit(20)
+        if (failure) throw failure
+        if (!Array.isArray(data)) throw new Error('The lot search response was incomplete.')
+        if (!cancelled) setRows(data)
+      } catch {
+        if (!cancelled) { setRows([]); setError('Lots could not be loaded. Try again.') }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
     load()
     return () => { cancelled = true }

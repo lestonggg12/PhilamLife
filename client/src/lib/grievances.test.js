@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { canUseGrievances, grievanceNumber, grievanceRequest, isGrievanceClosed, manilaDateKey, statementMovement } from './grievances'
 const form = { id:'test',version:0,title:'Noise',category:'Noise',status:'Received',complainant:'A',respondent:'B',location:'Gate',description:'Loud music',outcome:'',decision_authority:'',property_id:'',incident_date:'' }
+ it('denies inactive secretaries', () => { expect(canUseGrievances({ role: 'secretary', is_active: false })).toBe(false) })
+ it('rejects invalid incident and follow-up dates', () => { expect(() => grievanceRequest({ ...form, incident_date: '2026-02-30' }, 'note', '2026-11-03')).toThrow(/valid incident date/); expect(() => grievanceRequest({ ...form, follow_up_date: '2026-02-30' }, 'note', '2026-11-03')).toThrow(/follow-up date/) })
 describe('Secretary grievances', () => {
  it('allows only the Secretary', () => { expect(canUseGrievances({role:' Secretary '})).toBe(true); for (const role of ['admin','treasurer','',undefined]) expect(canUseGrievances({role})).toBe(false) })
  it('keeps referred cases open and recognizes closing outcomes', () => { expect(isGrievanceClosed('Referred')).toBe(false); for (const status of ['Resolved','Dismissed','Withdrawn']) expect(isGrievanceClosed(status)).toBe(true) })

@@ -1,8 +1,10 @@
+import { isCalendarDate } from './eventCalendar'
+
 export const GRIEVANCE_CATEGORIES = ['Noise', 'Parking', 'Pets', 'Maintenance', 'Neighbor dispute', 'Dues or payment dispute', 'Rule violation', 'Officer conduct', 'Other']
 export const GRIEVANCE_STATUSES = ['Received', 'Under review', 'In mediation', 'Awaiting decision', 'Awaiting action', 'Referred', 'Resolved', 'Dismissed', 'Withdrawn']
 export const CLOSED_GRIEVANCES = ['Resolved', 'Dismissed', 'Withdrawn']
 export const isGrievanceClosed = (status) => CLOSED_GRIEVANCES.includes(status)
-export const canUseGrievances = (user) => String(user?.role || '').trim().toLowerCase() === 'secretary'
+export const canUseGrievances = (user) => user?.is_active !== false && String(user?.role || '').trim().toLowerCase() === 'secretary'
 export const grievanceNumber = (number) => `GR-${String(number).padStart(5, '0')}`
 export const manilaDateKey = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 export const newGrievance = () => ({
@@ -16,7 +18,9 @@ export function grievanceRequest(form, note, today = manilaDateKey()) {
     if (!String(form[field] || '').trim()) throw new Error('Complete the title, people involved, location and description.')
   }
   if (!note.trim()) throw new Error('Add a note explaining this record or update.')
+  if (form.incident_date && !isCalendarDate(form.incident_date)) throw new Error('Choose a valid incident date.')
   if (form.incident_date && form.incident_date > today) throw new Error('The incident date cannot be in the future.')
+  if (form.follow_up_date && !isCalendarDate(form.follow_up_date)) throw new Error('Choose a valid follow-up date.')
   if (isGrievanceClosed(form.status) && !form.outcome.trim()) throw new Error('Record the outcome before closing this case.')
   if (['Resolved', 'Dismissed'].includes(form.status) && !form.decision_authority.trim()) throw new Error('Record who authorized the decision.')
   const details = Object.fromEntries(EDITABLE_FIELDS.map((key) => [key, typeof form[key] === 'string' ? form[key].trim() : form[key]]))
