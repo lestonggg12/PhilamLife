@@ -1,6 +1,7 @@
 import { saveSystemSettings as persistSystemSettings } from '../lib/saveSystemSettings'
+import { buildSystemSettingsPayload } from '../lib/systemSettingsDraft'
 import { notifySuccess } from '../lib/actionFeedback'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import { supabase } from '../lib/supabaseClient'
 import { fetchTableVerified } from '../lib/fetchAll'
@@ -98,6 +99,8 @@ export default function SystemSettingsPage({ user }) {
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const saveInFlight = useRef(false)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState('')
   const [message, setMessageState] = useState(null)
@@ -114,22 +117,32 @@ export default function SystemSettingsPage({ user }) {
   ], [])
 
   useEffect(() => {
+    let active = true
     async function load() {
-      const { data, error } = await supabase.from('system_settings').select('*').eq('id', 1).single()
-      if (error) setMessage({ type: 'error', text: `Unable to load settings: ${error.message}` })
-      else setSettings({
-        ...DEFAULT_SETTINGS,
-        ...data,
-        contact_email: data.contact_email || '',
-        contact_phone: data.contact_phone || '',
-        billing_day: String(data.billing_day ?? 1),
-        due_day: String(data.due_day),
-        grace_period_days: String(data.grace_period_days),
-        session_timeout: String(data.session_timeout),
-      })
-      setLoading(false)
+      try {
+        const { data, error } = await supabase.from('system_settings').select('*').eq('id', 1).single()
+        if (!active) return
+        if (error) throw error
+        if (!data) throw new Error('Settings record is missing.')
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...data,
+          contact_email: data.contact_email || '',
+          contact_phone: data.contact_phone || '',
+          billing_day: String(data.billing_day ?? 1),
+          due_day: String(data.due_day),
+          grace_period_days: String(data.grace_period_days),
+          session_timeout: String(data.session_timeout),
+        })
+        setSettingsLoaded(true)
+      } catch (error) {
+        if (active) setMessage({ type: 'error', text: `Unable to load settings: ${error.message}. Reload before saving.` })
+      } finally {
+        if (active) setLoading(false)
+      }
     }
     load()
+    return () => { active = false }
   }, [])
 
   function update(field, value) {
@@ -137,42 +150,37 @@ export default function SystemSettingsPage({ user }) {
     if (message?.type === 'success') setMessage(null)
   }
 
-  function validate() {
-    if (!settings.hoa_name.trim()) return 'HOA name is required.'
-    if (!settings.address.trim()) return 'Address is required.'
-    if (settings.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.contact_email)) return 'Enter a valid contact email.'
-    if (!Number.isInteger(Number(settings.due_day)) || Number(settings.due_day) < 1 || Number(settings.due_day) > 31) return 'Due day must be from 1 to 31.'
-    if (!Number.isInteger(Number(settings.billing_day)) || Number(settings.billing_day) < 1 || Number(settings.billing_day) > 31) return 'Billing day must be from 1 to 31.'
-    if (Number(settings.due_day) < Number(settings.billing_day)) return 'Due day must be on or after the billing day — dues cannot fall due before they are charged.'
-    if (Number(settings.grace_period_days) < 0) return 'Grace period cannot be negative.'
-    if (Number(settings.session_timeout) < 5 || Number(settings.session_timeout) > 1440) return 'Session timeout must be from 5 to 1,440 minutes.'
-    return ''
-  }
-
   async function saveSettings() {
-    const errorText = validate()
-    if (errorText) return setMessage({ type: 'error', text: errorText })
+    if (saveInFlight.current) return
+    if (!settingsLoaded || loading) {
+      setMessage({ type: 'error', text: 'Settings are not loaded. Reload the page before saving.' })
+      return
+    }
+    if (String(user?.role || '').trim().toLowerCase() !== 'admin') {
+      setMessage({ type: 'error', text: 'Only an Admin can change system settings.' })
+      return
+    }
+    let payload
+    try {
+      payload = buildSystemSettingsPayload(settings)
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message })
+      return
+    }
+    saveInFlight.current = true
     setSaving(true)
     setMessage(null)
-    const payload = {
-      ...settings,
-      contact_email: (settings.contact_email || '').trim() || null,
-      contact_phone: (settings.contact_phone || '').trim() || null,
-      billing_day: Number(settings.billing_day),
-      due_day: Number(settings.due_day),
-      grace_period_days: Number(settings.grace_period_days),
-      session_timeout: Number(settings.session_timeout),
-    }
-    delete payload.id
-    delete payload.updated_at
-    delete payload.updated_by
-    delete payload.price_per_sqm
-    // Retained for existing overdue calculations; no longer editable here.
-    delete payload.late_penalty
-    delete payload.late_penalty_rate
-    delete payload.late_penalty_first_after_months
     try {
-      const { refreshError, cacheError } = await persistSystemSettings(supabase, payload, refreshOrganization)
+      const { settings: saved, refreshError, cacheError } = await persistSystemSettings(supabase, payload, refreshOrganization)
+      // Use the committed server row, not the pre-save draft.
+      setSettings((current) => ({
+        ...current,
+        ...saved,
+        billing_day: String(saved.billing_day),
+        due_day: String(saved.due_day),
+        grace_period_days: String(saved.grace_period_days),
+        session_timeout: String(saved.session_timeout),
+      }))
       if (refreshError) {
         setMessage({ type: 'error', text: `Settings were saved, but the shared display could not refresh: ${refreshError.message}. Reload the page before continuing.` })
       } else if (cacheError) {
@@ -183,6 +191,7 @@ export default function SystemSettingsPage({ user }) {
     } catch (error) {
       setMessage({ type: 'error', text: `Unable to save settings: ${error.message}` })
     } finally {
+      saveInFlight.current = false
       setSaving(false)
     }
   }
@@ -333,7 +342,7 @@ export default function SystemSettingsPage({ user }) {
         </SettingsCard>
       </div>}
 
-      {activeTab !== 'backup' && <div className="ss-save-bar"><span>Saves organization, billing, regional and security preferences. Dues rate and penalty settings have their own Save buttons.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
+      {activeTab !== 'backup' && <div className="ss-save-bar"><span>Saves organization, billing, regional and security preferences. Dues rate and penalty settings have their own Save buttons.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving || !settingsLoaded}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
     </div>
   )
 }
