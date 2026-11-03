@@ -167,7 +167,6 @@ export default function SystemSettingsPage({ user }) {
     delete payload.updated_at
     delete payload.updated_by
     delete payload.price_per_sqm
-    delete payload.dues_amount
     // Retained for existing overdue calculations; no longer editable here.
     delete payload.late_penalty
     delete payload.late_penalty_rate
