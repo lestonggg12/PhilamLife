@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import { monthlyCollection } from '../lib/dashboardCollections'
+import { secretaryDashboardSummary } from '../lib/secretaryDashboardSummary'
 import { fetchAll } from '../lib/fetchAll'
 import {
   AlertCircle,
@@ -52,60 +52,68 @@ export default function SecretaryDashboard() {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [hasLoaded, setHasLoaded] = useState(false)
+  const requestRef = useRef(0)
 
   useEffect(() => {
-    loadDashboard()
+    void loadDashboard()
+    return () => { requestRef.current += 1 }
   }, [])
 
   async function loadDashboard() {
+    const request = ++requestRef.current
     setLoading(true)
     setPageError('')
 
-    const [propertyResult, paymentResult, activityResult, monthlyResult] =
-      await Promise.all([
-        fetchAll(() => supabase
-          .from('properties')
-          .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')),
-        // Only the 5 newest payments are shown, so only 5 are downloaded.
-        supabase
-          .from('payments')
-          .select('*')
-          .neq('status', 'Voided')
-          .order('paid_at', { ascending: false })
-          .limit(5),
-        supabase
-          .from('activity_log')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(5),
-        // This year's monthly totals, computed by the database (max 12 rows).
-        supabase
-          .from('monthly_collections')
-          .select('month_start, dues_collected, dues_only_collected, dues_only_receipts')
-          .gte('month_start', `${manilaDateParts().year}-01-01`)
-          .order('month_start'),
-      ])
+    try {
+      const { year } = manilaDateParts()
+      const [propertyResult, paymentResult, activityResult, monthlyResult] =
+        await Promise.all([
+          fetchAll(() => supabase
+            .from('properties')
+            .select('id, homeowner_name, block, lot_number, homeowner_status, current_balance')),
+          // Include legacy null-status payments, but never cancelled ones.
+          supabase
+            .from('payments')
+            .select('id, homeowner_name, coverage_period, block_name, lot_number, amount_paid, paid_at, status')
+            .or('status.is.null,status.neq.Voided')
+            .order('paid_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('activity_log')
+            .select('id, action, target, created_at')
+            .order('created_at', { ascending: false })
+            .limit(5),
+          // Bound both ends: future-dated receipts must not inflate this year.
+          supabase
+            .from('monthly_collections')
+            .select('month_start, dues_collected, dues_only_collected, dues_only_receipts')
+            .gte('month_start', `${year}-01-01`)
+            .lt('month_start', `${Number(year) + 1}-01-01`)
+            .order('month_start'),
+        ])
 
-    const errors = [
-      propertyResult.error,
-      paymentResult.error,
-      activityResult.error,
-      monthlyResult.error,
-    ].filter(Boolean)
-
-    if (errors.length > 0) {
-      setPageError(
-        `Some dashboard information could not be loaded: ${errors
-          .map((error) => error.message)
-          .join(' ')}`,
-      )
+      if (request !== requestRef.current) return
+      const errors = [propertyResult.error, paymentResult.error, activityResult.error, monthlyResult.error].filter(Boolean)
+      if (errors.length) throw new Error(errors.map((error) => error.message).join(' '))
+      if (![propertyResult.data, paymentResult.data, activityResult.data, monthlyResult.data].every(Array.isArray)) {
+        throw new Error('One or more dashboard queries returned incomplete data.')
+      }
+      secretaryDashboardSummary(propertyResult.data, monthlyResult.data, manilaDateParts())
+      // Commit only a complete snapshot; an unsuccessful refresh must not replace
+      // previously verified figures with zeros or partial records.
+      setProperties(propertyResult.data)
+      setRecentPayments(paymentResult.data)
+      setMonthlyRows(monthlyResult.data)
+      setActivities(activityResult.data)
+      setHasLoaded(true)
+    } catch (error) {
+      if (request === requestRef.current) {
+        setPageError(`Dashboard could not be refreshed: ${error?.message || 'Connection unavailable'}. ${hasLoaded ? 'Showing the last successfully loaded figures.' : 'Retry to load dashboard figures.'}`)
+      }
+    } finally {
+      if (request === requestRef.current) setLoading(false)
     }
-
-    setProperties(propertyResult.data || [])
-    setRecentPayments(paymentResult.data || [])
-    setMonthlyRows(monthlyResult.data || [])
-    setActivities(activityResult.data || [])
-    setLoading(false)
   }
 
   const activeProperties = useMemo(
@@ -113,30 +121,10 @@ export default function SecretaryDashboard() {
     [properties],
   )
 
-  const summary = useMemo(() => {
-    const { year, month } = manilaDateParts()
-    const currentKey = `${year}-${month}`
-
-    const yearlyCollections = monthlyRows.reduce(
-      (sum, row) => sum + (Number(row.dues_collected) || 0),
-      0,
-    )
-    const thisMonth = monthlyRows.find(
-      (row) => String(row.month_start).slice(0, 7) === currentKey,
-    )
-    const duesThisMonth = monthlyCollection(thisMonth, 'secretary')
-
-    const outstandingAccounts = activeProperties.filter(
-      (property) => (Number(property.current_balance) || 0) > 0,
-    ).length
-
-    return {
-      monthlyCollections: duesThisMonth.amount,
-      yearlyCollections,
-      outstandingAccounts,
-      receiptsThisMonth: duesThisMonth.receipts,
-    }
-  }, [monthlyRows, activeProperties])
+  const summary = useMemo(
+    () => secretaryDashboardSummary(activeProperties, monthlyRows, manilaDateParts()),
+    [activeProperties, monthlyRows],
+  )
 
   return (
     <div className="sec-secretary-dashboard">
@@ -160,7 +148,7 @@ export default function SecretaryDashboard() {
         </button>
       </header>
 
-      {pageError && <p className="sec-page-error">{pageError}</p>}
+      {pageError && <p className="sec-page-error" role="alert">{pageError} <button type="button" onClick={loadDashboard} disabled={loading}>Retry</button></p>}
 
       <section className="sec-stats-grid" aria-label="Secretary summaries">
         <article className="sec-stat-card">
@@ -171,7 +159,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value">
-            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : activeProperties.length.toLocaleString('en-PH')}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : activeProperties.length.toLocaleString('en-PH')}
           </strong>
           <p className="sec-stat-footer">Active homeowners in the ledger</p>
         </article>
@@ -184,7 +172,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value sec-stat-currency">
-            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : peso.format(summary.monthlyCollections)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : peso.format(summary.monthlyCollections)}
           </strong>
           <p className="sec-stat-footer">
             {summary.receiptsThisMonth} receipt
@@ -194,15 +182,15 @@ export default function SecretaryDashboard() {
 
         <article className="sec-stat-card">
           <div className="sec-stat-top">
-            <span className="sec-stat-label">Collections This Year</span>
+            <span className="sec-stat-label">Homeowner Collections This Year</span>
             <span className="sec-stat-icon sec-stat-icon-gold">
               <CreditCard size={19} />
             </span>
           </div>
           <strong className="sec-stat-value sec-stat-currency">
-            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : peso.format(summary.yearlyCollections)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : peso.format(summary.yearlyCollections)}
           </strong>
-          <p className="sec-stat-footer">Annual recorded payments</p>
+          <p className="sec-stat-footer">All homeowner cash receipts this calendar year, including dues, balance payments and fees</p>
         </article>
 
         <article className="sec-stat-card">
@@ -213,7 +201,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value">
-            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.outstandingAccounts.toLocaleString('en-PH')}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : summary.outstandingAccounts.toLocaleString('en-PH')}
           </strong>
           <p className="sec-stat-footer">Accounts with a remaining balance</p>
         </article>
@@ -247,9 +235,9 @@ export default function SecretaryDashboard() {
                   <tr>
                     <td colSpan="5" className="sec-empty"><div aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div></td>
                   </tr>
-                ) : recentPayments.length === 0 ? (
+                ) : !hasLoaded || recentPayments.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="sec-empty">No payments recorded yet.</td>
+                    <td colSpan="5" className="sec-empty">{hasLoaded ? 'No payments recorded yet.' : 'Payment history is unavailable.'}</td>
                   </tr>
                 ) : (
                   recentPayments.map((payment) => (
@@ -371,8 +359,8 @@ export default function SecretaryDashboard() {
         <div className="sec-activity-list">
           {loading ? (
             <div className="sec-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div>
-          ) : activities.length === 0 ? (
-            <p className="sec-empty">No activities recorded yet.</p>
+          ) : !hasLoaded || activities.length === 0 ? (
+            <p className="sec-empty">{hasLoaded ? 'No activities recorded yet.' : 'Activity history is unavailable.'}</p>
           ) : (
             activities.map((activity) => (
               <div className="sec-activity-row" key={activity.id}>
