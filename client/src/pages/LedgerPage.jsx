@@ -80,6 +80,12 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [statementLoading, setStatementLoading] = useState(false)
   const [statementError, setStatementError] = useState('')
   const statementRequestRef = useRef(0)
+  const closeStatement = () => {
+    statementRequestRef.current += 1
+    setStatementAccount(null)
+    setStatementLines([])
+    setStatementLoading(false)
+  }
 
   const role = currentUser?.role?.trim().toLowerCase()
 
@@ -131,16 +137,20 @@ const actorName =
         supabase.from('system_settings').select('due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
         fetchAll(() => supabase
           .from('property_overdue_summary')
-          .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+          .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due, aging_complete')
           .order('property_id'), { tiebreaker: null }),
       ])
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error, overdueResult.error]
+    const errors = [blockResult.error, propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error]
       .filter(Boolean)
       .map((error) => error.message)
 
-    if (errors.length > 0) {
-      setPageError(`Could not load the complete ledger: ${errors.join(' ')}`)
+    // A missing result must not turn an unverified account into Paid, and a
+    // failed refresh must not replace the previous complete snapshot.
+    if (errors.length > 0 || !settingsResult.data) {
+      setPageError(`Could not load the complete ledger: ${[...errors, ...(!settingsResult.data ? ['System settings are unavailable.'] : [])].join(' ')}`)
+      setLoading(false)
+      return
     }
 
     setBlocks(blockResult.data || [])
@@ -189,11 +199,11 @@ const actorName =
       .select('payment_id, property_charge_id, allocated_amount')
       .in('payment_id', (paymentResult.data || []).map((payment) => payment.id))
       : { data: [], error: null }
-    const adjustmentResult = await supabase
+    // Multiple historical reconciliations can exist for one property.
+    const adjustmentResult = await fetchAll(() => supabase
       .from('moved_account_reconciliations')
       .select('adjustment_amount, reason')
-      .eq('property_id', entry.id)
-      .maybeSingle()
+      .eq('property_id', entry.id))
     if (requestId !== statementRequestRef.current) return
     const error = paymentResult.error
       || lotResult.error
@@ -229,8 +239,9 @@ const actorName =
       openingBalanceAsOf: lotResult.data.opening_balance_as_of,
     })
     const latestPayment = payments
-      .filter((payment) => payment.status !== 'Voided')
+      .filter((payment) => String(payment.status || '').toLowerCase() !== 'voided')
       .sort((a, b) => new Date(b.paid_at || b.created_at || 0) - new Date(a.paid_at || a.created_at || 0))[0]
+    const closingCorrections = adjustmentResult.data || []
 
     
 const finalBalance = Number(statement.totals.finalBalance) || 0
@@ -248,10 +259,9 @@ setStatementAccount((current) =>
             latestPayment?.amount_paid ??
             latestPayment?.amount
           ) || 0,
-        closingAdjustment:
-          Number(adjustmentResult.data?.adjustment_amount) || 0,
-        closingAdjustmentReason:
-          adjustmentResult.data?.reason || '',
+        closingAdjustment: closingCorrections.reduce(
+          (sum, item) => sum + (Number(item.adjustment_amount) || 0), 0),
+        closingAdjustmentReason: closingCorrections.map((item) => item.reason).filter(Boolean).join('; '),
       }
     : current
 )
@@ -336,20 +346,17 @@ async function downloadStatementPdf() {
       const paidAmount = summary ? Number(summary.latest_amount_paid) || 0 : 0
       const totalPaid = summary ? Number(summary.total_paid) || 0 : 0
       const lastPaidAt = summary?.latest_paid_at || null
-      const lateFee = overdueByProperty.get(Number(property.id)) || {
-        is_overdue: false,
-        penalty_amount: 0,
-        total_due: balance,
-        days_overdue: 0,
-        overdue_amount: 0,
-      }
-      const status = stored <= 0
-        ? 'Paid'
-        : lateFee.is_overdue
-          ? 'Overdue'
-          : paidAmount > 0
-            ? 'Partial'
-            : 'Pending'
+      const lateFee = overdueByProperty.get(Number(property.id))
+      const agingVerified = Boolean(lateFee && lateFee.aging_complete === true)
+      const status = !agingVerified
+        ? 'Review'
+        : stored <= 0
+          ? 'Paid'
+          : lateFee.is_overdue
+            ? 'Overdue'
+            : paidAmount > 0
+              ? 'Partial'
+              : 'Pending'
 
       return {
         id: property.id,
@@ -366,10 +373,10 @@ async function downloadStatementPdf() {
         opening_balance_note: property.opening_balance_note,
         balance,
         unallocatedCredit: credit,
-        penaltyAmount: Number(lateFee.penalty_amount) || 0,
-        totalDue: Number(lateFee.total_due) || balance,
-        daysOverdue: Number(lateFee.days_overdue) || 0,
-        overdueAmount: Number(lateFee.overdue_amount) || 0,
+        penaltyAmount: Number(lateFee?.penalty_amount) || 0,
+        totalDue: Number(lateFee?.total_due ?? balance),
+        daysOverdue: Number(lateFee?.days_overdue) || 0,
+        overdueAmount: Number(lateFee?.overdue_amount) || 0,
         lastPayment: lastPaidAt
           ? organization.formatDate(lastPaidAt)
           : '—',
@@ -463,7 +470,7 @@ async function downloadStatementPdf() {
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={20} /></div>
-          <div><p className="ledger-summary-label">Total Dues</p><p className="ledger-summary-value">{peso.format(totals.totalDue)}</p></div>
+          <div><p className="ledger-summary-label">Collected + Outstanding (estimate)</p><p className="ledger-summary-value">{peso.format(totals.totalDue)}</p></div>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={20} /></div>
@@ -494,7 +501,7 @@ async function downloadStatementPdf() {
           />
         </div>
         <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} disabled={loading} options={[{ value: 'all', label: loading ? 'Loading blocks...' : 'All Blocks' }, ...blocks.map((block) => ({ value: block.name, label: block.name }))]} />
-        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'Paid', 'Partial', 'Pending', 'Overdue'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
+        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'Paid', 'Partial', 'Pending', 'Overdue', 'Review'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
         {hasActiveQuery && (
           <span className="ledger-result-count">
             {sorted.length <= MAX_VISIBLE_ROWS
@@ -575,11 +582,11 @@ async function downloadStatementPdf() {
       )}
 
       {statementAccount && (
-        <div className="ledger-modal-backdrop" onMouseDown={() => setStatementAccount(null)}>
+        <div className="ledger-modal-backdrop" onMouseDown={closeStatement}>
           <article className="ledger-statement-modal" onMouseDown={(event) => event.stopPropagation()}>
             <div className="ledger-modal-heading">
               <div><p className="ledger-statement-kicker">Homeowner statement</p><h2>{statementAccount.name}</h2><p>{statementAccount.block}, {statementAccount.lot}</p></div>
-              <button type="button" className="ledger-modal-close" onClick={() => setStatementAccount(null)} aria-label="Close">×</button>
+              <button type="button" className="ledger-modal-close" onClick={closeStatement} aria-label="Close">×</button>
             </div>
             {!statementLoading && !statementError && statementAccount.statementTotals && (
               <>
@@ -640,7 +647,7 @@ async function downloadStatementPdf() {
                 )}
               </table>
             </div>
-            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={() => setStatementAccount(null)}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
+            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={closeStatement}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
           </article>
         </div>
       )}
