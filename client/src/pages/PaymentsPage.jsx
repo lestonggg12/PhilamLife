@@ -14,6 +14,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import Select from '../components/Select'
+import DateField from '../components/DateField'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
@@ -1890,12 +1891,12 @@ function selectHomeowner(property) {
 
               <label className="payment-span-2">
                 Final Due Date (Required)
-                <input
+                <DateField
+                  ariaLabel="Final due date"
                   name="dueDate"
-                  type="date"
-                  min={todayDateKey()}
                   value={chargeForm.dueDate}
-                  onChange={updateChargeField}
+                  min={todayDateKey()}
+                  onChange={(value) => updateChargeField({ target: { name: 'dueDate', value } })}
                   required
                 />
                 <small className="payment-homeowner-help">
