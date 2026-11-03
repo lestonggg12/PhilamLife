@@ -22,6 +22,45 @@ export function monthBounds(month) {
   }
 }
 
+// A grievance RPC uses an inclusive DATE end, unlike the half-open timestamp
+// ranges used for payments and documents. Do not shift UTC milliseconds into
+// another date: that can include the first day of the following month.
+export function monthDateBounds(month) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Invalid report month.')
+  const [year, number] = month.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(year, number, 0)).getUTCDate()
+  return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, '0')}` }
+}
+
+// A financial report must not silently turn missing receivables into zero.
+// The two queries are independent, so also reject snapshots that disagree.
+export function verifyReportReceivables(properties, overdue, credits) {
+  if (!Array.isArray(properties) || !Array.isArray(overdue) || !credits) {
+    throw new Error('Receivables or advance-credit summary is unavailable.')
+  }
+  const byId = new Map()
+  for (const row of overdue) {
+    const id = String(row.property_id)
+    if (byId.has(id)) throw new Error('Duplicate receivables summary records.')
+    byId.set(id, row)
+  }
+  for (const property of properties) {
+    if ((property.homeowner_status || 'active') !== 'active') continue
+    const row = byId.get(String(property.id))
+    const source = Number(property.current_balance)
+    const shown = Number(row?.balance)
+    if (!row || !Number.isFinite(source) || !Number.isFinite(shown) ||
+        Math.abs(shown - Math.max(source, 0)) > 0.005) {
+      throw new Error('Receivable balances are incomplete or changed during loading. Refresh the report.')
+    }
+  }
+  for (const key of ['active_credit_total', 'active_credit_accounts', 'moved_credit_total', 'moved_credit_accounts']) {
+    if (credits[key] == null || !Number.isFinite(Number(credits[key]))) {
+      throw new Error('Advance-credit summary is incomplete.')
+    }
+  }
+}
+
 // Areas the system does not track yet. They are listed once in the report's
 // "Scope" section (worded for readers, not developers) instead of being shown
 // with placeholder figures.
@@ -71,11 +110,11 @@ export function computeMonthlyReportData(raw) {
     return ms >= range.startMs && ms < range.endMs
   }
 
-  const monthlyPayments = payments.filter((p) => inRange(p.paid_at) && p.status !== 'Voided')
+  const monthlyPayments = payments.filter((p) => inRange(p.paid_at) && String(p.status || '').trim().toLowerCase() !== 'voided')
   const monthlyServices = serviceTransactions.filter((t) =>
     inRange(t.paid_at) && String(t.payment_status || 'paid').toLowerCase() !== 'voided')
   const monthlyExpenses = expenses
-    .filter((e) => inRange(`${e.expense_date}T12:00:00+08:00`))
+    .filter((e) => String(e.status || '').trim().toLowerCase() !== 'voided' && inRange(`${e.expense_date}T12:00:00+08:00`))
     .sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date))
 
   // Homeowner payments, split by what they were for.

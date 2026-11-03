@@ -14,6 +14,8 @@ import {
   grievanceRows,
   grievanceNote,
   monthBounds,
+  monthDateBounds,
+  verifyReportReceivables,
   monthTitle as monthName,
   periodLabel,
   reportText,
@@ -47,7 +49,14 @@ async function fetchCommunity() {
 ),
     supabase.from('credit_liability_summary').select('*').maybeSingle(),
   ])
-  const failure = propertyResult.error || overdueResult.error || creditsResult.error || settingsResult.error
+  let failure = propertyResult.error || overdueResult.error || creditsResult.error || settingsResult.error
+  if (!failure) {
+    try {
+      verifyReportReceivables(propertyResult.data || [], overdueResult.data || [], creditsResult.data)
+    } catch (error) {
+      failure = error
+    }
+  }
   return {
     failure: failure ? failure.message : '',
     properties: propertyResult.error ? null : propertyResult.data || [],
@@ -61,7 +70,7 @@ async function fetchCommunity() {
 
 async function fetchMonth(selectedMonth) {
   const range = monthBounds(selectedMonth)
-  const monthStartDate = range.start.slice(0, 10)
+  const { from: monthStartDate, to: monthLastDate } = monthDateBounds(selectedMonth)
   const monthEndDate = range.end.slice(0, 10)
 
   const [paymentResult, serviceResult, expenseResult, documentResult, eventResult, upcomingResult, grievanceResult] = await Promise.all([
@@ -107,7 +116,7 @@ async function fetchMonth(selectedMonth) {
       .limit(6),
     supabase.rpc('monthly_report_grievances', {
       p_from: monthStartDate,
-      p_to: new Date(range.endMs - 1 + 8 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      p_to: monthLastDate,
     }),
   ])
 
@@ -235,14 +244,16 @@ export default function ReportsPage({ user: suppliedUser }) {
 
   function applyCommunity(result) {
     setCommunityError(result.failure)
-    if (result.properties) setProperties(result.properties)
-    if (result.overdue) setOverdue(result.overdue)
-    if (result.creditsLoaded) setCredits(result.credits)
-    if (result.settingsLoaded) setOrgSettings(result.settings)
+    if (result.failure) return
+    setProperties(result.properties)
+    setOverdue(result.overdue)
+    setCredits(result.credits)
+    setOrgSettings(result.settings)
   }
 
   function applyMonth(result) {
     setError(result.failure)
+    if (result.failure) return
     setPayments(result.payments)
     setServiceTransactions(result.serviceTransactions)
     setExpenses(result.expenses)
@@ -252,7 +263,11 @@ export default function ReportsPage({ user: suppliedUser }) {
   }
 
   async function loadCommunityData() {
-    applyCommunity(await fetchCommunity())
+    try {
+      applyCommunity(await fetchCommunity())
+    } catch (error) {
+      setCommunityError(`Could not refresh community data: ${error.message}`)
+    }
   }
 
   async function loadMonthData(selectedMonth, { silent = false } = {}) {
@@ -262,10 +277,15 @@ export default function ReportsPage({ user: suppliedUser }) {
       setLoading(true)
       setError('')
     }
-    const result = await fetchMonth(selectedMonth)
-    if (token !== monthLoadToken.current) return
-    applyMonth(result)
-    setLoading(false)
+    try {
+      const result = await fetchMonth(selectedMonth)
+      if (token !== monthLoadToken.current) return
+      applyMonth(result)
+    } catch (error) {
+      if (token === monthLoadToken.current) setError(`Could not load report month: ${error.message}`)
+    } finally {
+      if (token === monthLoadToken.current) setLoading(false)
+    }
   }
 
   const report = useMemo(
@@ -309,6 +329,8 @@ export default function ReportsPage({ user: suppliedUser }) {
       })
       doc.save(`HOA-Monthly-Report-${month}.pdf`)
       notifySuccess(`Monthly report PDF download started for ${month}.`)
+    } catch (error) {
+      setError(`Could not generate the report PDF: ${error.message}`)
     } finally {
       setPdfGenerating(false)
     }
