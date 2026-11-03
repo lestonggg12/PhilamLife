@@ -124,6 +124,7 @@ const actorName =
     setLoading(true)
     setPageError('')
 
+    try {
     const [blockResult, propertyResult, paymentResult, settingsResult, overdueResult] =
       await Promise.all([
         supabase.from('blocks').select('id, name').order('name'),
@@ -144,6 +145,14 @@ const actorName =
     const errors = [blockResult.error, propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error]
       .filter(Boolean)
       .map((error) => error.message)
+    if (!Array.isArray(blockResult.data) || !Array.isArray(propertyResult.data) ||
+        !Array.isArray(paymentResult.data) || !Array.isArray(overdueResult.data)) {
+      errors.push('One or more ledger queries returned an incomplete response.')
+    }
+    if (propertyResult.data?.some((property) =>
+      property.current_balance == null || !Number.isFinite(Number(property.current_balance)))) {
+      errors.push('Some property balances could not be verified.')
+    }
 
     // A missing result must not turn an unverified account into Paid, and a
     // failed refresh must not replace the previous complete snapshot.
@@ -164,6 +173,10 @@ const actorName =
       latePenalty: Number(settingsResult.data?.late_penalty) || 0,
     })
     setLoading(false)
+    } catch (failure) {
+      setPageError(`Could not load the complete ledger: ${failure?.message || 'Connection failed.'}`)
+      setLoading(false)
+    }
   }
 
   async function openStatement(entry) {
@@ -173,6 +186,7 @@ const actorName =
     setStatementLines([])
     setStatementLoading(true)
 
+    try {
     const [paymentResult, chargeResult, lotResult, accountAdjustmentResult] = await Promise.all([
       fetchAll(() => supabase
         .from('payments')
@@ -269,6 +283,11 @@ setStatementAccount((current) =>
 setStatementLines(statement.lines)
 
     setStatementLoading(false)
+    } catch (failure) {
+      if (requestId !== statementRequestRef.current) return
+      setStatementError(`Could not load history: ${failure?.message || 'Connection failed.'}`)
+      setStatementLoading(false)
+    }
   }
 async function downloadStatementPdf() {
       if (!statementAccount) return
