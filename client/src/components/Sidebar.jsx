@@ -101,6 +101,12 @@ export default function Sidebar({
       roles: ['treasurer'],
     },
     {
+      name: 'Services',
+      path: '/secretary/services',
+      icon: Zap,
+      roles: ['secretary', 'treasurer'],
+    },
+    {
       name: 'Payments',
       path: '/payments',
       icon: CreditCard,
@@ -118,12 +124,7 @@ export default function Sidebar({
       icon: BarChart3,
       roles: ['admin', 'treasurer'],
     },
-    {
-      name: 'Services',
-      path: '/secretary/services',
-      icon: Zap,
-      roles: ['secretary', 'treasurer'],
-    },
+
     {
       name: 'Official Receipts',
       path: '/secretary/receipts',
