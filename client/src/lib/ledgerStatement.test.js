@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildLedgerStatement, ledgerStatementNotes } from './ledgerStatement'
 
@@ -265,5 +266,18 @@ describe('documented account adjustments', () => {
     expect(result.totals.documentedAccountAdjustments).toBe(0)
     expect(result.lines[0].debit).toBe(0)
     expect(result.totals.payments).toBe(0)
+  })
+})
+
+describe('Ledger charge due-date query regression', () => {
+  it('loads saved manual charge deadlines for statements and PDFs', () => {
+    const source = readFileSync(
+      new URL('../pages/LedgerPage.jsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toMatch(
+      /\.from\('property_charges'\)[\s\S]{0,250}?\.select\('[^']*\bdue_date\b[^']*'\)/,
+    )
   })
 })

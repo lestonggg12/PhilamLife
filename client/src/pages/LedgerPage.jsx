@@ -200,7 +200,7 @@ const actorName =
         .order('paid_at', { ascending: true })),
       fetchAll(() => supabase
         .from('property_charges')
-        .select('id, created_at, charge_type, description, billing_month, amount, voided_at, void_reason')
+        .select('id, created_at, charge_type, description, billing_month, due_date, amount, voided_at, void_reason')
         .eq('property_id', entry.id)
         .order('created_at', { ascending: true })),
       supabase.from('properties')
