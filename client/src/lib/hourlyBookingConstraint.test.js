@@ -6,33 +6,24 @@ const source = readFileSync(
   'utf8',
 )
 
-describe('Hourly amenity booking protection', () => {
-  it('requires a time range for hourly services', () => {
-    expect(source).toContain('hourlySlotRequired')
-    expect(source).toContain(
-      'Select a start and end time for hourly amenities.',
-    )
+describe('Shared amenity booking protection', () => {
+  it('requires valid booking times', () => {
+    expect(source).toContain('endTimeError')
   })
 
-  it('checks overlapping bookings before saving', () => {
-    expect(source).toContain(
-      'rangesOverlap(start, end, bookedStart, bookedEnd)',
-    )
+  it('allows selection of occupied times for review', () => {
+    expect(source).toContain('bookedRanges={[]}')
   })
 
-  it('handles PostgreSQL exclusion constraint errors', () => {
-    expect(source).toContain("error?.code === '23P01'")
+  it('checks the configured reservation limit', () => {
+    expect(source).toContain('service.shared_booking_limit')
   })
 
-  it('refreshes booking availability after a conflict', () => {
-    expect(source).toMatch(
-      /error\?\.code === '23P01'[\s\S]*?setReloadTick/,
-    )
+  it('handles changed availability', () => {
+    expect(source).toContain("error?.code === '40001'")
   })
 
-  it('does not require exclusive slots for per-person services', () => {
-    expect(source).toContain(
-      "String(bookingService.rate_unit || '').trim().toLowerCase() !== 'per hour'",
-    )
+  it('handles capacity-reached database errors', () => {
+    expect(source).toContain("error?.code === '23514'")
   })
 })

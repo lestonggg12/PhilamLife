@@ -310,6 +310,7 @@ const emptyService = {
   rate: '',
   rate_unit: 'per use',
   is_active: true,
+  shared_booking_limit: 1,
 }
 
 const emptyTransaction = {
@@ -417,14 +418,6 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return undefined
     }
 
-    const bookingService = services.find(
-      (item) => item.id === transactionForm.service_id,
-    )
-    if (bookingService &&
-        String(bookingService.rate_unit || '').trim().toLowerCase() !== 'per hour') {
-      setBookedLoading(false)
-      return undefined
-    }
 
     let cancelled = false
     setBookedLoading(true)
@@ -451,19 +444,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         setBookedRanges(ranges)
         setBookedLoading(false)
 
-        // Drop an already-chosen time that clashes with the newly loaded bookings.
-        setTransactionForm((current) => {
-          const s = timeToMinutes(current.start_time)
-          const e = timeToMinutes(current.end_time)
-          const clash = ranges.some((range) => {
-            const bs = timeToMinutes(range.start)
-            const be = timeToMinutes(range.end)
-            if (s !== null && e !== null) return rangesOverlap(s, e, bs, be)
-            if (s !== null) return s >= bs && s < be
-            return false
-          })
-          return clash ? { ...current, start_time: '', end_time: '' } : current
-        })
+
       })
 
     return () => { cancelled = true }
@@ -702,10 +683,10 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const changeDue = toCents(Math.max(amountReceived - amountDue, 0))
   const stillOwed = toCents(Math.max(amountDue - amountReceived, 0))
     const hourlySlotRequired =
-      String(selectedService?.rate_unit || '').trim().toLowerCase() === 'per hour'
+      Boolean(selectedService)
 
     const endTimeError = hourlySlotRequired && !transactionForm.start_time
-      ? 'Select a start and end time for hourly amenities.'
+      ? 'Select a start and end time for the reservation.'
       : transactionForm.start_time
     ? !transactionForm.end_time
       ? 'Enter an end time.'
@@ -737,6 +718,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             rate: String(service.rate),
             rate_unit: service.rate_unit,
             is_active: service.is_active,
+            shared_booking_limit: service.shared_booking_limit ?? 1,
           }
         : emptyService,
     )
@@ -772,6 +754,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       rate: Number(serviceForm.rate),
       rate_unit: serviceForm.rate_unit,
       is_active: serviceForm.is_active,
+      shared_booking_limit: Number(serviceForm.shared_booking_limit),
     }
 
     const query = editingServiceId
@@ -840,32 +823,6 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
-    // Recheck the currently loaded bookings immediately before submission.
-    if (transactionForm.start_time && transactionForm.end_time) {
-      const start = timeToMinutes(transactionForm.start_time)
-      const end = timeToMinutes(transactionForm.end_time)
-
-      if (start === null || end === null || end <= start) {
-        setPageError('Select a valid booking time range.')
-        return
-      }
-
-      const overlaps = bookedRanges.some((range) => {
-        const bookedStart = timeToMinutes(range.start)
-        const bookedEnd = timeToMinutes(range.end)
-
-        return bookedStart !== null
-          && bookedEnd !== null
-          && rangesOverlap(start, end, bookedStart, bookedEnd)
-      })
-
-      if (overlaps) {
-        setPageError(
-          'This amenity is already booked during the selected time. Choose another slot.',
-        )
-        return
-      }
-    }
 
     const received = toCents(transactionForm.amount_paid)
 
@@ -906,13 +863,41 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       recorded_by_name: recorderName,
     }
 
-    const { data, error } = await supabase
-      .from('service_transactions')
-      .insert(payload)
-      .select('*')
-      .single()
-
     try {
+      const { count, error: availabilityError } = await supabase
+        .from('service_transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('service_id', payload.service_id)
+        .eq('service_date', payload.service_date)
+        .is('balance_of', null)
+        .neq('payment_status', 'voided')
+        .lt('start_time', payload.end_time)
+        .gt('end_time', payload.start_time)
+
+      if (availabilityError || !Number.isInteger(count)) {
+        throw new Error('Booking availability cannot be verified. No payment was recorded.')
+      }
+      const limit = Number(service.shared_booking_limit)
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw new Error('The amenity reservation limit is not configured.')
+      }
+
+      if (count > 0) {
+        const accepted = window.confirm(
+          `Add another renter to ${service.name}?\n\n` +
+          `${count} existing reservation(s) overlap your selected time.\n` +
+          `Maximum simultaneous reservations: ${limit}.\n\n` +
+          'Continue and record the payment?'
+        )
+        if (!accepted) return
+      }
+
+      const reviewedPayload = { ...payload, overlap_acknowledged_count: count }
+      const { data, error } = await supabase
+        .from('service_transactions')
+        .insert(reviewedPayload)
+        .select('*')
+        .single()
       if (error) throw error
       if (!data?.id || data.property_id !== Number(property.id) || !data.receipt_number) {
         throw new Error('The receipt could not be confirmed. Refresh history before retrying to avoid a duplicate.')
@@ -923,10 +908,11 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
       setReloadTick((tick) => tick + 1)
     } catch (error) {
-      if (error?.code === '23P01') {
-        setPageError(
-          'This amenity time slot has just been booked by another user. Choose another time.',
-        )
+      if (error?.code === '40001') {
+        setPageError('Reservations changed during confirmation. Review the latest occupancy and try again.')
+        setReloadTick((tick) => tick + 1)
+      } else if (error?.code === '23514' || error?.code === '23P01') {
+        setPageError('Booking capacity reached. Choose another time or contact the Secretary.')
         setReloadTick((tick) => tick + 1)
       } else {
         setPageError(`Service payment could not be confirmed. Check receipt history before retrying. ${error?.message || 'Connection failed.'}`)
@@ -1298,6 +1284,22 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 <Select ariaLabel="Rate unit" value={serviceForm.rate_unit} onChange={(value) => setServiceForm((current) => ({ ...current, rate_unit: value }))} options={['per use', 'per hour', 'per person', 'per day'].map((value) => ({ value, label: value }))} />
               </label>
             </div>
+            <label>
+              Maximum simultaneous reservations
+              <input
+                required
+                type="number"
+                min="1"
+                max="1000"
+                step="1"
+                value={serviceForm.shared_booking_limit}
+                onChange={(event) => setServiceForm((current) => ({
+                  ...current,
+                  shared_booking_limit: event.target.value,
+                }))}
+              />
+              <small>Counted as reservations, not the number of people present.</small>
+            </label>
             <label className="services-checkbox">
               <input
                 type="checkbox"
@@ -1373,7 +1375,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 mode="start"
                 value={transactionForm.start_time}
                 counterpart={transactionForm.end_time}
-                bookedRanges={bookedRanges}
+                bookedRanges={[]}
                 loading={bookedLoading}
                 minuteStep={TIME_MINUTE_STEP}
                 onChange={(next) =>
@@ -1385,7 +1387,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 mode="end"
                 value={transactionForm.end_time}
                 counterpart={transactionForm.start_time}
-                bookedRanges={bookedRanges}
+                bookedRanges={[]}
                 loading={bookedLoading}
                 minuteStep={TIME_MINUTE_STEP}
                 invalid={Boolean(endTimeError)}
@@ -1435,7 +1437,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             )}
             {!bookedLoading && bookedRanges.length > 0 && (
               <p className="services-booked-note">
-                Booked:{' '}
+                Existing reservations:{' '}
                 {bookedRanges
                   .map((r) => `${formatTime12(r.start, false)} - ${formatTime12(r.end, false)}`)
                   .join(', ')}

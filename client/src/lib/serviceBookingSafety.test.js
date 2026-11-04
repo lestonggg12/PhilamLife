@@ -11,32 +11,27 @@ const revenueSource = readFileSync(
   'utf8',
 )
 
-describe('Amenity booking turnover safety', () => {
+describe('Shared amenity booking safety', () => {
   it('blocks saving when availability cannot be verified', () => {
-    expect(serviceSource).toMatch(
-      /async function saveTransaction[\s\S]*?if \(bookedLoading \|\| bookedError\)/,
-    )
+    expect(serviceSource).toContain('bookedLoading || bookedError')
   })
 
-  it('checks booked time ranges before recording a receipt', () => {
-    expect(serviceSource).toContain(
-      'bookedRanges.some((range) => {',
-    )
-    expect(serviceSource).toContain(
-      'rangesOverlap(start, end, bookedStart, bookedEnd)',
-    )
+  it('checks the actual number of overlapping reservations', () => {
+    expect(serviceSource).toContain("count: 'exact'")
+    expect(serviceSource).toContain(".lt('start_time', payload.end_time)")
+    expect(serviceSource).toContain(".gt('end_time', payload.start_time)")
   })
 
-  it('disables saving while the booking check is loading or failed', () => {
-    expect(serviceSource).toMatch(
-      /disabled=\{saving \|\| bookedLoading \|\| Boolean\(bookedError\)/,
-    )
+  it('requires confirmation before recording overlapping payments', () => {
+    expect(serviceSource).toContain('window.confirm(')
+    expect(serviceSource).toContain('if (!accepted) return')
   })
 
-  it('clearly identifies the amount paid on an individual receipt', () => {
+  it('sends the acknowledged count to the database', () => {
+    expect(serviceSource).toContain('overlap_acknowledged_count: count')
+  })
+
+  it('keeps the receipt payment amount clearly labeled', () => {
     expect(revenueSource).toContain('Paid (Receipt)')
-    expect(revenueSource).toContain(
-      'later balance collections appear as separate receipts',
-    )
   })
 })
