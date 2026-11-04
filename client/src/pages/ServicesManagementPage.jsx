@@ -46,6 +46,7 @@ import { useSettledAmount } from '../lib/useSettledAmount'
 import { fetchAll } from '../lib/fetchAll'
 import { verifiedServiceStats } from '../lib/serviceStats'
 import { hourlyBillableHours, serviceAmountDue } from '../lib/serviceBilling'
+import { serviceSubmissionSnapshot, sameServiceSubmission, assertServiceReceiptMatches } from '../lib/serviceSubmissionIntegrity'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import ServiceVoidDialog from '../components/ServiceVoidDialog'
@@ -347,6 +348,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [saving, setSaving] = useState(false)
   const [paymentSubmissionKey, setPaymentSubmissionKey] = useState(null)
   const [collectSubmissionKey, setCollectSubmissionKey] = useState(null)
+  const paymentAttemptRef = useRef(null)
+  const collectAttemptRef = useRef(null)
   const lastHourlyDueRef = useRef(null)
   const [bookingConfirmation, setBookingConfirmation] = useState(null)
   const bookingConfirmationResolver = useRef(null)
@@ -712,6 +715,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
     const chosen = service || activeServices[0]
     lastHourlyDueRef.current = null
+    paymentAttemptRef.current = null
     setPaymentSubmissionKey(crypto.randomUUID())
     setTransactionForm({
       ...emptyTransaction,
@@ -904,7 +908,36 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       recorded_by_name: recorderName,
     }
 
+    const paymentIntent = serviceSubmissionSnapshot('payment', payload)
+    if (paymentAttemptRef.current && !sameServiceSubmission(paymentAttemptRef.current, paymentIntent)) {
+      setPageError('This payment form changed after an earlier submission. Check receipt history first, then close and reopen Record Payment for a new attempt.')
+      setSaving(false)
+      return
+    }
+
+    const acceptSavedPayment = (data) => {
+      assertServiceReceiptMatches(paymentIntent, data)
+      setTransactionForm(emptyTransaction)
+      paymentAttemptRef.current = null
+      setPaymentSubmissionKey(null)
+      setShowPaymentForm(false)
+      setReceipt(data)
+      notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
+      setReloadTick((tick) => tick + 1)
+    }
+
     try {
+      // A previously committed payment must be recovered BEFORE another insert.
+      if (paymentAttemptRef.current) {
+        const recovered = await supabase.from('service_transactions')
+          .select('*').eq('submission_key', paymentSubmissionKey).maybeSingle()
+        if (recovered.error) throw new Error('Could not check the earlier payment attempt. Check receipt history before retrying.')
+        if (recovered.data) {
+          assertServiceReceiptMatches(paymentAttemptRef.current, recovered.data)
+          acceptSavedPayment(recovered.data)
+          return
+        }
+      }
       // Resolve stale catalog data before displaying a payment confirmation.
       const { data: liveService, error: rateError } = await supabase
         .from('amenity_services')
@@ -942,6 +975,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       }
 
       const reviewedPayload = { ...payload, overlap_acknowledged_count: count }
+      paymentAttemptRef.current = paymentIntent
       let { data, error } = await supabase
         .from('service_transactions')
         .insert(reviewedPayload)
@@ -952,21 +986,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       if (error) {
         const existing = await supabase.from('service_transactions')
           .select('*').eq('submission_key', paymentSubmissionKey).maybeSingle()
-        if (!existing.error && existing.data) { data = existing.data; error = null }
+        if (existing.error) {
+          throw new Error('The earlier payment could not be verified. Check receipt history; do not submit a second payment.')
+        }
+        if (existing.data) {
+          assertServiceReceiptMatches(paymentAttemptRef.current, existing.data)
+          data = existing.data
+          error = null
+        }
       }
       if (error) throw error
-      if (data?.submission_key !== paymentSubmissionKey) {
-        throw new Error('Payment submission did not match its saved receipt. Refresh receipt history before retrying.')
-      }
-      if (!data?.id || data.property_id !== Number(property.id) || !data.receipt_number) {
-        throw new Error('The receipt could not be confirmed. Refresh history before retrying to avoid a duplicate.')
-      }
-      setTransactionForm(emptyTransaction)
-      setPaymentSubmissionKey(null)
-      setShowPaymentForm(false)
-      setReceipt(data)
-      notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
-      setReloadTick((tick) => tick + 1)
+      acceptSavedPayment(data)
     } catch (error) {
       if (error?.code === '40001') {
         const rateChanged = /rate|pricing|billing unit/i.test(error?.message || '')
@@ -989,6 +1019,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   function openCollect(balanceRow) {
     if (!canRecordServicePayments) return
     setCollectTarget(balanceRow)
+    collectAttemptRef.current = null
     setCollectSubmissionKey(crypto.randomUUID())
     setCollectForm({ ...emptyCollect, amount: String(toCents(balanceRow.balance_due)) })
     setCollectError('')
@@ -1014,14 +1045,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
-    setSaving(true)
-    setCollectError('')
-
-    try {
-      // The database calculates balances and rejects over-collection.
-      let { data, error } = await supabase
-        .from('service_transactions')
-        .insert({
+    const collectionPayload = {
           balance_of: collectTarget.id,
           property_id: collectTarget.property_id,
           service_id: collectTarget.service_id,
@@ -1040,26 +1064,57 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
           recorded_by: currentUser.id,
           recorded_by_name: recorderName,
           submission_key: collectSubmissionKey,
-        })
+    }
+    const collectionIntent = serviceSubmissionSnapshot('collection', collectionPayload)
+    if (collectAttemptRef.current && !sameServiceSubmission(collectAttemptRef.current, collectionIntent)) {
+      setCollectError('The collection details changed after an earlier submission. Check receipt history first, then close and reopen Collect Balance for a new attempt.')
+      return
+    }
+    const acceptSavedCollection = (data) => {
+      assertServiceReceiptMatches(collectionIntent, data)
+      setCollectTarget(null)
+      collectAttemptRef.current = null
+      setCollectSubmissionKey(null)
+      setReceipt(data)
+      notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
+      setReloadTick((tick) => tick + 1)
+    }
+
+    setSaving(true)
+    setCollectError('')
+
+    try {
+      if (collectAttemptRef.current) {
+        const recovered = await supabase.from('service_transactions')
+          .select('*').eq('submission_key', collectSubmissionKey).maybeSingle()
+        if (recovered.error) throw new Error('Could not verify the earlier collection. Check receipts before retrying.')
+        if (recovered.data) {
+          assertServiceReceiptMatches(collectAttemptRef.current, recovered.data)
+          acceptSavedCollection(recovered.data)
+          return
+        }
+      }
+      // The database calculates balances and rejects over-collection.
+      collectAttemptRef.current = collectionIntent
+      let { data, error } = await supabase
+        .from('service_transactions')
+        .insert(collectionPayload)
         .select('*')
         .single()
       if (error) {
         const existing = await supabase.from('service_transactions')
           .select('*').eq('submission_key', collectSubmissionKey).maybeSingle()
-        if (!existing.error && existing.data) { data = existing.data; error = null }
+        if (existing.error) {
+          throw new Error('The earlier balance collection could not be verified. Check receipt history before trying again.')
+        }
+        if (existing.data) {
+          assertServiceReceiptMatches(collectAttemptRef.current, existing.data)
+          data = existing.data
+          error = null
+        }
       }
       if (error) throw error
-      if (data?.submission_key !== collectSubmissionKey) {
-        throw new Error('Collection submission did not match a saved receipt. Refresh history before retrying.')
-      }
-      if (!data?.id || String(data.balance_of) !== String(collectTarget.id) || !data.receipt_number) {
-        throw new Error('The collection receipt could not be verified.')
-      }
-      setCollectTarget(null)
-      setCollectSubmissionKey(null)
-      setReceipt(data)
-      notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
-      setReloadTick((tick) => tick + 1)
+      acceptSavedCollection(data)
     } catch (error) {
       setCollectError(`Collection could not be confirmed. Check receipts before retrying. ${error?.message || 'Connection failed.'}`)
     } finally {
@@ -1392,7 +1447,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
       {showPaymentForm && (
         <div className="services-modal-backdrop" role="presentation">
-          <form className="services-modal services-payment-modal" onSubmit={saveTransaction}>
+          <form className="services-modal services-payment-modal" onSubmit={saveTransaction} inert={saving ? "inert" : undefined} aria-busy={saving}>
             <div className="services-modal-header">
               <div>
                 <h2>Record Service Payment</h2>
@@ -1592,7 +1647,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       />
       {collectTarget && (
         <div className="services-modal-backdrop" role="presentation">
-          <form className="services-modal" onSubmit={collectBalance}>
+          <form className="services-modal" onSubmit={collectBalance} inert={saving ? "inert" : undefined} aria-busy={saving}>
             <div className="services-modal-header">
               <div>
                 <h2>Collect Unpaid Balance</h2>
