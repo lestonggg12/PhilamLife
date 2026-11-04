@@ -163,10 +163,10 @@ export default function AnnualReportsPage() {
           </select>
         </label>
         <button type="button" className="reports-primary" onClick={downloadPdf}
-          disabled={!verified || exporting}>{exporting ? 'Preparing PDFâ€¦' : 'Download Annual PDF'}</button>
+          disabled={!verified || exporting}>{exporting ? 'Preparing PDF...' : 'Download Annual PDF'}</button>
       </div>
     </header>
-    {loading ? <div className="reports-empty" role="status">Verifying full annual report dataâ€¦</div>
+    {loading ? <div className="reports-empty" role="status">Verifying full annual report data...</div>
       : !report ? <div className="reports-empty" role="alert"><strong>Annual report unavailable</strong>
         <p>{error || 'The selected year has not been verified.'}</p></div>
       : <main className="monthly-report-doc">
@@ -178,7 +178,7 @@ export default function AnnualReportsPage() {
           <p className="monthly-cover-period">{year}</p>
           {snapshot.settings.address && <p className="monthly-cover-address">{snapshot.settings.address}</p>}
           <dl className="monthly-cover-details">
-            <div><dt>Reporting period</dt><dd>January 1 â€“ December 31, {year}{report.annual.yearToDate ? ' (year to date)' : ''}</dd></div>
+            <div><dt>Reporting period</dt><dd>January 1 - December 31, {year}{report.annual.yearToDate ? ' (year to date)' : ''}</dd></div>
             <div><dt>Prepared by</dt><dd>HOA Management</dd></div>
             <div><dt>Date prepared</dt><dd>{preparedDate}</dd></div>
           </dl>
@@ -197,7 +197,7 @@ export default function AnnualReportsPage() {
           <h3 className="monthly-subheading">2.0 Monthly Financial Summary</h3>
           <Table headings={['Month','Homeowners','Services','Income','Expenses','Net']} rightCols={[1,2,3,4,5]} totalRow rows={[
             ...report.monthlySummary.map((m) => [monthTitle(m.month),
-              ...[m.homeowner,m.service,m.income,m.expenses,m.net].map((v) => m.future ? 'â€”' : fmt(v))]),
+              ...[m.homeowner,m.service,m.income,m.expenses,m.net].map((v) => m.future ? '--' : fmt(v))]),
             ['Annual totals',fmt(report.annual.homeowner),fmt(report.annual.service),fmt(report.annual.income),fmt(report.annual.expenses),fmt(report.annual.net)],
           ]}/>
           <h3 className="monthly-subheading">2.1 Income</h3>
@@ -210,16 +210,16 @@ export default function AnnualReportsPage() {
           ]}/>}
           {report.expenses.entries.length > 0 && <><h3 className="monthly-subheading">Expense detail</h3>
             <Table headings={['Date','Category','Description','Ref. no.','Recorded by','Amount']} rightCols={[5]} rows={
-              report.expenses.entries.map((e) => [formatDateOnly(e.expense_date),e.category,e.description || 'â€”',
-                e.reference_number || (e.supporting_note ? 'No ref. (explained)' : 'â€”'),
-                e.recorded_by_name || 'â€”',fmt(e.amount)])}/></>}
+              report.expenses.entries.map((e) => [formatDateOnly(e.expense_date),e.category,e.description || '--',
+                e.reference_number || (e.supporting_note ? 'No ref. (explained)' : '--'),
+                e.recorded_by_name || '--',fmt(e.amount)])}/></>}
           <h3 className="monthly-subheading">2.3 Accounts Receivable and Collections</h3>
           <Table headings={['Measure','Value']} rightCols={[1]} rows={collectionsRows(report.receivables)}/>
           <p className="monthly-paragraph monthly-note">Balances and credits are current as of preparation; historical December 31 balances cannot be verified. Individual homeowner details are withheld.</p>
         </Section>
         <Section title="3. Community Activities">
           {activities.length > 0 ? <Table headings={['Date','Event','Location']}
-            rows={activities.map((e) => [formatDateOnly(e.event_date),e.title,e.location || 'â€”'])}/>
+            rows={activities.map((e) => [formatDateOnly(e.event_date),e.title,e.location || '--'])}/>
             : <p className="monthly-paragraph monthly-note">No community events were recorded for this year.</p>}
         </Section>
         <Section title="4. Documents and Supporting Information">

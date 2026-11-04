@@ -130,12 +130,16 @@ export function buildMonthlyReportPdf({
     y += 6
   }
 
+  const annualPlainText = (value) => annualMode
+    ? String(value ?? '').replace(/[—–]/g, '--').replace(/…/g, '...').replace(/â€”/g, '--').replace(/â€“/g, '-').replace(/â€¦/g, '...')
+    : value
+
   function paragraph(
     content,
     { size = 9.5, color = INK, style = 'normal', gap = 0 } = {},
   ) {
     setText(color, size, style)
-    const lines = doc.splitTextToSize(content, CONTENT_W)
+    const lines = doc.splitTextToSize(annualPlainText(content), CONTENT_W)
     const lineHeight = size * 0.5
     ensureSpace(lines.length * lineHeight + 2)
     setText(color, size, style)
@@ -157,8 +161,8 @@ export function buildMonthlyReportPdf({
 
     autoTable(doc, {
       startY: y,
-      head: [head],
-      body,
+      head: [annualMode ? head.map(annualPlainText) : head],
+      body: annualMode ? body.map((row) => row.map(annualPlainText)) : body,
       theme: 'plain',
       margin: {
         top: TOP,

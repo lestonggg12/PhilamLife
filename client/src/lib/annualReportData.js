@@ -39,6 +39,9 @@ export function annualReportTotals(year, collections, expenses, currentMonth) {
       throw new Error('Duplicate or out-of-period collection summary.')
     }
     seen.add(key)
+    // Ignore future periods: an annual year-to-date figure cannot contain
+    // collections hidden behind a future-month placeholder.
+    if (key > currentMonth) continue
     const row = byMonth.get(key)
     row.homeownerCents = cents(item.dues_collected)
     row.serviceCents = cents(item.service_collected)
@@ -49,7 +52,7 @@ export function annualReportTotals(year, collections, expenses, currentMonth) {
     if (!byMonth.has(key) || !/^\d{4}-\d{2}-\d{2}$/.test(String(expense.expense_date || ''))) {
       throw new Error('Expense falls outside the reporting year.')
     }
-    if (String(expense.status || '').trim().toLowerCase() === 'voided') continue
+    if (String(expense.status || '').trim().toLowerCase() === 'voided' || key > currentMonth) continue
     byMonth.get(key).expenseCents += cents(expense.amount)
   }
 
@@ -94,7 +97,10 @@ export function buildAnnualReportView({
   verifyReportReceivables(properties, overdue, credits)
   const annual = annualReportTotals(year, collections, expenses, currentMonth)
   const detail = annual.months.map((row) => computeMonthlyReportData({
-    month: row.month, payments, serviceTransactions, expenses,
+    month: row.month,
+    payments: row.future ? [] : payments,
+    serviceTransactions: row.future ? [] : serviceTransactions,
+    expenses: row.future ? [] : expenses,
     properties, overdue, credits, documents: [], events: [],
   }))
   const sum = (items) => items.reduce((value, entry) => value + cents(entry), 0) / 100
@@ -163,6 +169,10 @@ export function buildAnnualReportView({
   const narration = reportText(report, { monthLabel: String(year), datePrepared })
   report.narrative = {
     ...narration,
+    overview: narration.overview.replace(
+      /[^.]*community events? (?:is|are) scheduled for the period./,
+      ' ' + yearlyEvents.length + ' community event' + (yearlyEvents.length === 1 ? ' was' : 's were') + ' recorded during the reporting year.'
+    ),
     basis: narration.basis + ' Current outstanding balances and advance credits are as of the date prepared, not December 31 of the selected year. Verified historical year-end snapshots are unavailable.',
   }
   return report
