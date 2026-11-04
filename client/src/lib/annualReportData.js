@@ -167,3 +167,80 @@ export function buildAnnualReportView({
   }
   return report
 }
+
+/**
+ * Combine twelve authorized, month-scoped grievance summaries.
+ * Flow counts are additive; opening/closing balances are snapshots.
+ * This function never accesses confidential case-level information.
+ */
+export function summarizeAnnualGrievances(year, summaries) {
+  if (!Array.isArray(summaries) || summaries.length !== 12) {
+    throw new Error('Twelve monthly grievance summaries are required.')
+  }
+
+  const movementKeys = [
+    'received', 'reopened', 'resolved', 'dismissed', 'withdrawn',
+  ]
+
+  const result = {
+    from: String(year) + '-01-01',
+    to: null,
+    not_started: true,
+    opening: 0,
+    received: 0,
+    reopened: 0,
+    resolved: 0,
+    dismissed: 0,
+    withdrawn: 0,
+    closing: 0,
+    over_30_days: 0,
+  }
+
+  let startedCount = 0
+
+  summaries.forEach((summary, index) => {
+    const month = String(index + 1).padStart(2, '0')
+    const expectedFrom = String(year) + '-' + month + '-01'
+
+    if (!summary || summary.from !== expectedFrom ||
+        typeof summary.not_started !== 'boolean') {
+      throw new Error('Monthly grievance summary is incomplete.')
+    }
+
+    if (summary.not_started) return
+
+    if (startedCount !== index || !summary.to ||
+        String(summary.to).slice(0, 7) !== expectedFrom.slice(0, 7)) {
+      throw new Error('Monthly grievance periods are inconsistent.')
+    }
+
+    for (const key of [
+      'opening', ...movementKeys, 'closing', 'over_30_days',
+    ]) {
+      const number = Number(summary[key])
+      if (summary[key] == null ||
+          !Number.isSafeInteger(number) || number < 0) {
+        throw new Error('Monthly grievance counts are invalid.')
+      }
+    }
+
+    if (startedCount === 0) {
+      result.opening = Number(summary.opening)
+    }
+
+    for (const key of movementKeys) {
+      result[key] += Number(summary[key])
+      if (!Number.isSafeInteger(result[key])) {
+        throw new Error('Annual grievance count exceeds the supported range.')
+      }
+    }
+
+    result.closing = Number(summary.closing)
+    result.over_30_days = Number(summary.over_30_days)
+    result.to = summary.to
+    result.not_started = false
+    startedCount += 1
+  })
+
+  return result
+}

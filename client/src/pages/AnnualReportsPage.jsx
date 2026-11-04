@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { annualMoney, buildAnnualReportView } from '../lib/annualReportData'
+import { annualMoney, buildAnnualReportView, summarizeAnnualGrievances } from '../lib/annualReportData'
 import { monthTitle, formatDateOnly, formatReportDate, grievanceRows,
   grievanceNote, incomeTableRows, collectionsRows, formatLongDate } from '../lib/monthlyReportData'
 import { manilaMonth } from '../hooks/useManilaMonthRollover'
@@ -32,7 +32,14 @@ async function fetchAnnual(year, preparedDate) {
   const end = String(Number(year) + 1) + '-01-01'
   const first = start + 'T00:00:00+08:00'
   const after = end + 'T00:00:00+08:00'
-  const monthEnd = year + '-12-31'
+  const grievanceMonths = Array.from({ length: 12 }, (_, index) => {
+    const month = String(index + 1).padStart(2, '0')
+    const last = new Date(Date.UTC(Number(year), index + 1, 0)).getUTCDate()
+    return {
+      from: year + '-' + month + '-01',
+      to: year + '-' + month + '-' + String(last).padStart(2, '0'),
+    }
+  })
   const queries = [
     fetchAll(() => supabase.from('monthly_collections')
       .select('month_start,dues_collected,service_collected')
@@ -56,22 +63,35 @@ async function fetchAnnual(year, preparedDate) {
       .select('id,title,event_date,location').gte('event_date',start).lt('event_date',end).order('event_date')),
     fetchAll(() => supabase.from('documents')
       .select('id,title,category,created_at').gte('created_at',first).lt('created_at',after).order('created_at')),
-    supabase.rpc('monthly_report_grievances', { p_from: start, p_to: monthEnd }),
+    Promise.all(grievanceMonths.map(({ from, to }) =>
+      supabase.rpc('monthly_report_grievances', {
+        p_from: from,
+        p_to: to,
+      })
+    )),
   ]
   const result = await Promise.all(queries)
   const error = result.find((r) => r.error)?.error
   if (error) throw error
   if (![0,1,2,3,4,5,8,9].every((i) => Array.isArray(result[i].data)) ||
-      !result[6].data || !result[7].data || !result[10].data) {
+      !result[6].data || !result[7].data || !Array.isArray(result[10]) || result[10].length !== 12) {
     throw new Error('A required annual report source returned incomplete data.')
   }
+  const grievanceError = result[10].find((entry) => entry.error)?.error
+  if (grievanceError) throw grievanceError
+
+  const grievances = summarizeAnnualGrievances(
+    year,
+    result[10].map((entry) => entry.data)
+  )
+
   const report = buildAnnualReportView({
     year, currentMonth: manilaMonth(), datePrepared: preparedDate,
     collections: result[0].data, payments: result[1].data,
     serviceTransactions: result[2].data, expenses: result[3].data,
     properties: result[4].data, overdue: result[5].data,
     credits: result[6].data, events: result[8].data,
-    documents: result[9].data, grievances: result[10].data,
+    documents: result[9].data, grievances,
   })
   return { report, settings: result[7].data }
 }
