@@ -417,6 +417,15 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return undefined
     }
 
+    const bookingService = services.find(
+      (item) => item.id === transactionForm.service_id,
+    )
+    if (bookingService &&
+        String(bookingService.rate_unit || '').trim().toLowerCase() !== 'per hour') {
+      setBookedLoading(false)
+      return undefined
+    }
+
     let cancelled = false
     setBookedLoading(true)
 
@@ -458,7 +467,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       })
 
     return () => { cancelled = true }
-  }, [showPaymentForm, transactionForm.service_id, transactionForm.service_date])
+  }, [showPaymentForm, transactionForm.service_id, transactionForm.service_date, services, reloadTick])
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -692,7 +701,12 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const amountApplied = Math.min(amountReceived, amountDue)
   const changeDue = toCents(Math.max(amountReceived - amountDue, 0))
   const stillOwed = toCents(Math.max(amountDue - amountReceived, 0))
-    const endTimeError = transactionForm.start_time
+    const hourlySlotRequired =
+      String(selectedService?.rate_unit || '').trim().toLowerCase() === 'per hour'
+
+    const endTimeError = hourlySlotRequired && !transactionForm.start_time
+      ? 'Select a start and end time for hourly amenities.'
+      : transactionForm.start_time
     ? !transactionForm.end_time
       ? 'Enter an end time.'
       : transactionForm.end_time <= transactionForm.start_time
@@ -909,7 +923,14 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
       setReloadTick((tick) => tick + 1)
     } catch (error) {
-      setPageError(`Service payment could not be confirmed. Check receipt history before retrying. ${error?.message || 'Connection failed.'}`)
+      if (error?.code === '23P01') {
+        setPageError(
+          'This amenity time slot has just been booked by another user. Choose another time.',
+        )
+        setReloadTick((tick) => tick + 1)
+      } else {
+        setPageError(`Service payment could not be confirmed. Check receipt history before retrying. ${error?.message || 'Connection failed.'}`)
+      }
     } finally {
       setSaving(false)
     }
