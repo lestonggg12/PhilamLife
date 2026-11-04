@@ -729,11 +729,13 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setShowServiceForm(true)
   }
 
-  function handleServiceChange(event) {
-    const service = services.find((item) => item.id === event.target.value)
+  function handleServiceChange(serviceId) {
+    const service = services.find(
+      (item) => String(item.id) === String(serviceId)
+    )
     setTransactionForm((current) => ({
       ...current,
-      service_id: event.target.value,
+      service_id: serviceId,
       amount_paid: service?.rate
         ? String(toCents((Number(service.rate) || 0) * Math.max(Number(current.quantity) || 1, 1)))
         : '',
