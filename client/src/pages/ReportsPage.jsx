@@ -22,6 +22,7 @@ import {
 } from '../lib/monthlyReportData'
 import './ReportsPage.css'
 import DateField from '../components/DateField'
+import { Link } from 'react-router-dom'
 
 const todayInManila = () => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
@@ -412,6 +413,7 @@ export default function ReportsPage({ user: suppliedUser }) {
           </div>
         </div>
         <div className="reports-header-actions">
+          <Link to="/reports/annual" className="reports-primary">Annual Financial Report</Link>
           <label className="monthly-month-picker">
             Report month
             <DateField ariaLabel="Report month" name="report_month" monthOnly value={month} disabled={pdfGenerating} onChange={setMonth} placeholder="Select month" />

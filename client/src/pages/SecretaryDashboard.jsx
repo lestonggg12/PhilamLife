@@ -1,3 +1,4 @@
+import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
@@ -54,6 +55,7 @@ export default function SecretaryDashboard() {
   const [pageError, setPageError] = useState('')
   const [hasLoaded, setHasLoaded] = useState(false)
   const requestRef = useRef(0)
+  useManilaMonthRollover(() => { setHasLoaded(false); void loadDashboard() })
 
   useEffect(() => {
     void loadDashboard()

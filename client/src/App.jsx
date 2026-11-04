@@ -58,6 +58,7 @@ const OfficialReceiptsPage = lazy(
 )
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const AnnualReportsPage = lazy(() => import('./pages/AnnualReportsPage'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'))
 const DocumentLibraryPage = lazy(
@@ -397,6 +398,7 @@ function AppContent() {
                   <ReportsPage user={user} />
                 )}
               />
+              <Route path="/reports/annual" element={guarded(['admin', 'treasurer'], <AnnualReportsPage />)} />
               <Route
                 path="/activity-log"
                 element={guarded(

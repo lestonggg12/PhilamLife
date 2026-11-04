@@ -1,3 +1,4 @@
+import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Skeleton from '../components/skeleton/Skeleton'
 import { useNavigate } from 'react-router-dom'
@@ -57,8 +58,7 @@ function manilaMonthKey(value = new Date()) {
   return `${values.year}-${values.month}`
 }
 
-function getLastSixMonths() {
-  const currentKey = manilaMonthKey()
+function getLastSixMonths(currentKey = manilaMonthKey()) {
   const [year, month] = currentKey.split('-').map(Number)
 
   return Array.from({ length: 6 }, (_, index) => {
@@ -116,6 +116,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [dashboardPeriod, setDashboardPeriod] = useState(() => manilaMonthKey())
+  useManilaMonthRollover((nextMonth) => { setDashboardPeriod(nextMonth); loadDashboard() })
 
   useEffect(() => {
     loadDashboard()
@@ -213,7 +215,7 @@ export default function AdminDashboard() {
     [properties],
   )
 
-  const sixMonths = useMemo(() => getLastSixMonths(), [])
+  const sixMonths = useMemo(() => getLastSixMonths(dashboardPeriod), [dashboardPeriod])
 
   const collectionsByMonth = useMemo(() => {
     const totals = new Map(sixMonths.map((month) => [month.key, 0]))

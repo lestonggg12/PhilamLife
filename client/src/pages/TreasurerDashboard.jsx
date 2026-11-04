@@ -1,3 +1,4 @@
+import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './TreasurerDashboard.css'
@@ -61,6 +62,7 @@ export default function TreasurerDashboard() {
   const [pageError, setPageError] = useState('')
 
   const request = useRef(0)
+  useManilaMonthRollover(() => loadDashboard())
   useEffect(() => {
     loadDashboard()
     return () => { request.current += 1 }
