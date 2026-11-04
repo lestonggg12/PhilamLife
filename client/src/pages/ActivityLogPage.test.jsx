@@ -46,6 +46,56 @@ describe('Activity Log presentation', () => {
   })
 })
 
+describe('Treasurer service receipt activity', () => {
+  it('displays a service receipt number and service details', () => {
+    const target = 'SR-2026-000001 — Basketball Court for Sample Homeowner'
+    expect(activityDisplay({
+      action: 'Service Payment Recorded',
+      target,
+    })).toMatchObject({
+      subject: 'SR-2026-000001',
+      detail: 'Basketball Court · Sample Homeowner',
+      amount: null,
+      raw: target,
+    })
+  })
+
+  it('shows balance collections with their original receipt', () => {
+    expect(activityDisplay({
+      action: 'Service Balance Collected',
+      target: 'SR-2026-000002 — ₱50.00 for SR-2026-000001 — Sample Homeowner',
+    })).toMatchObject({
+      subject: 'SR-2026-000002',
+      detail: 'Balance payment for SR-2026-000001 · Sample Homeowner',
+      amount: 50,
+    })
+  })
+
+  it('displays a voided receipt with the cancellation reason', () => {
+    expect(activityDisplay({
+      action: 'Service Receipt Voided',
+      target: 'SR-2026-000003 — Function Hall for Sample Homeowner — ₱300.00 — Duplicate receipt',
+    })).toMatchObject({
+      subject: 'SR-2026-000003',
+      detail: 'Function Hall · Sample Homeowner · Reason: Duplicate receipt',
+      amount: 300,
+      status: 'warning',
+    })
+  })
+
+  it('preserves unknown service formats without guessing values', () => {
+    const target = 'Legacy service entry'
+    expect(activityDisplay({
+      action: 'Service Payment Recorded',
+      target,
+    })).toMatchObject({
+      subject: target,
+      raw: target,
+      amount: null,
+    })
+  })
+})
+
 describe('Activity Log audit regressions', () => {
   it('preserves document identifiers and exact source text', () => {
     const raw = 'board_minutes_2026 — board_minutes_2026.pdf (by Philam Admin)'

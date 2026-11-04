@@ -106,10 +106,36 @@ export function activityDisplay(log) {
           ? ''
           : parsed ? parts.slice(1).filter((part) => !/^₱\s*-?[\d,.]+$/.test(part) && part.replace(/\.[^.]+$/, '') !== parts[0]).join(' — ') : ''
   const subject = documentMatch ? parsedSubject : (log.subject || parsedSubject || 'Unknown record')
+
+  // Format service audit descriptions without changing their stored text.
+  const servicePayment = action === 'Service Payment Recorded'
+    ? /^(SR-[\w-]+) — (.+) for (.+)$/.exec(text)
+    : null
+
+  const serviceBalance = action === 'Service Balance Collected'
+    ? /^(SR-[\w-]+) — (₱\s*[\d,]+(?:\.\d{1,2})?) for (SR-[\w-]+) — (.+)$/.exec(text)
+    : null
+
+  const serviceVoid = action === 'Service Receipt Voided'
+    ? /^(SR-[\w-]+) — (.+) for (.+) — (₱\s*[\d,]+(?:\.\d{1,2})?) — (.+)$/.exec(text)
+    : null
+
+  const serviceSubject = servicePayment?.[1]
+    || serviceBalance?.[1]
+    || serviceVoid?.[1]
+
+  const serviceDetail = servicePayment
+    ? `${servicePayment[2]} · ${servicePayment[3]}`
+    : serviceBalance
+      ? `Balance payment for ${serviceBalance[3]} · ${serviceBalance[4]}`
+      : serviceVoid
+        ? `${serviceVoid[2]} · ${serviceVoid[3]} · Reason: ${serviceVoid[5]}`
+        : null
+
   return {
     raw, text,
-    subject,
-    detail: parsedDetail,
+    subject: serviceSubject || subject,
+    detail: serviceDetail ?? parsedDetail,
     amount,
     status: /fail|error/i.test(action) ? 'failed' : /\b(deleted|voided|cancelled|canceled|removed)\b/i.test(action) ? 'warning' : '',
   }
