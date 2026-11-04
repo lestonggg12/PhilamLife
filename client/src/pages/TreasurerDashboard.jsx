@@ -12,7 +12,7 @@ import {
   TrendingUp,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { loadTreasurerDashboard } from '../lib/treasurerFinance'
+import { loadTreasurerDashboard, summarizeTreasurerMonth } from '../lib/treasurerFinance'
 import { useOrganization } from '../context/OrganizationContext'
 import Skeleton from '../components/skeleton/Skeleton'
 
@@ -81,23 +81,16 @@ export default function TreasurerDashboard() {
   }
 
   const summary = useMemo(() => {
-    const currentMonth = manilaMonthKey()
-    const activeExpenses = finance.expenses.filter((row) => !isVoided(row))
-
-    const collectedThisMonth = Number(finance.monthly?.dues_collected) || 0
-    const servicesThisMonth = Number(finance.monthly?.service_collected) || 0
-
-    const expensesThisMonth = activeExpenses
-      .filter((row) => String(row.expense_date || row.created_at || '').slice(0, 7) === currentMonth)
-      .reduce((sum, row) => sum + amount(row, ['amount']), 0)
+    const month = summarizeTreasurerMonth(
+      finance.monthly,
+      finance.expenses,
+      `${manilaMonthKey()}-01`
+    )
 
     const { outstanding = 0, aging = { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 }, overdue = 0, overdueAccounts = 0 } = finance.agingSummary || {}
 
     return {
-      collectedThisMonth,
-      servicesThisMonth,
-      expensesThisMonth,
-      netThisMonth: collectedThisMonth + servicesThisMonth - expensesThisMonth,
+      ...month,
       outstanding,
       overdue,
       creditsHeld: Number(finance.credits?.active_credit_total) || 0,
@@ -116,18 +109,28 @@ export default function TreasurerDashboard() {
 
     // account_adjustments has no status column — the closest available signal
     // for "needs review" is a non-reversed adjustment with no approval reference on file.
-    const pendingAdjustments = finance.adjustments.filter((row) => {
+    const unreferencedAdjustments = finance.adjustments.filter((row) => {
       const isReversed = Boolean(row.reversed_at)
       const hasApproval = Boolean(String(row.approval_reference || '').trim())
       return !isReversed && !hasApproval
     }).length
 
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date())
+
     const currentPeriod = finance.periods.find((row) => {
       const status = String(row.status || '').toLowerCase()
+
       return !['closed', 'locked'].includes(status)
+        && (!row.starts_on || row.starts_on <= today)
+        && (!row.ends_on || row.ends_on >= today)
     })
 
-    return { unreconciledDeposits, pendingAdjustments, currentPeriod }
+    return { unreconciledDeposits, unreferencedAdjustments, currentPeriod }
   }, [finance.adjustments, finance.deposits, finance.periods])
 
   const recentActivity = useMemo(() => {
@@ -184,7 +187,7 @@ export default function TreasurerDashboard() {
         <div>
           <span className="treasurer-eyebrow">Finance control center</span>
           <h1>Treasurer Dashboard</h1>
-          <p>Receivables, collections, aging, exceptions, and cash activity in one view.</p>
+          <p>Receivables, collections, aging, exceptions, and recorded financial activity in one view.</p>
         </div>
         <button type="button" className="treasurer-refresh" onClick={loadDashboard} disabled={loading}>
           <RefreshCw size={14} className={loading ? 'treas-spin-icon' : ''} />
@@ -238,7 +241,8 @@ export default function TreasurerDashboard() {
           <div className="treasurer-check-list">
             <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${summary.overdueAccounts} overdue accounts`}</strong><small>{loading ? 'Checking collections…' : pageError ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`}</small></p></div>
             <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.unreconciledDeposits} unreconciled deposits`}</strong><small>Match deposits with bank records</small></p></div>
-            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.pendingAdjustments} pending adjustments`}</strong><small>{loading ? 'Checking accounting period…' : pageError ? 'Finance checks could not be verified' : exceptions.currentPeriod ? 'Accounting period is open' : 'No open accounting period found'}</small></p></div>
+            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.unreferencedAdjustments} adjustments without approval references`}</strong><small>Review documentation for any unreferenced adjustments</small></p></div>
+            <div><span className="check-icon blue"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : exceptions.currentPeriod ? 'Accounting period open' : finance.periods.length === 0 ? 'Accounting periods not configured' : 'No open accounting period'}</strong><small>Accounting period status is informational</small></p></div>
           </div>
         </article>
 

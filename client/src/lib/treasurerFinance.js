@@ -1,10 +1,13 @@
 import { fetchAll } from './fetchAll'
 
 const fail = (label, message) => new Error(`${label}: ${message || 'could not load data'}`)
-async function read(label, query) {
+async function read(label, query, { allowNull = false } = {}) {
   try {
     const result = await query()
     if (result.error) throw result.error
+    if (result.data == null && !allowNull) {
+      throw new Error('response is missing')
+    }
     return result.data
   } catch (error) { throw fail(label, error?.message) }
 }
@@ -45,6 +48,38 @@ export function summarizeAging(properties, rows) {
   return { outstanding: outstanding / 100, aging: totals, overdue: totals.days1To30 + totals.days31To60 + totals.days61To90 + totals.days90Plus, overdueAccounts }
 }
 
+export function summarizeTreasurerMonth(monthly, expenses, monthStart) {
+  const monthKey = String(monthStart).slice(0, 7)
+
+  const collected = cents(
+    monthly?.dues_collected ?? 0,
+    'Monthly collections'
+  )
+
+  const services = cents(
+    monthly?.service_collected ?? 0,
+    'Monthly services'
+  )
+
+  const expensesTotal = expenses
+    .filter((row) =>
+      String(row.status || '').toLowerCase() !== 'voided'
+      && String(row.expense_date || row.created_at || '')
+        .slice(0, 7) === monthKey
+    )
+    .reduce(
+      (total, row) => total + cents(row.amount, 'Expense amount'),
+      0
+    )
+
+  return {
+    collectedThisMonth: collected / 100,
+    servicesThisMonth: services / 100,
+    expensesThisMonth: expensesTotal / 100,
+    netThisMonth: (collected + services - expensesTotal) / 100,
+  }
+}
+
 export async function loadTreasurerDashboard(client, monthStart) {
   const all = (table, order, options = {}) => read(table, () => fetchAll(() => {
     const query = client.from(table).select('*')
@@ -53,8 +88,8 @@ export async function loadTreasurerDashboard(client, monthStart) {
   const [payments, expenses, services, monthly, properties, overdue, credits, adjustments, deposits, periods] = await Promise.all([
     read('Recent payments', () => client.from('payments').select('*').neq('status', 'Voided').order('paid_at', { ascending: false }).limit(8)),
     all('expenses', 'expense_date'),
-    read('Recent services', () => client.from('service_transactions').select('*').neq('payment_status', 'voided').order('paid_at', { ascending: false }).limit(8)),
-    read('Monthly collections', () => client.from('monthly_collections').select('month_start, dues_collected, service_collected').eq('month_start', monthStart).maybeSingle()),
+    read('Recent services', () => client.from('service_transactions').select('*').not('payment_status', 'ilike', 'voided').order('paid_at', { ascending: false }).limit(8)),
+    read('Monthly collections', () => client.from('monthly_collections').select('month_start, dues_collected, service_collected').eq('month_start', monthStart).maybeSingle(), { allowNull: true }),
     all('properties', 'homeowner_name'), all('property_overdue_summary', 'property_id', { tiebreaker: null }),
     read('Advance credits', () => client.from('credit_liability_summary').select('*').maybeSingle()),
     all('account_adjustments', 'created_at'), all('bank_deposits', 'recorded_at'), all('accounting_periods', 'starts_on'),

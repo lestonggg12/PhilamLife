@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadServiceRevenue, loadTreasurerDashboard, summarizeAging, transactionPaymentStatus, recordExpense, voidExpense } from './treasurerFinance'
+import { loadServiceRevenue, loadTreasurerDashboard, summarizeAging, summarizeTreasurerMonth, transactionPaymentStatus, recordExpense, voidExpense } from './treasurerFinance'
 function client(overrides = {}, thrown = null) {
   const calls = []
   const defaults = { credit_liability_summary: { active_credit_total: 0 }, monthly_collections: null, service_revenue_summary: { total_collected: 100, collected_this_month: 100, by_service: [{ name: 'Hall', amount: 100 }] } }
@@ -10,13 +10,69 @@ function client(overrides = {}, thrown = null) {
     return { data: range && Array.isArray(value) ? value.slice(range[0], range[1] + 1) : value, error: null }
   }
   const c = { calls, from(table) {
-    const query = { select() { return this }, order() { return this }, neq() { return this }, eq() { return this }, limit() { return this }, gte() { return this }, lte() { return this }, maybeSingle() { return Promise.resolve().then(() => result(table)) }, range(a, b) { calls.push([table, a, b]); return Promise.resolve().then(() => result(table, [a, b])) }, then(a, b) { return Promise.resolve().then(() => result(table)).then(a, b) } }
+    const query = { select() { return this }, order() { return this }, neq() { return this }, not(column, operator, value) { calls.push(['not',table,column,operator,value]); return this }, eq() { return this }, limit() { return this }, gte() { return this }, lte() { return this }, maybeSingle() { return Promise.resolve().then(() => result(table)) }, range(a, b) { calls.push([table, a, b]); return Promise.resolve().then(() => result(table, [a, b])) }, then(a, b) { return Promise.resolve().then(() => result(table)).then(a, b) } }
     return query
   }, rpc(table) { return Promise.resolve().then(() => result(table)) } }
   return c
 }
 const error = { data: null, error: { message: 'Permission denied' } }
 describe('Treasurer financial reads', () => {
+  it('rejects missing required finance responses', async () => {
+    await expect(
+      loadTreasurerDashboard(
+        client({ payments: null }),
+        '2026-11-01'
+      )
+    ).rejects.toThrow('response is missing')
+  })
+
+  it('accepts a month without collection records', async () => {
+    const result = await loadTreasurerDashboard(
+      client({ monthly_collections: null }),
+      '2026-11-01'
+    )
+    expect(result.monthly).toBeNull()
+  })
+
+  it('filters voided service activity case-insensitively', async () => {
+    const c = client()
+    await loadTreasurerDashboard(c, '2026-11-01')
+    expect(c.calls).toContainEqual([
+      'not', 'service_transactions',
+      'payment_status', 'ilike', 'voided'
+    ])
+  })
+
+  it('calculates exact monthly amounts in centavos', () => {
+    const result = summarizeTreasurerMonth(
+      { dues_collected: '0.10', service_collected: '0.20' },
+      [
+        {
+          amount: '0.10',
+          status: 'Completed',
+          expense_date: '2026-11-04'
+        },
+        {
+          amount: '5.00',
+          status: 'Voided',
+          expense_date: '2026-11-04'
+        }
+      ],
+      '2026-11-01'
+    )
+
+    expect(result.netThisMonth).toBe(0.20)
+    expect(result.expensesThisMonth).toBe(0.10)
+  })
+
+  it('rejects malformed monthly financial amounts', () => {
+    expect(() => summarizeTreasurerMonth(
+      { dues_collected: 'invalid', service_collected: 0 },
+      [],
+      '2026-11-01'
+    )).toThrow('amount is unavailable')
+  })
+
   it('loads verified zero balances as zero', async () => {
     const d = await loadTreasurerDashboard(client(), '2026-11-01')
     expect(d.agingSummary.outstanding).toBe(0); expect(d.deposits).toEqual([])
@@ -31,7 +87,7 @@ describe('Treasurer financial reads', () => {
     await expect(loadServiceRevenue(client({ [table]: error }))).rejects.toThrow('Permission denied')
   })
   it('rejects a missing or malformed summary', async () => {
-    await expect(loadServiceRevenue(client({ service_revenue_summary: null }))).rejects.toThrow('incomplete')
+    await expect(loadServiceRevenue(client({ service_revenue_summary: null }))).rejects.toThrow('response is missing')
     await expect(loadServiceRevenue(client({ service_revenue_summary: { total_collected: 'NaN', collected_this_month: 0, by_service: [] } }))).rejects.toThrow('unavailable')
   })
   it('rejects invalid expense values rather than counting them as zero', async () => {
