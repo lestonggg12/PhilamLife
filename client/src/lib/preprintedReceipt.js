@@ -9,6 +9,18 @@ function cents(value) {
 }
 const amount = (value) => `${(value / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(value % 100n).toString().padStart(2, '0')}`
 
+export function formatInvoiceQuantity(value) {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(String(value ?? '').trim())
+  if (!match) return '0.00'
+
+  const fraction = match[2] || ''
+  const scale = 10n ** BigInt(fraction.length)
+  const numerator = BigInt(match[1] + fraction)
+  const rounded = (numerator * 100n + scale / 2n) / scale
+
+  return `${rounded / 100n}.${String(rounded % 100n).padStart(2, '0')}`
+}
+
 export function normalizePaperNumber(value) {
   const number = String(value ?? '').trim()
   if (!/^\d{1,20}$/.test(number) || !/[1-9]/.test(number)) throw new Error('Enter the red invoice number on the paper, using 1–20 digits.')
@@ -41,14 +53,18 @@ export function buildPreprintedFields(kind, row) {
   const serviceDue = cents(row.amount_due)
   const serviceQuantity = String(row.quantity ?? '')
   const quantityParts = /^(\d+)(?:\.(\d+))?$/.exec(serviceQuantity)
-  if (kind === 'service' && serviceDue === paid && quantityParts) {
-    const fraction = quantityParts[2] || ''
-    const divisor = BigInt(quantityParts[1] + fraction)
-    if (divisor > 0n) {
-      quantity = serviceQuantity.replace(/^0+(?=\d)/, '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
-      const numerator = paid * (10n ** BigInt(fraction.length))
-      unitPrice = numerator % divisor === 0n ? amount(numerator / divisor) : ''
-    }
+  if (kind === 'service' && !row.balance_of && quantityParts) {
+    quantity = formatInvoiceQuantity(serviceQuantity)
+    // Displayed quantity may be rounded. Only print a unit price when
+    // quantity x unit price EXACTLY equals the saved receipt amount.
+    // Otherwise leave it blank rather than display misleading arithmetic.
+    const printedQuantityCents = BigInt(quantity.replace('.', ''))
+    const numerator = paid * 100n
+    unitPrice = serviceDue === paid &&
+      printedQuantityCents > 0n &&
+      numerator % printedQuantityCents === 0n
+      ? amount(numerator / printedQuantityCents)
+      : ''
   }
   if (unitPrice.length > 10) unitPrice = ''
   const partial = kind === 'service' && serviceDue > paid
@@ -71,7 +87,7 @@ export function buildPreprintedFields(kind, row) {
 
 export function preprintedLayoutError(fields) {
   if (!fields) return 'The saved receipt details are unavailable.'
-  if (String(fields.quantity).length > 5) return 'The saved quantity is too wide for the form. Ask the office to review it before printing.'
+  if (String(fields.quantity).length > 6) return 'The saved quantity is too wide for the form. Ask the office to review it before printing.'
   if (wrapReceiptText(fields.description).length > 6) return 'This payment description is too long for the six lines on this form. Ask the office to review it before printing; no details have been cut off.'
   if (wrapReceiptText(fields.name, 57).length > 2) return 'The homeowner name is too long for this form. Ask the office to review it before printing.'
   if (wrapReceiptText(fields.method, 59).length > 2) return 'The payment reference is too long for this form. Ask the office to review it before printing.'

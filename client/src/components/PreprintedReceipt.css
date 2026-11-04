@@ -39,7 +39,7 @@
 .paper-description { top: 94mm; left: 9mm; width: 63mm; }
 .paper-description > div { height: 7.4mm; white-space: pre; }
 .paper-quantity, .paper-unit, .paper-line-amount { top: 94mm; text-align: right; }
-.paper-quantity { left: 75mm; width: 10mm; }.paper-unit { left: 87.5mm; width: 15.5mm; font-size: 7pt; }.paper-line-amount { left: 105mm; width: 23mm; }
+.paper-quantity { left: 75mm; width: 10mm; font-size: 7pt; }.paper-unit { left: 87.5mm; width: 15.5mm; font-size: 7pt; }.paper-line-amount { left: 105mm; width: 23mm; }
 .paper-total-sales, .paper-discount, .paper-total-paid { left: 97mm; width: 31mm; text-align: right; }
 .paper-total-sales { top: 141mm; }.paper-discount { top: 149.5mm; }.paper-total-paid { top: 166.5mm; font-weight: bold; }
 .paper-issued-by { left: 8mm; top: 179mm; width: 45mm; line-height: 3.4mm; }
