@@ -21,11 +21,11 @@ describe('preprinted invoice output', () => {
     expect(f).toMatchObject({ quantity: '1', unitPrice: '2,400.01', lineAmount: '2,400.01', discount: '', totalPaid: '2,400.01' })
   })
   it('handles saved service quantity and partial collections without pretending the full bill was paid', () => {
-    expect(buildPreprintedFields('service', { amount_due: '2400', amount_paid: '2400', quantity: 2 })).toMatchObject({ quantity: '2', unitPrice: '1,200.00' })
-    expect(buildPreprintedFields('service', { amount_due: '2400', amount_paid: '500', quantity: 2, service_name: 'Hall' })).toMatchObject({ quantity: '1', unitPrice: '500.00', totalSales: '500.00', totalPaid: '500.00', description: 'Part payment - Hall' })
+    expect(buildPreprintedFields('service', { amount_due: '2400', amount_paid: '2400', quantity: 2 })).toMatchObject({ quantity: '2.00', unitPrice: '1,200.00' })
+    expect(buildPreprintedFields('service', { amount_due: '2400', amount_paid: '500', quantity: 2, service_name: 'Hall' })).toMatchObject({ quantity: '2.00', unitPrice: '', totalSales: '500.00', totalPaid: '500.00', description: 'Part payment - Hall' })
   })
   it('preserves decimal service quantities using exact integer arithmetic', () => {
-    expect(buildPreprintedFields('service', { amount_due: '1200', amount_paid: '1200', quantity: '1.50' })).toMatchObject({ quantity: '1.5', unitPrice: '800.00' })
+    expect(buildPreprintedFields('service', { amount_due: '1200', amount_paid: '1200', quantity: '1.50' })).toMatchObject({ quantity: '1.50', unitPrice: '800.00' })
   })
   it('does not invent an exact unit price when division leaves fractions of a centavo', () => {
     expect(buildPreprintedFields('service', { amount_due: '1000', amount_paid: '1000', quantity: 3 }).unitPrice).toBe('')
