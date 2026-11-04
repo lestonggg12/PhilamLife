@@ -1406,7 +1406,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             <div className="services-form-row">
               <label>
                 Service
-                <Select ariaLabel="Service" value={transactionForm.service_id} onChange={handleServiceChange} placeholder="Select service" options={activeServices.map((service) => ({ value: String(service.id), label: service.name }))} />
+                <Select ariaLabel="Service" value={transactionForm.service_id} onChange={handleServiceChange} placeholder="Select service" options={activeServices.map((service) => ({ value: String(service.id), label: `${service.name} (${service.rate_unit.charAt(0).toUpperCase() + service.rate_unit.slice(1)})` }))} />
               </label>
               <HomeownerCombobox
                 properties={properties}
