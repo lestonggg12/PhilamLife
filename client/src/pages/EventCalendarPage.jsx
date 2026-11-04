@@ -669,26 +669,28 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                   )}
                 </div>
 
-                <div className="cal-row-actions">
-                  <button
-                    type="button"
-                    className="cal-icon-button"
-                    onClick={() => openEditForm(event)}
-                    disabled={!canManageEvents || Boolean(deletingId) || saving || refreshing}
-                    aria-label={`Edit ${event.title}`}
-                  >
-                    <Edit size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    className="cal-icon-button cal-delete-button"
-                    onClick={() => requestDeleteEvent(event)}
-                    disabled={!canManageEvents || Boolean(deletingId) || saving || refreshing}
-                    aria-label={`Delete ${event.title}`}
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
+                {canManageEvents && (
+                  <div className="cal-row-actions">
+                    <button
+                      type="button"
+                      className="cal-icon-button"
+                      onClick={() => openEditForm(event)}
+                      disabled={Boolean(deletingId) || saving || refreshing}
+                      aria-label={`Edit ${event.title}`}
+                    >
+                      <Edit size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      className="cal-icon-button cal-delete-button"
+                      onClick={() => requestDeleteEvent(event)}
+                      disabled={Boolean(deletingId) || saving || refreshing}
+                      aria-label={`Delete ${event.title}`}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                )}
               </article>
             )
           })
