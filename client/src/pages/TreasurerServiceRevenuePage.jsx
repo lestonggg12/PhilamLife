@@ -250,7 +250,7 @@ export default function TreasurerServiceRevenuePage() {
       </div>
 
       <p className="tsr-result-count">
-        Revenue cards show all-time totals except Collected This Month. Date filters below apply to transaction history only.
+        Revenue cards show all-time totals except Collected This Month. Date filters below apply to transaction history only. Paid (Receipt) shows the payment recorded on that receipt; later balance collections appear as separate receipts.
       </p>
 
       <section className="tsr-breakdown-section">
@@ -426,7 +426,7 @@ export default function TreasurerServiceRevenuePage() {
                     <th>Method</th>
                     <th>Status</th>
                     <th className="tsr-amount-col">Due</th>
-                    <th className="tsr-amount-col">Paid</th>
+                    <th className="tsr-amount-col">Paid (Receipt)</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -818,6 +818,41 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       return
     }
 
+    // Never accept a timed reservation while availability is unverified.
+    if (bookedLoading || bookedError) {
+      setPageError(
+        'Booking availability could not be verified. Refresh before recording this service.',
+      )
+      return
+    }
+
+    // Recheck the currently loaded bookings immediately before submission.
+    if (transactionForm.start_time && transactionForm.end_time) {
+      const start = timeToMinutes(transactionForm.start_time)
+      const end = timeToMinutes(transactionForm.end_time)
+
+      if (start === null || end === null || end <= start) {
+        setPageError('Select a valid booking time range.')
+        return
+      }
+
+      const overlaps = bookedRanges.some((range) => {
+        const bookedStart = timeToMinutes(range.start)
+        const bookedEnd = timeToMinutes(range.end)
+
+        return bookedStart !== null
+          && bookedEnd !== null
+          && rangesOverlap(start, end, bookedStart, bookedEnd)
+      })
+
+      if (overlaps) {
+        setPageError(
+          'This amenity is already booked during the selected time. Choose another slot.',
+        )
+        return
+      }
+    }
+
     const received = toCents(transactionForm.amount_paid)
 
     if (!Number.isFinite(received) || received <= 0) {
@@ -1457,7 +1492,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               <button type="button" onClick={() => setShowPaymentForm(false)}>
                 Cancel
               </button>
-              <button type="submit" disabled={saving || amountDue <= 0 || !(Number(transactionForm.amount_paid) > 0) || Boolean(endTimeError)}>
+              <button type="submit" disabled={saving || bookedLoading || Boolean(bookedError) || amountDue <= 0 || !(Number(transactionForm.amount_paid) > 0) || Boolean(endTimeError)}>
                 {saving ? 'Saving...' : 'Save & Issue Receipt'}
               </button>
             </div>
