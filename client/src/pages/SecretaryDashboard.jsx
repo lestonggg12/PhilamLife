@@ -1,4 +1,5 @@
 import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
+import { isVerifiedDashboardSnapshot } from '../lib/dashboardSnapshot'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
@@ -55,7 +56,16 @@ export default function SecretaryDashboard() {
   const [pageError, setPageError] = useState('')
   const [hasLoaded, setHasLoaded] = useState(false)
   const requestRef = useRef(0)
-  useManilaMonthRollover(() => { setHasLoaded(false); void loadDashboard() })
+  const [dashboardPeriod, setDashboardPeriod] = useState(() => {
+    const { year, month } = manilaDateParts()
+    return year + '-' + month
+  })
+  const [verifiedPeriod, setVerifiedPeriod] = useState(null)
+  useManilaMonthRollover((nextMonth) => {
+    setDashboardPeriod(nextMonth)
+    setHasLoaded(false)
+    void loadDashboard()
+  })
 
   useEffect(() => {
     void loadDashboard()
@@ -68,7 +78,8 @@ export default function SecretaryDashboard() {
     setPageError('')
 
     try {
-      const { year } = manilaDateParts()
+      const { year, month } = manilaDateParts()
+      const requestedPeriod = year + '-' + month
       const [propertyResult, paymentResult, activityResult, monthlyResult] =
         await Promise.all([
           fetchAll(() => supabase
@@ -108,6 +119,7 @@ export default function SecretaryDashboard() {
       setRecentPayments(paymentResult.data)
       setMonthlyRows(monthlyResult.data)
       setActivities(activityResult.data)
+      setVerifiedPeriod(requestedPeriod)
       setHasLoaded(true)
     } catch (error) {
       if (request === requestRef.current) {
@@ -124,9 +136,14 @@ export default function SecretaryDashboard() {
   )
 
   const summary = useMemo(
-    () => secretaryDashboardSummary(activeProperties, monthlyRows, manilaDateParts()),
-    [activeProperties, monthlyRows],
+    () => secretaryDashboardSummary(activeProperties, monthlyRows, {
+      year: dashboardPeriod.slice(0, 4), month: dashboardPeriod.slice(5),
+    }),
+    [activeProperties, monthlyRows, dashboardPeriod],
   )
+  const dashboardUnavailable = !hasLoaded || !isVerifiedDashboardSnapshot({
+    period: dashboardPeriod, verifiedPeriod, loading, error: pageError,
+  })
 
   return (
     <div className="sec-secretary-dashboard">
@@ -174,7 +191,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value sec-stat-currency">
-            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : peso.format(summary.monthlyCollections)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(summary.monthlyCollections)}
           </strong>
           <p className="sec-stat-footer">
             {summary.receiptsThisMonth} receipt
@@ -190,7 +207,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value sec-stat-currency">
-            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : peso.format(summary.yearlyCollections)}
+            {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(summary.yearlyCollections)}
           </strong>
           <p className="sec-stat-footer">All homeowner cash receipts this calendar year, including dues, balance payments and fees</p>
         </article>
@@ -203,7 +220,7 @@ export default function SecretaryDashboard() {
             </span>
           </div>
           <strong className="sec-stat-value">
-            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : summary.outstandingAccounts.toLocaleString('en-PH')}
+            {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : summary.outstandingAccounts.toLocaleString('en-PH')}
           </strong>
           <p className="sec-stat-footer">Accounts with a remaining balance</p>
         </article>

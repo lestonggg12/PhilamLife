@@ -1,4 +1,5 @@
 import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
+import { isVerifiedDashboardSnapshot } from '../lib/dashboardSnapshot'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Skeleton from '../components/skeleton/Skeleton'
 import { useNavigate } from 'react-router-dom'
@@ -117,16 +118,21 @@ export default function AdminDashboard() {
   const [pageError, setPageError] = useState('')
   const [actionsOpen, setActionsOpen] = useState(false)
   const [dashboardPeriod, setDashboardPeriod] = useState(() => manilaMonthKey())
-  useManilaMonthRollover((nextMonth) => { setDashboardPeriod(nextMonth); loadDashboard() })
+  const [verifiedPeriod, setVerifiedPeriod] = useState(null)
+  const requestRef = useRef(0)
+  useManilaMonthRollover((nextMonth) => { setDashboardPeriod(nextMonth); void loadDashboard(nextMonth) })
 
   useEffect(() => {
-    loadDashboard()
+    void loadDashboard(manilaMonthKey())
+    return () => { requestRef.current += 1 }
   }, [])
 
-  async function loadDashboard() {
+  async function loadDashboard(period = manilaMonthKey()) {
+    const request = ++requestRef.current
     setLoading(true)
     setPageError('')
-    const sixMonthsAgoKey = getLastSixMonths()[0].key
+    const sixMonthsAgoKey = getLastSixMonths(period)[0].key
+    try {
 
     const [
       profileResult,
@@ -176,39 +182,48 @@ export default function AdminDashboard() {
         .order('property_id'), { tiebreaker: null }),
     ])
 
+    if (request !== requestRef.current) return
     const errors = [
-      profileResult.error,
-      propertyResult.error,
-      paymentResult.error,
-      serviceResult.error,
-      activityResult.error,
-      overdueResult.error,
-      settingsResult.error,
-      duesResult.error,
+      profileResult.error, propertyResult.error, paymentResult.error,
+      serviceResult.error, activityResult.error, settingsResult.error,
+      overdueResult.error, duesResult.error,
     ].filter(Boolean)
-
-    if (errors.length > 0) {
-      setPageError(
-        `Some dashboard information could not be loaded: ${errors
-          .map((error) => error.message)
-          .join(' ')}`,
-      )
+    const arrays = [profileResult, propertyResult, paymentResult,
+      serviceResult, activityResult, overdueResult, duesResult]
+    if (errors.length || !arrays.every((item) => Array.isArray(item.data)) ||
+        !settingsResult.data || typeof settingsResult.data !== 'object') {
+      setPageError('Dashboard data could not be verified for ' + period + '. ' +
+        (errors.map((error) => error.message).join(' ') || 'A required record source is incomplete.') +
+        ' Refresh the page to retry.')
+      setLoading(false)
+      return
     }
-
-    setProfiles(profileResult.data || [])
-    setProperties(propertyResult.data || [])
-    setMonthlyRows(paymentResult.data || [])
-    setPaidPropertyIds(new Set((serviceResult.data || []).map((row) => Number(row.property_id))))
-    setOverdueSummaries(overdueResult.data || [])
-    setActivities(activityResult.data || [])
-    setDuesByProperty(new Map((duesResult.data || []).map((row) => [Number(row.property_id), row.monthly_dues])))
+    // Preserve the last verified snapshot if any query failed; never replace it with zeros.
+    setProfiles(profileResult.data)
+    setProperties(propertyResult.data)
+    setMonthlyRows(paymentResult.data)
+    setPaidPropertyIds(new Set(serviceResult.data.map((row) => Number(row.property_id))))
+    setOverdueSummaries(overdueResult.data)
+    setActivities(activityResult.data)
+    setDuesByProperty(new Map(duesResult.data.map((row) => [Number(row.property_id), row.monthly_dues])))
     setPenaltySettings({
-      dueDay: Number(settingsResult.data?.due_day) || 5,
-      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
-      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
+      dueDay: Number(settingsResult.data.due_day) || 5,
+      gracePeriodDays: Number(settingsResult.data.grace_period_days) || 0,
+      latePenalty: Number(settingsResult.data.late_penalty) || 0,
     })
+    setVerifiedPeriod(period)
     setLoading(false)
+    } catch (error) {
+      if (request !== requestRef.current) return
+      setPageError('Dashboard refresh failed for ' + period + ': ' +
+        (error?.message || 'Network unavailable') + '. Refresh to retry.')
+      setLoading(false)
+    }
   }
+
+  const dashboardUnavailable = !isVerifiedDashboardSnapshot({
+    period: dashboardPeriod, verifiedPeriod, loading, error: pageError,
+  })
 
   const activeProperties = useMemo(
     () => properties.filter((property) => (property.homeowner_status || 'active') === 'active'),
@@ -327,10 +342,9 @@ export default function AdminDashboard() {
   }, [activities, profiles])
 
   useEffect(() => {
-    if (loading) return undefined
-
     chartInstancesRef.current.forEach((chart) => chart.destroy())
     chartInstancesRef.current = []
+    if (dashboardUnavailable) return undefined
 
     if (barChartRef.current) {
       const barChart = new Chart(barChartRef.current, {
@@ -469,7 +483,7 @@ export default function AdminDashboard() {
     }
   }, [
     accountStatus,
-    loading,
+    dashboardUnavailable,
     collectionsByMonth,
     monthlyDuesTarget,
   ])
@@ -486,7 +500,7 @@ export default function AdminDashboard() {
   const systemStats = [
     {
       label: 'TOTAL HOMEOWNERS',
-      value: loading ? '—' : activeProperties.length.toLocaleString('en-PH'),
+      value: dashboardUnavailable ? '—' : activeProperties.length.toLocaleString('en-PH'),
       footer: 'Active registered',
       trend: null,
       icon: Users,
@@ -494,10 +508,10 @@ export default function AdminDashboard() {
     },
     {
       label: `TOTAL COLLECTIONS ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
-      value: loading ? '—' : peso.format(collectedThisMonth),
+      value: dashboardUnavailable ? '—' : peso.format(collectedThisMonth),
       fitAmount: true,
-      footer: `${currentMonthCollection.receipts} homeowner receipt${currentMonthCollection.receipts === 1 ? '' : 's'}${servicesThisMonth > 0 ? ` · Services separately: ${peso.format(servicesThisMonth)}` : ''}`,
-      trend: collectedTrendPercent === null
+      footer: dashboardUnavailable ? 'Data not verified' : `${currentMonthCollection.receipts} homeowner receipt${currentMonthCollection.receipts === 1 ? '' : 's'}${servicesThisMonth > 0 ? ` · Services separately: ${peso.format(servicesThisMonth)}` : ''}`,
+      trend: dashboardUnavailable || collectedTrendPercent === null
         ? null
         : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs last month`,
       icon: DollarSign,
@@ -505,16 +519,16 @@ export default function AdminDashboard() {
     },
     {
       label: 'OVERDUE ACCOUNTS',
-      value: loading ? '—' : overdueSummary.count.toLocaleString('en-PH'),
-      footer: loading ? '—' : `${peso.format(overdueSummary.outstanding)} outstanding`,
+      value: dashboardUnavailable ? '—' : overdueSummary.count.toLocaleString('en-PH'),
+      footer: dashboardUnavailable ? '—' : `${peso.format(overdueSummary.outstanding)} outstanding`,
       trend: null,
       icon: AlertCircle,
       tone: 'red',
     },
     {
       label: 'ACTIVE USERS',
-      value: loading ? '—' : activeUserCount.toLocaleString('en-PH'),
-      footer: loading ? '' : (activeRoleLabels.join(', ') || 'No active accounts'),
+      value: dashboardUnavailable ? '—' : activeUserCount.toLocaleString('en-PH'),
+      footer: dashboardUnavailable ? '' : (activeRoleLabels.join(', ') || 'No active accounts'),
       trend: null,
       icon: Zap,
       tone: 'navy',
@@ -638,26 +652,26 @@ export default function AdminDashboard() {
       <div className="dash-charts-grid">
         <div className="dash-chart-card">
           <h3 className="dash-chart-title">Monthly Collections</h3>
-          <p className="dash-chart-subtitle">{monthRangeLabel}</p>
-          {monthlyDuesTarget > 0 && (
+          <p className="dash-chart-subtitle">{dashboardUnavailable ? 'Reporting data unavailable' : monthRangeLabel}</p>
+          {!dashboardUnavailable && monthlyDuesTarget > 0 && (
             <div className="dash-date-badge dash-target-badge">
               Target {peso.format(monthlyDuesTarget)} / mo
             </div>
           )}
-          <canvas ref={barChartRef} height="130" />
+          <canvas ref={barChartRef} height="130" style={{ visibility: dashboardUnavailable ? 'hidden' : 'visible' }} />
         </div>
 
         <div className="dash-chart-card">
           <h3 className="dash-chart-title">Payment Status</h3>
           <p className="dash-chart-subtitle">
-            {loading ? <Skeleton variant="rect" width="120px" height="1em" /> : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
+            {dashboardUnavailable ? <Skeleton variant="rect" width="120px" height="1em" /> : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
           </p>
           <div className="dash-donut-container">
             <div className="dash-donut-canvas">
-              <canvas ref={donutChartRef} />
+              <canvas ref={donutChartRef} style={{ visibility: dashboardUnavailable ? 'hidden' : 'visible' }} />
               <div className="dash-donut-center">
                 <div className="dash-donut-value">
-                  {loading ? '—' : accountStatus.total}
+                  {dashboardUnavailable ? '—' : accountStatus.total}
                 </div>
                 <div className="dash-donut-label">PROPERTIES</div>
               </div>
@@ -679,8 +693,8 @@ export default function AdminDashboard() {
                     <div className="dash-legend-text">
                       <div className="dash-legend-status">{item.label}</div>
                       <div className="dash-legend-count">
-                        {loading ? '—' : item.value}{' '}
-                        <span>{loading ? '—' : `${percent}%`}</span>
+                        {dashboardUnavailable ? '—' : item.value}{' '}
+                        <span>{dashboardUnavailable ? '—' : `${percent}%`}</span>
                       </div>
                     </div>
                   </div>
@@ -750,6 +764,8 @@ export default function AdminDashboard() {
           <div className="dash-activities-list">
             {loading ? (
               <div className="dash-empty-state" aria-busy="true"><Skeleton variant="rect" width="100%" height="52px" /><Skeleton variant="rect" width="100%" height="52px" /><Skeleton variant="rect" width="100%" height="52px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+            ) : dashboardUnavailable ? (
+              <p className="dash-empty-state">Latest activity unavailable. Refresh to verify this reporting period.</p>
             ) : recentActivities.length === 0 ? (
               <p className="dash-empty-state">
                 No activity has been recorded yet.

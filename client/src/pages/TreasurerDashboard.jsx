@@ -1,4 +1,5 @@
 import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
+import { isVerifiedDashboardSnapshot } from '../lib/dashboardSnapshot'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './TreasurerDashboard.css'
@@ -62,19 +63,27 @@ export default function TreasurerDashboard() {
   const [pageError, setPageError] = useState('')
 
   const request = useRef(0)
-  useManilaMonthRollover(() => loadDashboard())
+  const [dashboardPeriod, setDashboardPeriod] = useState(() => manilaMonthKey())
+  const [verifiedPeriod, setVerifiedPeriod] = useState(null)
+  useManilaMonthRollover((nextMonth) => {
+    setDashboardPeriod(nextMonth)
+    void loadDashboard(nextMonth)
+  })
   useEffect(() => {
-    loadDashboard()
+    void loadDashboard(manilaMonthKey())
     return () => { request.current += 1 }
   }, [])
 
-  async function loadDashboard() {
+  async function loadDashboard(period = manilaMonthKey()) {
     const sequence = ++request.current
     setLoading(true)
     setPageError('')
     try {
-      const result = await loadTreasurerDashboard(supabase, `${manilaMonthKey()}-01`)
-      if (sequence === request.current) setFinance(result)
+      const result = await loadTreasurerDashboard(supabase, `${period}-01`)
+      if (sequence === request.current) {
+        setFinance(result)
+        setVerifiedPeriod(period)
+      }
     } catch (error) {
       if (sequence === request.current) setPageError(`Finance data is unavailable: ${error.message}`)
     } finally {
@@ -82,11 +91,14 @@ export default function TreasurerDashboard() {
     }
   }
 
+  const dashboardUnavailable = !isVerifiedDashboardSnapshot({
+    period: dashboardPeriod, verifiedPeriod, loading, error: pageError,
+  })
   const summary = useMemo(() => {
     const month = summarizeTreasurerMonth(
       finance.monthly,
       finance.expenses,
-      `${manilaMonthKey()}-01`
+      `${dashboardPeriod}-01`
     )
 
     const { outstanding = 0, aging = { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 }, overdue = 0, overdueAccounts = 0 } = finance.agingSummary || {}
@@ -101,7 +113,7 @@ export default function TreasurerDashboard() {
       aging,
       overdueAccounts,
     }
-  }, [finance])
+  }, [finance, dashboardPeriod])
 
   const exceptions = useMemo(() => {
     const unreconciledDeposits = finance.deposits.filter((row) => {
@@ -133,7 +145,7 @@ export default function TreasurerDashboard() {
     })
 
     return { unreconciledDeposits, unreferencedAdjustments, currentPeriod }
-  }, [finance.adjustments, finance.deposits, finance.periods])
+  }, [finance.adjustments, finance.deposits, finance.periods, dashboardPeriod])
 
   const recentActivity = useMemo(() => {
     const rows = []
@@ -210,8 +222,8 @@ export default function TreasurerDashboard() {
         {statCards.map(({ label, value, note, icon: Icon, tone }) => (
           <article className={`treasurer-stat-card tone-${tone}`} key={label}>
             <div className="treasurer-stat-heading"><span>{label}</span><Icon size={18} /></div>
-            <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(value)}</strong>
-            <small>{loading ? 'Loading finance data…' : pageError ? 'Financial data could not be verified' : note}</small>
+            <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(value)}</strong>
+            <small>{loading ? 'Loading finance data…' : dashboardUnavailable ? 'Financial data could not be verified' : note}</small>
           </article>
         ))}
       </section>
@@ -220,7 +232,7 @@ export default function TreasurerDashboard() {
         <article className="treasurer-panel aging-panel">
           <div className="treasurer-panel-heading">
             <div><span className="treasurer-kicker">Receivables</span><h2>Aging overview</h2></div>
-            <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</strong>
+            <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(summary.outstanding)}</strong>
           </div>
           <div className="treasurer-aging-grid">
             {[
@@ -231,7 +243,7 @@ export default function TreasurerDashboard() {
               ['90+ days', summary.aging.days90Plus, 'critical'],
             ].map(([label, value, tone]) => (
               <div className={`treasurer-aging-item ${tone}`} key={label}>
-                <span>{label}</span><strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(value)}</strong>
+                <span>{label}</span><strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(value)}</strong>
               </div>
             ))}
           </div>
@@ -241,16 +253,16 @@ export default function TreasurerDashboard() {
         <article className="treasurer-panel exception-panel">
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Attention</span><h2>Finance checks</h2></div></div>
           <div className="treasurer-check-list">
-            <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${summary.overdueAccounts} overdue accounts`}</strong><small>{loading ? 'Checking collections…' : pageError ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`}</small></p></div>
-            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.unreconciledDeposits} unreconciled deposits`}</strong><small>Match deposits with bank records</small></p></div>
-            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : `${exceptions.unreferencedAdjustments} adjustments without approval references`}</strong><small>Review documentation for any unreferenced adjustments</small></p></div>
-            <div><span className="check-icon blue"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : pageError ? 'Unavailable' : exceptions.currentPeriod ? 'Accounting period open' : finance.periods.length === 0 ? 'Accounting periods not configured' : 'No open accounting period'}</strong><small>Accounting period status is informational</small></p></div>
+            <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${summary.overdueAccounts} overdue accounts`}</strong><small>{loading ? 'Checking collections…' : dashboardUnavailable ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`}</small></p></div>
+            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${exceptions.unreconciledDeposits} unreconciled deposits`}</strong><small>Match deposits with bank records</small></p></div>
+            <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${exceptions.unreferencedAdjustments} adjustments without approval references`}</strong><small>Review documentation for any unreferenced adjustments</small></p></div>
+            <div><span className="check-icon blue"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : exceptions.currentPeriod ? 'Accounting period open' : finance.periods.length === 0 ? 'Accounting periods not configured' : 'No open accounting period'}</strong><small>Accounting period status is informational</small></p></div>
           </div>
         </article>
 
         <article className="treasurer-panel activity-panel">
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent financial activity</h2></div></div>
-          {loading ? <div aria-busy="true"><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><span className="skeleton-region-status" role="status">Loading</span></div> : pageError ? <p className="treasurer-empty">Activity is unavailable. Use Refresh data to retry.</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
+          {loading ? <div aria-busy="true"><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><span className="skeleton-region-status" role="status">Loading</span></div> : dashboardUnavailable ? <p className="treasurer-empty">Activity is unavailable. Use Refresh data to retry.</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
             <div className="treasurer-activity-list">
               {recentActivity.map((row) => (
                 <div className="treasurer-activity-row" key={row.id}>

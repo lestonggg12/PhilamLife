@@ -11,12 +11,15 @@ function cents(value, label) {
 export function secretaryDashboardSummary(properties, monthlyRows, { year, month }) {
   if (!Array.isArray(properties) || !Array.isArray(monthlyRows)) throw new Error('Dashboard records are unavailable.')
   const key = `${year}-${month}`
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(key)) {
+    throw new Error('The dashboard reporting month is invalid.')
+  }
   let yearlyCents = 0
   let duesCents = 0
   let receiptsThisMonth = 0
   for (const row of monthlyRows) {
     const period = String(row.month_start || '').slice(0, 7)
-    if (period.slice(0, 4) !== String(year)) continue
+    if (period.slice(0, 4) !== String(year) || period > key) continue
     yearlyCents += cents(row.dues_collected, 'Yearly collections')
     if (period === key) {
       duesCents += cents(row.dues_only_collected, 'Monthly dues')
