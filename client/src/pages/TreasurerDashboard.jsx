@@ -170,8 +170,10 @@ export default function TreasurerDashboard() {
 
   const statCards = [
     { label: 'Collected this month', value: summary.collectedThisMonth, note: 'Dues, balance payments and fees', icon: TrendingUp, tone: 'green' },
+    { label: 'Service collections this month', value: summary.servicesThisMonth, note: 'Amenities and service receipts', icon: Bank, tone: 'blue' },
+    { label: 'Expenses this month', value: summary.expensesThisMonth, note: 'Active expenses dated this month', icon: DollarSign, tone: 'red' },
     { label: 'Outstanding receivables', value: summary.outstanding, note: `${summary.overdueAccounts} overdue account${summary.overdueAccounts === 1 ? '' : 's'}`, icon: FileText, tone: 'blue' },
-    { label: 'Overdue balance', value: summary.overdue, note: 'Across all aging buckets', icon: AlertCircle, tone: 'red' },
+    { label: 'Overdue balance', value: summary.overdue, note: 'Past-due amounts only; current excluded', icon: AlertCircle, tone: 'red' },
     { label: 'Advance credits held', value: summary.creditsHeld, note: `${summary.creditAccounts} active account${summary.creditAccounts === 1 ? '' : 's'}${summary.movedCredit > 0 ? ` + ${peso.format(summary.movedCredit)} on moved accounts` : ''}`, icon: DollarSign, tone: 'navy' },
     { label: 'Net recorded activity', value: summary.netThisMonth, note: 'Collections + services − dated expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
   ]
@@ -228,7 +230,7 @@ export default function TreasurerDashboard() {
               </div>
             ))}
           </div>
-          <Link className="treasurer-panel-link" to="/ledger">Review homeowner accounts →</Link>
+          <Link className="treasurer-panel-link" to="/overdue-accounts">View overdue accounts →</Link>
         </article>
 
         <article className="treasurer-panel exception-panel">
