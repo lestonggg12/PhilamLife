@@ -352,14 +352,16 @@
   border-color: var(--primary);
 }
 
-.tex-page .tex-month-menu {
+.tex-month-menu {
   position: fixed;
-  z-index: 10;
+  z-index: 99999;
+  font-family: var(--font-body);
+  box-sizing: border-box;
   width: 242px;
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.97);
+  background: #ffffff;
   box-shadow: 0 22px 44px -16px rgba(15, 63, 106, 0.32), 0 2px 10px rgba(20, 100, 160, 0.1);
   opacity: 0;
   visibility: hidden;
@@ -369,7 +371,7 @@
   transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
 }
 
-.tex-page .tex-month-menu.is-visible {
+.tex-month-menu.is-visible {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -379,12 +381,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tex-page .tex-month-trigger-chevron::after,
-  .tex-page .tex-month-menu {
+  .tex-month-menu {
     transition: none;
   }
 }
 
-.tex-page .tex-month-menu-header {
+.tex-month-menu-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -394,7 +396,7 @@
   font-size: 16px;
 }
 
-.tex-page .tex-year-nav {
+.tex-year-nav {
   width: 28px;
   height: 28px;
   border: 1px solid rgba(120, 162, 210, 0.3);
@@ -406,17 +408,17 @@
   line-height: 1;
 }
 
-.tex-page .tex-year-nav:hover {
+.tex-year-nav:hover {
   background: rgba(20, 100, 160, 0.1);
 }
 
-.tex-page .tex-month-grid {
+.tex-month-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
-.tex-page .tex-month-grid button {
+.tex-month-grid button {
   padding: 8px 4px;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -428,18 +430,18 @@
   font-weight: 700;
 }
 
-.tex-page .tex-month-grid button:hover {
+.tex-month-grid button:hover {
   background: rgba(20, 100, 160, 0.1);
   color: var(--primary);
 }
 
-.tex-page .tex-month-grid button.is-selected {
+.tex-month-grid button.is-selected {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
 
-.tex-page .tex-current-month {
+.tex-current-month {
   width: 100%;
   margin-top: 12px;
   padding: 10px 4px 2px;
@@ -453,7 +455,7 @@
   font-weight: 700;
 }
 
-.tex-page .tex-current-month:hover {
+.tex-current-month:hover {
   text-decoration: underline;
 }
 
@@ -825,7 +827,7 @@
     width: 100%;
   }
 
-  .tex-page .tex-month-menu {
+  .tex-month-menu {
     width: min(242px, calc(100vw - 24px));
   }
 

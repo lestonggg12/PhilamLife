@@ -2,6 +2,7 @@ import { notifySuccess } from '../lib/actionFeedback'
 import { expenseDateControlError, expenseEvidenceControlError } from '../lib/expenseEntryControls'
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
@@ -188,7 +189,7 @@ const isReadOnly = !canRecordExpenses
 
   useEffect(() => {
     function handleOutsideClick(event) {
-      if (!monthPickerRef.current?.contains(event.target)) {
+      if (!monthPickerRef.current?.contains(event.target) && !event.target.closest?.('.tex-month-menu')) {
         closeMonthPicker()
       }
     }
@@ -682,7 +683,7 @@ const isReadOnly = !canRecordExpenses
               ›
             </button>
 
-            {monthMenuMounted && (
+            {monthMenuMounted && createPortal(
               <div
                 className={`tex-month-menu ${
                   monthMenuVisible ? 'is-visible' : ''
@@ -754,7 +755,8 @@ const isReadOnly = !canRecordExpenses
                 >
                   Jump to current month
                 </button>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         </div>
