@@ -101,7 +101,7 @@ export default function TreasurerServiceRevenuePage() {
         transaction.lot_number,
         transaction.payment_method,
         transaction.service_name,
-        statusLabel(transaction.payment_status),
+        statusLabel(paymentStatus),
       ]
 
       const matchesSearch = !normalizedSearch || searchableValues.some(
@@ -197,7 +197,7 @@ export default function TreasurerServiceRevenuePage() {
 
         <div className="tsr-stat-card">
           <div className="tsr-stat-top">
-            <span className="tsr-stat-label">Total Collected</span>
+            <span className="tsr-stat-label">Total Collected (All Time)</span>
             <div className="tsr-stat-icon-box tsr-icon-success">
               <TrendingUp size={18} />
             </div>
@@ -207,7 +207,7 @@ export default function TreasurerServiceRevenuePage() {
 
         <div className="tsr-stat-card">
           <div className="tsr-stat-top">
-            <span className="tsr-stat-label">Outstanding</span>
+            <span className="tsr-stat-label">Outstanding (All Time)</span>
             <div className="tsr-stat-icon-box tsr-icon-warning">
               <Clock size={18} />
             </div>
@@ -248,6 +248,10 @@ export default function TreasurerServiceRevenuePage() {
           )}
         </div>
       </div>
+
+      <p className="tsr-result-count">
+        Revenue cards show all-time totals except Collected This Month. Date filters below apply to transaction history only.
+      </p>
 
       <section className="tsr-breakdown-section">
         <button
@@ -435,12 +439,12 @@ export default function TreasurerServiceRevenuePage() {
                       <td>{t.block_name}, Lot {t.lot_number}</td>
                       <td>{t.payment_method}</td>
                       <td>
-                        <span className={`tsr-status-pill tsr-status-${t.payment_status}`}>
-                          {statusLabel(t.payment_status)}
+                        <span className={`tsr-status-pill tsr-status-${transactionPaymentStatus(t, owedIds)}`}>
+                          {statusLabel(transactionPaymentStatus(t, owedIds))}
                         </span>
                       </td>
                       <td className="tsr-amount-col">{peso.format(Number(t.amount_due) || 0)}</td>
-                      <td className="tsr-amount-col tsr-amount-paid">{peso.format(Number(t.amount_paid) || 0)}</td>
+                      <td className="tsr-amount-col tsr-amount-paid">{transactionPaymentStatus(t, owedIds) === 'voided' ? 'Voided' : peso.format(Number(t.amount_paid) || 0)}</td>
                     </tr>
                   ))}
                 </tbody>
