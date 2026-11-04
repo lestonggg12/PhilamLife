@@ -6,24 +6,24 @@ const source = readFileSync(
   'utf8',
 )
 
-describe('Shared amenity booking protection', () => {
+describe('Shared amenity booking safeguards', () => {
   it('requires valid booking times', () => {
     expect(source).toContain('endTimeError')
   })
 
-  it('allows selection of occupied times for review', () => {
+  it('allows overlapping times for explicit review', () => {
     expect(source).toContain('bookedRanges={[]}')
   })
 
-  it('checks the configured reservation limit', () => {
-    expect(source).toContain('service.shared_booking_limit')
+  it('checks availability before recording payment', () => {
+    expect(source).toContain('bookedLoading || bookedError')
   })
 
-  it('handles changed availability', () => {
+  it('handles changed reservation counts', () => {
     expect(source).toContain("error?.code === '40001'")
   })
 
-  it('handles capacity-reached database errors', () => {
-    expect(source).toContain("error?.code === '23514'")
+  it('requires a confirmed overlap count', () => {
+    expect(source).toContain('overlap_acknowledged_count: count')
   })
 })
