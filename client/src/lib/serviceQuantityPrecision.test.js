@@ -20,17 +20,17 @@ describe('Fractional service billing', () => {
 
   it('preserves fractional hours in the payment payload', () => {
     expect(page).toContain(
-      'quantity: Math.max(Number(transactionForm.quantity) || 1, 1)',
+      'quantity: isHourlyService(service) ? autoHours : Number(transactionForm.quantity)',
     )
   })
 
-  it('calculates a 1.33 hour bill at 50 pesos per hour', () => {
-    const hours = 1.33
+  it('calculates hourly charges from exact elapsed minutes', () => {
+    const minutes = 80
     const rate = 50
-    const amountDue = Math.round(rate * hours * 100) / 100
+    const amountDue = Math.round(rate * minutes / 60 * 100) / 100
 
-    expect(amountDue).toBe(66.50)
-    expect(amountDue - 50).toBeCloseTo(16.50)
+    expect(amountDue).toBe(66.67)
+    expect(amountDue - 50).toBeCloseTo(16.67)
   })
 
   it('supports an initial partial payment', () => {

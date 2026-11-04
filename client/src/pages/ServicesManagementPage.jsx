@@ -45,6 +45,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useSettledAmount } from '../lib/useSettledAmount'
 import { fetchAll } from '../lib/fetchAll'
 import { verifiedServiceStats } from '../lib/serviceStats'
+import { hourlyBillableHours, serviceAmountDue } from '../lib/serviceBilling'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import ServiceVoidDialog from '../components/ServiceVoidDialog'
@@ -344,6 +345,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [paymentSubmissionKey, setPaymentSubmissionKey] = useState(null)
+  const [collectSubmissionKey, setCollectSubmissionKey] = useState(null)
+  const lastHourlyDueRef = useRef(null)
   const [bookingConfirmation, setBookingConfirmation] = useState(null)
   const bookingConfirmationResolver = useRef(null)
   const [pageError, setPageError] = useState('')
@@ -658,34 +662,31 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   const startMinutes = timeToMinutes(transactionForm.start_time)
   const endMinutes = timeToMinutes(transactionForm.end_time)
-  const autoHours =
-    isHourlyService(selectedService) &&
-    startMinutes !== null &&
-    endMinutes !== null &&
-    endMinutes > startMinutes
-      ? Math.round(((endMinutes - startMinutes) / 60) * 100) / 100
-      : null
+  const autoHours = isHourlyService(selectedService)
+    ? hourlyBillableHours(startMinutes, endMinutes)
+    : null
 
   useEffect(() => {
-    if (autoHours === null) return
+    if (autoHours === null) {
+      lastHourlyDueRef.current = null
+      return
+    }
+    const newDue = serviceAmountDue(selectedService, autoHours, startMinutes, endMinutes)
     setTransactionForm((current) => {
-      if (Number(current.quantity) === autoHours) return current
-      // Same "amount received follows amount due" rule the Quantity field already uses.
-      const rate = Number(selectedService?.rate) || 0
-      const oldDue = toCents(rate * Math.max(Number(current.quantity) || 1, 1))
-      const newDue = toCents(rate * Math.max(autoHours, 1))
+      const oldDue = lastHourlyDueRef.current ?? toCents((Number(selectedService?.rate) || 0) * (Number(current.quantity) || 1))
       const followsDue = toCents(current.amount_paid) === oldDue
+      if (Number(current.quantity) === autoHours && (!followsDue || toCents(current.amount_paid) === newDue)) return current
       return {
         ...current,
         quantity: String(autoHours),
         amount_paid: followsDue ? String(newDue) : current.amount_paid,
       }
     })
-  }, [autoHours, selectedService?.id])
+    lastHourlyDueRef.current = newDue
+  }, [autoHours, selectedService?.id, selectedService?.rate])
 
-  const amountDue = toCents(
-    (Number(selectedService?.rate) || 0) *
-    Math.max(Number(transactionForm.quantity) || 1, 1),
+  const amountDue = serviceAmountDue(
+    selectedService, transactionForm.quantity, startMinutes, endMinutes,
   )
 
   // Whatever is handed over above the amount due is change, never revenue or credit.
@@ -710,6 +711,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     if (!canRecordServicePayments) return
 
     const chosen = service || activeServices[0]
+    lastHourlyDueRef.current = null
+    setPaymentSubmissionKey(crypto.randomUUID())
     setTransactionForm({
       ...emptyTransaction,
       service_date: today(),
@@ -739,13 +742,23 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     const service = services.find(
       (item) => String(item.id) === String(serviceId)
     )
-    setTransactionForm((current) => ({
-      ...current,
-      service_id: serviceId,
-      amount_paid: service?.rate
-        ? String(toCents((Number(service.rate) || 0) * Math.max(Number(current.quantity) || 1, 1)))
-        : '',
-    }))
+    lastHourlyDueRef.current = null
+    setTransactionForm((current) => {
+      const begin = timeToMinutes(current.start_time)
+      const finish = timeToMinutes(current.end_time)
+      const hours = hourlyBillableHours(begin, finish)
+      const existingCount = Number(current.quantity)
+      const quantity = service?.rate_unit === 'per hour' && hours !== null
+        ? hours
+        : Number.isSafeInteger(existingCount) && existingCount >= 1 ? existingCount : 1
+      const due = serviceAmountDue(service, quantity, begin, finish)
+      return {
+        ...current,
+        service_id: serviceId,
+        quantity: String(quantity),
+        amount_paid: due > 0 ? String(due) : '',
+      }
+    })
   }
 
   async function saveService(event) {
@@ -809,6 +822,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   async function saveTransaction(event) {
     event.preventDefault()
+    if (saving) return
     if (!canRecordServicePayments || !currentUser?.id) {
       setPageError('Only an active Secretary or Treasurer can record service payments.')
       return
@@ -823,6 +837,14 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
     if (!property || !service) {
       setPageError('Select a valid homeowner and service.')
+      return
+    }
+    if (!paymentSubmissionKey) {
+      setPageError('Payment session expired. Close and reopen Record Payment.')
+      return
+    }
+    if (!isHourlyService(service) && (!Number.isSafeInteger(Number(transactionForm.quantity)) || Number(transactionForm.quantity) < 1)) {
+      setPageError('Enter a whole-number quantity of at least 1 for this service.')
       return
     }
 
@@ -868,7 +890,10 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       service_date: transactionForm.service_date,
       start_time: transactionForm.start_time || null,
       end_time: transactionForm.end_time || null,
-      quantity: Math.max(Number(transactionForm.quantity) || 1, 1),
+      quantity: isHourlyService(service) ? autoHours : Number(transactionForm.quantity),
+      unit_rate: Number(service.rate),
+      rate_unit_snapshot: service.rate_unit,
+      submission_key: paymentSubmissionKey,
       amount_due: amountDue,
       amount_paid: paid,
       payment_method: transactionForm.payment_method,
@@ -880,6 +905,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     }
 
     try {
+      // Resolve stale catalog data before displaying a payment confirmation.
+      const { data: liveService, error: rateError } = await supabase
+        .from('amenity_services')
+        .select('rate, rate_unit, is_active')
+        .eq('id', service.id)
+        .single()
+      if (rateError || !liveService) throw new Error('Could not verify the current service rate. No payment was recorded.')
+      if (!liveService.is_active || Number(liveService.rate) !== Number(service.rate) || liveService.rate_unit !== service.rate_unit) {
+        throw new Error('The service rate, billing unit, or availability changed. Close this form, refresh Services, and review the updated price.')
+      }
+
       const { count, error: availabilityError } = await supabase
         .from('service_transactions')
         .select('id', { count: 'exact', head: true })
@@ -906,23 +942,37 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       }
 
       const reviewedPayload = { ...payload, overlap_acknowledged_count: count }
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('service_transactions')
         .insert(reviewedPayload)
         .select('*')
         .single()
+      // The server might have committed while the network response was lost.
+      // Never create a new receipt when retrying the same submission key.
+      if (error) {
+        const existing = await supabase.from('service_transactions')
+          .select('*').eq('submission_key', paymentSubmissionKey).maybeSingle()
+        if (!existing.error && existing.data) { data = existing.data; error = null }
+      }
       if (error) throw error
+      if (data?.submission_key !== paymentSubmissionKey) {
+        throw new Error('Payment submission did not match its saved receipt. Refresh receipt history before retrying.')
+      }
       if (!data?.id || data.property_id !== Number(property.id) || !data.receipt_number) {
         throw new Error('The receipt could not be confirmed. Refresh history before retrying to avoid a duplicate.')
       }
       setTransactionForm(emptyTransaction)
+      setPaymentSubmissionKey(null)
       setShowPaymentForm(false)
       setReceipt(data)
       notifySuccess(`Service payment ${data.receipt_number} recorded for ${data.customer_name}.`)
       setReloadTick((tick) => tick + 1)
     } catch (error) {
       if (error?.code === '40001') {
-        setPageError('Reservations changed during confirmation. Review the latest occupancy and try again.')
+        const rateChanged = /rate|pricing|billing unit/i.test(error?.message || '')
+        setPageError(rateChanged
+          ? 'The service rate or pricing unit changed. Close this form, refresh Services, and review the updated bill.'
+          : 'Reservations changed during confirmation. Review the latest occupancy and try again.')
         setReloadTick((tick) => tick + 1)
 
       } else {
@@ -939,13 +989,14 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   function openCollect(balanceRow) {
     if (!canRecordServicePayments) return
     setCollectTarget(balanceRow)
+    setCollectSubmissionKey(crypto.randomUUID())
     setCollectForm({ ...emptyCollect, amount: String(toCents(balanceRow.balance_due)) })
     setCollectError('')
   }
 
   async function collectBalance(event) {
     event.preventDefault()
-    if (!collectTarget || !canRecordServicePayments || !currentUser?.id) return
+    if (saving || !collectSubmissionKey || !collectTarget || !canRecordServicePayments || !currentUser?.id) return
 
     const amount = toCents(collectForm.amount)
     const remaining = toCents(collectTarget.balance_due)
@@ -966,38 +1017,46 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setSaving(true)
     setCollectError('')
 
-    // The database fills in the customer, service and receipt details from the original
-    // receipt and rejects anything above the unpaid balance.
-    const { data, error } = await supabase
-      .from('service_transactions')
-      .insert({
-        balance_of: collectTarget.id,
-        property_id: collectTarget.property_id,
-        service_id: collectTarget.service_id,
-        service_name: collectTarget.service_name,
-        customer_name: collectTarget.customer_name,
-        block_name: collectTarget.block_name,
-        lot_number: collectTarget.lot_number,
-        service_date: today(),
-        quantity: 1,
-        amount_due: amount,
-        amount_paid: amount,
-        payment_status: 'paid',
-        payment_method: collectForm.payment_method,
-        reference_number: collectForm.reference_number.trim() || null,
-        notes: collectForm.notes.trim() || null,
-        recorded_by: currentUser.id,
-        recorded_by_name: recorderName,
-      })
-      .select('*')
-      .single()
-
     try {
+      // The database calculates balances and rejects over-collection.
+      let { data, error } = await supabase
+        .from('service_transactions')
+        .insert({
+          balance_of: collectTarget.id,
+          property_id: collectTarget.property_id,
+          service_id: collectTarget.service_id,
+          service_name: collectTarget.service_name,
+          customer_name: collectTarget.customer_name,
+          block_name: collectTarget.block_name,
+          lot_number: collectTarget.lot_number,
+          service_date: today(),
+          quantity: 1,
+          amount_due: amount,
+          amount_paid: amount,
+          payment_status: 'paid',
+          payment_method: collectForm.payment_method,
+          reference_number: collectForm.reference_number.trim() || null,
+          notes: collectForm.notes.trim() || null,
+          recorded_by: currentUser.id,
+          recorded_by_name: recorderName,
+          submission_key: collectSubmissionKey,
+        })
+        .select('*')
+        .single()
+      if (error) {
+        const existing = await supabase.from('service_transactions')
+          .select('*').eq('submission_key', collectSubmissionKey).maybeSingle()
+        if (!existing.error && existing.data) { data = existing.data; error = null }
+      }
       if (error) throw error
+      if (data?.submission_key !== collectSubmissionKey) {
+        throw new Error('Collection submission did not match a saved receipt. Refresh history before retrying.')
+      }
       if (!data?.id || String(data.balance_of) !== String(collectTarget.id) || !data.receipt_number) {
         throw new Error('The collection receipt could not be verified.')
       }
       setCollectTarget(null)
+      setCollectSubmissionKey(null)
       setReceipt(data)
       notifySuccess(`${peso.format(amount)} collected for ${data.customer_name}. Receipt ${data.receipt_number} was created.`)
       setReloadTick((tick) => tick + 1)
@@ -1396,8 +1455,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                 Quantity
                 <input
                   required
-                                    min={autoHours !== null ? '0.01' : '1'}
-                                    step="any"
+                                    min={autoHours !== null ? '0.0001' : '1'}
+                                    step={autoHours !== null ? "any" : "1"}
                   readOnly={autoHours !== null}
                   title={autoHours !== null ? 'Calculated from start and end time' : undefined}
                   className={autoHours !== null ? 'services-input-auto' : undefined}
@@ -1407,9 +1466,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                     const nextQuantity = event.target.value
                     setTransactionForm((current) => {
                       // Keep "amount received" in step with the amount due while the two still match.
-                      const rate = Number(selectedService?.rate) || 0
-                      const oldDue = toCents(rate * Math.max(Number(current.quantity) || 1, 1))
-                      const newDue = toCents(rate * Math.max(Number(nextQuantity) || 1, 1))
+                      const oldDue = serviceAmountDue(selectedService, current.quantity, startMinutes, endMinutes)
+                      const newDue = serviceAmountDue(selectedService, nextQuantity, startMinutes, endMinutes)
                       const followsDue = toCents(current.amount_paid) === oldDue
                       return {
                         ...current,

@@ -132,8 +132,8 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
       title: 'Official Receipt',
       subtitle: 'Amenity and Service Payment',
       voided,
-      voidReason: '',
-      statusLabel: settled ? 'Balance settled' : partial ? 'Partial payment' : voided ? 'Voided' : 'Paid',
+      voidReason: row.void_reason || '',
+      statusLabel: voided ? 'Voided' : settled ? 'Balance settled' : partial ? 'Partial payment' : 'Paid',
       details: [
         { label: 'Received from', value: row.customer_name || 'Unnamed customer' },
         { label: 'Property', value: propertyLabel(row.block_name, row.lot_number) },
