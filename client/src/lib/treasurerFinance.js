@@ -68,12 +68,12 @@ export async function loadTreasurerDashboard(client, monthStart) {
 
 export async function loadServiceRevenue(client, { fromDate = '', toDate = '' } = {}) {
   const [transactions, summary, balances] = await Promise.all([
-    read('Service receipts', () => {
-      let query = client.from('service_transactions').select('*').order('paid_at', { ascending: false }).limit(500)
+    read('Service receipts', () => fetchAll(() => {
+      let query = client.from('service_transactions').select('*').order('paid_at', { ascending: false })
       if (fromDate) query = query.gte('paid_at', `${fromDate}T00:00:00+08:00`)
       if (toDate) query = query.lte('paid_at', `${toDate}T23:59:59.999+08:00`)
       return query
-    }),
+    })),
     read('Service revenue summary', () => client.rpc('service_revenue_summary')),
     read('Unpaid service balances', () => fetchAll(() => client.from('service_balances').select('id, balance_due'))),
   ])

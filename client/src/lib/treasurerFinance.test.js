@@ -37,6 +37,21 @@ describe('Treasurer financial reads', () => {
   it('rejects invalid expense values rather than counting them as zero', async () => {
     await expect(loadTreasurerDashboard(client({ expenses: [{ amount: 'NaN' }] }), '2026-11-01')).rejects.toThrow('Expense amount')
   })
+  it('loads more than 500 service receipts without truncation', async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `service-${index}`,
+      amount_paid: 1,
+      payment_status: 'paid',
+    }))
+    const c = client({ service_transactions: rows })
+    const result = await loadServiceRevenue(c)
+    expect(result.transactions).toHaveLength(1001)
+    expect(c.calls.filter(([table]) => table === 'service_transactions'))
+      .toEqual([
+        ['service_transactions', 0, 999],
+        ['service_transactions', 1000, 1999],
+      ])
+  })
   it('sums unpaid service balances over multiple API pages', async () => {
     const c = client({ service_balances: Array.from({ length: 1001 }, (_, id) => ({ id, balance_due: '0.10' })) })
     const data = await loadServiceRevenue(c)
