@@ -155,7 +155,7 @@ export default function TreasurerDashboard() {
       if (isVoided(row)) return
       rows.push({
         id: `expense-${row.id}`,
-        date: row.created_at || row.expense_date,
+        date: row.expense_date ? `${row.expense_date}T12:00:00+08:00` : row.created_at,
         title: row.category || 'Expense',
         detail: row.description || row.payee || 'Operating expense',
         amount: amount(row, ['amount']),
@@ -173,7 +173,7 @@ export default function TreasurerDashboard() {
     { label: 'Outstanding receivables', value: summary.outstanding, note: `${summary.overdueAccounts} overdue account${summary.overdueAccounts === 1 ? '' : 's'}`, icon: FileText, tone: 'blue' },
     { label: 'Overdue balance', value: summary.overdue, note: 'Across all aging buckets', icon: AlertCircle, tone: 'red' },
     { label: 'Advance credits held', value: summary.creditsHeld, note: `${summary.creditAccounts} active account${summary.creditAccounts === 1 ? '' : 's'}${summary.movedCredit > 0 ? ` + ${peso.format(summary.movedCredit)} on moved accounts` : ''}`, icon: DollarSign, tone: 'navy' },
-    { label: 'Net cash activity', value: summary.netThisMonth, note: 'Collections + Amenities − Expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
+    { label: 'Net recorded activity', value: summary.netThisMonth, note: 'Collections + services − dated expenses', icon: DollarSign, tone: summary.netThisMonth < 0 ? 'red' : 'navy' },
   ]
 
   return (
@@ -241,7 +241,7 @@ export default function TreasurerDashboard() {
         </article>
 
         <article className="treasurer-panel activity-panel">
-          <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent cash activity</h2></div></div>
+          <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Latest entries</span><h2>Recent financial activity</h2></div></div>
           {loading ? <div aria-busy="true"><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><Skeleton variant="rect" width="100%" height="48px" /><span className="skeleton-region-status" role="status">Loading</span></div> : pageError ? <p className="treasurer-empty">Activity is unavailable. Use Refresh data to retry.</p> : recentActivity.length === 0 ? <p className="treasurer-empty">No financial activity recorded yet.</p> : (
             <div className="treasurer-activity-list">
               {recentActivity.map((row) => (
