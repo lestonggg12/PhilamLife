@@ -73,6 +73,7 @@ export default function LedgerPage({ user: suppliedUser }) {
     latePenalty: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [ledgerVerified, setLedgerVerified] = useState(false)
   const [pageError, setPageError] = useState('')
   const [orgSettings, setOrgSettings] = useState(null)
   const [statementPdfGenerating, setStatementPdfGenerating] = useState(false)
@@ -123,6 +124,8 @@ const actorName =
   }
 
   async function loadLedger() {
+    closeStatement()
+    setLedgerVerified(false)
     setLoading(true)
     setPageError('')
 
@@ -172,6 +175,7 @@ const actorName =
     setOverdueSummaries(overdueResult.data || [])
     setPaymentProgress(progressResult.data || [])
     setOrgSettings(settingsResult.data || null)
+    setLedgerVerified(true)
     setPenaltySettings({
       dueDay: Number(settingsResult.data?.due_day) || 5,
       gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
@@ -185,6 +189,7 @@ const actorName =
   }
 
   async function openStatement(entry) {
+    if (!ledgerVerified || loading || pageError) return
     const requestId = ++statementRequestRef.current
     setStatementAccount(entry)
     setStatementError('')
@@ -296,6 +301,10 @@ setStatementLines(statement.lines)
   }
 async function downloadStatementPdf() {
       if (!statementAccount) return
+      if (!ledgerVerified || loading || pageError || !statementAccount.statementTotals?.reconcilesWithStoredBalance) {
+        setStatementError('This statement is not verified. Refresh the ledger and confirm that its closing balance reconciles before exporting a PDF.')
+        return
+      }
     setStatementPdfGenerating(true)
 
     try {
@@ -340,6 +349,8 @@ async function downloadStatementPdf() {
 
       doc.save(`Statement-${statementAccount.name.replace(/\s+/g, '-')}-${organization.formatDate(now).replace(/[,\s\/]/g, '-')}.pdf`)
       notifySuccess(`Statement PDF download started for ${statementAccount.name}.`)
+    } catch (error) {
+      setStatementError(`Could not generate statement PDF: ${error?.message || 'Unknown error.'}`)
     } finally {
       setStatementPdfGenerating(false)
     }
@@ -496,19 +507,19 @@ async function downloadStatementPdf() {
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={20} /></div>
-          <div><p className="ledger-summary-label">Collected + Outstanding (estimate)</p><p className="ledger-summary-value">{peso.format(totals.totalDue)}</p></div>
+          <div><p className="ledger-summary-label">Recorded payments + outstanding (not total billed)</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalDue)}</p></div>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={20} /></div>
-          <div><p className="ledger-summary-label">Total Collected</p><p className="ledger-summary-value">{peso.format(totals.totalPaid)}</p></div>
+          <div><p className="ledger-summary-label">Total Collected</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalPaid)}</p></div>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={20} /></div>
-          <div><p className="ledger-summary-label">Outstanding Balance</p><p className="ledger-summary-value">{peso.format(totals.totalBalance)}</p></div>
+          <div><p className="ledger-summary-label">Outstanding Balance</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalBalance)}</p></div>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-icon ledger-summary-icon-paid"><CreditCard size={20} /></div>
-          <div><p className="ledger-summary-label">Available Credit</p><p className="ledger-summary-value">{peso.format(totals.totalCredit)}</p></div>
+          <div><p className="ledger-summary-label">Available Credit</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalCredit)}</p></div>
         </div>
       </div>
 
@@ -540,6 +551,12 @@ async function downloadStatementPdf() {
       {loading ? (
         <div className="ledger-table-wrap glass-card">
           <div className="ledger-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><Skeleton variant="rect" width="100%" height="44px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+        </div>
+      ) : !ledgerVerified || pageError ? (
+        <div className="ledger-search-prompt glass-card" role="alert">
+          <AlertCircle size={30} aria-hidden="true" />
+          <h3>Ledger unavailable</h3>
+          <p>The complete ledger could not be verified. Refresh before viewing homeowner accounts or generating statements.</p>
         </div>
       ) : !hasActiveQuery ? (
         <div className="ledger-search-prompt glass-card">
@@ -673,7 +690,7 @@ async function downloadStatementPdf() {
                 )}
               </table>
             </div>
-            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={closeStatement}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
+            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={closeStatement}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating || !ledgerVerified || loading || Boolean(pageError) || !statementAccount.statementTotals?.reconcilesWithStoredBalance}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
           </article>
         </div>
       )}

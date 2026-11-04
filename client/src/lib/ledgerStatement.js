@@ -1,12 +1,27 @@
 // Database money arrives as NUMERIC decimal strings. All arithmetic here is in
 // integer centavos; convert to pesos only at the presentation boundary.
-const cents = (value) => {
-  const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(String(value ?? 0).trim())
-  if (!match) return 0
-  const fraction = (match[3] || '').padEnd(3, '0')
-  const absolute = Number(match[2]) * 100 + Number(fraction.slice(0, 2)) + (Number(fraction[2]) >= 5 ? 1 : 0)
+const cents = (value, optional = false) => {
+  if (value === null || value === undefined) {
+    if (optional) return 0
+    throw new Error('Missing required ledger monetary value.')
+  }
+
+  const match = /^([+-]?)(\d+)(?:\.(\d{1,2}))?$/.exec(String(value).trim())
+  if (!match) {
+    throw new Error('Invalid ledger monetary value. Expected pesos with at most two decimal places.')
+  }
+
+  const whole = Number(match[2])
+  const fraction = Number((match[3] || '').padEnd(2, '0'))
+  const absolute = whole * 100 + fraction
+
+  if (!Number.isSafeInteger(absolute)) {
+    throw new Error('Ledger monetary value exceeds the supported range.')
+  }
+
   return match[1] === '-' ? -absolute : absolute
 }
+
 const toAmount = (value) => value / 100
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase()
 const money = (value) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(toAmount(value))
@@ -42,16 +57,16 @@ function paymentEntries(payment) {
   const voided = normalizeStatus(payment.status) === 'voided'
   const paid = Math.max(cents(payment.amount_paid ?? payment.amount), 0)
   const originalEffect = Math.max(cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount), 0)
-  const released = Math.min(Math.max(cents(payment.effect_released), 0), originalEffect)
+  const released = Math.min(Math.max(cents(payment.effect_released, true), 0), originalEffect)
   const effective = originalEffect - released
   const allocations = Array.isArray(payment.allocations) ? payment.allocations : []
   const explicitAllocated = voided ? 0 : allocations.reduce((sum, allocation) => sum + Math.max(cents(allocation.allocated_amount), 0), 0)
   const annual = payment.receipt_breakdown?.annual_advance_discount
   // A difference alone is not proof of a promotion. Require the receipt's
   // saved 12-month metadata and exact agreement with the recorded amounts.
-  const discount = Math.max(cents(annual?.discount_amount), 0)
+  const discount = Math.max(cents(annual?.discount_amount, true), 0)
   const validAnnual = Number(annual?.months_covered) === 12 && discount > 0 &&
-    cents(annual?.gross_amount) === originalEffect && paid + discount === originalEffect
+    cents(annual?.gross_amount, true) === originalEffect && paid + discount === originalEffect
   const extra = Math.max(originalEffect - paid, 0)
   const unapplied = Math.max(paid - originalEffect, 0)
   const reference = payment.receipt_number || payment.reference_number || ''
@@ -253,6 +268,7 @@ export function ledgerStatementNotes(totals, formatMoney) {
   if (totals.documentedAccountAdjustments) notes.push('Balance corrections are listed with their reasons and approval numbers. They are not payments.')
   if (totals.unallocated > 0) notes.push(`${formatMoney(totals.unallocated)} of the money received did not reduce this lot’s balance. See the entries marked “Payment amount not used to reduce your balance.”`)
   if (totals.inferredAppliedToExistingBalance > 0) notes.push(`${formatMoney(totals.inferredAppliedToExistingBalance)} of your payments reduced an earlier amount owed. The saved records do not show which individual bills were paid.`)
+  if (totals.payments > 0 && totals.explicitlyAllocated === 0) notes.push('No individual bill-to-payment allocations are recorded for this lot. The statement shows recorded balance effects, not verification of which specific bills were paid.')
   if (totals.explicitlyAllocated > 0) notes.push(`The records show which bills were paid by ${formatMoney(totals.explicitlyAllocated)} of your payments.`)
   if (totals.availableCredit > 0) notes.push(`${formatMoney(totals.availableCredit)} is available for future bills on this lot. This may include advance payments and discounts. It is not an amount you owe.`)
   if (!totals.reconcilesWithStoredBalance) notes.push(`The final balance shown here differs from the saved lot balance by ${formatMoney(totals.reconciliationDifference)}. The saved balance is ${formatMoney(totals.storedBalance)}. Please ask the office to check the records.`)
