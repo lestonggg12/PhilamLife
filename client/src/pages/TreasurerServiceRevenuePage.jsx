@@ -5,6 +5,11 @@ import { useOrganization } from '../context/OrganizationContext'
 import Skeleton from '../components/skeleton/Skeleton'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
+import ActionDialog from '../components/ActionDialog'
+import { ReceiptDialog } from '../components/ReceiptSheet'
+import { buildReceiptModel } from '../lib/receiptModel'
+import { printReceipt } from '../lib/printReceipt'
+import { useSettledAmount } from '../lib/useSettledAmount'
 import { loadServiceRevenue, transactionPaymentStatus } from '../lib/treasurerFinance'
 import './TreasurerServiceRevenue.css'
 
@@ -44,6 +49,9 @@ export default function TreasurerServiceRevenuePage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [selectedReceipt, setSelectedReceipt] = useState(null)
+  const [receiptPrintNotice, setReceiptPrintNotice] = useState('')
+  const settledReceiptAmount = useSettledAmount(selectedReceipt)
   const [showBreakdown, setShowBreakdown] = useState(() => {
     try {
       return localStorage.getItem('tsr-breakdown-open') === '1'
@@ -139,6 +147,12 @@ export default function TreasurerServiceRevenuePage() {
       ? { name: totals.byService[0][0], amount: totals.byService[0][1] }
       : null,
   }), [totals])
+
+  const selectedReceiptModel = selectedReceipt
+    ? buildReceiptModel('service', selectedReceipt, organization, {
+        settledAmount: settledReceiptAmount,
+      })
+    : null
 
   function clearFilters() {
     setSearchTerm('')
@@ -418,6 +432,7 @@ export default function TreasurerServiceRevenuePage() {
               <table className="tsr-table">
                 <thead>
                   <tr>
+                    <th>Receipt</th>
                     <th>Receipt No.</th>
                     <th>Payment Date</th>
                     <th>Service</th>
@@ -432,6 +447,16 @@ export default function TreasurerServiceRevenuePage() {
                 <tbody>
                   {filteredTransactions.map((t) => (
                     <tr key={t.id}>
+                      <td>
+                        <button
+                          type="button"
+                          className="tsr-receipt-button"
+                          aria-label={`View receipt ${t.receipt_number}`}
+                          onClick={() => setSelectedReceipt(t)}
+                        >
+                          View Receipt
+                        </button>
+                      </td>
                       <td><strong>{t.receipt_number}</strong></td>
                       <td>{t.paid_at ? organization.formatDate(t.paid_at, { withTime: true }) : '—'}</td>
                       <td>{t.service_name}</td>
@@ -453,6 +478,28 @@ export default function TreasurerServiceRevenuePage() {
           )}
         </div>
       </div>
+
+      {selectedReceiptModel && (
+        <ReceiptDialog
+          model={selectedReceiptModel}
+          dismissOnBackdrop={false}
+          onClose={() => setSelectedReceipt(null)}
+          onPrint={(setup) =>
+            printReceipt(
+              selectedReceiptModel,
+              setReceiptPrintNotice,
+              setup,
+            )
+          }
+        />
+      )}
+
+      <ActionDialog
+        open={Boolean(receiptPrintNotice)}
+        title="Receipt printing"
+        message={receiptPrintNotice}
+        onConfirm={() => setReceiptPrintNotice('')}
+      />
     </div>
   )
 }
