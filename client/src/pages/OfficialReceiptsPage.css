@@ -927,3 +927,39 @@
     min-width: 850px;
   }
 }
+/* Official Receipts: keep the search icon separate from typed text. */
+.official-receipts-filters .official-search-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.official-receipts-filters .official-search-control > svg {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.official-receipts-filters .official-search-control > input[type="search"] {
+  display: block;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 36px 9px 42px;
+  text-align: left;
+  line-height: 20px;
+}
+
+.official-receipts-filters .official-search-control > input[type="search"]::placeholder {
+  text-align: left;
+}

@@ -1021,10 +1021,8 @@ export default function OfficialReceiptsPage() {
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              placeholder="
-                Receipt no., homeowner,
-                property, or purpose
-              "
+              aria-label="Search official receipts"
+              placeholder="Receipt no., homeowner, property, or purpose"
             />
             </div>
           </label>
