@@ -1,4 +1,5 @@
 import { notifySuccess } from '../lib/actionFeedback'
+import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
@@ -376,6 +377,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const navigate = useNavigate()
   const handledPaymentRequestRef = useRef(null)
   const paymentSubmitRef = useRef(false)
+  const [paymentSubmissionKey, setPaymentSubmissionKey] = useState(null)
+  const paymentAttemptRef = useRef(null)
   const chargeSubmitRef = useRef(false)
   const voidSubmitRef = useRef(false)
   const { organization } = useOrganization()
@@ -984,6 +987,8 @@ function selectHomeowner(property) {
 
   function openForm() {
     if (!canManagePayments) return
+    paymentAttemptRef.current = null
+    setPaymentSubmissionKey(crypto.randomUUID())
     setForm(EMPTY_FORM)
     setFormError('')
     setHomeownerMenuOpen(false)
@@ -1233,6 +1238,10 @@ function selectHomeowner(property) {
   async function recordPayment(event) {
     event.preventDefault()
     if (paymentSubmitRef.current) return
+    if (!paymentSubmissionKey) {
+      setFormError('Payment session expired. Close and reopen Record Payment.')
+      return
+    }
     const advanceApproved = advanceApprovedRef.current
     advanceApprovedRef.current = false
 
@@ -1344,21 +1353,35 @@ function selectHomeowner(property) {
   note: form.note.trim() || null,
   recorded_by: currentUser.id,
   recorded_by_name: recorderName,
+  submission_key: paymentSubmissionKey,
 }
 
     try {
-    const { data, error } = await supabase
-      .from('payments')
-      .insert(payload)
-      .select('*')
-      .single()
+      const paymentIntent = financialSubmissionIntent('payment', payload)
+      requireUnchangedFinancialAttempt(paymentAttemptRef.current, paymentIntent)
+      let data = null
 
-    if (error) {
-      setFormError(error.message)
-      return
-    }
+      // A previous request might have committed before its response was lost.
+      // Look up the original key BEFORE trying a second insert.
+      if (paymentAttemptRef.current) {
+        const previous = await supabase.from('payments').select('*')
+          .eq('submission_key', paymentSubmissionKey).maybeSingle()
+        if (previous.error) throw new Error('Could not check the original payment. Review receipt history before retrying.')
+        if (previous.data) data = assertFinancialSubmissionMatches(paymentAttemptRef.current, previous.data)
+      }
 
-
+      if (!data) {
+        paymentAttemptRef.current = paymentIntent
+        let result = await supabase.from('payments').insert(payload).select('*').single()
+        if (result.error) {
+          const previous = await supabase.from('payments').select('*')
+            .eq('submission_key', paymentSubmissionKey).maybeSingle()
+          if (previous.error) throw new Error('Receipt recovery is unavailable. Do not submit again until history has been checked.')
+          if (!previous.data) throw result.error
+          result = { data: previous.data, error: null }
+        }
+        data = assertFinancialSubmissionMatches(paymentAttemptRef.current, result.data)
+      }
 
     goToPage(0)
     // Jump to today so the new receipt is visible even if another day was open.
@@ -1368,6 +1391,8 @@ function selectHomeowner(property) {
     setShowForm(false)
     setForm(EMPTY_FORM)
     setReceipt(data)
+    paymentAttemptRef.current = null
+    setPaymentSubmissionKey(null)
     notifySuccess(`Payment ${data.receipt_number} recorded for ${data.homeowner_name}, ${data.block_name || ""}, Lot ${data.lot_number || ""}.`)
     } catch (error) {
       setFormError(`The payment could not be confirmed. Refresh payment history before retrying to avoid a duplicate. ${error.message}`)
@@ -1573,6 +1598,9 @@ function selectHomeowner(property) {
                     <small className="payments-secondary-text">
                       {organization.formatDate(payment.paid_at, { withTime: true })}
                     </small>
+                    {!payment.recorded_by && (
+                      <small className="payments-secondary-text">Historical record — recorder account not linked</small>
+                    )}
                   </td>
                   <td data-label="Homeowner / Property">
                     <span className="payments-primary-text">{payment.homeowner_name}</span>
@@ -1616,7 +1644,7 @@ function selectHomeowner(property) {
 
       {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
-          <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off">
+          <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off" inert={saving ? "inert" : undefined} aria-busy={saving}>
             <div className="payment-modal-heading">
               <div>
                 <h2>Record Payment</h2>

@@ -314,7 +314,7 @@ export function reportText(report, { monthLabel, datePrepared }) {
       `(${formatMoney(topExpense.amount)}). `
     : 'No expenditures were recorded. '
   const commentary =
-    `The association closed ${monthLabel} with a net ${net} of ${formatMoney(Math.abs(kpis.netIncome))}. ` +
+    `For ${monthLabel}, association records show a net ${net} of ${formatMoney(Math.abs(kpis.netIncome))}. ` +
     incomeSentence + expenseSentence +
     (accountCount > 0
       ? `Outstanding balances stand at ${formatMoney(kpis.totalOutstanding)} across ${accountCount} ` +
@@ -328,7 +328,9 @@ export function reportText(report, { monthLabel, datePrepared }) {
   const basis =
     `Figures are drawn from the association's records as of ${datePrepared} and have not been independently audited. ` +
     'Income is stated on a cash basis: it reflects payments received during the reporting period, excluding voided receipts. ' +
-    'Outstanding balances are stated as of the date prepared; all other figures cover the reporting period.'
+    'Outstanding balances are stated as of the date prepared; all other figures cover the reporting period. ' +
+    'Net surplus is a management-report calculation, not a bank-reconciled balance. ' +
+    'Bank deposits and formal accounting-period closing have not been verified by this report.'
 
   return { overview, expenseIntro, commentary, scope, basis }
 }

@@ -1,4 +1,5 @@
 import { notifySuccess } from '../lib/actionFeedback'
+import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -111,6 +112,8 @@ export default function TreasurerExpensesPage({ user: suppliedUser }) {
   const [saving, setSaving] = useState(false)
   // Refs close the same-tick double-click gap before React re-renders.
   const savingRef = useRef(false)
+  const [expenseSubmissionKey, setExpenseSubmissionKey] = useState(null)
+  const expenseAttemptRef = useRef(null)
   const voidingRef = useRef(false)
 
   const [voidingId, setVoidingId] = useState(null)
@@ -302,6 +305,8 @@ const isReadOnly = !canRecordExpenses
   function openForm() {
     if (!canRecordExpenses) return
 
+    expenseAttemptRef.current = null
+    setExpenseSubmissionKey(crypto.randomUUID())
     setForm(emptyForm())
     setFormError('')
     setShowForm(true)
@@ -315,6 +320,10 @@ const isReadOnly = !canRecordExpenses
   async function handleSubmit(event) {
     event.preventDefault()
     if (savingRef.current) return
+    if (!expenseSubmissionKey) {
+      setFormError('Expense session expired. Close and reopen Record Expense.')
+      return
+    }
     setFormError('')
 
     if (!canRecordExpenses) {
@@ -357,10 +366,34 @@ const isReadOnly = !canRecordExpenses
       reference_number: form.reference_number.trim() || null,
       recorded_by: currentUser.id,
       recorded_by_name: recorderName,
+      submission_key: expenseSubmissionKey,
     }
 
     try {
-      const data = await recordExpense(supabase, payload)
+      const expenseIntent = financialSubmissionIntent('expense', payload)
+      requireUnchangedFinancialAttempt(expenseAttemptRef.current, expenseIntent)
+      let data = null
+      if (expenseAttemptRef.current) {
+        const previous = await supabase.from('expenses').select('*')
+          .eq('submission_key', expenseSubmissionKey).maybeSingle()
+        if (previous.error) throw new Error('Could not verify the earlier expense. Review expense history before retrying.')
+        if (previous.data) data = assertFinancialSubmissionMatches(expenseAttemptRef.current, previous.data)
+      }
+      if (!data) {
+        expenseAttemptRef.current = expenseIntent
+        try {
+          data = await recordExpense(supabase, payload)
+        } catch (createError) {
+          const previous = await supabase.from('expenses').select('*')
+            .eq('submission_key', expenseSubmissionKey).maybeSingle()
+          if (previous.error) throw new Error('Expense recovery is unavailable. Check history before retrying.')
+          if (!previous.data) throw createError
+          data = previous.data
+        }
+        data = assertFinancialSubmissionMatches(expenseAttemptRef.current, data)
+      }
+      expenseAttemptRef.current = null
+      setExpenseSubmissionKey(null)
       setExpenses((current) => [data, ...current])
       setSelectedMonth(String(data.expense_date).slice(0, 7))
       setShowForm(false)
@@ -769,7 +802,7 @@ const isReadOnly = !canRecordExpenses
               <h2>Record Expense</h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="tex-form">
+            <form onSubmit={handleSubmit} className="tex-form" inert={saving ? "inert" : undefined} aria-busy={saving}>
               <div className="tex-form-row">
                 <div className="tex-field">
                   <span className="tex-field-label">Date</span>
