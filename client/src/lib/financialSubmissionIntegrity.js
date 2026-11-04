@@ -39,6 +39,8 @@ const normalize = (kind, value) => {
       description: str(value.description),
       amount: money(value.amount),
       reference_number: str(value.reference_number),
+      supporting_note: str(value.supporting_note),
+      backdate_reason: str(value.backdate_reason),
     }
   }
   throw new Error('Unknown financial transaction type.')

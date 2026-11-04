@@ -329,7 +329,7 @@ export function buildMonthlyReportPdf({
       formatDateOnly(e.expense_date),
       e.category,
       e.description || '\u2014',
-      e.reference_number || '\u2014',
+      e.reference_number || (e.supporting_note ? 'No ref. (explained)' : '\u2014'),
       e.recorded_by_name || '\u2014',
       money(e.amount),
     ])

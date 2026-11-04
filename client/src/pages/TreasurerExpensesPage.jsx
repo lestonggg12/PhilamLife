@@ -1,4 +1,5 @@
 import { notifySuccess } from '../lib/actionFeedback'
+import { expenseDateControlError, expenseEvidenceControlError } from '../lib/expenseEntryControls'
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
@@ -87,6 +88,8 @@ function emptyForm() {
     description: '',
     amount: '',
     reference_number: '',
+    supporting_note: '',
+    backdate_reason: '',
   }
 }
 
@@ -355,6 +358,16 @@ const isReadOnly = !canRecordExpenses
       setFormError('Please select a valid category.')
       return
     }
+    const dateControlError = expenseDateControlError(form.expense_date, todayISO(), form.backdate_reason)
+    if (dateControlError) {
+      setFormError(dateControlError)
+      return
+    }
+    const evidenceError = expenseEvidenceControlError(form.reference_number, form.supporting_note)
+    if (evidenceError) {
+      setFormError(evidenceError)
+      return
+    }
 
     savingRef.current = true
     setSaving(true)
@@ -364,6 +377,8 @@ const isReadOnly = !canRecordExpenses
       description: form.description.trim(),
       amount,
       reference_number: form.reference_number.trim() || null,
+      supporting_note: form.supporting_note.trim() || null,
+      backdate_reason: form.expense_date < todayISO() ? form.backdate_reason.trim() : null,
       recorded_by: currentUser.id,
       recorded_by_name: recorderName,
       submission_key: expenseSubmissionKey,
@@ -486,8 +501,18 @@ const isReadOnly = !canRecordExpenses
                     ? `Reason: ${expense.void_reason} · ${expense.voided_by_name} · ${organization.formatDate(expense.voided_at, { withTime: true })}`
                     : 'Legacy cancellation: actor, time and reason were not recorded.'}</small>}
                 </td>
-                <td>{expense.reference_number || '—'}</td>
-                <td>{expense.recorded_by_name || '—'}</td>
+                <td>
+                  {expense.reference_number || '—'}
+                  {!expense.reference_number && expense.supporting_note && (
+                    <small className="tex-void-details">No reference: {expense.supporting_note}</small>
+                  )}
+                </td>
+                <td>
+                  {expense.recorded_by_name || '—'}
+                  {expense.backdate_reason && (
+                    <small className="tex-void-details">Past-date explanation: {expense.backdate_reason}</small>
+                  )}
+                </td>
 
                 <td>
                   <span
@@ -811,9 +836,24 @@ const isReadOnly = !canRecordExpenses
                     onChange={(key) =>
                       updateForm('expense_date', key)
                     }
+                    max={todayISO()}
                     placeholder="Select date"
                     ariaLabel="Expense date"
                   />
+                  {form.expense_date && form.expense_date < todayISO() && (
+                    <label>
+                      Reason for recording an earlier expense date (required)
+                      <textarea
+                        rows={2}
+                        maxLength={500}
+                        minLength={10}
+                        value={form.backdate_reason}
+                        onChange={(event) => updateForm('backdate_reason', event.target.value)}
+                        placeholder="Explain why this past expense is being recorded now..."
+                        required
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <div className="tex-field">
@@ -874,6 +914,22 @@ const isReadOnly = !canRecordExpenses
                   />
                 </label>
               </div>
+
+              {!form.reference_number.trim() && (
+                <label>
+                  Why is there no receipt / invoice reference? (required)
+                  <textarea
+                    rows={3}
+                    maxLength={500}
+                    minLength={10}
+                    value={form.supporting_note}
+                    onChange={(event) => updateForm('supporting_note', event.target.value)}
+                    placeholder="Explain the missing supporting reference and where evidence can be found..."
+                    required
+                  />
+                </label>
+              )}
+              <p className="tex-history-note">Enter an invoice or receipt number when available. If no reference exists, your explanation is saved with this expense.</p>
 
               {formError && (
                 <p className="tex-form-error">{formError}</p>

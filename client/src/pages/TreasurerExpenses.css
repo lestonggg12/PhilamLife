@@ -695,7 +695,8 @@
   text-transform: uppercase;
 }
 
-.tex-page .tex-form input {
+.tex-page .tex-form input,
+.tex-page .tex-form textarea {
   padding: 10px 12px;
   border: 1px solid rgba(120, 162, 210, 0.35);
   border-radius: 12px;
@@ -709,11 +710,19 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.tex-page .tex-form input:focus {
+.tex-page .tex-form input:focus,
+.tex-page .tex-form textarea:focus {
   outline: none;
   border-color: var(--primary);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.12);
+}
+
+.tex-page .tex-form textarea {
+  min-height: 72px;
+  width: 100%;
+  resize: vertical;
+  box-sizing: border-box;
 }
 
 .tex-page .tex-form-error {

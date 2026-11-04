@@ -91,7 +91,7 @@ async function fetchMonth(selectedMonth) {
       .order('paid_at', { ascending: false })),
     fetchAll(() => supabase
       .from('expenses')
-      .select('id, expense_date, category, description, amount, reference_number, recorded_by_name, status, created_at')
+      .select('id, expense_date, category, description, amount, reference_number, supporting_note, backdate_reason, recorded_by_name, status, created_at')
       .neq('status', 'Voided')
       .gte('expense_date', monthStartDate)
       .lt('expense_date', monthEndDate)
@@ -427,7 +427,7 @@ export default function ReportsPage({ user: suppliedUser }) {
                     formatDateOnly(e.expense_date),
                     e.category,
                     e.description || '\u2014',
-                    e.reference_number || '\u2014',
+                    e.reference_number || (e.supporting_note ? 'No ref. (explained)' : '\u2014'),
                     e.recorded_by_name || '\u2014',
                     money(e.amount),
                   ])}
