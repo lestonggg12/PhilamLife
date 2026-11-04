@@ -399,12 +399,12 @@ export default function TreasurerServiceRevenuePage() {
           <p className="tsr-result-count">
             {pageError ? 'Transaction count unavailable' : <>
               Showing {filteredTransactions.length} of {transactions.length}
-              {transactions.length >= 500 ? '+ (latest 500; narrow the dates for older)' : ''} transactions
+               transactions
             </>}
           </p>
 
           {loading ? (
-            <Loader variant="panel" />
+            <div className="tsr-state" role="status" aria-live="polite">Loading service transactions...</div>
           ) : pageError ? (
             <p className="tsr-empty">Service data is unavailable. Refresh to retry.</p>
           ) : filteredTransactions.length === 0 ? (
