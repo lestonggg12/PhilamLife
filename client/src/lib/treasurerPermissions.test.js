@@ -55,6 +55,21 @@ describe('Treasurer can record new payments but not change existing records', ()
     expect(assignment(payments, 'canVoidPayments')).toBe("role === 'secretary'")
     expect(assignment(homeowners, 'canVoidPayments')).toBe("userRole === 'secretary'")
   })
+  it('does not show homeowner management controls to inactive staff', () => {
+    expect(homeowners).toContain(
+      "const userRole = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()"
+    )
+  })
+
+  it('keeps Treasurer financial and block management restricted', () => {
+    expect(assignment(homeowners, 'canManageBlocks'))
+      .toBe("userRole === 'admin' || userRole === 'secretary'")
+    expect(assignment(homeowners, 'canManageBalances'))
+      .toBe('canManageBlocks')
+    expect(homeowners).toContain('{balanceDialog && canManageBalances && (')
+    expect(homeowners).toContain('canManageBlocks={canManageBlocks}')
+  })
+
   it('limits Add Charge / View Charges (direct balance changes) to admin and secretary', () => {
     expect(assignment(payments, 'canManageCharges')).toBe("role === 'admin' || role === 'secretary'")
     expect(payments).toMatch(/\{canManageCharges && \(\s*<button[\s\S]{0,120}?onClick=\{openChargeForm\}/)

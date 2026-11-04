@@ -306,8 +306,8 @@ useEffect(() => {
     return () => { cancelled = true }
   }, [])
 
-  const userRole = currentUser?.role?.trim().toLowerCase()
-  // Treasurers are read-only here: they can view history but cannot void payments or edit contacts.
+  const userRole = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
+  // Treasurer can manage homeowner details and contacts, but cannot void payments, change balances, or manage blocks.
   const canVoidPayments = userRole === 'secretary'
   const canManageHomeowners = userRole === 'admin' || userRole === 'secretary' || userRole === 'treasurer'
   const canManageBlocks = userRole === 'admin' || userRole === 'secretary'
@@ -1512,7 +1512,7 @@ useEffect(() => {
 
 
 // dialog: null | { type: 'blocks' } | { type: 'homeowner' | 'lot', property }
-// canManage: true only for Admin or Secretary
+// canManage: true for active Admin, Secretary, or Treasurer; block management is separate.
 // onChanged: called after a change the page should reload for; receives { message }
 function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks, onClose, onChanged }) {
   const confirm = useConfirm()
@@ -1997,7 +1997,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
             {blocksLoadError && <p className="hod-error">{blocksLoadError}</p>}
             {!blocksLoading && !blocksLoadError && blocks.length === 0 && (
               <p className="hod-note">
-                No blocks are available. Use "+ Add Block" in the Block dropdown to create one.
+                No blocks are available. Ask an Admin or Secretary to create a block before adding a homeowner.
               </p>
             )}
             {formError && <p className="hod-error">{formError}</p>}
