@@ -57,8 +57,12 @@ export function buildMonthlyReportPdf({
   documents = [],
   events = [],
   month,
+  precomputedReport = null,
+  reportNarrative = null,
+  annualMonths = null,
 }) {
-  const data = computeMonthlyReportData({
+  const annualMode = Boolean(precomputedReport)
+  const computed = precomputedReport || computeMonthlyReportData({
     payments,
     serviceTransactions,
     expenses,
@@ -73,7 +77,8 @@ export function buildMonthlyReportPdf({
     month,
   })
 
-  const text = reportText(data, { monthLabel, datePrepared })
+  const data = computed
+  const text = reportNarrative || reportText(data, { monthLabel, datePrepared })
   const { kpis } = data
 
   const orgFull = hoaName || 'Homeowners Association'
@@ -83,8 +88,8 @@ export function buildMonthlyReportPdf({
 
   const doc = new jsPDF({ unit: 'mm', format: 'letter' })
   doc.setProperties({
-    title: `${orgShort} Monthly Management Report - ${monthLabel}`,
-    subject: 'Monthly Management Report',
+    title: `${orgShort} ${annualMode ? 'Annual' : 'Monthly'} Management Report - ${monthLabel}`,
+    subject: annualMode ? 'Annual Management Report' : 'Monthly Management Report',
     author,
     creator: orgFull,
   })
@@ -214,7 +219,7 @@ export function buildMonthlyReportPdf({
   doc.setLineWidth(0.2)
 
   setText(NAVY, 9, 'bold')
-  doc.text('MONTHLY MANAGEMENT REPORT', MARGIN, 102, { charSpace: 0.6 })
+  doc.text(annualMode ? 'ANNUAL MANAGEMENT REPORT' : 'MONTHLY MANAGEMENT REPORT', MARGIN, 102, { charSpace: 0.6 })
   setText(INK, 32, 'bold')
   doc.text(monthLabel, MARGIN, 117)
 
@@ -229,7 +234,7 @@ export function buildMonthlyReportPdf({
 
   const colW = CONTENT_W / 3
   const details = [
-    ['Reporting period', periodLabel(month)],
+    ['Reporting period', annualMode ? `January 1 - December 31, ${monthLabel}` : periodLabel(month)],
     ['Prepared by', author],
     ['Date prepared', datePrepared],
   ]
@@ -289,6 +294,18 @@ export function buildMonthlyReportPdf({
 
   // ======================= 2. FINANCIAL REPORT =======================
   sectionTitle('2. Financial Report')
+  if (annualMode && annualMonths) {
+    subheading('2.0 Month-by-month financial summary', 45)
+    table(['Month', 'Homeowners', 'Services', 'Income', 'Expenses', 'Net'], [
+      ...annualMonths.map((m) => [m.month,
+        m.future ? '-' : money(m.homeowner), m.future ? '-' : money(m.service),
+        m.future ? '-' : money(m.income), m.future ? '-' : money(m.expenses),
+        m.future ? '-' : money(m.net)]),
+      ['Annual totals', money(data.income.duesIncome + data.income.balanceIncome + data.income.feesIncome),
+        money(data.income.serviceIncome), money(data.kpis.totalIncome),
+        money(data.kpis.totalExpenses), money(data.kpis.netIncome)],
+    ], { fontSize: 7, totalRow: true, rightCols: [1, 2, 3, 4, 5] })
+  }
 
   subheading('2.1 Income')
   table(['Revenue category', 'Amount'], incomeTableRows(data.income, money), {
@@ -477,7 +494,7 @@ export function buildMonthlyReportPdf({
       doc.text(orgFull, MARGIN, 14)
       setText(MUTED, 8)
       doc.text(
-        `Monthly Management Report  |  ${monthLabel}`,
+        `${annualMode ? 'Annual' : 'Monthly'} Management Report  |  ${monthLabel}`,
         PAGE_W - MARGIN,
         14,
         { align: 'right' },
