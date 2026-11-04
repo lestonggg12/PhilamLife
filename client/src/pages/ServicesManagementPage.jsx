@@ -47,6 +47,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { verifiedServiceStats } from '../lib/serviceStats'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
+import ServiceVoidDialog from '../components/ServiceVoidDialog'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
@@ -358,6 +359,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [balances, setBalances] = useState([])
   const [statsError, setStatsError] = useState('')
   const [collectTarget, setCollectTarget] = useState(null)
+  const [voidTarget, setVoidTarget] = useState(null)
   const [collectForm, setCollectForm] = useState(emptyCollect)
   const [collectError, setCollectError] = useState('')
   const [reloadTick, setReloadTick] = useState(0)
@@ -1577,6 +1579,19 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         )
       })()}
 
+      {voidTarget && (
+        <ServiceVoidDialog
+          receipt={voidTarget}
+          onClose={() => setVoidTarget(null)}
+          onVoided={(updated) => {
+            setDayRows((rows) =>
+              rows.map((row) => row.id === updated.id ? updated : row)
+            )
+            setVoidTarget(null)
+            setReloadTick((tick) => tick + 1)
+          }}
+        />
+      )}
       {dayModalDate && (
         <div className="services-modal-backdrop" role="presentation">
           <article className="day-modal">
@@ -1641,6 +1656,15 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                       >
                         <Eye size={16} /> Receipt
                       </button>
+                      {canRecordServicePayments && item.payment_status !== 'voided' && (
+                        <button
+                          type="button"
+                          className="svd-inline-button"
+                          onClick={() => setVoidTarget(item)}
+                        >
+                          Void Receipt
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))

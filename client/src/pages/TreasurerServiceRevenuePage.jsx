@@ -10,6 +10,7 @@ import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import { useSettledAmount } from '../lib/useSettledAmount'
+import ServiceVoidDialog from '../components/ServiceVoidDialog'
 import { loadServiceRevenue, transactionPaymentStatus } from '../lib/treasurerFinance'
 import './TreasurerServiceRevenue.css'
 
@@ -50,6 +51,7 @@ export default function TreasurerServiceRevenuePage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [selectedReceipt, setSelectedReceipt] = useState(null)
+  const [voidTarget, setVoidTarget] = useState(null)
   const [receiptPrintNotice, setReceiptPrintNotice] = useState('')
   const settledReceiptAmount = useSettledAmount(selectedReceipt)
   const [showBreakdown, setShowBreakdown] = useState(() => {
@@ -456,6 +458,16 @@ export default function TreasurerServiceRevenuePage() {
                         >
                           View Receipt
                         </button>
+                        {t.payment_status !== 'voided' && (
+                          <button
+                            type="button"
+                            className="svd-inline-button"
+                            aria-label={`Void receipt ${t.receipt_number}`}
+                            onClick={() => setVoidTarget(t)}
+                          >
+                            Void Receipt
+                          </button>
+                        )}
                       </td>
                       <td><strong>{t.receipt_number}</strong></td>
                       <td>{t.paid_at ? organization.formatDate(t.paid_at, { withTime: true }) : '—'}</td>
@@ -479,6 +491,19 @@ export default function TreasurerServiceRevenuePage() {
         </div>
       </div>
 
+      {voidTarget && (
+        <ServiceVoidDialog
+          receipt={voidTarget}
+          onClose={() => setVoidTarget(null)}
+          onVoided={(updated) => {
+            setVoidTarget(null)
+            setTransactions((rows) =>
+              rows.map((row) => row.id === updated.id ? updated : row)
+            )
+            loadTransactions()
+          }}
+        />
+      )}
       {selectedReceiptModel && (
         <ReceiptDialog
           model={selectedReceiptModel}
