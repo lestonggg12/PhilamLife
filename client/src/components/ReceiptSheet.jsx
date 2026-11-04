@@ -118,7 +118,7 @@ export default function ReceiptSheet({ model }) {
  *   <ReceiptDialog model={...} onClose={...} onPrint={...}>extra action buttons</ReceiptDialog>
  * Extra buttons should use the classes rcpt-btn + rcpt-btn-secondary / rcpt-btn-danger.
  */
-export function ReceiptDialog({ model, onClose, onPrint, dismissOnBackdrop = true, children }) {
+export function ReceiptDialog({ model, onClose, onPrint, dismissOnBackdrop = true, children, verificationLoading = false, verificationError = '' }) {
   const [printSetup, setPrintSetup] = useState(null)
   const layoutError = preprintedLayoutError(model.preprinted)
   const currentSetup = printSetup?.key === `${model.kind}:${model.sourceId}` ? printSetup : null
@@ -144,16 +144,24 @@ export function ReceiptDialog({ model, onClose, onPrint, dismissOnBackdrop = tru
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="rcpt-dialog-scroll">
+          {verificationLoading || verificationError ? (
+            <p className="receipt-setup-error" role="alert">
+              {verificationError || 'Verifying later service payments before displaying this receipt...'}
+            </p>
+          ) : (
+            <>
           <ReceiptPrintSetup key={`${model.kind}:${model.sourceId}`} model={model} onReady={setPrintSetup} />
           <p className="receipt-preview-note">Form guide only. Printing adds the receipt details to your preprinted paper; the boxes, headings and red number do not print.</p>
           {layoutError && <p className="receipt-setup-error" role="alert">{layoutError}</p>}
           {currentSetup?.alignment && <div className="receipt-paper-scroll"><PreprintedReceipt model={model} paperNumber={currentSetup?.paperNumber} alignment={currentSetup.alignment} /></div>}
           <details className="receipt-full-record"><summary>Full payment details</summary><ReceiptSheet model={model} /></details>
+            </>
+          )}
         </div>
         <div className="rcpt-actions">
           <button type="button" className="rcpt-btn rcpt-btn-secondary" onClick={onClose}>Close</button>
           {children}
-          <button type="button" className="rcpt-btn rcpt-btn-primary" disabled={!currentSetup?.ready || Boolean(layoutError)} onClick={() => onPrint(currentSetup)}>Print details on invoice</button>
+          <button type="button" className="rcpt-btn rcpt-btn-primary" disabled={!currentSetup?.ready || Boolean(layoutError) || verificationLoading || Boolean(verificationError)} onClick={() => onPrint(currentSetup)}>Print details on invoice</button>
         </div>
       </div>
     </div>

@@ -1,31 +1,51 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { totalSettledServiceReceipts } from './serviceReceiptSettlement'
 
-// For a partial service receipt, returns how much was collected later through
-// its linked balance receipts (voided ones excluded). Returns 0 for any other
-// row. The original receipt stays a historical record; this only lets its
-// reprint show that the balance has since been settled.
-export function useSettledAmount(row) {
-  const id = row && row.payment_status === 'partial' ? row.id : null
-  const [state, setState] = useState({ id: null, amount: 0 })
+// A partial service receipt must not show a remaining balance until later
+// linked payments have been verified. Never substitute zero for a failed read.
+export function useSettledAmountStatus(row) {
+  const id = row && String(row.payment_status || '').toLowerCase() === 'partial'
+    ? row.id
+    : null
+
+  const [state, setState] = useState({ id: null, amount: 0, error: '' })
 
   useEffect(() => {
-    if (!id) return undefined
-    let cancelled = false
-    supabase
-      .from('service_transactions')
-      .select('amount_paid')
-      .eq('balance_of', id)
-      .neq('payment_status', 'voided')
-      .then(({ data, error }) => {
-        if (cancelled || error) return
-        const total = (data || []).reduce((sum, item) => sum + (Number(item.amount_paid) || 0), 0)
-        setState({ id, amount: Math.round(total * 100) / 100 })
-      })
-    return () => {
-      cancelled = true
+    if (!id) {
+      setState({ id: null, amount: 0, error: '' })
+      return undefined
     }
+
+    let cancelled = false
+    setState({ id: null, amount: 0, error: '' })
+
+    Promise.resolve()
+      .then(() => supabase
+        .from('service_transactions')
+        .select('amount_paid')
+        .eq('balance_of', id)
+        .neq('payment_status', 'voided'))
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) throw error
+        const amount = totalSettledServiceReceipts(data)
+        setState({ id, amount, error: '' })
+      })
+      .catch((failure) => {
+        if (!cancelled) {
+          setState({
+            id,
+            amount: 0,
+            error: `Could not verify subsequent service payments: ${failure?.message || 'Connection failed.'} Close the receipt and retry.`,
+          })
+        }
+      })
+
+    return () => { cancelled = true }
   }, [id])
 
-  return id && state.id === id ? state.amount : 0
+  if (!id) return { amount: 0, loading: false, error: '' }
+  if (state.id !== id) return { amount: 0, loading: true, error: '' }
+  return { amount: state.amount, loading: false, error: state.error }
 }

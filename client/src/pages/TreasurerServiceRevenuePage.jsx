@@ -9,7 +9,7 @@ import ActionDialog from '../components/ActionDialog'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
-import { useSettledAmount } from '../lib/useSettledAmount'
+import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import ServiceVoidDialog from '../components/ServiceVoidDialog'
 import { loadServiceRevenue, transactionPaymentStatus } from '../lib/treasurerFinance'
 import './TreasurerServiceRevenue.css'
@@ -53,7 +53,7 @@ export default function TreasurerServiceRevenuePage() {
   const [selectedReceipt, setSelectedReceipt] = useState(null)
   const [voidTarget, setVoidTarget] = useState(null)
   const [receiptPrintNotice, setReceiptPrintNotice] = useState('')
-  const settledReceiptAmount = useSettledAmount(selectedReceipt)
+  const settlement = useSettledAmountStatus(selectedReceipt)
   const [showBreakdown, setShowBreakdown] = useState(() => {
     try {
       return localStorage.getItem('tsr-breakdown-open') === '1'
@@ -152,7 +152,7 @@ export default function TreasurerServiceRevenuePage() {
 
   const selectedReceiptModel = selectedReceipt
     ? buildReceiptModel('service', selectedReceipt, organization, {
-        settledAmount: settledReceiptAmount,
+        settledAmount: settlement.amount,
       })
     : null
 
@@ -507,6 +507,8 @@ export default function TreasurerServiceRevenuePage() {
       {selectedReceiptModel && (
         <ReceiptDialog
           model={selectedReceiptModel}
+          verificationLoading={settlement.loading}
+          verificationError={settlement.error}
           dismissOnBackdrop={false}
           onClose={() => setSelectedReceipt(null)}
           onPrint={(setup) =>

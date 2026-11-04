@@ -42,7 +42,7 @@ function ChevronRightIcon({ size = 16 }) {
   )
 }
 import { supabase } from '../lib/supabaseClient'
-import { useSettledAmount } from '../lib/useSettledAmount'
+import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import { fetchAll } from '../lib/fetchAll'
 import { verifiedServiceStats } from '../lib/serviceStats'
 import { hourlyBillableHours, serviceAmountDue } from '../lib/serviceBilling'
@@ -360,7 +360,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [serviceForm, setServiceForm] = useState(emptyService)
   const [transactionForm, setTransactionForm] = useState(emptyTransaction)
   const [receipt, setReceipt] = useState(null)
-  const settledAmount = useSettledAmount(receipt)
+  const settlement = useSettledAmountStatus(receipt)
 
   // Totals for the current month and overall come from small database queries;
   // the page never downloads the full list of service receipts.
@@ -1712,10 +1712,12 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       )}
 
       {receipt && (() => {
-        const receiptModel = buildReceiptModel('service', receipt, organization, { settledAmount })
+        const receiptModel = buildReceiptModel('service', receipt, organization, { settledAmount: settlement.amount })
         return (
           <ReceiptDialog
             model={receiptModel}
+            verificationLoading={settlement.loading}
+            verificationError={settlement.error}
             dismissOnBackdrop={false}
             onClose={() => setReceipt(null)}
             onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}

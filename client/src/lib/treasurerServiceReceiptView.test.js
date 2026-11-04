@@ -23,8 +23,8 @@ describe('Treasurer Amenity Revenue receipt viewing', () => {
   })
 
   it('includes later balance settlements in receipt details', () => {
-    expect(page).toContain('useSettledAmount(selectedReceipt)')
-    expect(page).toContain('settledAmount: settledReceiptAmount')
+    expect(page).toContain('useSettledAmountStatus(selectedReceipt)')
+    expect(page).toContain('settledAmount: settlement.amount')
   })
 
   it('supports existing receipt printing', () => {

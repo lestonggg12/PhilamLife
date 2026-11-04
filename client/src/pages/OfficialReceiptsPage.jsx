@@ -11,7 +11,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { useSettledAmount } from '../lib/useSettledAmount'
+import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
@@ -544,6 +544,7 @@ export default function OfficialReceiptsPage() {
   const [openingId, setOpeningId] = useState('')
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [listError, setListError] = useState('')
   const [popupNotice, setPopupNotice] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] =
@@ -552,7 +553,7 @@ export default function OfficialReceiptsPage() {
   const [toDate, setToDate] = useState('')
   const [selectedReceipt, setSelectedReceipt] =
     useState(null)
-  const settledAmount = useSettledAmount(selectedReceipt?.type === 'service' ? selectedReceipt.raw : null)
+  const settlement = useSettledAmountStatus(selectedReceipt?.type === 'service' ? selectedReceipt.raw : null)
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
@@ -624,6 +625,7 @@ export default function OfficialReceiptsPage() {
 
   useEffect(() => {
     if (invalidDateRange) {
+      setListError('')
       setRows([])
       setPageInfo({ total: 0, minimum: 0 })
       setLoading(false)
@@ -634,6 +636,8 @@ export default function OfficialReceiptsPage() {
 
     async function loadRows() {
       setLoading(true)
+      setListError('')
+      setRows([])
       try {
       const { from, to } = pageWindow(page)
 
@@ -670,7 +674,7 @@ export default function OfficialReceiptsPage() {
       }
       } catch (failure) {
         if (!cancelled) {
-          setPageError(`Could not load receipts: ${failure?.message || 'Connection failed.'}`)
+          setListError(`Could not load receipts: ${failure?.message || 'Connection failed.'}`)
           setRows([])
           setPageInfo({ total: 0, minimum: 0 })
         }
@@ -806,7 +810,7 @@ export default function OfficialReceiptsPage() {
       <header className="official-receipts-header">
         <div className="official-receipts-header-content">
           <p className="official-receipts-eyebrow">
-            Secretary workspace
+            Finance Receipts Workspace
           </p>
 
           <h1>
@@ -1094,6 +1098,12 @@ export default function OfficialReceiptsPage() {
                     Fix the date range above to view receipts.
                   </td>
                 </tr>
+              ) : listError ? (
+                <tr>
+                  <td colSpan="8" className="official-receipts-empty" role="alert">
+                    Receipt history could not be verified. Refresh Receipts to retry.
+                  </td>
+                </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td
@@ -1178,14 +1188,16 @@ export default function OfficialReceiptsPage() {
           </table>
         </div>
 
-        <Pager page={page} total={pageInfo.total} onPageChange={goToPage} disabled={loading} />
+        <Pager page={page} total={pageInfo.total} onPageChange={goToPage} disabled={loading || Boolean(listError) || invalidDateRange} />
       </section>
 
       {selectedReceipt && (() => {
-        const receiptModel = buildReceiptModel(selectedReceipt.type, selectedReceipt.raw, organization, { settledAmount })
+        const receiptModel = buildReceiptModel(selectedReceipt.type, selectedReceipt.raw, organization, { settledAmount: settlement.amount })
         return (
           <ReceiptDialog
             model={receiptModel}
+            verificationLoading={settlement.loading}
+            verificationError={settlement.error}
             onClose={() => setSelectedReceipt(null)}
             onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
           />
