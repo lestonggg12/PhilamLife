@@ -47,16 +47,56 @@ export function verifyReportReceivables(properties, overdue, credits) {
   for (const property of properties) {
     if ((property.homeowner_status || 'active') !== 'active') continue
     const row = byId.get(String(property.id))
-    const source = Number(property.current_balance)
-    const shown = Number(row?.balance)
-    if (!row || !Number.isFinite(source) || !Number.isFinite(shown) ||
-        Math.abs(shown - Math.max(source, 0)) > 0.005) {
+    if (!row || property.current_balance == null || row.balance == null) {
+      throw new Error('Receivable balances are incomplete.')
+    }
+    const source = toCents(property.current_balance)
+    const shown = toCents(row.balance)
+    if (shown !== Math.max(source, 0)) {
       throw new Error('Receivable balances are incomplete or changed during loading. Refresh the report.')
     }
   }
-  for (const key of ['active_credit_total', 'active_credit_accounts', 'moved_credit_total', 'moved_credit_accounts']) {
-    if (credits[key] == null || !Number.isFinite(Number(credits[key]))) {
+  const expected = {
+    activeTotal: 0, activeAccounts: 0,
+    movedTotal: 0, movedAccounts: 0,
+  }
+
+  for (const property of properties) {
+    const balance = toCents(property.current_balance)
+    if (balance >= 0) continue
+    const active = (property.homeowner_status || 'active') === 'active'
+    if (active) {
+      expected.activeTotal += -balance
+      expected.activeAccounts += 1
+    } else {
+      expected.movedTotal += -balance
+      expected.movedAccounts += 1
+    }
+  }
+
+  const expectedFields = [
+    ['active_credit_total', expected.activeTotal],
+    ['moved_credit_total', expected.movedTotal],
+  ]
+  for (const [key, amount] of expectedFields) {
+    if (credits[key] == null) {
       throw new Error('Advance-credit summary is incomplete.')
+    }
+    if (toCents(credits[key]) !== amount) {
+      throw new Error('Advance-credit totals do not reconcile with property balances.')
+    }
+  }
+
+  for (const [key, expectedCount] of [
+    ['active_credit_accounts', expected.activeAccounts],
+    ['moved_credit_accounts', expected.movedAccounts],
+  ]) {
+    const count = Number(credits[key])
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new Error('Advance-credit account counts are incomplete.')
+    }
+    if (count !== expectedCount) {
+      throw new Error('Advance-credit account counts do not reconcile.')
     }
   }
 }
@@ -74,9 +114,21 @@ export const untrackedModules = [
   'budget-versus-actual comparison',
 ]
 
-// Money is added up in whole centavos so decimals like 0.1 + 0.2 can never
-// leak into a report total.
-const toCents = (value) => Math.round((Number(value) || 0) * 100)
+// Financial values must be present, finite and exact to the centavo.
+// Never convert missing, malformed or over-precision values into zero.
+const toCents = (value) => {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    throw new Error('A required report monetary value is missing.')
+  }
+  const match = /^([+-]?)(\d+)(?:\.(\d{1,2}))?$/.exec(String(value).trim())
+  if (!match) throw new Error('A report monetary value is invalid or has more than two decimal places.')
+  const cents = Number(match[2]) * 100 +
+    Number((match[3] || '').padEnd(2, '0'))
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error('A report monetary value exceeds the supported range.')
+  }
+  return match[1] === '-' ? -cents : cents
+}
 const fromCents = (cents) => cents / 100
 
 // Payments saved before charge types existed have no charge_type. Every one of
@@ -102,6 +154,7 @@ const paymentCategory = (payment) => {
  */
 export function computeMonthlyReportData(raw) {
   const { payments = [], serviceTransactions = [], expenses = [], grievances = null, properties = [], overdue = [], credits = null, documents = [], events = [], month } = raw
+  monthDateBounds(month)
   const range = monthBounds(month)
 
   const inRange = (iso) => {

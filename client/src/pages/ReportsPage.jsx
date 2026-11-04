@@ -50,6 +50,14 @@ async function fetchCommunity() {
     supabase.from('credit_liability_summary').select('*').maybeSingle(),
   ])
   let failure = propertyResult.error || overdueResult.error || creditsResult.error || settingsResult.error
+  if (!failure && (
+    !Array.isArray(propertyResult.data) ||
+    !Array.isArray(overdueResult.data) ||
+    !creditsResult.data ||
+    !settingsResult.data
+  )) {
+    failure = new Error('Community report data is incomplete.')
+  }
   if (!failure) {
     try {
       verifyReportReceivables(propertyResult.data || [], overdueResult.data || [], creditsResult.data)
@@ -78,21 +86,21 @@ async function fetchMonth(selectedMonth) {
       .from('payments')
       // charge_type tells the report whether a payment was dues or a fee.
       .select('id, property_id, receipt_number, homeowner_name, block_name, lot_number, coverage_period, charge_type, amount, amount_paid, remaining_balance, payment_method, paid_at, status')
-      .neq('status', 'Voided')
+      .or('status.is.null,status.not.ilike.voided')
       .gte('paid_at', range.start)
       .lt('paid_at', range.end)
       .order('paid_at', { ascending: false })),
     fetchAll(() => supabase
       .from('service_transactions')
       .select('id, receipt_number, customer_name, block_name, lot_number, service_name, amount_paid, payment_method, paid_at, payment_status')
-      .neq('payment_status', 'voided')
+      .or('payment_status.is.null,payment_status.not.ilike.voided')
       .gte('paid_at', range.start)
       .lt('paid_at', range.end)
       .order('paid_at', { ascending: false })),
     fetchAll(() => supabase
       .from('expenses')
       .select('id, expense_date, category, description, amount, reference_number, supporting_note, backdate_reason, recorded_by_name, status, created_at')
-      .neq('status', 'Voided')
+      .or('status.is.null,status.not.ilike.voided')
       .gte('expense_date', monthStartDate)
       .lt('expense_date', monthEndDate)
       .order('expense_date', { ascending: false })),
@@ -120,8 +128,17 @@ async function fetchMonth(selectedMonth) {
     }),
   ])
 
-  // The upcoming-events query is part of the report too, so its failure counts.
-  const failure = paymentResult.error || serviceResult.error || expenseResult.error || documentResult.error || eventResult.error || upcomingResult.error || grievanceResult.error
+  // Every source is required; a missing query result cannot mean zero activity.
+  let failure = paymentResult.error || serviceResult.error || expenseResult.error || documentResult.error || eventResult.error || upcomingResult.error || grievanceResult.error
+  if (!failure && ![
+    paymentResult.data, serviceResult.data, expenseResult.data,
+    documentResult.data, eventResult.data, upcomingResult.data,
+  ].every(Array.isArray)) {
+    failure = new Error('Monthly report data is incomplete.')
+  }
+  if (!failure && !grievanceResult.data) {
+    failure = new Error('Monthly grievance summary is unavailable.')
+  }
   return {
     failure: failure ? failure.message : '',
     grievances: grievanceResult.error ? null : grievanceResult.data,
@@ -197,6 +214,8 @@ export default function ReportsPage({ user: suppliedUser }) {
   const [orgSettings, setOrgSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [verifiedMonth, setVerifiedMonth] = useState('')
+  const [communityVerified, setCommunityVerified] = useState(false)
   const [communityError, setCommunityError] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
   const monthLoadToken = useRef(0)
@@ -244,28 +263,38 @@ export default function ReportsPage({ user: suppliedUser }) {
 
   function applyCommunity(result) {
     setCommunityError(result.failure)
-    if (result.failure) return
+    if (result.failure) {
+      setCommunityVerified(false)
+      return
+    }
     setProperties(result.properties)
     setOverdue(result.overdue)
     setCredits(result.credits)
     setOrgSettings(result.settings)
+    setCommunityVerified(true)
   }
 
-  function applyMonth(result) {
+  function applyMonth(result, loadedMonth) {
     setError(result.failure)
-    if (result.failure) return
+    if (result.failure) {
+      setVerifiedMonth('')
+      return
+    }
     setPayments(result.payments)
     setServiceTransactions(result.serviceTransactions)
     setExpenses(result.expenses)
     setGrievances(result.grievances)
     setDocuments(result.documents)
     setEvents(result.events)
+    setVerifiedMonth(loadedMonth)
   }
 
   async function loadCommunityData() {
+    setCommunityVerified(false)
     try {
       applyCommunity(await fetchCommunity())
     } catch (error) {
+      setCommunityVerified(false)
       setCommunityError(`Could not refresh community data: ${error.message}`)
     }
   }
@@ -273,6 +302,7 @@ export default function ReportsPage({ user: suppliedUser }) {
   async function loadMonthData(selectedMonth, { silent = false } = {}) {
     // If the month is changed again while this is loading, ignore the older answer.
     const token = (monthLoadToken.current += 1)
+    setVerifiedMonth('')
     if (!silent) {
       setLoading(true)
       setError('')
@@ -280,7 +310,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     try {
       const result = await fetchMonth(selectedMonth)
       if (token !== monthLoadToken.current) return
-      applyMonth(result)
+      applyMonth(result, selectedMonth)
     } catch (error) {
       if (token === monthLoadToken.current) setError(`Could not load report month: ${error.message}`)
     } finally {
@@ -288,15 +318,36 @@ export default function ReportsPage({ user: suppliedUser }) {
     }
   }
 
-  const report = useMemo(
-    () => computeMonthlyReportData({ payments, serviceTransactions, expenses, grievances, properties, overdue, credits, documents, events, month }),
-    [payments, serviceTransactions, expenses, grievances, properties, overdue, credits, documents, events, month]
-  )
+  const calculation = useMemo(() => {
+    if (loading || error || communityError ||
+        !communityVerified || verifiedMonth !== month) {
+      return { report: null, failure: '' }
+    }
+    try {
+      return {
+        report: computeMonthlyReportData({
+          payments, serviceTransactions, expenses, grievances,
+          properties, overdue, credits, documents, events, month,
+        }),
+        failure: '',
+      }
+    } catch (failure) {
+      return {
+        report: null,
+        failure: `Could not verify report calculations: ${failure.message}`,
+      }
+    }
+  }, [
+    payments, serviceTransactions, expenses, grievances, properties,
+    overdue, credits, documents, events, month, loading, error,
+    communityError, communityVerified, verifiedMonth,
+  ])
 
-  const loadFailure = error || communityError
+  const report = calculation.report
+  const loadFailure = error || communityError || calculation.failure
 
   async function downloadPdf() {
-    if (pdfGenerating) return
+    if (pdfGenerating || loading || loadFailure || !report) return
     setPdfGenerating(true)
     // Invalidate any load still in flight so it cannot overwrite the fresh copy.
     monthLoadToken.current += 1
@@ -305,7 +356,7 @@ export default function ReportsPage({ user: suppliedUser }) {
       // that may be minutes old.
       const [community, monthly] = await Promise.all([fetchCommunity(), fetchMonth(month)])
       applyCommunity(community)
-      applyMonth(monthly)
+      applyMonth(monthly, month)
       setLoading(false)
       if (community.failure || monthly.failure) return
 
@@ -336,10 +387,15 @@ export default function ReportsPage({ user: suppliedUser }) {
     }
   }
 
-  const { kpis } = report
+  const kpis = report?.kpis || {
+    totalIncome: 0,
+    totalExpenses: 0,
+    netIncome: 0,
+    totalOutstanding: 0,
+  }
   const monthLabel = monthName(month)
   const datePrepared = formatLongDate(new Date())
-  const text = reportText(report, { monthLabel, datePrepared })
+  const text = report ? reportText(report, { monthLabel, datePrepared }) : null
   const preparedBy = currentUser?.full_name || 'HOA Management'
   const hoaName = orgSettings?.hoa_name || 'Homeowners Association'
   const hoaShort = hoaName.replace(/\s*homeowners association\s*$/i, '').trim() || hoaName
@@ -361,7 +417,7 @@ export default function ReportsPage({ user: suppliedUser }) {
             <DateField ariaLabel="Report month" name="report_month" monthOnly value={month} disabled={pdfGenerating} onChange={setMonth} placeholder="Select month" />
           </label>
           {canGenerateReports && (
-            <button type="button" className="reports-primary" onClick={downloadPdf} disabled={loading || pdfGenerating || Boolean(loadFailure)}>
+            <button type="button" className="reports-primary" onClick={downloadPdf} disabled={loading || pdfGenerating || Boolean(loadFailure) || !report}>
               {pdfGenerating ? 'Preparing PDF…' : 'Download PDF'}
             </button>
           )}
@@ -372,6 +428,11 @@ export default function ReportsPage({ user: suppliedUser }) {
 
       {loading ? (
         <div className="reports-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="96px" /><Skeleton variant="rect" width="100%" height="220px" /><Skeleton variant="rect" width="100%" height="220px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+      ) : !report || loadFailure ? (
+        <div className="reports-empty" role="alert">
+          <strong>Monthly report unavailable</strong>
+          <p>This reporting period has not been fully verified. Refresh the page before reviewing or downloading financial figures.</p>
+        </div>
       ) : (
         <main className="monthly-report-doc">
           <div className="monthly-cover">
