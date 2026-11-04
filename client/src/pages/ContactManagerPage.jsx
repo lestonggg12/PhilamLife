@@ -68,7 +68,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [transferError, setTransferError] = useState('')
 
   const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
-  const canManageContacts = role === 'admin' || role === 'secretary'
+  const canManageContacts = role === 'admin' || role === 'secretary' || role === 'treasurer'
+  const canTransferContacts = role === 'admin' || role === 'secretary'
   const contactDialogRef = useContactDialog(Boolean(selectedContact), saving, closeContactForm)
   const transferDialogRef = useContactDialog(Boolean(pendingTransferContact), Boolean(transferringContactId), closeTransferForm)
 
@@ -221,7 +222,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   async function saveContact(event) {
     event.preventDefault()
     if (submitting.current) return
-    if (!selectedContact || !canManageContacts) { setFormError('Only an Admin or Secretary can update contact details.'); return }
+    if (!selectedContact || !canManageContacts) { setFormError('Only an Admin, Secretary, or Treasurer can update contact details.'); return }
     submitting.current = true
     setSaving(true)
     setFormError('')
@@ -240,7 +241,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   }
 
   function requestTransferContact(contact) {
-    if (!canManageContacts || submitting.current) return
+    if (!canTransferContacts || submitting.current) return
     setSelectedContact(null)
     setTransferError('')
     setTransferForm({
@@ -264,7 +265,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     event.preventDefault()
     if (submitting.current) return
     const contact = pendingTransferContact
-    if (!contact || !canManageContacts) return
+    if (!contact || !canTransferContacts) return
     submitting.current = true
     setTransferringContactId(contact.id)
     setTransferError('')
@@ -464,6 +465,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                             ? 'Edit Contact Details'
                             : 'Add Contact Details'}
                         </button>
+                        {canTransferContacts && (
                         <button
                           type="button"
                           className="contact-transfer-button"
@@ -475,6 +477,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                           <FileArchive size={16} />
                           Move / Transfer
                         </button>
+                        )}
                       </div>
                     )
                   ) : (

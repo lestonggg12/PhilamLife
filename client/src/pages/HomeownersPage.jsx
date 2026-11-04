@@ -309,9 +309,10 @@ useEffect(() => {
   const userRole = currentUser?.role?.trim().toLowerCase()
   // Treasurers are read-only here: they can view history but cannot void payments or edit contacts.
   const canVoidPayments = userRole === 'secretary'
-  const canManageHomeowners = userRole === 'admin' || userRole === 'secretary'
-
-  const canEditContact = userRole === 'admin' || userRole === 'secretary'
+  const canManageHomeowners = userRole === 'admin' || userRole === 'secretary' || userRole === 'treasurer'
+  const canManageBlocks = userRole === 'admin' || userRole === 'secretary'
+  const canManageBalances = canManageBlocks
+  const canEditContact = canManageHomeowners
 
   function openVoid(item) {
     const payment = detailData.payments.find((row) => `payment-${row.id}` === item.id)
@@ -368,7 +369,7 @@ useEffect(() => {
   }
 
   async function handleDeleteHomeowner() {
-    if (!canManageHomeowners || !selectedProperty) return
+    if (!canManageBalances || !selectedProperty) return
 
     const entry = selectedProperty
     setPageError('')
@@ -802,13 +803,14 @@ useEffect(() => {
     <div className="homeowners-page">
       <header className="homeowners-header">
         <div>
-          <p className="homeowners-eyebrow">Secretary workspace</p>
+          <p className="homeowners-eyebrow">Homeowner records</p>
           <h1>Homeowners</h1>
           <p>Search for a homeowner to view their profile, property, balances, and complete payment history.</p>
         </div>
         <div className="hod-header-actions">
           {canManageHomeowners && (
             <>
+              {canManageBlocks && (
               <button
                 type="button"
                 className="homeowners-refresh"
@@ -816,6 +818,7 @@ useEffect(() => {
               >
                 Manage Blocks
               </button>
+              )}
               <button
                 type="button"
                 className="homeowners-refresh hod-primary"
@@ -984,7 +987,7 @@ useEffect(() => {
                       Edit Contact
                     </button>
                   )}
-                  {canManageHomeowners && (
+                  {canManageBalances && (
                     <>
                       <button type="button" onClick={() => setBalanceDialog(selectedProperty)}>
                         Add Balance
@@ -1215,7 +1218,7 @@ useEffect(() => {
                 <div className="homeowner-breakdown-modal-content">
                   <BalanceBreakdown
                     propertyId={selectedProperty.id}
-                    canManage={canManageHomeowners}
+                    canManage={canManageBalances}
                     refreshKey={breakdownKey}
                     onChanged={(message) => {
                       setNotice(message)
@@ -1475,7 +1478,7 @@ useEffect(() => {
           </form>
         </div>
       )}
-      {balanceDialog && (
+      {balanceDialog && canManageBalances && (
         <BalanceEntryDialog
           property={balanceDialog}
           currentUser={currentUser}
@@ -1492,6 +1495,7 @@ useEffect(() => {
         dialog={adminDialog}
         currentUser={currentUser}
         canManage={canManageHomeowners}
+        canManageBlocks={canManageBlocks}
         onClose={() => setAdminDialog(null)}
         onChanged={handleAdminChanged}
       />
@@ -1510,7 +1514,7 @@ useEffect(() => {
 // dialog: null | { type: 'blocks' } | { type: 'homeowner' | 'lot', property }
 // canManage: true only for Admin or Secretary
 // onChanged: called after a change the page should reload for; receives { message }
-function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChanged }) {
+function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks, onClose, onChanged }) {
   const confirm = useConfirm()
 
 
@@ -1614,7 +1618,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
     event.preventDefault()
 
     if (!canManage) {
-      setFormError('Only an Admin or Secretary can manage homeowners.')
+      setFormError('Only an Admin, Secretary, or Treasurer can manage homeowners.')
       return
     }
 
@@ -1713,7 +1717,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
   async function saveQuickBlock(event) {
     event.preventDefault()
 
-    if (!canManage) {
+    if (!canManageBlocks) {
       setQuickBlockError('Only an Admin or Secretary can add blocks.')
       return
     }
@@ -1760,7 +1764,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
   async function handleAddBlock(event) {
     event.preventDefault()
 
-    if (!canManage) {
+    if (!canManageBlocks) {
       setBlockError('Only an Admin or Secretary can add blocks.')
       return
     }
@@ -1956,7 +1960,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
             <div className="hod-row">
               <div>
                 <label htmlFor="hod-homeowner-block">Block</label>
-                <Select ariaLabel="Block" value={homeownerForm.blockName} onChange={(value) => updateHomeownerField({ target: { name: 'blockName', value } })} options={[{ value: '', label: 'Select block' }, ...blocks.map((block) => ({ value: block.name, label: block.name })), { value: ADD_BLOCK_OPTION, label: '+ Add Block' }]} />
+                <Select ariaLabel="Block" value={homeownerForm.blockName} onChange={(value) => updateHomeownerField({ target: { name: 'blockName', value } })} options={[{ value: '', label: 'Select block' }, ...blocks.map((block) => ({ value: block.name, label: block.name })), ...(canManageBlocks ? [{ value: ADD_BLOCK_OPTION, label: '+ Add Block' }] : [])]} />
               </div>
               <div>
                 <label htmlFor="hod-homeowner-lot">Lot number</label>
@@ -2014,7 +2018,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
         </div>
       )}
 
-      {dialogType === 'blocks' && canManage && (
+      {dialogType === 'blocks' && canManageBlocks && (
         <div
           className="hod-backdrop"
           onMouseDown={() => !savingBlock && !blockActionBusyId && onClose()}
@@ -2099,7 +2103,7 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, onClose, onChan
         </div>
       )}
 
-      {showQuickBlock && canManage && (
+      {showQuickBlock && canManageBlocks && (
         <div className="hod-backdrop" onMouseDown={closeQuickBlock}>
           <form
             className="hod-modal"

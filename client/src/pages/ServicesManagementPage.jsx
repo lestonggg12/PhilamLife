@@ -380,8 +380,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageServices = currentUser?.is_active !== false && role === 'secretary'
+  const canRecordServicePayments = currentUser?.is_active !== false && (role === 'secretary' || role === 'treasurer')
   const recorderName =
-    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Secretary'
+    currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
   useEffect(() => {
     loadPage()
@@ -700,7 +701,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     : ''
 
   function openPaymentForm(service = null) {
-    if (!canManageServices) return
+    if (!canRecordServicePayments) return
 
     const chosen = service || activeServices[0]
     setTransactionForm({
@@ -793,8 +794,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   async function saveTransaction(event) {
     event.preventDefault()
-    if (!canManageServices || !currentUser?.id) {
-      setPageError('Only a verified Secretary can record service payments.')
+    if (!canRecordServicePayments || !currentUser?.id) {
+      setPageError('Only an active Secretary or Treasurer can record service payments.')
       return
     }
 
@@ -881,7 +882,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   // --- Collecting the unpaid balance of a partial payment (creates a new, linked receipt) ---
   function openCollect(balanceRow) {
-    if (!canManageServices) return
+    if (!canRecordServicePayments) return
     setCollectTarget(balanceRow)
     setCollectForm({ ...emptyCollect, amount: String(toCents(balanceRow.balance_due)) })
     setCollectError('')
@@ -889,7 +890,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   async function collectBalance(event) {
     event.preventDefault()
-    if (!collectTarget || !canManageServices || !currentUser?.id) return
+    if (!collectTarget || !canRecordServicePayments || !currentUser?.id) return
 
     const amount = toCents(collectForm.amount)
     const remaining = toCents(collectTarget.balance_due)
@@ -973,8 +974,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             <RefreshCw size={17} />
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
-          {canManageServices && (
+          {canRecordServicePayments && (
             <>
+              {canManageServices && (
               <button
                 type="button"
                 className="services-button services-button-secondary"
@@ -982,6 +984,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
               >
                 <Plus size={17} /> Add Service
               </button>
+              )}
 
               <div className="services-calendar-wrap">
                 <button
@@ -1060,8 +1063,9 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       {pageError && <p className="services-error">{pageError}</p>}
       {!loading && !canManageServices && (
         <p className="services-notice">
-          You have view-only access. Service management and payment actions are
-          restricted to the Secretary.
+          {canRecordServicePayments
+            ? 'You may record service payments and collect unpaid balances. Service catalog editing remains Secretary-only.'
+            : 'Service payments may be recorded only by an active Secretary or Treasurer.'}
         </p>
       )}
 
@@ -1112,7 +1116,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   </small>
                 </div>
                 <strong className="svc-balance-amount">{peso.format(Number(row.balance_due) || 0)}</strong>
-                {canManageServices && (
+                {canRecordServicePayments && (
                   <button type="button" className="svc-balance-button" onClick={() => openCollect(row)}>
                     Collect balance
                   </button>
@@ -1154,11 +1158,13 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                   <strong>{peso.format(Number(service.rate) || 0)}</strong>
                   <span>{service.rate_unit}</span>
                 </div>
-                {canManageServices && (
+                {canRecordServicePayments && (
                   <div className="service-card-actions">
-                    <button type="button" onClick={() => openServiceForm(service)}>
-                      Edit
-                    </button>
+                    {canManageServices && (
+                      <button type="button" onClick={() => openServiceForm(service)}>
+                        Edit
+                      </button>
+                    )}
                     {service.is_active && (
                       <button type="button" onClick={() => openPaymentForm(service)}>
                         Record payment

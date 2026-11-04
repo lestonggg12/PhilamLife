@@ -122,7 +122,7 @@ export default function Sidebar({
       name: 'Services',
       path: '/secretary/services',
       icon: Zap,
-      roles: ['secretary'],
+      roles: ['secretary', 'treasurer'],
     },
     {
       name: 'Official Receipts',
