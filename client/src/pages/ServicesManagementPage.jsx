@@ -344,6 +344,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [bookingConfirmation, setBookingConfirmation] = useState(null)
+  const bookingConfirmationResolver = useRef(null)
   const [pageError, setPageError] = useState('')
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
@@ -383,6 +385,14 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const role = currentUser?.role?.trim().toLowerCase()
   const canManageServices = currentUser?.is_active !== false && role === 'secretary'
   const canRecordServicePayments = currentUser?.is_active !== false && (role === 'secretary' || role === 'treasurer')
+  useEffect(() => {
+    return () => {
+      if (bookingConfirmationResolver.current) {
+        bookingConfirmationResolver.current(false)
+        bookingConfirmationResolver.current = null
+      }
+    }
+  }, [])
   const recorderName =
     currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
 
@@ -790,6 +800,13 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
   }
 
+  function finishBookingConfirmation(accepted) {
+    const resolve = bookingConfirmationResolver.current
+    bookingConfirmationResolver.current = null
+    setBookingConfirmation(null)
+    if (resolve) resolve(accepted)
+  }
+
   async function saveTransaction(event) {
     event.preventDefault()
     if (!canRecordServicePayments || !currentUser?.id) {
@@ -878,12 +895,13 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
       }
 
       if (count > 0) {
-        const accepted = window.confirm(
-          `Add another renter to ${service.name}?\n\n` +
-          `${count} existing reservation(s) overlap your selected time.\n` +
-
-          'Continue and record the payment?'
-        )
+        const accepted = await new Promise((resolve) => {
+          bookingConfirmationResolver.current = resolve
+          setBookingConfirmation({
+            serviceName: service.name,
+            count,
+          })
+        })
         if (!accepted) return
       }
 
@@ -1501,6 +1519,19 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
       )}
 
+      <ActionDialog
+        open={Boolean(bookingConfirmation)}
+        title="Overlapping Reservation"
+        message={
+          bookingConfirmation
+            ? `${bookingConfirmation.count} existing reservation(s) overlap your selected time for ${bookingConfirmation.serviceName}.\n\nDo you want to continue and record this payment?`
+            : ''
+        }
+        confirmLabel="Continue & Record Payment"
+        cancelLabel="Cancel"
+        onConfirm={() => finishBookingConfirmation(true)}
+        onCancel={() => finishBookingConfirmation(false)}
+      />
       {collectTarget && (
         <div className="services-modal-backdrop" role="presentation">
           <form className="services-modal" onSubmit={collectBalance}>

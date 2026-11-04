@@ -20,8 +20,10 @@ describe('Unlimited shared amenity booking', () => {
   })
 
   it('requires confirmation for existing reservations', () => {
-    expect(source).toContain('window.confirm(')
+    expect(source).toContain('<ActionDialog')
+    expect(source).toContain('bookingConfirmationResolver.current = resolve')
     expect(source).toContain('if (!accepted) return')
+    expect(source).not.toContain('window.confirm(')
     expect(source).toContain('overlap_acknowledged_count: count')
   })
 

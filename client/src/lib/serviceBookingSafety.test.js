@@ -23,8 +23,11 @@ describe('Shared amenity booking safety', () => {
   })
 
   it('requires confirmation before recording overlapping payments', () => {
-    expect(serviceSource).toContain('window.confirm(')
+    expect(serviceSource).toContain('<ActionDialog')
+    expect(serviceSource).toContain('finishBookingConfirmation(true)')
+    expect(serviceSource).toContain('finishBookingConfirmation(false)')
     expect(serviceSource).toContain('if (!accepted) return')
+    expect(serviceSource).not.toContain('window.confirm(')
   })
 
   it('sends the acknowledged count to the database', () => {
