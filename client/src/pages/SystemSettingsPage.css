@@ -1,15 +1,20 @@
 /* ==========================================================================
-   System Settings — Liquid Glass
-   Same frosted-glass language as AdminDashboard.css / ActivityLogPage.css /
-   PaymentsPage.css / OverdueAccountsPage.css / DocumentLibraryPage.css:
-   translucent gradient fills, blur+saturate, soft top sheen, built on the
-   app's existing --primary/--success/--warning/--danger tokens.
+   System Settings: compact, solid-surface layout
+   CSS-only rewrite. Class names are unchanged, so SystemSettingsPage.jsx
+   needs no edits. Uses the app's existing --primary / --success / --danger
+   tokens; only the muted text and line colors are set locally for contrast.
    ========================================================================== */
 
 .ss-page {
+  --ss-muted: #4a627a;          /* >= 4.5:1 on white */
+  --ss-line: #d7e1ec;
+  --ss-soft: #f4f8fc;
+  --ss-shadow: 0 1px 2px rgba(15, 35, 60, 0.06);
+
   min-height: 100%;
-  padding: 22px;
-  padding-top: 22px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 22px 20px;
   box-sizing: border-box;
   color: var(--text-dark);
 }
@@ -18,109 +23,64 @@
   box-sizing: border-box;
 }
 
-/* ---------- Shared glass surface ---------- */
+/* ---------- Shared solid surface ---------- */
 
 .ss-card,
 .ss-export-feature,
 .ss-export-item,
 .ss-toggle-list,
-.ss-save-bar {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
-  -webkit-backdrop-filter: blur(22px) saturate(190%);
-  backdrop-filter: blur(22px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
-  position: relative;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.ss-card::before,
-.ss-export-feature::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 45%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 100%);
-  pointer-events: none;
-}
-
-.ss-card > *,
-.ss-export-feature > * {
-  position: relative;
-  z-index: 1;
+.ss-save-bar,
+.ss-header {
+  background: #fff;
+  border: 1px solid var(--ss-line);
+  box-shadow: var(--ss-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* ---------- Header ---------- */
 
 .ss-header {
-  position: relative;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 20px;
-  padding: 22px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 24px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
-  -webkit-backdrop-filter: blur(22px) saturate(190%);
-  backdrop-filter: blur(22px) saturate(190%);
-  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
-  overflow: hidden;
-}
-
-.ss-header::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto auto 0;
-  width: 100%;
-  height: 58%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 100%);
-  pointer-events: none;
-}
-
-.ss-header > * {
-  position: relative;
-  z-index: 1;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 12px;
 }
 
 .ss-header h1 {
-  margin: 0 0 5px;
+  margin: 0 0 2px;
   color: var(--text-dark);
-  font-size: 1.9rem;
-  letter-spacing: -0.02em;
   font-family: var(--font-display);
+  font-size: 1.5rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .ss-header p {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.91rem;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
 }
 
 .ss-admin-badge {
-  padding: 7px 13px;
+  padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: var(--ss-soft);
+  border: 1px solid var(--ss-line);
   color: var(--primary);
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  box-shadow: 0 10px 22px -12px rgba(15, 63, 106, 0.26);
 }
 
 /* ---------- Tabs ---------- */
 
 .ss-tabs {
   display: flex;
-  gap: 6px;
-  margin: 24px 0 20px;
-  border-bottom: 1px solid rgba(120, 162, 210, 0.25);
+  gap: 4px;
+  margin: 16px 0;
+  border-bottom: 1px solid var(--ss-line);
   overflow-x: auto;
 }
 
@@ -130,11 +90,11 @@
   gap: 8px;
   border: 0;
   border-bottom: 3px solid transparent;
-  padding: 11px 15px;
+  padding: 9px 14px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--ss-muted);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 650;
   white-space: nowrap;
   cursor: pointer;
@@ -142,7 +102,7 @@
 
 .ss-tabs button:hover {
   color: var(--primary);
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--ss-soft);
 }
 
 .ss-tabs button.active {
@@ -156,48 +116,52 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
   border: 1px solid;
-  border-radius: 12px;
-  font-size: 0.86rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
 }
 
 .ss-message.success {
-  border-color: rgba(26, 138, 96, 0.3);
+  border-color: rgba(26, 138, 96, 0.35);
   background: rgba(26, 138, 96, 0.1);
   color: var(--success);
 }
 
 .ss-message.error {
-  border-color: rgba(192, 57, 43, 0.3);
+  border-color: rgba(192, 57, 43, 0.35);
   background: rgba(192, 57, 43, 0.09);
   color: var(--danger);
 }
 
-/* ---------- Cards ---------- */
+/* ---------- Card grid ----------
+   DOM order: Organization, Dues rate, Penalty, Billing, Preferences.
+   `order` moves Penalty to the end so rows pair up with no empty gaps:
+   Organization | Dues rate  /  Billing | Preferences  /  Penalty (full width) */
 
 .ss-card-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
 }
 
-.ss-penalty-card {
-  grid-column: 1;
-  grid-row: 2 / span 2;
+.ss-card-grid > .ss-penalty-card {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  order: 1;
 }
 
-.ss-preferences-card {
-  grid-column: 2;
-  grid-row: 3;
+.ss-card-grid > .ss-preferences-card {
+  grid-column: auto;
+  grid-row: auto;
 }
 
 .ss-card {
   min-width: 0;
-  padding: 24px;
-  border-radius: 22px;
+  padding: 16px 20px;
+  border-radius: 12px;
 }
 
 .ss-card.full {
@@ -205,40 +169,54 @@
 }
 
 .ss-card-heading {
-  margin-bottom: 19px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(120, 162, 210, 0.2);
+  margin-bottom: 12px;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .ss-card-heading h2 {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   color: var(--text-dark);
-  font-size: 1.05rem;
   font-family: var(--font-display);
+  font-size: 1.0625rem;
   font-weight: 600;
 }
 
 .ss-card-heading p {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
+
+/* ---------- Fields ---------- */
 
 .ss-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 15px 16px;
+  gap: 12px;
+  align-content: start;
+}
+
+/* Exactly three plain fields (Billing configuration): one row of three */
+.ss-fields:has(> .ss-field:nth-child(3):last-child) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* System preferences has long select text, so keep it at two columns */
+.ss-preferences-card .ss-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .ss-field {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 7px;
+  justify-content: flex-end;   /* inputs align even if a label wraps */
+  gap: 4px;
   color: var(--text-dark);
-  font-size: 0.79rem;
-  font-weight: 650;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .ss-field.wide {
@@ -248,16 +226,15 @@
 .ss-field input,
 .ss-field select {
   width: 100%;
-  height: 42px;
-  padding: 0 13px;
-  box-sizing: border-box;
-  border: 1px solid rgba(120, 162, 210, 0.35);
-  border-radius: 11px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--ss-line);
+  border-radius: 8px;
   outline: 0;
-  background: rgba(255, 255, 255, 0.7);
+  background: #fff;
   color: var(--text-dark);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 400;
 }
 
@@ -267,11 +244,30 @@
   box-shadow: 0 0 0 3px rgba(20, 100, 160, 0.14);
 }
 
+/* ---------- Annual Penalty Rates (content comes from LatePenaltySettings) ---------- */
+
+.ss-penalty-card .ss-fields {
+  gap: 12px 16px;
+}
+
+/* the explanatory note spans the whole card instead of a narrow column */
+.ss-penalty-card .ss-fields > :first-child {
+  grid-column: 1 / -1;
+}
+
+/* readable helper text and notes inside the penalty card */
+.ss-penalty-card .ss-fields p,
+.ss-penalty-card .ss-fields small {
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
 /* ---------- Toggle ---------- */
 
 .ss-toggle-list {
   grid-column: 1 / -1;
-  border-radius: 16px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -280,8 +276,8 @@
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  padding: 15px 18px;
-  border-bottom: 1px solid rgba(120, 162, 210, 0.16);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ss-line);
 }
 
 .ss-toggle-row:last-child {
@@ -291,13 +287,13 @@
 .ss-toggle-row strong {
   display: block;
   color: var(--text-dark);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .ss-toggle-row p {
-  margin: 3px 0 0;
-  color: var(--text-muted);
-  font-size: 0.79rem;
+  margin: 2px 0 0;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
 }
 
 .ss-toggle-row > button {
@@ -308,7 +304,7 @@
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(120, 162, 210, 0.4);
+  background: #9db3c9;
   cursor: pointer;
   transition: background 0.18s;
 }
@@ -335,13 +331,13 @@
 
 .ss-info {
   grid-column: 1 / -1;
-  margin: 2px 0 0;
-  padding: 12px 15px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  color: var(--text-muted);
-  font-size: 0.78rem;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--ss-soft);
+  border: 1px solid var(--ss-line);
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 
@@ -349,20 +345,21 @@
 
 .ss-save-bar {
   position: sticky;
-  bottom: 14px;
+  bottom: 10px;
   z-index: 5;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  margin-top: 18px;
-  padding: 14px 18px;
-  border-radius: 16px;
+  margin-top: 16px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  box-shadow: 0 -1px 0 var(--ss-line), 0 6px 16px -8px rgba(15, 35, 60, 0.18);
 }
 
 .ss-save-bar span {
-  color: var(--text-muted);
-  font-size: 0.78rem;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
 }
 
 /* ---------- Buttons ---------- */
@@ -373,46 +370,45 @@
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  gap: 7px;
-  min-height: 40px;
+  gap: 6px;
+  min-height: 36px;
   padding: 0 16px;
-  border-radius: 11px;
+  border-radius: 8px;
   font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 650;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .ss-primary {
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--primary);
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 12px 24px -12px rgba(20, 100, 160, 0.55);
+  box-shadow: none;
 }
 
 .ss-primary:hover:not(:disabled) {
   background: var(--primary-dark);
-  transform: translateY(-1px);
 }
 
 .ss-secondary,
 .ss-export-item button {
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.55);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--ss-line);
+  background: #fff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   color: var(--primary-dark);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 4px 10px -4px rgba(15, 63, 106, 0.25);
+  box-shadow: none;
 }
 
 .ss-secondary:hover:not(:disabled),
 .ss-export-item button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ss-soft);
 }
 
 button:disabled {
-  opacity: 0.58;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -420,7 +416,7 @@ button:disabled {
 
 .ss-backup-layout {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .ss-export-feature {
@@ -428,13 +424,13 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 18px;
-  padding: 18px 20px;
-  border-radius: 18px;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
 }
 
 .ss-export-feature.compact {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.32));
+  background: var(--ss-soft);
 }
 
 .ss-export-feature > div {
@@ -446,27 +442,26 @@ button:disabled {
 .ss-export-icon {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 10px;
+  background: var(--ss-soft);
+  border: 1px solid var(--ss-line);
   color: var(--primary);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 .ss-export-feature strong,
 .ss-export-item strong {
   color: var(--text-dark);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .ss-export-feature p,
 .ss-export-item p {
-  margin: 3px 0 0;
-  color: var(--text-muted);
-  font-size: 0.77rem;
+  margin: 2px 0 0;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
 }
 
 .ss-export-grid {
@@ -480,15 +475,15 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 15px;
-  padding: 15px 16px;
-  border-radius: 15px;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
 }
 
 .ss-export-item button {
   flex-shrink: 0;
-  min-height: 36px;
-  padding: 0 13px;
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 /* ---------- Download history ---------- */
@@ -502,8 +497,8 @@ button:disabled {
   grid-template-columns: auto minmax(180px, 1fr) minmax(150px, auto);
   align-items: center;
   gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(120, 162, 210, 0.16);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ss-line);
 }
 
 .ss-history > div:last-child {
@@ -513,8 +508,8 @@ button:disabled {
 .ss-history-icon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: rgba(26, 138, 96, 0.14);
   color: var(--success);
@@ -522,19 +517,19 @@ button:disabled {
 
 .ss-history strong {
   color: var(--text-dark);
-  font-size: 0.83rem;
+  font-size: 0.875rem;
 }
 
 .ss-history p {
   margin: 2px 0 0;
-  color: var(--text-muted);
-  font-size: 0.74rem;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
 }
 
 .ss-history > div > span:last-child {
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.75rem;
+  color: var(--ss-muted);
+  font-size: 0.8125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -542,31 +537,31 @@ button:disabled {
 .ss-empty,
 .ss-loading {
   grid-column: 1 / -1;
-  padding: 38px;
-  border: 1px dashed rgba(120, 162, 210, 0.35);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.3);
-  color: var(--text-muted);
+  padding: 28px;
+  border: 1px dashed var(--ss-line);
+  border-radius: 10px;
+  background: var(--ss-soft);
+  color: var(--ss-muted);
   text-align: center;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
 }
 
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
   .ss-card-grid { grid-template-columns: 1fr; }
-  .ss-penalty-card,
-  .ss-preferences-card { grid-column: auto; grid-row: auto; }
+  .ss-card-grid > .ss-penalty-card { order: 0; }
   .ss-export-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
-  .ss-page { padding: 16px; }
-  .ss-header { flex-direction: column; gap: 10px; }
-  .ss-tabs { margin-top: 18px; }
-  .ss-tabs button { padding-inline: 11px; }
-  .ss-card { padding: 18px; }
-  .ss-fields { grid-template-columns: 1fr; }
+  .ss-page { padding: 12px; }
+  .ss-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ss-tabs button { padding-inline: 10px; }
+  .ss-card { padding: 14px; }
+  .ss-fields,
+  .ss-fields:has(> .ss-field:nth-child(3):last-child),
+  .ss-preferences-card .ss-fields { grid-template-columns: 1fr; }
   .ss-field.wide { grid-column: auto; }
   .ss-export-feature, .ss-export-item { align-items: stretch; flex-direction: column; }
   .ss-export-feature button, .ss-export-item button { width: 100%; }
@@ -574,4 +569,30 @@ button:disabled {
   .ss-history > div > span:last-child { grid-column: 2; }
   .ss-save-bar { align-items: stretch; flex-direction: column; }
   .ss-save-bar button { width: 100%; }
+}
+
+/* ---------- Print: readable black on white ---------- */
+
+@media print {
+  .ss-page { max-width: none; padding: 0; color: #000; }
+  .ss-tabs,
+  .ss-save-bar,
+  .ss-admin-badge,
+  .ss-page button { display: none !important; }
+  .ss-card,
+  .ss-header,
+  .ss-export-feature,
+  .ss-export-item,
+  .ss-toggle-list {
+    box-shadow: none;
+    background: #fff;
+    border: 1px solid #999;
+    break-inside: avoid;
+  }
+  .ss-card-grid { grid-template-columns: 1fr; }
+  .ss-card-grid > .ss-penalty-card { order: 0; }
+  .ss-card-heading p,
+  .ss-header p,
+  .ss-info,
+  .ss-penalty-card .ss-fields p { color: #000; font-size: 11pt; }
 }

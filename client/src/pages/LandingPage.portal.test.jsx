@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({ setPicker: vi.fn(), navigate: vi.fn() }))
 vi.mock('react', async (original) => {
   const actual = await original()
-  return { ...actual, useState: (initial) => [initial, state.setPicker] }
+
+  return {
+    ...actual,
+    useState: (initial) => [initial, state.setPicker],
+    useRef: (initial) => ({ current: initial }),
+    useEffect: () => {},
+  }
 })
 vi.mock('react-router-dom', () => ({ Link: 'a', useNavigate: () => state.navigate }))
 vi.mock('../context/OrganizationContext', () => ({ useOrganization: () => ({ organization: { hoaName: 'Fixture HOA' } }) }))
@@ -35,7 +41,7 @@ describe('Access Portal for an authenticated session', () => {
     const onAccessPortal = vi.fn(), tree = LandingPage({ onAccessPortal })
     function guide(node) {
       if (!node || typeof node !== 'object') return null
-      if (node.type === 'a' && node.props.children === 'Learn more →') return node
+      if (node.type === 'a' && node.props.className === 'lp-ghost-link') return node
       return React.Children.toArray(node.props?.children).map(guide).find(Boolean)
     }
     guide(tree).props.onClick({ preventDefault: vi.fn() })
