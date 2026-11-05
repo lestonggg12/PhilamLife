@@ -1338,7 +1338,7 @@ function selectHomeowner(property) {
 
     if (manualDiscount.value.trim() !== '' &&
         (!/^\d+(\.\d{1,2})?$/.test(manualDiscount.value) ||
-         manualDiscountAmount <= 0 ||
+         manualDiscountAmount < 0 ||
          manualDiscountAmount >= gross ||
          annualAdvance)) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
