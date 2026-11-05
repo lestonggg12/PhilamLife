@@ -1,6 +1,7 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
 import { supabase } from '../lib/supabaseClient'
@@ -399,6 +400,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [balancePopoverOpen, setBalancePopoverOpen] = useState(false)
+  const balancePopoverRef = useRef({ trigger: null, panel: null, position: null })
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -408,6 +411,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
   const [annualAdvancePrompt, setAnnualAdvancePrompt] = useState(false)
   const [annualAdvance, setAnnualAdvance] = useState(false)
+  const [changeHandling, setChangeHandling] = useState('advance')
   const [manualDiscount, setManualDiscount] = useState({
     enabled: false, chargeId: '', type: 'fixed',
     value: '', reason: '', approval: '',
@@ -449,6 +453,41 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const canManageCharges = role === 'admin' || role === 'secretary'
   const recorderName =
     currentUser?.full_name || currentUser?.name || currentUser?.email || 'Staff member'
+
+  // Presentation-only popover: retain the existing BalanceBreakdown data and posting callback.
+  // Position is captured only when opened, not recalculated during scrolling.
+  useEffect(() => { setBalancePopoverOpen(false) }, [form.propertyId, showForm])
+
+  useEffect(() => {
+    if (!balancePopoverOpen) return undefined
+    const outside = (event) => {
+      const { trigger, panel } = balancePopoverRef.current
+      if (!trigger?.contains(event.target) && !panel?.contains(event.target)) {
+        setBalancePopoverOpen(false)
+      }
+    }
+    const focusOutside = (event) => {
+      const { trigger, panel } = balancePopoverRef.current
+      if (!trigger?.contains(event.target) && !panel?.contains(event.target)) {
+        setBalancePopoverOpen(false)
+      }
+    }
+    const escapePopover = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation?.()
+      setBalancePopoverOpen(false)
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('focusin', focusOutside)
+    document.addEventListener('keydown', escapePopover, true)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('focusin', focusOutside)
+      document.removeEventListener('keydown', escapePopover, true)
+    }
+  }, [balancePopoverOpen])
 
   useEffect(() => {
     loadPage()
@@ -690,11 +729,25 @@ const canOfferAnnualDiscount =
     !annualAdvance && /^\d+(\.\d{1,2})?$/.test(manualDiscount.value)
       ? Number(manualDiscount.value)
       : 0
+  // Payment Amount is the face value before optional discount. If the staff
+  // returns change, only the amount actually retained is posted as payment.
+  const paymentFaceAmount = Math.round((Number(form.amountPaid) || 0) * 100) / 100
+  const cashTendered = Math.round((paymentFaceAmount - manualDiscountAmount) * 100) / 100
+  const balanceDue = Math.round((Number(form.previousBalance) || 0) * 100) / 100
+  const canChooseChange = Boolean(form.propertyId) && !annualAdvance &&
+    form.paymentMethod === 'Cash' && isBalanceReducingPayment &&
+    balanceDue > 0 && manualDiscountAmount < balanceDue &&
+    paymentFaceAmount > balanceDue && cashTendered > 0
+  const excessAmount = canChooseChange
+    ? Math.round((paymentFaceAmount - balanceDue) * 100) / 100
+    : 0
+  const changeAmount = canChooseChange && changeHandling === 'change' ? excessAmount : 0
+
   const remainingBalance = useMemo(() => {
   const previous = Number(form.previousBalance) || 0
   const paid = annualAdvance
     ? annualDiscountedPayment
-    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - manualDiscountAmount
+    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - manualDiscountAmount - changeAmount
 
   const effect =
     annualAdvance || isBalanceReducingPayment || purposeType !== 'Other'
@@ -712,6 +765,7 @@ const canOfferAnnualDiscount =
   purposeType,
   openOfType,
   manualDiscountAmount,
+  changeAmount,
 ])
 
   // ---- Paged payment history -------------------------------------------------
@@ -920,6 +974,7 @@ function updateField(event) {
 }
 
 function chooseAnnualAdvance(enabled) {
+  setChangeHandling('advance')
   setAnnualAdvancePrompt(false)
   setAnnualAdvance(enabled)
   setForm((current) => ({
@@ -999,6 +1054,9 @@ function selectHomeowner(property) {
 
   function openForm() {
     if (!canManagePayments) return
+    setChangeHandling('advance')
+    setManualDiscount({ enabled: false, chargeId: '', type: 'fixed', value: '', reason: '', approval: '' })
+    discountAttemptRef.current = null
     paymentAttemptRef.current = null
     setPaymentSubmissionKey(crypto.randomUUID())
     setForm(EMPTY_FORM)
@@ -1011,6 +1069,7 @@ function selectHomeowner(property) {
 
   function closeForm() {
     if (saving) return
+    setChangeHandling('advance')
     setAnnualAdvancePrompt(false)
     setAnnualAdvance(false)
     setShowForm(false)
@@ -1271,7 +1330,11 @@ function selectHomeowner(property) {
     const gross = Number(form.amountPaid)
     const paid = annualAdvance
       ? gross
-      : Math.round((gross - manualDiscountAmount) * 100) / 100
+      : Math.round((gross - manualDiscountAmount - changeAmount) * 100) / 100
+    if (changeHandling === 'change' && !canChooseChange) {
+      setFormError('The balance or payment details changed. Recheck the change or choose advance credit.')
+      return
+    }
     const reference = form.referenceNumber.trim()
     const selectedPurpose =
       form.paymentPurpose === 'Other'
@@ -1317,7 +1380,7 @@ function selectHomeowner(property) {
 }
 
     const advance = paymentAdvanceConfirmation({
-      purpose: form.paymentPurpose, paid, previous, openOfType, annualAdvance,
+      purpose: form.paymentPurpose, paid: paid + manualDiscountAmount, previous, openOfType, annualAdvance,
     })
     if (advance && !advanceApproved) {
       setAdvanceConfirm(advance)
@@ -1335,7 +1398,7 @@ function selectHomeowner(property) {
 
     if (manualDiscount.value.trim() !== '' &&
         (!/^\d+(\.\d{1,2})?$/.test(manualDiscount.value) ||
-         manualDiscountAmount <= 0 ||
+         manualDiscountAmount < 0 ||
          manualDiscountAmount >= gross ||
          annualAdvance)) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
@@ -1361,7 +1424,9 @@ function selectHomeowner(property) {
   amount: annualAdvance ? annualGross : paid,
   amount_paid: paid,
 
-  receipt_breakdown: annualAdvance
+  receipt_breakdown: changeAmount > 0
+    ? { returned_change: { cash_tendered: cashTendered, change_amount: changeAmount, gross_before_discount: balanceDue, discount_amount: manualDiscountAmount } }
+    : annualAdvance
     ? {
         annual_advance_discount: {
           months_covered: 12,
@@ -1402,7 +1467,21 @@ function selectHomeowner(property) {
       if (!data) {
         paymentAttemptRef.current = paymentIntent
         let result
-        if (manualDiscount.enabled) {
+        if (changeAmount > 0) {
+          const response = await supabase.rpc('record_payment_with_returned_change', {
+            p_property_id: Number(form.propertyId),
+            p_original_amount: gross,
+            p_discount_amount: manualDiscountAmount,
+            p_change_amount: changeAmount,
+            p_charge_type: payload.charge_type,
+            p_coverage_period: payload.coverage_period,
+            p_payment_method: form.paymentMethod,
+            p_reference_number: reference || null,
+            p_note: payload.note,
+            p_submission_key: paymentSubmissionKey,
+          })
+          result = { data: response.data?.payment || null, error: response.error }
+        } else if (manualDiscount.enabled) {
           const response = await supabase.rpc('record_payment_with_optional_discount', {
             p_property_id: Number(form.propertyId),
             p_gross_amount: gross,
@@ -1434,7 +1513,7 @@ function selectHomeowner(property) {
         .eq('payment_id', data.id).single()
 
       if (auditError || !audit ||
-          Number(audit.gross_amount) !== gross ||
+          Number(audit.gross_amount) !== Math.round((gross - changeAmount) * 100) / 100 ||
           Number(audit.discount_amount) !== manualDiscountAmount ||
           Number(audit.cash_received) !== paid) {
         throw new Error('Discount journal could not be verified. Review payment history before retrying.')
@@ -1460,6 +1539,7 @@ function selectHomeowner(property) {
       value: '', reason: '', approval: '',
     })
     discountAttemptRef.current = null
+    setChangeHandling('advance')
     setReceipt(data)
     paymentAttemptRef.current = null
     setPaymentSubmissionKey(null)
@@ -1730,222 +1810,228 @@ function selectHomeowner(property) {
 
       {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
-          <form className="payment-form" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off" inert={saving ? "inert" : undefined} aria-busy={saving}>
+          <form className="payment-form payment-form--record" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off" inert={saving ? "inert" : undefined} aria-busy={saving}>
             <div className="payment-modal-heading">
               <div>
                 <h2>Record Payment</h2>
-                <p>Check every value before saving. Saved receipts should not be edited casually.</p>
+                <p>Check payment details before saving the receipt.</p>
               </div>
-              <button type="button" className="payments-close" onClick={closeForm}>×</button>
+              <button type="button" className="payments-close" onClick={closeForm} aria-label="Close">×</button>
             </div>
 
-            <div className="payment-form-grid">
-              <div className="payment-homeowner-field payment-span-2">
-                <label htmlFor="payment-homeowner-search">Homeowner full name</label>
-                <div className="payment-homeowner-combobox">
-                  <input
-                    id="payment-homeowner-search"
-                    name="homeownerName"
-                    type="search"
-                    value={form.homeownerName}
-                    onChange={updateHomeownerSearch}
-                    onFocus={() => setHomeownerMenuOpen(true)}
-                    onBlur={() => window.setTimeout(() => setHomeownerMenuOpen(false), 120)}
-                    placeholder="Search homeowner name, block, or lot..."
-                    maxLength="120"
-                    autoComplete="off"
-                    role="combobox"
-                    aria-expanded={homeownerMenuOpen}
-                    aria-controls="payment-homeowner-options"
-                    required
-                  />
-
-                  {homeownerMenuOpen && (
-                    <div className="payment-homeowner-options" id="payment-homeowner-options" role="listbox">
-                      {loading ? (
-                        <div className="payment-homeowner-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="38px" /><Skeleton variant="rect" width="100%" height="38px" /><span className="skeleton-region-status" role="status">Loading</span></div>
-                      ) : matchingHomeowners.length === 0 ? (
-                        <p className="payment-homeowner-empty">No matching homeowner found in the ledger.</p>
-                      ) : (
-                        matchingHomeowners.map((property) => (
-                          <button
-                            type="button"
-                            className={`payment-homeowner-option ${
-                              String(property.id) === form.propertyId ? 'is-selected' : ''
-                            }`}
-                            key={property.id}
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => selectHomeowner(property)}
-                            role="option"
-                            aria-selected={String(property.id) === form.propertyId}
-                          >
-                            <span>{property.homeowner_name} — {property.block}, Lot {property.lot_number}</span>
-                          </button>
-                        ))
+            <div className="payment-form-grid payment-record-body">
+              <section className="payment-record-details" aria-labelledby="payment-details-title">
+                <h3 className="payment-record-section-label" id="payment-details-title">Details</h3>
+                <div className="payment-record-fields">
+                  <div className="payment-homeowner-field">
+                    <label htmlFor="payment-homeowner-search">Homeowner full name</label>
+                    <div className="payment-homeowner-combobox">
+                      <input
+                        id="payment-homeowner-search"
+                        name="homeownerName"
+                        type="search"
+                        value={form.homeownerName}
+                        onChange={updateHomeownerSearch}
+                        onFocus={() => setHomeownerMenuOpen(true)}
+                        onBlur={() => window.setTimeout(() => setHomeownerMenuOpen(false), 120)}
+                        placeholder="Search homeowner name, block, or lot..."
+                        maxLength="120"
+                        autoComplete="off"
+                        role="combobox"
+                        aria-expanded={homeownerMenuOpen}
+                        aria-controls="payment-homeowner-options"
+                        required
+                      />
+                      {homeownerMenuOpen && (
+                        <div className="payment-homeowner-options" id="payment-homeowner-options" role="listbox">
+                          {loading ? (
+                            <div className="payment-homeowner-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="38px" /><Skeleton variant="rect" width="100%" height="38px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+                          ) : matchingHomeowners.length === 0 ? (
+                            <p className="payment-homeowner-empty">No matching homeowner found in the ledger.</p>
+                          ) : (
+                            matchingHomeowners.map((property) => (
+                              <button
+                                type="button"
+                                className={`payment-homeowner-option ${
+                                  String(property.id) === form.propertyId ? 'is-selected' : ''
+                                }`}
+                                key={property.id}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectHomeowner(property)}
+                                role="option"
+                                aria-selected={String(property.id) === form.propertyId}
+                              >
+                                <span>{property.homeowner_name} — {property.block}, Lot {property.lot_number}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
                       )}
                     </div>
+                  </div>
+                  <div className="payment-record-pair">
+                    <label htmlFor="payment-block">Block
+                      <input id="payment-block" name="blockName" value={form.blockName} placeholder="Filled from ledger" readOnly required />
+                    </label>
+                    <label htmlFor="payment-lot">Lot number
+                      <input id="payment-lot" name="lotNumber" value={form.lotNumber} placeholder="Filled from ledger" readOnly required />
+                    </label>
+                  </div>
+                  <div className="payment-record-field payment-purpose-field">
+                    <label id="payment-purpose-label">Payment Purpose</label>
+                    <div className="payment-purpose-select-wrap" aria-labelledby="payment-purpose-label">
+                      <Select ariaLabel="Payment Purpose" value={form.paymentPurpose} onChange={(value) => updateField({ target: { name: 'paymentPurpose', value } })} placeholder="Select payment purpose" options={PAYMENT_PURPOSES.map((purpose) => ({ value: purpose, label: purpose }))} />
+                    </div>
+                  </div>
+                  {form.paymentPurpose === 'Other' && (
+                    <label htmlFor="payment-other-purpose">Other payment purpose
+                      <input id="payment-other-purpose" name="customPaymentPurpose" value={form.customPaymentPurpose} onChange={updateField} placeholder="Enter the payment purpose" maxLength="80" required />
+                    </label>
+                  )}
+                  <label htmlFor="payment-period">Coverage Period / Payment Details
+                    <input id="payment-period" name="coveragePeriod" value={form.coveragePeriod} onChange={updateField} placeholder="e.g., July 2026 or Homeowner ID renewal" maxLength="120" required />
+                  </label>
+                </div>
+              </section>
+
+              <section className="payment-record-payment" aria-labelledby="payment-payment-title">
+                <h3 className="payment-record-section-label" id="payment-payment-title">Payment</h3>
+                <div className="payment-record-fields">
+                  <label htmlFor="payment-amount">{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount'}
+                    <input id="payment-amount" name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} readOnly={annualAdvance} required />
+                  </label>
+                  <label htmlFor="payment-simple-discount">Discount (₱) — optional
+                    <input id="payment-simple-discount" type="number" min="0" step="0.01" placeholder="0.00" value={manualDiscount.value} disabled={saving || annualAdvance}
+                      onChange={(event) => setManualDiscount((d) => ({ ...d, value: event.target.value, enabled: Number(event.target.value) > 0, type: 'fixed' }))} />
+                  </label>
+                  <div className="payment-record-field">
+                    <label id="payment-method-label">Payment Method</label>
+                    <div aria-labelledby="payment-method-label">
+                      <Select ariaLabel="Payment Method" value={form.paymentMethod} onChange={(value) => updateField({ target: { name: 'paymentMethod', value } })} options={['Cash', 'GCash', 'Bank Transfer', 'Check'].map((value) => ({ value, label: value }))} />
+                    </div>
+                  </div>
+                  <label htmlFor="payment-reference">Reference Number {form.paymentMethod !== 'Cash' && '*'}
+                    <input id="payment-reference" name="referenceNumber" value={form.referenceNumber} onChange={updateField} maxLength="100" required={form.paymentMethod !== 'Cash'} />
+                  </label>
+                </div>
+
+                <div className="payment-record-summary" aria-live="polite" aria-label="Payment summary">
+                  <div className="payment-record-summary-row">
+                    <div className="payment-balance-anchor" ref={(node) => { balancePopoverRef.current.trigger = node }}>
+                      <span>Total due</span>
+                      {form.propertyId && (
+                        <button
+                          type="button"
+                          className={`payment-balance-trigger${balancePopoverOpen ? ' is-open' : ''}`}
+                          aria-expanded={balancePopoverOpen}
+                          aria-controls="payment-balance-popover"
+                          aria-haspopup="dialog"
+                          onClick={(event) => {
+                            if (balancePopoverOpen) {
+                              setBalancePopoverOpen(false)
+                              return
+                            }
+                            const rect = event.currentTarget.getBoundingClientRect()
+                            const panelWidth = Math.min(280, window.innerWidth - 48)
+                            const upward = rect.top >= 260 || rect.top > window.innerHeight - rect.bottom
+                            balancePopoverRef.current.position = {
+                              left: Math.max(16, Math.min(rect.left, window.innerWidth - panelWidth - 16)),
+                              width: panelWidth,
+                              ...(upward
+                                ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.max(80, rect.top - 24) }
+                                : { top: rect.bottom + 8, maxHeight: Math.max(80, window.innerHeight - rect.bottom - 24) }),
+                            }
+                            setBalancePopoverOpen(true)
+                          }}
+                        >
+                          Balance breakdown
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                        </button>
+                      )}
+                    </div>
+                    <strong>{peso.format(Math.max(0, balanceDue))}</strong>
+                  </div>
+                  {manualDiscountAmount > 0 && !annualAdvance && (
+                    <div className="payment-record-summary-row">
+                      <span>Discount</span>
+                      <strong>{`− ${peso.format(manualDiscountAmount)}`}</strong>
+                    </div>
+                  )}
+                  <div className="payment-record-summary-row payment-record-summary-emphasis">
+                    <span>Balance after discount</span>
+                    <strong>{peso.format(Math.max(0, balanceDue - manualDiscountAmount))}</strong>
+                  </div>
+                  <div className="payment-record-summary-row">
+                    <span>Cash received</span>
+                    <strong>{peso.format(Math.max(0, cashTendered - changeAmount))}</strong>
+                  </div>
+                  {canChooseChange && (
+                    <div className="payment-record-summary-row">
+                      <span>{changeHandling === 'change' ? 'Change to return' : 'Advance credit'}</span>
+                      <strong>{changeHandling === 'change' ? `− ${peso.format(excessAmount)}` : peso.format(excessAmount)}</strong>
+                    </div>
+                  )}
+                  {annualAdvance && <p className="payment-record-hint">12-month advance payment includes one month free.</p>}
+                  {form.propertyId && createPortal(
+                    <div
+                      id="payment-balance-popover"
+                      ref={(node) => { balancePopoverRef.current.panel = node }}
+                      className={`payment-balance-popover${balancePopoverOpen ? ' is-open' : ''}`}
+                      role="dialog"
+                      aria-label="Balance breakdown"
+                      aria-hidden={!balancePopoverOpen}
+                      inert={!balancePopoverOpen}
+                      style={balancePopoverRef.current.position || undefined}
+                      onMouseDown={(event) => event.stopPropagation()}
+                    >
+                      <h3 className="payment-balance-popover-heading">Balance breakdown</h3>
+                      <BalanceBreakdown propertyId={form.propertyId} postDue compact onPosted={handlePenaltiesPosted} />
+                      <div className="payment-balance-popover-total">
+                        <span>Total due</span>
+                        <strong>{peso.format(Math.max(0, balanceDue))}</strong>
+                      </div>
+                    </div>,
+                    document.body,
                   )}
                 </div>
-                <small className="payment-homeowner-help">
-                  Select a homeowner from the ledger to fill the property details.
-                </small>
-              </div>
+              </section>
 
-              <label>Block
-                <input
-                  name="blockName"
-                  value={form.blockName}
-                  placeholder="Filled from ledger"
-                  readOnly
-                  required
-                />
-              </label>
-
-              <label>Lot number
-                <input
-                  name="lotNumber"
-                  value={form.lotNumber}
-                  placeholder="Filled from ledger"
-                  readOnly
-                  required
-                />
-              </label>
-
-              <label className="payment-purpose-field payment-span-2">
-                Payment Purpose
-                <div className="payment-purpose-select-wrap">
-                  <Select ariaLabel="Payment Purpose" value={form.paymentPurpose} onChange={(value) => updateField({ target: { name: 'paymentPurpose', value } })} placeholder="Select payment purpose" options={PAYMENT_PURPOSES.map((purpose) => ({ value: purpose, label: purpose }))} />
-                </div>
-              </label>
-
-              {form.paymentPurpose === 'Other' && (
-                <label className="payment-span-2">Other payment purpose
-                  <input
-                    name="customPaymentPurpose"
-                    value={form.customPaymentPurpose}
-                    onChange={updateField}
-                    placeholder="Enter the payment purpose"
-                    maxLength="80"
-                    required
-                  />
-                </label>
+              {canChooseChange && (
+                <fieldset className="payment-change-choice payment-record-wide">
+                  <legend>{`Handle the ${peso.format(excessAmount)} excess`}</legend>
+                  <div className="payment-record-radio-cards">
+                    <label className={changeHandling === 'change' ? 'is-selected' : ''}>
+                      <input type="radio" name="changeHandling" value="change" checked={changeHandling === 'change'} disabled={saving} onChange={() => setChangeHandling('change')} />
+                      <span><strong>Return as change</strong><small>Return {peso.format(excessAmount)}. Record {peso.format(cashTendered - excessAmount)} as cash received.</small></span>
+                    </label>
+                    <label className={changeHandling === 'advance' ? 'is-selected' : ''}>
+                      <input type="radio" name="changeHandling" value="advance" checked={changeHandling === 'advance'} disabled={saving} onChange={() => setChangeHandling('advance')} />
+                      <span><strong>Save as advance credit</strong><small>Keep the full {peso.format(cashTendered)} cash payment. The excess is available for future charges.</small></span>
+                    </label>
+                  </div>
+                </fieldset>
               )}
 
-              <label className="payment-span-2">Coverage Period / Payment Details
-                <input
-                  name="coveragePeriod"
-                  value={form.coveragePeriod}
-                  onChange={updateField}
-                  placeholder="e.g., July 2026 or Homeowner ID renewal"
-                  maxLength="120"
-                  required
-                />
-              </label>
-
-              {form.propertyId && (
-                <div className="payment-span-2">
-                  <BalanceBreakdown propertyId={form.propertyId} postDue compact onPosted={handlePenaltiesPosted} />
-                </div>
+              {canChooseChange && changeHandling === 'advance' && remainingBalance < 0 && !annualAdvance && (
+                <p className="payment-record-advance-note payment-record-wide" role="status">
+                  {advanceCreditNote(-remainingBalance, duesSettingsFor(form.propertyId))}
+                </p>
               )}
-
-              <label>Current Balance
-                <input
-                  name="previousBalance"
-                  type="text"
-                  value={form.propertyId ? formatBalance(Number(form.previousBalance) || 0) : ''}
-                  placeholder="Select a homeowner first"
-                  disabled
-                  readOnly
-                />
+              <label className="payment-record-note payment-record-wide" htmlFor="payment-note">Note (Optional)
+                <textarea id="payment-note" name="note" value={form.note} onChange={updateField} maxLength="250" rows="2" />
               </label>
-
-              <label>{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount'}
-  <input
-    name="amountPaid"
-    type="number"
-    min="0.01"
-    step="0.01"
-    value={form.amountPaid}
-    onChange={updateField}
-    readOnly={annualAdvance}
-    required
-  />
-</label>
-
-              <div className="payment-manual-discount payment-span-2">
-  <label htmlFor="payment-simple-discount">Discount (₱) — optional</label>
-  <input id="payment-simple-discount"
-    type="number" min="0" step="0.01" placeholder="0.00"
-    value={manualDiscount.value}
-    disabled={saving || annualAdvance}
-    onChange={(event) => setManualDiscount((d) => ({
-      ...d,
-      value: event.target.value,
-      enabled: Number(event.target.value) > 0,
-      type: 'fixed',
-    }))} />
-  <div className="payment-simple-total">
-    <span>Amount to collect</span>
-    <strong>{peso.format(Math.max(0,
-      (Number(form.amountPaid) || 0) - manualDiscountAmount))}</strong>
-  </div>
-  {annualAdvance && <small>
-    One month free is already included in this 12-month advance payment.
-  </small>}
-</div>
-<div className="payment-balance-preview payment-span-2">
-                <span>{remainingBalance < 0 ? 'Advance credit after payment' : 'Remaining balance after payment'}</span>
-                <strong>{formatBalance(remainingBalance)}</strong>
-              </div>
-
-              {form.propertyId && isBalanceReducingPayment && remainingBalance < 0 && !annualAdvance && (
-                <div className="payment-credit-note payment-span-2" role="status">
-                  <strong>Advance payment</strong>
-                  <span>{advanceCreditNote(-remainingBalance, duesSettingsFor(form.propertyId))}</span>
-                </div>
-              )}
-
-              {form.propertyId && !isBalanceReducingPayment && Number(form.amountPaid) > 0 && (
-                <div className="payment-credit-note payment-span-2" role="status">
-                  <strong>{purposeType}</strong>
-                  <span>
-                    {purposeType !== 'Other'
-                      ? (openOfType > 0
-                        ? `This homeowner has an open ${purposeType} charge of ${peso.format(openOfType)}. ${Number(form.amountPaid) > openOfType ? `The extra ${peso.format(Number(form.amountPaid) - openOfType)} will be saved as advance credit.` : 'The full amount will be applied to it.'}`
-                        : `No open ${purposeType} charge for this homeowner. The full amount will be saved as advance credit.`)
-                      : (openOfType > 0
-                        ? `This homeowner has an open ${purposeType} charge of ${peso.format(openOfType)}. ${peso.format(Math.min(Number(form.amountPaid) || 0, openOfType))} of this payment will be applied to it${Number(form.amountPaid) > openOfType ? `; the extra ${peso.format(Number(form.amountPaid) - openOfType)} is recorded as a one-time fee.` : '.'}`
-                        : `No open ${purposeType} charge for this homeowner. This is recorded as a one-time fee and does not change their dues balance.`)}
-                  </span>
-                </div>
-              )}
-
-              {form.propertyId && !isBalanceReducingPayment && Number(form.previousBalance) < 0 && (
-                <div className="payment-credit-note payment-span-2" role="status">
-                  <strong>Advance credit on file</strong>
-                  <span>
-                    This homeowner has {peso.format(-Number(form.previousBalance))} of credit, and new charges are deducted from it automatically.
-                    Collect this fee in cash only if the homeowner wants to pay it separately.
-                  </span>
-                </div>
-              )}
-
-              <label>Payment Method
-                <Select ariaLabel="Payment Method" value={form.paymentMethod} onChange={(value) => updateField({ target: { name: 'paymentMethod', value } })} options={['Cash', 'GCash', 'Bank Transfer', 'Check'].map((value) => ({ value, label: value }))} />
-              </label>
-
-              <label>Reference Number {form.paymentMethod !== 'Cash' && '*'}
-                <input name="referenceNumber" value={form.referenceNumber} onChange={updateField} maxLength="100" required={form.paymentMethod !== 'Cash'} />
-              </label>
-
-              <label className="payment-span-2">Note (Optional)
-                <textarea name="note" value={form.note} onChange={updateField} maxLength="250" rows="3" />
-              </label>
+              {formError && <p className="payments-error payment-record-wide" role="alert">{formError}</p>}
             </div>
 
-            {formError && <p className="payments-error">{formError}</p>}
-
             <div className="payment-actions">
+              {(!form.propertyId || !form.homeownerName.trim() || !form.blockName || !form.lotNumber.trim() ||
+                !form.paymentPurpose || (form.paymentPurpose === 'Other' && !form.customPaymentPurpose.trim()) ||
+                !form.coveragePeriod.trim() || !(Number(form.amountPaid) > 0) ||
+                (form.paymentMethod !== 'Cash' && !form.referenceNumber.trim())) && (
+                <p className="payment-required-warning" role="status">
+                  Complete all required fields before saving or creating a receipt.
+                </p>
+              )}
               <button type="button" className="payments-secondary" onClick={closeForm} disabled={saving}>Cancel</button>
               <button type="submit" className="payments-primary" disabled={saving}>{saving ? 'Saving...' : 'Save and Create Receipt'}</button>
             </div>
