@@ -408,6 +408,12 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
   const [annualAdvancePrompt, setAnnualAdvancePrompt] = useState(false)
   const [annualAdvance, setAnnualAdvance] = useState(false)
+  const [manualDiscount, setManualDiscount] = useState({
+    enabled: false, chargeId: '', type: 'fixed',
+    value: '', reason: '', approval: '',
+  })
+  const discountAttemptRef = useRef(null)
+
   const [monthlyDuesByProperty, setMonthlyDuesByProperty] = useState(new Map())
   // Advance-credit notes use the selected homeowner's own monthly dues (lot size x rate).
   const duesSettingsFor = (propertyId) => (duesSettings
@@ -680,26 +686,32 @@ const canOfferAnnualDiscount =
   Number(form.previousBalance) <= 0
 
 
+  const manualDiscountAmount =
+    !annualAdvance && /^\d+(\.\d{1,2})?$/.test(manualDiscount.value)
+      ? Number(manualDiscount.value)
+      : 0
   const remainingBalance = useMemo(() => {
   const previous = Number(form.previousBalance) || 0
   const paid = annualAdvance
-      ? annualDiscountedPayment
-    : Math.round((Number(form.amountPaid) || 0) * 100) / 100
+    ? annualDiscountedPayment
+    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - manualDiscountAmount
 
   const effect =
     annualAdvance || isBalanceReducingPayment || purposeType !== 'Other'
       ? paid
       : Math.min(paid, openOfType)
 
-  return Math.round((previous - effect) * 100) / 100
+  return Math.round((previous - effect - manualDiscountAmount - (annualAdvance ? annualDiscount : 0)) * 100) / 100
 }, [
   form.previousBalance,
   form.amountPaid,
   annualAdvance,
   annualDiscountedPayment,
+  annualDiscount,
   isBalanceReducingPayment,
   purposeType,
   openOfType,
+  manualDiscountAmount,
 ])
 
   // ---- Paged payment history -------------------------------------------------
@@ -910,6 +922,9 @@ function updateField(event) {
 function chooseAnnualAdvance(enabled) {
   setAnnualAdvancePrompt(false)
   setAnnualAdvance(enabled)
+  setManualDiscount((d) => ({
+    ...d, enabled: false, value: '', type: 'fixed',
+  }))
   setForm((current) => ({
     ...current,
     amountPaid: enabled ? annualDiscountedPayment.toFixed(2) : '',
@@ -1256,7 +1271,10 @@ function selectHomeowner(property) {
     }
 
     const previous = Number(form.previousBalance)
-    const paid = Number(form.amountPaid)
+    const gross = Number(form.amountPaid)
+    const paid = annualAdvance
+      ? gross
+      : Math.round((gross - manualDiscountAmount) * 100) / 100
     const reference = form.referenceNumber.trim()
     const selectedPurpose =
       form.paymentPurpose === 'Other'
@@ -1318,6 +1336,14 @@ function selectHomeowner(property) {
       return
     }
 
+    if (manualDiscount.value.trim() !== '' &&
+        (!/^\d+(\.\d{1,2})?$/.test(manualDiscount.value) ||
+         manualDiscountAmount <= 0 ||
+         manualDiscountAmount >= gross ||
+         annualAdvance)) {
+      setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
+      return
+    }
     paymentSubmitRef.current = true
     setSaving(true)
     setFormError('')
@@ -1358,6 +1384,12 @@ function selectHomeowner(property) {
 
     try {
       const paymentIntent = financialSubmissionIntent('payment', payload)
+      const discountFingerprint = JSON.stringify(manualDiscount)
+      if (paymentAttemptRef.current &&
+          discountAttemptRef.current !== discountFingerprint) {
+        throw new Error('Discount details changed after a submission attempt. Review history first.')
+      }
+      if (!paymentAttemptRef.current) discountAttemptRef.current = discountFingerprint
       requireUnchangedFinancialAttempt(paymentAttemptRef.current, paymentIntent)
       let data = null
 
@@ -1372,7 +1404,23 @@ function selectHomeowner(property) {
 
       if (!data) {
         paymentAttemptRef.current = paymentIntent
-        let result = await supabase.from('payments').insert(payload).select('*').single()
+        let result
+        if (manualDiscount.enabled) {
+          const response = await supabase.rpc('record_payment_with_optional_discount', {
+            p_property_id: Number(form.propertyId),
+            p_gross_amount: gross,
+            p_discount_amount: manualDiscountAmount,
+            p_charge_type: payload.charge_type,
+            p_coverage_period: payload.coverage_period,
+            p_payment_method: form.paymentMethod,
+            p_reference_number: reference || null,
+            p_note: payload.note,
+            p_submission_key: paymentSubmissionKey,
+          })
+          result = { data: response.data?.payment || null, error: response.error }
+        } else {
+          result = await supabase.from('payments').insert(payload).select('*').single()
+        }
         if (result.error) {
           const previous = await supabase.from('payments').select('*')
             .eq('submission_key', paymentSubmissionKey).maybeSingle()
@@ -1383,6 +1431,26 @@ function selectHomeowner(property) {
         data = assertFinancialSubmissionMatches(paymentAttemptRef.current, result.data)
       }
 
+    if (manualDiscount.enabled) {
+      const { data: audit, error: auditError } = await supabase
+        .from('manual_payment_discounts').select('*')
+        .eq('payment_id', data.id).single()
+
+      if (auditError || !audit ||
+          Number(audit.gross_amount) !== gross ||
+          Number(audit.discount_amount) !== manualDiscountAmount ||
+          Number(audit.cash_received) !== paid) {
+        throw new Error('Discount journal could not be verified. Review payment history before retrying.')
+      }
+
+      data = {
+        ...data,
+        manual_discount: audit,
+        remaining_balance: Math.round(
+          (Number(data.remaining_balance) - Number(audit.discount_amount)) * 100
+        ) / 100,
+      }
+    }
     goToPage(0)
     // Jump to today so the new receipt is visible even if another day was open.
     setSelectedDateKey(todayDateKey())
@@ -1390,6 +1458,11 @@ function selectHomeowner(property) {
     await refreshPropertyBalance(data.property_id)
     setShowForm(false)
     setForm(EMPTY_FORM)
+    setManualDiscount({
+      enabled: false, chargeId: '', type: 'fixed',
+      value: '', reason: '', approval: '',
+    })
+    discountAttemptRef.current = null
     setReceipt(data)
     paymentAttemptRef.current = null
     setPaymentSubmissionKey(null)
@@ -1622,7 +1695,23 @@ function selectHomeowner(property) {
                   </td>
                   <td data-label="Receipt" className="payments-action-cell">
                     <div className="payments-row-actions">
-                      <button className="payments-link" type="button" onClick={() => setReceipt(payment)}>
+                      <button className="payments-link" type="button" onClick={async () => {
+  const { data: discount, error } = await supabase
+    .from('manual_payment_discounts').select('*')
+    .eq('payment_id', payment.id).maybeSingle()
+  if (error) {
+    setPopupNotice('Could not verify the receipt discount. Please retry.')
+    return
+  }
+  setReceipt({
+    ...payment,
+    manual_discount: discount || null,
+    remaining_balance: discount
+      ? Math.round((Number(payment.remaining_balance) -
+          Number(discount.discount_amount)) * 100) / 100
+      : payment.remaining_balance,
+  })
+}}>
                         View <span aria-hidden="true">→</span>
                       </button>
                       {canVoidPayments && payment.status !== 'Voided' && (
@@ -1773,7 +1862,7 @@ function selectHomeowner(property) {
                 />
               </label>
 
-              <label>Amount paid
+              <label>{annualAdvance ? 'Amount to collect (11 months)' : 'Original amount (before discount)'}
   <input
     name="amountPaid"
     type="number"
@@ -1786,7 +1875,28 @@ function selectHomeowner(property) {
   />
 </label>
 
-              <div className="payment-balance-preview payment-span-2">
+              <div className="payment-manual-discount payment-span-2">
+  <label htmlFor="payment-simple-discount">Discount (₱) — optional</label>
+  <input id="payment-simple-discount"
+    type="number" min="0" step="0.01" placeholder="0.00"
+    value={manualDiscount.value}
+    disabled={saving || annualAdvance}
+    onChange={(event) => setManualDiscount((d) => ({
+      ...d,
+      value: event.target.value,
+      enabled: Number(event.target.value) > 0,
+      type: 'fixed',
+    }))} />
+  <div className="payment-simple-total">
+    <span>Amount to collect</span>
+    <strong>{peso.format(Math.max(0,
+      (Number(form.amountPaid) || 0) - manualDiscountAmount))}</strong>
+  </div>
+  {annualAdvance && <small>
+    One month free is already included in this 12-month advance payment.
+  </small>}
+</div>
+<div className="payment-balance-preview payment-span-2">
                 <span>{remainingBalance < 0 ? 'Advance credit after payment' : 'Remaining balance after payment'}</span>
                 <strong>{formatBalance(remainingBalance)}</strong>
               </div>
@@ -1933,6 +2043,7 @@ function selectHomeowner(property) {
               </label>
 
               {chargeProperty && chargePreviewAmount > 0 && (
+                <>
                 <div className="payment-balance-preview payment-span-2">
                   <span>
                     {chargeCreditUsed > 0
@@ -1942,6 +2053,7 @@ function selectHomeowner(property) {
                   </span>
                   <strong>{formatBalance(chargeBalanceAfter)}</strong>
                 </div>
+                </>
               )}
 
               <label className="payment-span-2">Description (Optional)

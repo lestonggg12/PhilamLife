@@ -1662,3 +1662,73 @@
     min-height: 560px;
   }
 }
+.payment-manual-discount {
+  padding: 16px;
+  border: 1px solid #d4e4f1;
+  border-radius: 14px;
+  background: #f6faff;
+}
+.payment-discount-toggle {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: #234a69;
+}
+.payment-discount-toggle input {
+  width: 17px !important;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0;
+}
+.payment-discount-fields {
+  display: grid;
+  gap: 13px;
+  padding-top: 16px;
+}
+.payment-discount-fields > p {
+  margin: 0;
+  font-size: 12px;
+  color: #617c94;
+}
+.payment-discount-fields label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.payment-discount-fields select,
+.payment-discount-fields input,
+.payment-discount-fields textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #cbddee;
+  border-radius: 10px;
+  background: white;
+  color: #193b55;
+  font: inherit;
+}
+.payment-discount-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.payment-discount-summary {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border-radius: 11px;
+  background: #eaf3fb;
+  color: #275574;
+  font-size: 12px;
+}
+.payment-discount-summary strong {
+  color: #145a8d;
+  font-size: 14px;
+}
+@media (max-width: 480px) {
+  .payment-discount-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

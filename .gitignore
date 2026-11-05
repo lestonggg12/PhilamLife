@@ -16,3 +16,5 @@ supabase/.branches/
 
 # Local notes with credentials
 mockusepas.md
+# Temporary local backups
+*.bak

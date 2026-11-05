@@ -245,6 +245,17 @@ const annualDiscountAmount = isAnnualDiscount
     }
   }
 
+  if (row.manual_discount) {
+    const discount = row.manual_discount
+    summary.splice(Math.max(0, summary.length - 2), 0,
+      { label: 'Selected charge before discount', value: money(discount.charge_unpaid_before) },
+      { label: 'Manual charge discount', value: `- ${money(discount.discount_amount)}` },
+    )
+    notes.push({
+      label: 'Discount authorization',
+      text: `${discount.discount_type} discount. Approval: ${discount.approval_reference}. Reason: ${discount.reason}`,
+    })
+  }
   if (row.note) notes.push({ label: 'Note', text: row.note })
 
   return {
