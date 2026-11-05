@@ -1732,3 +1732,22 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.payment-simple-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #d4e4f1;
+}
+
+.payment-simple-total span {
+  color: #365c79;
+}
+
+.payment-simple-total strong {
+  color: #163d5b;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}

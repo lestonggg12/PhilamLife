@@ -922,9 +922,6 @@ function updateField(event) {
 function chooseAnnualAdvance(enabled) {
   setAnnualAdvancePrompt(false)
   setAnnualAdvance(enabled)
-  setManualDiscount((d) => ({
-    ...d, enabled: false, value: '', type: 'fixed',
-  }))
   setForm((current) => ({
     ...current,
     amountPaid: enabled ? annualDiscountedPayment.toFixed(2) : '',
@@ -1338,7 +1335,7 @@ function selectHomeowner(property) {
 
     if (manualDiscount.value.trim() !== '' &&
         (!/^\d+(\.\d{1,2})?$/.test(manualDiscount.value) ||
-         manualDiscountAmount < 0 ||
+         manualDiscountAmount <= 0 ||
          manualDiscountAmount >= gross ||
          annualAdvance)) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
@@ -1862,7 +1859,7 @@ function selectHomeowner(property) {
                 />
               </label>
 
-              <label>{annualAdvance ? 'Amount to collect (11 months)' : 'Original amount (before discount)'}
+              <label>{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount'}
   <input
     name="amountPaid"
     type="number"
@@ -2043,18 +2040,18 @@ function selectHomeowner(property) {
               </label>
 
               {chargeProperty && chargePreviewAmount > 0 && (
-                <>
-                <div className="payment-balance-preview payment-span-2">
-                  <span>
-                    {chargeCreditUsed > 0
-                      ? `${peso.format(chargeCreditUsed)} of the homeowner's credit will be applied automatically. `
-                      : ''}
-                    {chargeBalanceAfter < 0 ? 'Advance credit left after charge' : 'Balance owed after charge'}
-                  </span>
-                  <strong>{formatBalance(chargeBalanceAfter)}</strong>
-                </div>
-                </>
-              )}
+  <div className="payment-balance-preview payment-span-2">
+    <span>
+      {chargeCreditUsed > 0
+        ? `${peso.format(chargeCreditUsed)} of the homeowner's credit will be applied automatically. `
+        : ''}
+      {chargeBalanceAfter < 0
+        ? 'Advance credit left after charge'
+        : 'Balance owed after charge'}
+    </span>
+    <strong>{formatBalance(chargeBalanceAfter)}</strong>
+  </div>
+)}
 
               <label className="payment-span-2">Description (Optional)
                 <input name="description" value={chargeForm.description} onChange={updateChargeField} maxLength="250" placeholder="e.g., Noise violation, July 2026" />
