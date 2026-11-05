@@ -34,6 +34,7 @@ import '../components/HomeownerProfileRefresh.css'
 import { Pager } from '../components/PagerControls'
 import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 import '../components/HomeownerDirectoryPaging.css'
+import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -1013,6 +1014,18 @@ useEffect(() => {
                 </HomeownerActionsMenu>
               </div>
             </section>
+
+            {/* Phase 1B: development-only opt-in. Do not enable without a
+                separately verified classification schema and isolated data. */}
+            {import.meta.env.DEV &&
+              import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true' && (
+                <PropertyClassificationPanel
+                  key={selectedProperty.id}
+                  propertyId={selectedProperty.id}
+                  userRole={userRole}
+                  onChanged={() => loadHomeowners(true)}
+                />
+              )}
 
             <HomeownerLotChips
               lots={homeownerLots}
