@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import './PropertyClassificationPanel.css'
+import Select from './Select'
+import DateField from './DateField'
 import { supabase } from '../lib/supabaseClient'
 import {
   CLASSIFICATIONS,
@@ -98,14 +100,25 @@ export default function PropertyClassificationPanel({ propertyId, userRole, onCh
       {canEdit && current != null && !loading && (
         <form onSubmit={submit}>
           <label>New classification
-            <select required value={next} disabled={busy} onChange={(e) => setNext(e.target.value)}>
-              <option value="">Select classification</option>
-              {CLASSIFICATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
+            <Select
+              value={next}
+              onChange={setNext}
+              disabled={busy}
+              ariaLabel="New property classification"
+              placeholder="Select classification"
+              options={CLASSIFICATIONS.filter((item) => item.value !== current)}
+            />
           </label>
           <label>Effective date (Manila today only)
-            <input type="date" required value={effectiveFrom} disabled={busy}
-              onChange={(e) => setEffectiveFrom(e.target.value)} />
+            <DateField
+              value={effectiveFrom}
+              onChange={setEffectiveFrom}
+              min={manilaToday()}
+              max={manilaToday()}
+              clearable={false}
+              disabled={busy}
+              ariaLabel="Effective date, Manila today only"
+            />
           </label>
           <label>Reason / verification notes
             <textarea required minLength={5} maxLength={1000} value={reason} disabled={busy}

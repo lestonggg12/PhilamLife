@@ -212,6 +212,7 @@ export default function HomeownersPage() {
   const { homeownerId } = useParams()
   const confirm = useConfirm()
   const [adminDialog, setAdminDialog] = useState(null)
+  const [classificationPropertyId, setClassificationPropertyId] = useState(null)
   const [balanceDialog, setBalanceDialog] = useState(null)
   const [breakdownKey, setBreakdownKey] = useState(0)
   const [balanceBreakdownOpen, setBalanceBreakdownOpen] = useState(false)
@@ -242,11 +243,20 @@ export default function HomeownersPage() {
   const [loading, setLoading] = useState(() => !homeownerDirectoryCache.properties)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const classificationDialogRef = useRef(null)
   const searchWrapRef = useRef(null)
   const trackerRef = useRef(null)
   const detailCacheRef = useRef(new Map())
   const detailRequestRef = useRef(0)
 
+  useEffect(() => {
+    const dialog = classificationDialogRef.current
+    if (!dialog || dialog.open) return undefined
+    dialog.showModal()
+    return () => {
+      if (dialog.open) dialog.close()
+    }
+  }, [classificationPropertyId, homeownerId])
   useEffect(() => {
     loadHomeowners()
   }, [])
@@ -1003,6 +1013,16 @@ useEffect(() => {
                       </button>
                     </>
                   )}
+                  {import.meta.env.DEV &&
+                    import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true' &&
+                    canManageHomeowners && (
+                      <button
+                        type="button"
+                        onClick={() => setClassificationPropertyId(selectedProperty.id)}
+                      >
+                        Property Classification
+                      </button>
+                    )}
                   <button
                     type="button"
                     aria-expanded={trackerOpen}
@@ -1014,18 +1034,6 @@ useEffect(() => {
                 </HomeownerActionsMenu>
               </div>
             </section>
-
-            {/* Phase 1B: development-only opt-in. Do not enable without a
-                separately verified classification schema and isolated data. */}
-            {import.meta.env.DEV &&
-              import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true' && (
-                <PropertyClassificationPanel
-                  key={selectedProperty.id}
-                  propertyId={selectedProperty.id}
-                  userRole={userRole}
-                  onChanged={() => loadHomeowners(true)}
-                />
-              )}
 
             <HomeownerLotChips
               lots={homeownerLots}
@@ -1470,6 +1478,38 @@ useEffect(() => {
         )}
       </main>
 
+      {import.meta.env.DEV &&
+        import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true' &&
+        classificationPropertyId != null &&
+        selectedProperty &&
+        String(selectedProperty.id) === String(classificationPropertyId) && (
+          <dialog
+            ref={classificationDialogRef}
+            className="phase1d-dialog"
+            aria-labelledby="phase1d-dialog-title"
+            onClose={() => setClassificationPropertyId(null)}
+          >
+            <header className="phase1d-dialog-header">
+              <div>
+                <h2 id="phase1d-dialog-title">Property Classification</h2>
+                <p>{selectedProperty.block}, Lot {selectedProperty.lot_number}</p>
+              </div>
+              <button
+                type="button"
+                className="phase1d-dialog-close"
+                onClick={() => classificationDialogRef.current?.close()}
+              >
+                Close
+              </button>
+            </header>
+            <PropertyClassificationPanel
+              key={selectedProperty.id}
+              propertyId={selectedProperty.id}
+              userRole={userRole}
+              onChanged={() => loadHomeowners(true)}
+            />
+          </dialog>
+        )}
       {voidTarget && (
         <div className="homeowner-void-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
           <form className="homeowner-void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>

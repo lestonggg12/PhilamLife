@@ -1,0 +1,24 @@
+﻿.phase1d-card {
+  margin: 20px 0;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #dfe7ef;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(20, 56, 86, .05);
+}
+
+.phase1d-card h3 {
+  color: #173b59;
+  font-size: 19px;
+  margin: 0 0 12px;
+}
+
+.phase1d-card h4 {
+  color: #254963;
+  margin: 22px 0 12px;
+}
+
+.phase1d-card p {
+  color: #647c91;
+  line-height: 1.6;
+}
