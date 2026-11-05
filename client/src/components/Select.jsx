@@ -140,7 +140,7 @@ export default function Select({ value, options, onChange, ariaLabel, placeholde
             </li>
           ))}
         </ul>
-      ), document.body)}
+      ), rootRef.current?.closest('dialog') || document.body)}
     </div>
   )
 }

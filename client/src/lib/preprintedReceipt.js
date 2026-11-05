@@ -47,9 +47,13 @@ export function buildPreprintedFields(kind, row) {
   const gross = cents(annual?.gross_amount)
   const discount = cents(annual?.discount_amount)
   const validAnnual = Number(annual?.months_covered) === 12 && discount > 0n && gross === paid + discount
-  const total = validAnnual ? gross : paid
+  const manual = kind === 'payment' ? row.manual_discount : null
+  const manualDiscount = cents(manual?.discount_amount)
+  const manualGross = cents(manual?.gross_amount ?? (Number((row.amount_paid ?? row.amount) || 0) + Number(manual?.discount_amount || 0)))
+  const validManual = !validAnnual && manualDiscount > 0n && manualGross === paid + manualDiscount
+  const total = validAnnual ? gross : validManual ? manualGross : paid
   let quantity = validAnnual ? '12' : '1'
-  let unitPrice = validAnnual && gross % 12n === 0n ? amount(gross / 12n) : validAnnual ? '' : amount(paid)
+  let unitPrice = validAnnual && gross % 12n === 0n ? amount(gross / 12n) : validAnnual ? '' : amount(total)
   const serviceDue = cents(row.amount_due)
   const serviceQuantity = String(row.quantity ?? '')
   const quantityParts = /^(\d+)(?:\.(\d+))?$/.exec(serviceQuantity)
@@ -78,8 +82,10 @@ export function buildPreprintedFields(kind, row) {
   return {
     name: kind === 'service' ? row.customer_name || 'Unnamed customer' : row.homeowner_name || 'Unnamed homeowner',
     lot: [row.block_name, row.lot_number ? `Lot ${row.lot_number}` : ''].filter(Boolean).join(', '),
-    date: issuedDate, description, quantity, unitPrice,
-    lineAmount: amount(total), totalSales: amount(total), discount: validAnnual ? amount(discount) : '',
+    date: issuedDate, description: cents(row.receipt_breakdown?.returned_change?.change_amount) > 0n
+      ? `${description} / Change returned: ${amount(cents(row.receipt_breakdown.returned_change.change_amount))}`
+      : description, quantity, unitPrice,
+    lineAmount: amount(total), totalSales: amount(total), discount: validAnnual ? amount(discount) : validManual ? amount(manualDiscount) : '',
     totalPaid: amount(paid), issuedBy: row.recorded_by_name || '',
     method: [row.payment_method, row.reference_number].filter(Boolean).join(' / '),
   }

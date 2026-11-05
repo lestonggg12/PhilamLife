@@ -1,5 +1,6 @@
 import React from 'react'
 import './HomeownerLotChips.css'
+import { classificationLabel } from '../lib/propertyClassification'
 
 export default function HomeownerLotChips({ lots, selectedId, onSelect }) {
   if (lots.length < 2) return null
@@ -12,7 +13,10 @@ export default function HomeownerLotChips({ lots, selectedId, onSelect }) {
           aria-current={String(lot.id) === String(selectedId) ? 'page' : undefined}
           onClick={() => onSelect(lot.id)}
         >
-          {lot.block}, Lot {lot.lot_number}
+                    {lot.block}, Lot {lot.lot_number}
+          <small className={`lot-classification lot-classification--${lot.property_classification || 'unknown'}`}>
+            {classificationLabel(lot.property_classification)}
+          </small>
         </button>
       ))}
     </nav>

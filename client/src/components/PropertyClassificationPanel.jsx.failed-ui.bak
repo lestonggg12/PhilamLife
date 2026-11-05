@@ -1,0 +1,265 @@
+﻿import React, { useEffect, useState } from 'react'
+import './PropertyClassificationPanel.css'
+import { supabase } from '../lib/supabaseClient'
+import {
+  CLASSIFICATIONS,
+  classificationLabel,
+  canClassifyProperty,
+  manilaToday,
+  validateClassificationChange,
+} from '../lib/propertyClassification'
+
+// Safe to mount ONLY after the reviewed Phase 1 schema exists in an isolated
+// environment. A production enablement requires penalty-engine gating (Phase 2).
+export default function PropertyClassificationPanel({ propertyId, userRole, onChanged }) {
+  const [current, setCurrent] = useState(null)
+  const [history, setHistory] = useState([])
+  const [next, setNext] = useState('')
+  const [reason, setReason] = useState('')
+  const [effectiveFrom, setEffectiveFrom] = useState(() => manilaToday())
+  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const canEdit = canClassifyProperty(userRole)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    setCurrent(null)
+    setHistory([])
+    async function load() {
+      const [p, h] = await Promise.all([
+        supabase.from('properties').select('property_classification').eq('id', propertyId).single(),
+        supabase.from('property_classification_history')
+          .select('id,old_classification,new_classification,effective_from,recorded_at,reason')
+          .eq('property_id', propertyId).order('effective_from', { ascending: false }),
+      ])
+      if (cancelled) return
+      if (p.error || h.error) {
+        setError(`Classification data unavailable: ${(p.error || h.error).message}`)
+      } else {
+        setCurrent(p.data.property_classification)
+        setHistory(h.data || [])
+      }
+      setLoading(false)
+    }
+    if (propertyId != null) load()
+    return () => { cancelled = true }
+  }, [propertyId])
+
+  async function submit(event) {
+    event.preventDefault()
+    if (!canEdit || busy || loading || current == null) return
+    const validation = validateClassificationChange({ current, next, reason, effectiveFrom })
+    if (validation) { setError(validation); return }
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const { error: rpcError } = await supabase.rpc('classify_property', {
+        p_property_id: propertyId,
+        p_new_classification: next,
+        p_reason: reason.trim(),
+        p_effective_from: effectiveFrom,
+      })
+      if (rpcError) throw rpcError
+      // Re-read authority from server; never assume successful write from client state.
+      const [p, h] = await Promise.all([
+        supabase.from('properties').select('property_classification').eq('id', propertyId).single(),
+        supabase.from('property_classification_history')
+          .select('id,old_classification,new_classification,effective_from,recorded_at,reason')
+          .eq('property_id', propertyId).order('effective_from', { ascending: false }),
+      ])
+      if (p.error || h.error) throw p.error || h.error
+      if (p.data.property_classification !== next) throw new Error('Classification could not be verified; refresh before retrying.')
+      setCurrent(p.data.property_classification)
+      setHistory(h.data || [])
+      setNext('')
+      setReason('')
+      setNotice('Classification verified and saved with an audit event.')
+      if (onChanged) onChanged()
+    } catch (e) {
+      setError(`${e.message} Refresh history before attempting again; do not retry blindly.`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="phase1d-card" aria-label="Property classification">
+      <div className="phase1d-header">
+        <div>
+          <p className="phase1d-eyebrow">PROPERTY MANAGEMENT</p>
+          <h3>Property Classification</h3>
+          <p className="phase1d-subtitle">
+            Verify whether this property is a vacant lot or a residential home.
+          </p>
+        </div>
+
+        {current != null && (
+          <span className={`phase1d-badge phase1d-badge--${current}`}>
+            <span className="phase1d-badge-dot" />
+            {classificationLabel(current)}
+          </span>
+        )}
+      </div>
+
+      <div className="phase1d-body">
+        {loading && (
+          <p className="phase1d-message" role="status">
+            Loading classification...
+          </p>
+        )}
+
+        {error && (
+          <div className="phase1d-alert phase1d-alert--error" role="alert">
+            {error}
+          </div>
+        )}
+
+        {notice && (
+          <div className="phase1d-alert phase1d-alert--success" role="status">
+            {notice}
+          </div>
+        )}
+
+        {current != null && !loading && (
+          <div className="phase1d-current">
+            <div>
+              <span className="phase1d-field-caption">
+                VERIFIED CLASSIFICATION
+              </span>
+              <strong>{classificationLabel(current)}</strong>
+            </div>
+            <span className="phase1d-current-note">
+              Separate from account status and financial balances
+            </span>
+          </div>
+        )}
+
+        {canEdit && current != null && !loading && (
+          <form className="phase1d-form" onSubmit={submit}>
+            <div className="phase1d-form-heading">
+              <h4>Update Classification</h4>
+              <p>
+                A reason is required. Every verified change is recorded
+                in the classification history.
+              </p>
+            </div>
+
+            <div className="phase1d-form-grid">
+              <label className="phase1d-field">
+                <span>New classification <em>*</em></span>
+                <select
+                  required
+                  value={next}
+                  disabled={busy}
+                  onChange={(event) => setNext(event.target.value)}
+                >
+                  <option value="">Select classification</option>
+                  {CLASSIFICATIONS.map((item) => (
+                    <option
+                      key={item.value}
+                      value={item.value}
+                      disabled={item.value === current}
+                    >
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="phase1d-field">
+                <span>Effective date</span>
+                <input
+                  type="date"
+                  required
+                  value={effectiveFrom}
+                  readOnly
+                  disabled={busy}
+                  title="Classification changes use today's Manila date."
+                />
+                <small>Manila date only</small>
+              </label>
+            </div>
+
+            <label className="phase1d-field phase1d-reason">
+              <span>Reason / verification notes <em>*</em></span>
+              <textarea
+                required
+                minLength={5}
+                maxLength={1000}
+                rows={3}
+                value={reason}
+                disabled={busy}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Describe how the property classification was verified..."
+              />
+              <small>{reason.length}/1000 characters</small>
+            </label>
+
+            <div className="phase1d-form-footer">
+              <p>Classification changes are saved with an audit event.</p>
+              <button
+                type="submit"
+                className="phase1d-save"
+                disabled={
+                  busy ||
+                  !next ||
+                  next === current ||
+                  reason.trim().length < 5
+                }
+              >
+                {busy ? 'Saving...' : 'Save Classification'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="phase1d-history">
+          <div className="phase1d-history-heading">
+            <div>
+              <h4>Classification History</h4>
+              <p>Verified changes for this property</p>
+            </div>
+            <span className="phase1d-history-count">
+              {history.length} {history.length === 1 ? 'record' : 'records'}
+            </span>
+          </div>
+
+          {!loading && history.length === 0 && (
+            <div className="phase1d-empty">
+              <strong>No classification changes yet</strong>
+              <p>Verified changes will appear here automatically.</p>
+            </div>
+          )}
+
+          {history.length > 0 && (
+            <ol className="phase1d-timeline">
+              {history.map((item) => (
+                <li key={item.id}>
+                  <span className="phase1d-timeline-dot" />
+                  <div className="phase1d-history-entry">
+                    <div className="phase1d-history-meta">
+                      <strong>
+                        {classificationLabel(item.old_classification)}
+                        {' to '}
+                        {classificationLabel(item.new_classification)}
+                      </strong>
+                      <time dateTime={item.effective_from}>
+                        {item.effective_from}
+                      </time>
+                    </div>
+                    <p>{item.reason}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
