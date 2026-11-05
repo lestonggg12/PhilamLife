@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import './PropertyClassificationPanel.css'
 import Select from './Select'
 import DateField from './DateField'
+import { useToast } from './Toast'
+import Skeleton from './skeleton/Skeleton'
 import { supabase } from '../lib/supabaseClient'
 import {
   CLASSIFICATIONS,
@@ -13,7 +15,21 @@ import {
 
 // Safe to mount ONLY after the reviewed Phase 1 schema exists in an isolated
 // environment. A production enablement requires penalty-engine gating (Phase 2).
-export default function PropertyClassificationPanel({ propertyId, userRole, onChanged }) {
+const formatHistoryDate = (value) => {
+  if (!value) return 'Date unavailable'
+  const date = new Date(`${value}T00:00:00Z`)
+  return Number.isNaN(date.getTime()) ? value :
+    new Intl.DateTimeFormat('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+    }).format(date)
+}
+
+function ClassificationPill({ value }) {
+  return <span className={`phase1d-pill phase1d-pill--${value}`}>
+    {classificationLabel(value)}
+  </span>
+}
+export default function PropertyClassificationPanel({ propertyId, userRole, onChanged, onClose }) {
   const [current, setCurrent] = useState(null)
   const [history, setHistory] = useState([])
   const [next, setNext] = useState('')
@@ -22,7 +38,7 @@ export default function PropertyClassificationPanel({ propertyId, userRole, onCh
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const toast = useToast()
   const canEdit = canClassifyProperty(userRole)
 
   useEffect(() => {
@@ -58,7 +74,7 @@ export default function PropertyClassificationPanel({ propertyId, userRole, onCh
     if (validation) { setError(validation); return }
     setBusy(true)
     setError('')
-    setNotice('')
+
     try {
       const { error: rpcError } = await supabase.rpc('classify_property', {
         p_property_id: propertyId,
@@ -80,8 +96,9 @@ export default function PropertyClassificationPanel({ propertyId, userRole, onCh
       setHistory(h.data || [])
       setNext('')
       setReason('')
-      setNotice('Classification verified and saved with an audit event.')
+      toast.success('Classification verified and saved with an audit event.')
       if (onChanged) onChanged()
+      onClose?.()
     } catch (e) {
       setError(`${e.message} Refresh history before attempting again; do not retry blindly.`)
     } finally {
@@ -89,53 +106,121 @@ export default function PropertyClassificationPanel({ propertyId, userRole, onCh
     }
   }
 
+  const validationHint = validateClassificationChange({
+    current, next, reason, effectiveFrom,
+  })
+  const canSave = canEdit && !busy && !loading &&
+    current != null && !validationHint
+
   return (
-    <section aria-label="Property classification" className="phase1d-card">
-      <h3>Property classification</h3>
-      {loading ? <p>Loading classification…</p> : null}
-      {current != null ? <p>Verified status: <strong>{classificationLabel(current)}</strong></p> : null}
-      <p>Classification is separate from Active/Moved account status. It does not change financial records.</p>
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
-      {canEdit && current != null && !loading && (
-        <form onSubmit={submit}>
-          <label>New classification
-            <Select
-              value={next}
-              onChange={setNext}
-              disabled={busy}
-              ariaLabel="New property classification"
-              placeholder="Select classification"
-              options={CLASSIFICATIONS.filter((item) => item.value !== current)}
-            />
-          </label>
-          <label>Effective date (Manila today only)
-            <DateField
-              value={effectiveFrom}
-              onChange={setEffectiveFrom}
-              min={manilaToday()}
-              max={manilaToday()}
-              clearable={false}
-              disabled={busy}
-              ariaLabel="Effective date, Manila today only"
-            />
-          </label>
-          <label>Reason / verification notes
-            <textarea required minLength={5} maxLength={1000} value={reason} disabled={busy}
-              onChange={(e) => setReason(e.target.value)} />
-          </label>
-          <button type="submit" disabled={busy || !next || next === current || !reason.trim()}>
-            {busy ? 'Saving…' : 'Save classification'}
-          </button>
-        </form>
-      )}
-      <h4>Classification history</h4>
-      {!loading && history.length === 0 ? <p>No verified changes recorded yet.</p> : null}
-      <ul>
-        {history.map((item) => <li key={item.id}>
-          {item.effective_from}: {classificationLabel(item.old_classification)} → {classificationLabel(item.new_classification)} — {item.reason}
-        </li>)}
-      </ul>
+    <section className="phase1d-panel" aria-label="Classification details">
+      <div className="phase1d-dialog-body">
+        {loading ? (
+          <div className="phase1d-loading" role="status" aria-label="Loading classification">
+            <Skeleton width="38%" height="16px" />
+            <Skeleton width="72%" height="42px" radius="10px" />
+            <Skeleton width="100%" height="70px" radius="10px" />
+            <Skeleton width="100%" height="110px" radius="10px" />
+          </div>
+        ) : (
+          <>
+            <section className="phase1d-section" aria-label="Current classification">
+              <h3>Current classification</h3>
+              <div className="phase1d-summary">
+                {current != null && <ClassificationPill value={current} />}
+                {current != null && <span className="phase1d-verified">✓ Verified</span>}
+              </div>
+              <p className="phase1d-info">
+                <span aria-hidden="true">ⓘ</span>
+                Classification is separate from Active/Moved account status.
+                It does not change financial records.
+              </p>
+            </section>
+
+            {error && <div className="phase1d-error" role="alert">{error}</div>}
+
+            {canEdit && current != null && (
+              <section className="phase1d-section" aria-labelledby="phase1d-change-title">
+                <h3 id="phase1d-change-title">Change classification</h3>
+                <form id="phase1d-classification-form" onSubmit={submit}>
+                  <div className="phase1d-fields">
+                    <div className="phase1d-field">
+                      <span id="phase1d-next-label">New classification</span>
+                      <Select value={next} onChange={setNext} disabled={busy}
+                        ariaLabel="New property classification"
+                        placeholder="Select classification"
+                        options={CLASSIFICATIONS.filter((item) => item.value !== current)} />
+                    </div>
+                    <div className="phase1d-field">
+                      <span>Effective date</span>
+                      <DateField value={effectiveFrom} onChange={setEffectiveFrom}
+                        min={manilaToday()} max={manilaToday()}
+                        clearable={false} disabled={busy}
+                        ariaLabel="Effective date, Manila today only" />
+                      <small>Today (Manila) only</small>
+                    </div>
+                  </div>
+                  <div className="phase1d-field">
+                    <label htmlFor="phase1d-reason">Reason / verification notes</label>
+                    <textarea id="phase1d-reason" required minLength={5}
+                      maxLength={1000} rows={3} value={reason}
+                      disabled={busy} aria-describedby="phase1d-reason-help"
+                      onChange={(event) => setReason(event.target.value)}
+                      placeholder="Describe how the classification was verified..." />
+                    <div className="phase1d-field-meta" id="phase1d-reason-help">
+                      <span>{reason.trim().length < 5
+                        ? 'Enter at least 5 characters.' : 'Verification reason recorded in history.'}</span>
+                      <span>{reason.length} / 1000</span>
+                    </div>
+                  </div>
+                </form>
+              </section>
+            )}
+
+            <section className="phase1d-section" aria-labelledby="phase1d-history-title">
+              <div className="phase1d-section-heading">
+                <h3 id="phase1d-history-title">Classification history</h3>
+                <span className="phase1d-count">{history.length} records</span>
+              </div>
+              {history.length === 0 ? (
+                <div className="phase1d-empty">
+                  <span aria-hidden="true">◷</span>
+                  <p>No verified changes recorded yet.</p>
+                </div>
+              ) : (
+                <ol className="phase1d-history">
+                  {history.map((item) => (
+                    <li key={item.id}>
+                      <time dateTime={item.effective_from}>{formatHistoryDate(item.effective_from)}</time>
+                      <div className="phase1d-history-transition">
+                        <ClassificationPill value={item.old_classification} />
+                        <span aria-hidden="true">→</span>
+                        <ClassificationPill value={item.new_classification} />
+                      </div>
+                      <p>{item.reason}</p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+      <footer className="phase1d-dialog-footer">
+        <button type="button" className="phase1d-cancel" onClick={onClose} disabled={busy}>
+          Cancel
+        </button>
+        {canEdit && (
+          <div className="phase1d-save-wrap">
+            {!canSave && !busy && !loading &&
+              <span className="phase1d-save-hint">{validationHint}</span>}
+            <button type="submit" form="phase1d-classification-form"
+              className="phase1d-save" disabled={!canSave}>
+              {busy ? 'Saving...' : 'Save classification'}
+            </button>
+          </div>
+        )}
+      </footer>
     </section>
   )
 }

@@ -443,7 +443,7 @@ useEffect(() => {
         fetchAll(() => supabase
           .from('properties')
           .select(
-            'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
+            'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance, property_classification',
           )
           .order('homeowner_name')),
         fetchAll(() => supabase
@@ -959,7 +959,13 @@ useEffect(() => {
               <div className="homeowner-profile-identity">
                 <div className="homeowner-profile-title-row">
                   <div>
-                    <p>Homeowner profile</p>
+                    <p>
+  {selectedProperty.property_classification === 'homeowner'
+    ? 'Homeowner profile'
+    : selectedProperty.property_classification === 'lot_owner'
+      ? 'Lot owner profile'
+      : 'Property profile'}
+</p>
                     <div className="homeowner-name-row">
                       <h2>{selectedProperty.homeowner_name}</h2>
                       <span className={`homeowner-account-badge badge-${selectedStatus.key}`}>
@@ -1487,7 +1493,7 @@ useEffect(() => {
             ref={classificationDialogRef}
             className="phase1d-dialog"
             aria-labelledby="phase1d-dialog-title"
-            onClose={() => setClassificationPropertyId(null)}
+            onClose={() => { setClassificationPropertyId(null); document.querySelector('.homeowner-actions-disclosure > button')?.focus() }}
           >
             <header className="phase1d-dialog-header">
               <div>
@@ -1497,9 +1503,10 @@ useEffect(() => {
               <button
                 type="button"
                 className="phase1d-dialog-close"
+                aria-label="Close property classification"
                 onClick={() => classificationDialogRef.current?.close()}
               >
-                Close
+                <span aria-hidden="true">×</span>
               </button>
             </header>
             <PropertyClassificationPanel
@@ -1507,6 +1514,7 @@ useEffect(() => {
               propertyId={selectedProperty.id}
               userRole={userRole}
               onChanged={() => loadHomeowners(true)}
+              onClose={() => classificationDialogRef.current?.close()}
             />
           </dialog>
         )}
