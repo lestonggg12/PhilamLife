@@ -299,7 +299,7 @@ export default function SystemSettingsPage({ user }) {
         <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
         <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
       </SettingsCard>
-        <SettingsCard className="ss-penalty-card" title="Late-payment penalty" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
+        <SettingsCard className="ss-penalty-card" title="Annual Penalty Rates" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
           <LatePenaltySettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
         </SettingsCard>
         <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
