@@ -1,6 +1,7 @@
 import { notifySuccess, notifyAction } from '../lib/actionFeedback'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Select from '../components/Select'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -24,6 +25,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
+import { openPaymentMonthPrint } from '../lib/paymentMonthPrint'
 import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
@@ -772,6 +774,37 @@ useEffect(() => {
     [trackerRecords, trackerYear],
   )
 
+  const monthDialogRef = useRef(null)
+  const selectedTrackerMonth = expandedTrackerMonth === null ? null : monthlyTracker[expandedTrackerMonth]
+
+  useEffect(() => {
+    if (!trackerOpen || trackerView !== 'monthly' || !selectedTrackerMonth) return undefined
+    const previousFocus = document.activeElement
+    const dialog = monthDialogRef.current
+    dialog?.focus()
+    function handleDialogKey(event) {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        setExpandedTrackerMonth(null)
+      }
+      if (event.key !== 'Tab' || !dialog) return
+      const targets = Array.from(dialog.querySelectorAll('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'))
+      if (!targets.length) { event.preventDefault(); return }
+      const first = targets[0]
+      const last = targets[targets.length - 1]
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleDialogKey)
+    return () => {
+      document.removeEventListener('keydown', handleDialogKey)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [trackerOpen, trackerView, expandedTrackerMonth, trackerYear, homeownerId])
+
   const annualTracker = useMemo(
     () =>
       trackerYears.map((year) => {
@@ -804,6 +837,7 @@ useEffect(() => {
   }
 
   function closePaymentTracker() {
+    setExpandedTrackerMonth(null)
     setTrackerOpen(false)
   }
 
@@ -1333,84 +1367,27 @@ useEffect(() => {
                         </thead>
                         <tbody>
                           {monthlyTracker.map((month, monthIndex) => (
-                            <React.Fragment key={month.month}>
-                              <tr className={expandedTrackerMonth === monthIndex ? 'homeowner-tracker-row is-expanded' : 'homeowner-tracker-row'}>
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="homeowner-tracker-month-button"
-                                    aria-expanded={expandedTrackerMonth === monthIndex}
-                                    aria-controls={`homeowner-tracker-month-${trackerYear}-${monthIndex}`}
-                                    onClick={() => setExpandedTrackerMonth((current) => current === monthIndex ? null : monthIndex)}
-                                  >
-                                    <span aria-hidden="true">{expandedTrackerMonth === monthIndex ? '▾' : '▸'}</span>
-                                    <strong>{month.month}</strong>
-                                    <span className="homeowner-tracker-click-hint">Details</span>
-                                  </button>
-                                </td>
-                                <td>
-                                  <span className={`homeowner-tracker-status tracker-${month.status.key}`}>
-                                    {month.status.label}
-                                  </span>
-                                </td>
-                                <td>{month.records.length}</td>
-                                <td className="homeowner-number">{peso.format(month.dues)}</td>
-                                <td className="homeowner-number">{peso.format(month.services)}</td>
-                                <td className="homeowner-number">{peso.format(month.other)}</td>
-                                <td className="homeowner-tracker-total">{peso.format(month.total)}</td>
-                              </tr>
-                              {expandedTrackerMonth === monthIndex && (
-                                <tr className="homeowner-tracker-detail-row" id={`homeowner-tracker-month-${trackerYear}-${monthIndex}`}>
-                                  <td colSpan={7}>
-                                    <div className="homeowner-tracker-month-details">
-                                      <div className="homeowner-tracker-detail-heading">
-                                        <strong>{month.month} {trackerYear} · Payment breakdown</strong>
-                                        <span>{month.records.length} recorded {month.records.length === 1 ? 'transaction' : 'transactions'}</span>
-                                      </div>
-                                      {month.records.length ? (
-                                        <>
-                                          <div className="homeowner-tracker-detail-scroll">
-                                            <table className="homeowner-tracker-detail-table">
-                                              <thead>
-                                                <tr><th>Date paid</th><th>Category</th><th>Description / Coverage</th><th>Receipt</th><th>Method</th><th>Status</th><th>Amount paid</th></tr>
-                                              </thead>
-                                              <tbody>
-                                                {month.records.map((record) => (
-                                                  <tr key={record.id}>
-                                                    <td>{formatDate(record.paidAt, organization.dateFormat)}</td>
-                                                    <td>{record.category}</td>
-                                                    <td>{record.description || '—'}</td>
-                                                    <td>{record.receipt}</td>
-                                                    <td>{record.method}</td>
-                                                    <td>{record.status}</td>
-                                                    <td className="homeowner-number">{peso.format(record.amount)}</td>
-                                                  </tr>
-                                                ))}
-                                              </tbody>
-                                            </table>
-                                          </div>
-                                          <div className="homeowner-tracker-detail-totals">
-                                            <span>Dues: <strong>{peso.format(month.dues)}</strong></span>
-                                            <span>Services: <strong>{peso.format(month.services)}</strong></span>
-                                            <span>Other: <strong>{peso.format(month.other)}</strong></span>
-                                            <span>Total paid: <strong>{peso.format(month.total)}</strong></span>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <p className="homeowner-tracker-detail-empty">
-                                          No payment transactions were recorded for this homeowner in {month.month} {trackerYear}.
-                                          This does not establish whether association dues for the month are paid or unpaid.
-                                        </p>
-                                      )}
-                                      <p className="homeowner-tracker-detail-disclaimer">
-                                        Grouped by the payment date in Manila time, not by the dues coverage month.
-                                        Voided transactions are excluded; current balances and unpaid dues are not calculated here.
-                                      </p>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
+                            <tr key={month.month} className="homeowner-tracker-row">
+                              <td>
+                                <button
+                                  type="button"
+                                  className="homeowner-tracker-month-button"
+                                  aria-haspopup="dialog"
+                                  aria-label={`View ${month.month} ${trackerYear} payment breakdown`}
+                                  onClick={() => setExpandedTrackerMonth(monthIndex)}
+                                >
+                                  <span aria-hidden="true">▸</span>
+                                  <strong>{month.month}</strong>
+                                  <span className="homeowner-tracker-click-hint">Details</span>
+                                </button>
+                              </td>
+                              <td><span className={`homeowner-tracker-status tracker-${month.status.key}`}>{month.status.label}</span></td>
+                              <td>{month.records.length}</td>
+                              <td className="homeowner-number">{peso.format(month.dues)}</td>
+                              <td className="homeowner-number">{peso.format(month.services)}</td>
+                              <td className="homeowner-number">{peso.format(month.other)}</td>
+                              <td className="homeowner-tracker-total">{peso.format(month.total)}</td>
+                            </tr>
                           ))}
                         </tbody>
                       </table>
@@ -1446,6 +1423,97 @@ useEffect(() => {
                   <p className="homeowner-tracker-note">
                     Voided records are excluded. A blank month means no payment was recorded; it does not automatically mean an unpaid balance.
                   </p>
+
+                  {trackerView === 'monthly' && selectedTrackerMonth && createPortal(
+                    <div className="homeowner-month-overlay" onClick={(event) => { event.stopPropagation(); setExpandedTrackerMonth(null) }}>
+                      <section
+                        ref={monthDialogRef}
+                        className="homeowner-month-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="homeowner-month-dialog-title"
+                        aria-describedby="homeowner-month-dialog-description"
+                        tabIndex={-1}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <header className="homeowner-month-dialog-header">
+                          <div>
+                            <p className="homeowner-month-eyebrow">HOA PAYMENT RECORDS</p>
+                            <h2 id="homeowner-month-dialog-title">{selectedTrackerMonth.month} {trackerYear} · Payment breakdown</h2>
+                            <p id="homeowner-month-dialog-description">{selectedProperty?.homeowner_name} · {selectedProperty?.block} · Lot {selectedProperty?.lot_number}</p>
+                          </div>
+                          <button type="button" className="homeowner-month-close-icon" aria-label="Close monthly payment breakdown" onClick={() => setExpandedTrackerMonth(null)}>×</button>
+                        </header>
+                        <div className="homeowner-month-dialog-body">
+                          <div className="homeowner-month-summary">
+                            <div><span>Payment status</span><strong><span className={`homeowner-month-pill is-${selectedTrackerMonth.status.key}`}>{selectedTrackerMonth.status.label}</span></strong></div>
+                            <div><span>Recorded transactions</span><strong>{selectedTrackerMonth.records.length}</strong></div>
+                            <div><span>Total payments received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
+                          </div>
+                          <div className="homeowner-month-transaction-section">
+                          <h3 className="homeowner-month-section-title">Transactions recorded during this month</h3>
+                          {selectedTrackerMonth.records.length > 0 ? (
+                            <div className="homeowner-month-table-scroll" role="region" aria-label="Monthly payment transactions" tabIndex={0}>
+                              <table className="homeowner-month-table">
+                                <thead><tr><th scope="col">Date paid</th><th scope="col">Description / Coverage</th><th scope="col">Receipt / Method</th><th scope="col">Status</th><th scope="col">Amount paid</th></tr></thead>
+                                <tbody>
+                                  {selectedTrackerMonth.records.map((record) => {
+                                    const paidDateText = formatDate(record.paidAt, organization.dateFormat)
+                                    const dateSplit = paidDateText.indexOf(', ')
+                                    const datePart = dateSplit >= 0 ? paidDateText.slice(0, dateSplit) : paidDateText
+                                    const timePart = dateSplit >= 0 ? paidDateText.slice(dateSplit + 2) : ''
+                                    return (
+                                      <tr key={record.id}>
+                                        <td><span className="homeowner-month-date-main">{datePart}</span>{timePart && <span className="homeowner-month-date-sub">{timePart}</span>}</td>
+                                        <td><span className="homeowner-month-description-main">{record.description || '—'}</span><span className={`homeowner-month-pill homeowner-month-category-pill ${record.kind === 'dues' ? 'is-dues' : record.kind === 'services' ? 'is-services' : 'is-other'}`}>{record.category}</span></td>
+                                        <td><span className="homeowner-month-receipt-main">{record.receipt}</span><span className="homeowner-month-receipt-sub">{record.method}</span></td>
+                                        <td><span className={`homeowner-month-pill ${['paid', 'completed'].includes(String(record.statusKey).toLowerCase()) ? 'is-paid' : ['partial', 'pending'].includes(String(record.statusKey).toLowerCase()) ? 'is-partial' : String(record.statusKey).toLowerCase() === 'voided' ? 'is-voided' : 'is-neutral'}`}>{record.status}</span></td>
+                                        <td className="homeowner-number">{peso.format(record.amount)}</td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="homeowner-month-empty">No payment transactions were recorded for this homeowner in {selectedTrackerMonth.month} {trackerYear}. This does not establish whether dues were paid or unpaid.</p>
+                          )}
+                          </div>
+                          <div className="homeowner-month-bottom">
+                            <p className="homeowner-month-clarification">Grouped by payment date in Manila time, not by the month covered by dues. Voided records are excluded. This is a payment activity summary, not a statement of outstanding balance or a certification that dues are fully paid.</p>
+                            <div className="homeowner-month-totals" aria-label="Payment category totals">
+                            <div><span>Association dues</span><strong className={Number(selectedTrackerMonth.dues) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.dues)}</strong></div>
+                            <div><span>Amenities &amp; services</span><strong className={Number(selectedTrackerMonth.services) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.services)}</strong></div>
+                            <div><span>Other</span><strong className={Number(selectedTrackerMonth.other) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.other)}</strong></div>
+                            <div className="homeowner-month-grand-total"><span>Total received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
+                            </div>
+                          </div>
+                          
+                        </div>
+                        <footer className="homeowner-month-dialog-footer">
+                          
+                          <button type="button" className="homeowner-month-action-secondary" onClick={() => setExpandedTrackerMonth(null)}>Close</button>
+                          <button type="button" className="homeowner-month-action-print" onClick={() => openPaymentMonthPrint({
+                                          hoaName: organization.hoaName,
+                                          preparedBy: currentUser?.full_name || currentUser?.email || 'Not recorded',
+                                          preparedRole: currentUser?.role || '',
+                                          homeownerName: selectedProperty?.homeowner_name,
+                                          block: selectedProperty?.block,
+                                          lot: selectedProperty?.lot_number,
+                                          month: selectedTrackerMonth.month,
+                                          year: trackerYear,
+                                          records: selectedTrackerMonth.records,
+                                          dues: selectedTrackerMonth.dues,
+                                          services: selectedTrackerMonth.services,
+                                          other: selectedTrackerMonth.other,
+                                          total: selectedTrackerMonth.total,
+                                        })}>
+                            Print {selectedTrackerMonth.month} breakdown
+                          </button>
+                        </footer>
+                      </section>
+                    </div>, document.body
+                  )}
                 </section>
               </div>
             )}
