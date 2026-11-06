@@ -2103,3 +2103,28 @@
     animation: none;
   }
 }
+
+/* Month details inside Payment Tracker */
+.homeowner-tracker-row.is-expanded { background: #f0f7fd; }
+.homeowner-tracker-month-button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 2px 0;
+  border: 0; background: transparent; color: #195b8f; font: inherit;
+  cursor: pointer; text-align: left;
+}
+.homeowner-tracker-month-button:hover strong { text-decoration: underline; }
+.homeowner-tracker-month-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; border-radius: 3px; }
+.homeowner-tracker-month-button > span:first-child { font-size: 0.95rem; }
+.homeowner-tracker-click-hint { color: #647f92; font-size: 0.65rem; }
+.homeowner-tracker-detail-row > td { padding: 0 !important; background: #f7fbff; }
+.homeowner-tracker-month-details { padding: 16px; border-top: 2px solid #bdd7ee; }
+.homeowner-tracker-detail-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; color: #183a59; }
+.homeowner-tracker-detail-heading > span { color: #5f7486; font-weight: 600; }
+.homeowner-tracker-detail-scroll { max-width: 100%; overflow-x: auto; }
+.homeowner-tracker-detail-table { width: 100%; min-width: 750px; border-collapse: collapse; }
+.homeowner-tracker-detail-table th { padding: 9px; background: #e4f0fa; color: #365670; text-align: left; font-size: 0.68rem; }
+.homeowner-tracker-detail-table td { padding: 9px; border-bottom: 1px solid #dbe7f0; vertical-align: top; font-size: 0.73rem; }
+.homeowner-tracker-detail-totals { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: flex-end; padding: 12px 4px 4px; font-size: 0.75rem; }
+.homeowner-tracker-detail-totals > span:last-child { color: #155e95; }
+.homeowner-tracker-detail-empty { margin: 0 0 12px; padding: 12px; border-radius: 8px; background: #edf3f8; color: #405f74; line-height: 1.5; }
+.homeowner-tracker-detail-disclaimer { margin: 10px 0 0; color: #60788b; font-size: 0.7rem; line-height: 1.5; }
+@media (max-width: 620px) { .homeowner-tracker-click-hint { display: none; } .homeowner-tracker-month-details { padding: 12px; } }

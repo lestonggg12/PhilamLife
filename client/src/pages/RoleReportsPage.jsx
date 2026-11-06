@@ -45,6 +45,8 @@ async function loadRoleSources(role, month) {
     fetchAll(() => supabase.from('collection_actions')
       .select('id,property_id,action_date,action_type').gte('action_date',span.start).lt('action_date',span.end)
       .order('action_date')),
+    supabase.from('expense_budgets').select('budget_year,category,approved_annual_amount')
+      .eq('budget_year', Number(month.slice(0,4))).order('category'),
   ])
   const failure = results.find(r => r.error)?.error
   if (failure) throw failure
@@ -57,7 +59,7 @@ async function loadRoleSources(role, month) {
       properties: results[3].data, grievances: results[4].data })
     : treasurerRoleReport({ month, payments: results[1].data, services: results[2].data,
       expenses: results[3].data, properties: results[4].data, overdue: results[5].data,
-      collectionActions: results[6].data, snapshotDate })
+      collectionActions: results[6].data, budgets: results[7].data, snapshotDate })
   return { report, organization: results[0].data }
 }
 

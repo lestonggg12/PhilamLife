@@ -1,4 +1,5 @@
 import { grievanceRows } from './monthlyReportData'
+import { budgetComparison } from './expenseBudget'
 
 // A report never converts absent monetary data to zero.  Monetary values
 // are summed as integer centavos to avoid floating-point report drift.
@@ -96,8 +97,8 @@ export function secretaryRoleReport({ month, events, documents, properties, grie
   }
 }
 
-export function treasurerRoleReport({ month, payments, services, expenses, properties, overdue, collectionActions, snapshotDate }) {
-  if (![payments, services, expenses, properties, overdue, collectionActions].every(Array.isArray) || !month) {
+export function treasurerRoleReport({ month, payments, services, expenses, properties, overdue, collectionActions, snapshotDate, budgets }) {
+  if (![payments, services, expenses, properties, overdue, collectionActions, budgets].every(Array.isArray) || !month) {
     throw Error('Treasurer report source records are incomplete.')
   }
   const propertyById = new Map(properties.map(p => [String(p.id), p]))
@@ -130,7 +131,7 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
     ['91+ days', unpaid.filter(r => r.days_overdue >= 91)],
   ].map(([range, rows]) => [range, String(rows.length), php(sum(rows, 'overdue_amount'))])
   const categoryExpenses = grouped(expenses, 'category', 'amount')
-  const expenseBudget = categoryExpenses.map(([category, , total]) => [category, 'Not recorded', total, 'Cannot calculate'])
+  const expenseBudget = budgetComparison(expenses, budgets, month, cents, php)
   const followups = collectionActions.map(a => {
     const property = propertyById.get(String(a.property_id))
     return [date(a.action_date), label(property?.block), label(property?.lot_number), label(a.action_type)]
@@ -176,9 +177,9 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
           table('Period summary', ['Measure', 'Amount'], [['Total recorded expenses', php(expenseTotal)], ['Net receipts less expenses', php(net)]]),
         ], 'Expense entries are not proof of bank clearance. Authorization and vendor settlement status should be checked against supporting documentation.'),
       section('4. Budget vs. Actual Comparison',
-        'Actual expense amounts are available, but approved budget allocations are not stored in a dedicated budget module.', [
-          table('Actual expenses against approved budget', ['Category', 'Approved budget', 'Actual', 'Variance'], expenseBudget),
-        ], 'Savings and overspends cannot be computed until an approved budget and budget periods have been registered.'),
+        'Monthly actual expenses against Admin-approved calendar-year allocations, distributed across the twelve months. Positive variance is underspending; negative variance is overspending.', [
+          table('Actual expenses against monthly approved allocation', ['Category', 'Monthly allocation', 'Actual', 'Variance'], expenseBudget.rows),
+        ], expenseBudget.complete ? 'All compared categories have recorded approved annual allocations. Monthly amounts are a pro-rata allocation, not a month-specific board-approved budget.' : 'Some categories lack an approved annual allocation. Their variances and the overall variance cannot be verified; an absent budget is not treated as zero.'),
       section('5. Delinquency Report',
         `Current receivables snapshot as of ${snapshotDate || 'report generation'}. This section is not a reconstruction of balances at the end of the selected month.`, [
           table('Overdue account aging', ['Age', 'Accounts', 'Overdue amount'], aging),
@@ -194,6 +195,6 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
           ]),
         ], 'No payables balance or reconciliation completion is asserted. Review independently maintained statements and supplier records before approval.'),
     ],
-    basis: 'Sources: non-voided payments, service transactions and expenses within the selected Manila reporting month; current active property and overdue-aging views; collection action log for the month. All financial amounts are computed from actual stored entries. No budget, bank balance, or payable figure is inferred.',
+    basis: 'Sources: non-voided payments, service transactions and expenses within the selected Manila reporting month; current active property and overdue-aging views; collection action log for the month. All financial amounts are computed from actual stored entries. Approved annual expense budgets are sourced from the Admin budget register and allocated one-twelfth per month with centavo precision. No bank balance or payable figure is inferred.',
   }
 }

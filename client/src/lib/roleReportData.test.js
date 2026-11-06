@@ -22,6 +22,7 @@ const treasuryInput = {
     expense_date: '2026-11-01', amount: '90.00' }],
   properties: [{ id: 1, block: 'A', lot_number: 4, homeowner_name: 'Sample Member', homeowner_status: 'active' }],
   overdue: [{ property_id: 1, is_overdue: true, days_overdue: 37, overdue_amount: '20.00', aging_complete: true }],
+  budgets: [],
   collectionActions: [{ property_id: 1, action_date: '2026-11-06T10:00:00+08:00', action_type: 'Reminder' }],
 }
 
