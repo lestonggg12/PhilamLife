@@ -48,3 +48,11 @@
   .lps-rate-grid, .lps-rate-fields { grid-template-columns: minmax(0, 1fr); }
   .lps-rate-form, .lps-months-form { padding: 15px; }
 }
+/* PHILAMLIFE SAFE TODAY - targeted styling */
+.lps-effective-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.lps-today-button { padding: 9px 14px; border: 1px solid #a3bfd3; background: #fff; color: #155b87; border-radius: 9px; cursor: pointer; font: inherit; font-weight: 700; }
+.lps-today-button:disabled { opacity: .5; cursor: not-allowed; }
+.lps-today-confirm { display: grid; gap: 6px; background: #f8fafc; border: 1px solid #b5c9d9; border-radius: 10px; padding: 12px; color: #23425d; font-size: 13px; }
+.lps-today-confirm p { margin: 0; }
+.lps-today-confirm label { display: flex; align-items: flex-start; gap: 9px; line-height: 1.5; cursor: pointer; }
+.lps-today-confirm input[type=checkbox] { margin-top: 3px; }
