@@ -29,6 +29,7 @@ import { openPaymentMonthPrint } from '../lib/paymentMonthPrint'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
+import { recordReceiptActivity } from '../lib/receiptActivityAudit'
 import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import ActionDialog from '../components/ActionDialog'
 import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
@@ -375,6 +376,7 @@ useEffect(() => {
       if (!data || String(data.id) !== String(sourceRow.id)) {
         throw new Error('The receipt could not be verified for this property.')
       }
+      await recordReceiptActivity('Receipt Viewed', { kind: isService ? 'service' : 'payment', receiptNumber: data.receipt_number, recordId: data.id })
       setHistoryReceipt({ kind: isService ? 'service' : 'payment', row: data, propertyId: selectedPropertyId })
     } catch (failure) {
       setHistoryReceiptError(failure?.message || 'Unable to open receipt. Please refresh and retry.')
@@ -1741,7 +1743,12 @@ useEffect(() => {
             verificationLoading={historySettlement.loading}
             verificationError={historySettlement.error}
             onClose={() => setHistoryReceipt(null)}
-            onPrint={(setup) => printReceipt(receiptModel, setHistoryPrintNotice, setup)}
+            onPrint={(setup) => {
+              void recordReceiptActivity('Receipt Print Requested', {
+                kind: historyReceipt.kind, receiptNumber: historyReceipt.row.receipt_number, recordId: historyReceipt.row.id,
+              }).catch((error) => setHistoryReceiptError(`Receipt print activity could not be logged: ${error.message}`))
+              printReceipt(receiptModel, setHistoryPrintNotice, setup)
+            }}
           />
         )
       })()}

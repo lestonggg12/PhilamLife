@@ -19,6 +19,7 @@ import { ReceiptDialog } from '../components/ReceiptSheet'
 import Skeleton from '../components/skeleton/Skeleton'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
+import { recordReceiptActivity } from '../lib/receiptActivityAudit'
 import ServiceVoidDialog from '../components/ServiceVoidDialog'
 import OfficialRegularVoidDialog from '../components/OfficialRegularVoidDialog'
 import './OfficialReceiptsPage.css'
@@ -784,6 +785,7 @@ export default function OfficialReceiptsPage({ user }) {
       if (!data || String(data.id) !== String(receipt.sourceId)) {
         throw new Error('The requested receipt could not be verified.')
       }
+      await recordReceiptActivity('Receipt Viewed', { kind: receipt.type, receiptNumber: data.receipt_number, recordId: data.id })
       setPageError('')
       setSelectedReceipt(receipt.type === 'service' ? mapServiceReceipt(data) : mapPaymentReceipt(data))
     } catch (failure) {
@@ -1209,7 +1211,12 @@ export default function OfficialReceiptsPage({ user }) {
             verificationLoading={settlement.loading}
             verificationError={settlement.error}
             onClose={() => setSelectedReceipt(null)}
-            onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
+            onPrint={(setup) => {
+              void recordReceiptActivity('Receipt Print Requested', {
+                kind: selectedReceipt.type, receiptNumber: selectedReceipt.receiptNumber, recordId: selectedReceipt.sourceId,
+              }).catch((error) => setPageError(`Receipt print activity could not be logged: ${error.message}`))
+              printReceipt(receiptModel, setPopupNotice, setup)
+            }}
           >
             {canVoidReceipts && !receiptModel.voided && (
               <button type="button" className="rcpt-btn rcpt-btn-danger"
