@@ -1811,8 +1811,8 @@
 }
 
 .homeowner-analytics-year .homeowner-analytics-select {
-  flex: 0 0 76px;
-  width: 76px;
+  flex: 0 0 92px;
+  width: 92px;
 }
 
 .homeowner-analytics-select-popover {
@@ -2283,3 +2283,53 @@
 }
 @media (prefers-reduced-motion: reduce) { .homeowner-month-dialog { animation: none !important; transition: none !important; } }
 @media print { .homeowner-month-overlay { display: none !important; } }
+
+/* Recent Payment Activity: compact, accessible receipt actions. */
+.homeowner-history-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.homeowner-receipt-view-link {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 55px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid #a9c9df;
+  border-radius: 999px;
+  background: #f5fbff;
+  color: #125888;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.homeowner-receipt-view-link:hover:not(:disabled) { background: #e5f3fd; }
+.homeowner-receipt-view-link:disabled { opacity: 0.55; cursor: wait; }
+.homeowner-receipt-view-link:focus-visible,
+.homeowner-history-actions .homeowner-void-link:focus-visible {
+  outline: 2px solid #1464a0;
+  outline-offset: 2px;
+}
+
+/* Monthly receipt history — scoped to the Homeowners activity card. */
+.homeowner-history-card .homeowner-section-heading {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.homeowner-history-month-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: auto;
+  color: #4a627a;
+  font-size: 12px;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .homeowner-history-month-picker { width: 100%; margin-left: 0; }
+}

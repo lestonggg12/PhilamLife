@@ -139,7 +139,7 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
   const overdueList = [...unpaid].sort((a, b) => (b.days_overdue || 0) - (a.days_overdue || 0))
     .map(r => {
       const p = propertyById.get(String(r.property_id))
-      return [label(p?.block), label(p?.lot_number), label(p?.homeowner_name), String(r.days_overdue), php(cents(r.overdue_amount))]
+      return [label(p?.block), label(p?.lot_number), label(p?.homeowner_name), p?.property_classification === 'lot_owner' ? 'Lot Owner' : p?.property_classification === 'homeowner' ? 'Homeowner' : 'Unclassified', String(r.days_overdue), php(cents(r.overdue_amount))]
     })
   return {
     title: 'Monthly Treasurer Report',
@@ -183,7 +183,7 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
       section('5. Delinquency Report',
         `Current receivables snapshot as of ${snapshotDate || 'report generation'}. This section is not a reconstruction of balances at the end of the selected month.`, [
           table('Overdue account aging', ['Age', 'Accounts', 'Overdue amount'], aging),
-          table('Overdue active accounts — confidential', ['Block', 'Lot', 'Registered name', 'Days overdue', 'Overdue amount'], overdueList),
+          table('Overdue active accounts — confidential', ['Block', 'Lot', 'Registered name', 'Classification', 'Days overdue', 'Overdue amount'], overdueList),
           table('Recorded collection follow-ups during period', ['Date', 'Block', 'Lot', 'Action'], followups),
         ], 'Restricted to authorized association staff. The detailed list contains registered homeowner names. A current property view cannot prove a historical delinquency position or an old membership status.'),
       section('6. Accounts Payable and Reconciliations',

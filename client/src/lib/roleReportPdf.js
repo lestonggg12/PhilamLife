@@ -81,6 +81,14 @@ export function buildRoleReportPdf({ report, month, hoaName, address, preparedBy
         theme: 'plain',
         margin: { left:M, right:M, top:28, bottom:24 },
         rowPageBreak:'avoid',
+        // treasurer-overdue-layout-v1: proportioned widths keep classification intact in Letter PDF.
+        ...(t.title === 'Overdue active accounts — confidential' && t.head.length === 6
+          ? { columnStyles: {
+              0: { cellWidth: 29.9 }, 1: { cellWidth: 12.3 },
+              2: { cellWidth: 45.7 }, 3: { cellWidth: 31.7 },
+              4: { cellWidth: 21.1 }, 5: { cellWidth: 35.2 },
+            } }
+          : {}),
         styles: {font:'helvetica',fontSize:8.5,textColor:INK,
           cellPadding:{top:2.6,bottom:2.6,left:3,right:3},
           lineColor:RULE,lineWidth:{top:0,right:0,bottom:0.2,left:0}},

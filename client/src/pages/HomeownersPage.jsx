@@ -26,10 +26,16 @@ import { formatDate as formatDateValue } from '../config/organization'
 import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
 import { openPaymentMonthPrint } from '../lib/paymentMonthPrint'
+import { ReceiptDialog } from '../components/ReceiptSheet'
+import { buildReceiptModel } from '../lib/receiptModel'
+import { printReceipt } from '../lib/printReceipt'
+import { useSettledAmountStatus } from '../lib/useSettledAmount'
+import ActionDialog from '../components/ActionDialog'
 import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
 import HomeownerLotChips from '../components/HomeownerLotChips'
+import DateField from '../components/DateField'
 import { duplicateLotMessage, isDuplicateLotError } from '../lib/homeownerLots'
 import HomeownerActionsMenu from '../components/HomeownerActionsMenu'
 import '../components/HomeownerProfileRefresh.css'
@@ -229,6 +235,11 @@ export default function HomeownersPage() {
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [currentUser, setCurrentUser] = useState(null)
   const [voidTarget, setVoidTarget] = useState(null)
+  const [historyReceipt, setHistoryReceipt] = useState(null)
+  const [openingHistoryReceipt, setOpeningHistoryReceipt] = useState('')
+  const [historyReceiptError, setHistoryReceiptError] = useState('')
+  const [historyPrintNotice, setHistoryPrintNotice] = useState('')
+  const historySettlement = useSettledAmountStatus(historyReceipt?.kind === 'service' ? historyReceipt.row : null)
   const [voidReason, setVoidReason] = useState('')
   const [voiding, setVoiding] = useState(false)
   const [voidError, setVoidError] = useState('')
@@ -238,6 +249,10 @@ export default function HomeownersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [historyMonth, setHistoryMonth] = useState(() => {
+    const now = getManilaYearMonth(new Date())
+    return `${now.year}-${String(now.month + 1).padStart(2, '0')}`
+  })
   const [trackerOpen, setTrackerOpen] = useState(false)
   const [trackerView, setTrackerView] = useState('monthly')
   const [expandedTrackerMonth, setExpandedTrackerMonth] = useState(null)
@@ -290,6 +305,8 @@ useEffect(() => {
 
   useEffect(() => {
     setActiveTab('overview')
+    const now = getManilaYearMonth(new Date())
+    setHistoryMonth(`${now.year}-${String(now.month + 1).padStart(2, '0')}`)
     setTrackerOpen(false)
     setTrackerView('monthly')
     setExpandedTrackerMonth(null)
@@ -338,6 +355,33 @@ useEffect(() => {
     setVoidError('')
   }
 
+  async function openHomeownerHistoryReceipt(item) {
+    if (openingHistoryReceipt || !selectedPropertyId) return
+    const isService = item.id.startsWith('service-')
+    const sourceRow = isService
+      ? selectedServices.find((row) => `service-${row.id}` === item.id)
+      : selectedPayments.find((row) => `payment-${row.id}` === item.id)
+    if (!sourceRow) {
+      setHistoryReceiptError('Receipt details are unavailable. Refresh the homeowner records and try again.')
+      return
+    }
+    setOpeningHistoryReceipt(item.id)
+    setHistoryReceiptError('')
+    try {
+      const table = isService ? 'service_transactions' : 'payments'
+      const { data, error } = await supabase.from(table).select('*')
+        .eq('id', sourceRow.id).eq('property_id', selectedPropertyId).maybeSingle()
+      if (error) throw error
+      if (!data || String(data.id) !== String(sourceRow.id)) {
+        throw new Error('The receipt could not be verified for this property.')
+      }
+      setHistoryReceipt({ kind: isService ? 'service' : 'payment', row: data, propertyId: selectedPropertyId })
+    } catch (failure) {
+      setHistoryReceiptError(failure?.message || 'Unable to open receipt. Please refresh and retry.')
+    } finally {
+      setOpeningHistoryReceipt('')
+    }
+  }
   async function confirmVoid(event) {
     event.preventDefault()
     if (voiding || !canVoidPayments || !voidTarget) return
@@ -535,6 +579,11 @@ useEffect(() => {
 
   const selectedPropertyId = selectedProperty?.id ?? null
 
+  useEffect(() => {
+    setHistoryReceipt(null)
+    setHistoryReceiptError('')
+  }, [selectedPropertyId])
+
   // Load only this homeowner's payments and service purchases.
   useEffect(() => {
     if (selectedPropertyId == null) {
@@ -723,6 +772,13 @@ useEffect(() => {
     if (activeTab === 'other') return history.filter((item) => item.kind === 'other')
     return history
   }, [activeTab, history])
+
+  // Filter by the actual payment date in Asia/Manila, not the dues coverage month.
+  // Keep voided records visible in the historical ledger, exactly as before.
+  const historyMonthRows = useMemo(() => visibleHistory.filter((item) => {
+    const paid = getManilaYearMonth(item.paidAt)
+    return paid && `${paid.year}-${String(paid.month + 1).padStart(2, '0')}` === historyMonth
+  }), [visibleHistory, historyMonth])
 
   const trackerRecords = useMemo(
     () =>
@@ -1576,6 +1632,15 @@ useEffect(() => {
                   <h3>{activeTab === 'overview' ? 'Recent Payment Activity' : 'Payment History'}</h3>
                   <p>Official receipts connected to this homeowner and property.</p>
                 </div>
+                <label className="homeowner-history-month-picker">
+                  <span>Payment month</span>
+                  <DateField
+                    ariaLabel="Filter payment history by month"
+                    monthOnly
+                    value={historyMonth}
+                    onChange={setHistoryMonth}
+                  />
+                </label>
               </div>
               <div className="homeowner-history-table-wrap">
                 <table className="homeowner-history-table">
@@ -1593,10 +1658,10 @@ useEffect(() => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).length === 0 ? (
-                      <tr><td colSpan="9" className="homeowners-empty">No payment records in this category.</td></tr>
+                    {historyMonthRows.length === 0 ? (
+                      <tr><td colSpan="9" className="homeowners-empty">No payment records for the selected month and category.</td></tr>
                     ) : (
-                      (activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).map((item) => (
+                      historyMonthRows.map((item) => (
                         <tr key={item.id}>
                           <td>{formatDate(item.paidAt, organization.dateFormat)}</td>
                           <td><strong>{item.receipt}</strong></td>
@@ -1609,9 +1674,14 @@ useEffect(() => {
                           </td>
                           <td><span className={`homeowner-payment-status status-${normalize(item.status).replace(/\s+/g, '-')}`}>{item.status}</span></td>
                           <td>
-                            {canVoidPayments && item.id.startsWith('payment-') && item.statusKey !== 'voided' && (
-                              <button type="button" className="homeowner-void-link" onClick={() => openVoid(item)}>Void</button>
-                            )}
+                            <div className="homeowner-history-actions">
+                              <button type="button" className="homeowner-receipt-view-link" onClick={() => openHomeownerHistoryReceipt(item)} disabled={Boolean(openingHistoryReceipt)}>
+                                {openingHistoryReceipt === item.id ? 'Opening…' : 'View'}
+                              </button>
+                              {canVoidPayments && item.id.startsWith('payment-') && item.statusKey !== 'voided' && (
+                                <button type="button" className="homeowner-void-link" onClick={() => openVoid(item)}>Void</button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1658,6 +1728,29 @@ useEffect(() => {
             />
           </dialog>
         )}
+      {historyReceiptError && (
+        <ActionDialog open title="Receipt unavailable" message={historyReceiptError} onConfirm={() => setHistoryReceiptError('')} />
+      )}
+      {historyReceipt && historyReceipt.propertyId === selectedPropertyId && (() => {
+        const receiptModel = buildReceiptModel(historyReceipt.kind, historyReceipt.row, organization, {
+          settledAmount: historySettlement.amount,
+        })
+        return (
+          <ReceiptDialog
+            model={receiptModel}
+            verificationLoading={historySettlement.loading}
+            verificationError={historySettlement.error}
+            onClose={() => setHistoryReceipt(null)}
+            onPrint={(setup) => printReceipt(receiptModel, setHistoryPrintNotice, setup)}
+          />
+        )
+      })()}
+      <ActionDialog
+        open={Boolean(historyPrintNotice)}
+        title="Print window blocked"
+        message={historyPrintNotice}
+        onConfirm={() => setHistoryPrintNotice('')}
+      />
       {voidTarget && (
         <div className="homeowner-void-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
           <form className="homeowner-void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>

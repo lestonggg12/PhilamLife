@@ -129,7 +129,7 @@ export default function Sidebar({
       name: 'Official Receipts',
       path: '/secretary/receipts',
       icon: FileText,
-      roles: ['secretary'],
+      roles: ['secretary', 'treasurer'],
     },
   ].filter((item) => item.roles.includes(role))
 

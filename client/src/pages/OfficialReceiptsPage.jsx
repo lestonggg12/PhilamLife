@@ -19,6 +19,8 @@ import { ReceiptDialog } from '../components/ReceiptSheet'
 import Skeleton from '../components/skeleton/Skeleton'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
+import ServiceVoidDialog from '../components/ServiceVoidDialog'
+import OfficialRegularVoidDialog from '../components/OfficialRegularVoidDialog'
 import './OfficialReceiptsPage.css'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import useDebouncedValue from '../hooks/useDebouncedValue'
@@ -530,8 +532,10 @@ function ReceiptCalendar({
   )
 }
 
-export default function OfficialReceiptsPage() {
+export default function OfficialReceiptsPage({ user }) {
   const { organization } = useOrganization()
+  const role = user?.is_active === false ? '' : String(user?.role || '').trim().toLowerCase()
+  const canVoidReceipts = role === 'secretary' || role === 'treasurer'
   // One page (50) of receipts at a time, read from the database.
   const [rows, setRows] = useState([])
   const [pageInfo, setPageInfo] = useState({ total: 0, minimum: 0 })
@@ -553,6 +557,7 @@ export default function OfficialReceiptsPage() {
   const [toDate, setToDate] = useState('')
   const [selectedReceipt, setSelectedReceipt] =
     useState(null)
+  const [voidTarget, setVoidTarget] = useState(null)
   const settlement = useSettledAmountStatus(selectedReceipt?.type === 'service' ? selectedReceipt.raw : null)
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
@@ -1177,6 +1182,13 @@ export default function OfficialReceiptsPage() {
                           <Eye size={16} />
                           {openingId === receipt.id ? 'Opening…' : 'View'}
                         </button>
+                        {canVoidReceipts && !receipt.isVoided && (
+                          <button type="button" className="official-void-button"
+                            disabled={Boolean(openingId)}
+                            onClick={() => { setSelectedReceipt(null); setVoidTarget(receipt) }}>
+                            Void
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ),
@@ -1198,9 +1210,27 @@ export default function OfficialReceiptsPage() {
             verificationError={settlement.error}
             onClose={() => setSelectedReceipt(null)}
             onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
-          />
+          >
+            {canVoidReceipts && !receiptModel.voided && (
+              <button type="button" className="rcpt-btn rcpt-btn-danger"
+                onClick={() => { setVoidTarget(selectedReceipt); setSelectedReceipt(null) }}>
+                Void receipt
+              </button>
+            )}
+          </ReceiptDialog>
         )
       })()}
+
+      {voidTarget && (voidTarget.type === 'service' ? (
+        <ServiceVoidDialog receipt={voidTarget.raw || { id: voidTarget.sourceId, receipt_number: voidTarget.receiptNumber }}
+          onClose={() => setVoidTarget(null)}
+          onVoided={() => { setVoidTarget(null); setReloadTick((tick) => tick + 1) }} />
+      ) : (
+        <OfficialRegularVoidDialog
+          receipt={voidTarget.raw || { id: voidTarget.sourceId, receipt_number: voidTarget.receiptNumber, homeowner_name: voidTarget.payer }}
+          role={role} onClose={() => setVoidTarget(null)}
+          onVoided={() => { setVoidTarget(null); setReloadTick((tick) => tick + 1) }} />
+      ))}
 
       <ActionDialog
         open={!!popupNotice}

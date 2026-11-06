@@ -363,8 +363,8 @@ function AppContent() {
               <Route
                 path="/secretary/receipts"
                 element={guarded(
-                  ['secretary'],
-                  <OfficialReceiptsPage />
+                  ['secretary', 'treasurer'],
+                  <OfficialReceiptsPage user={user} />
                 )}
               />
 

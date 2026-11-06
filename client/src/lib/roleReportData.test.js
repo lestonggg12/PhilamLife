@@ -62,6 +62,15 @@ describe('role report contexts', () => {
     expect(report.sections[4].tables[1].rows).toHaveLength(1)
   })
 
+  it('includes the saved classification in the confidential overdue table', () => {
+    const report = treasurerRoleReport({ ...treasuryInput, properties: [{ ...treasuryInput.properties[0], property_classification: 'lot_owner' }] })
+    const table = report.sections[4].tables[1]
+    expect(table.head).toContain('Classification')
+    expect(table.rows[0][3]).toBe('Lot Owner')
+    expect(treasurerRoleReport({ ...treasuryInput, properties: [{ ...treasuryInput.properties[0], property_classification: 'homeowner' }] }).sections[4].tables[1].rows[0][3]).toBe('Homeowner')
+    expect(treasurerRoleReport(treasuryInput).sections[4].tables[1].rows[0][3]).toBe('Unclassified')
+  })
+
   it('fails closed on incomplete overdue aging or financial amounts', () => {
     expect(() => treasurerRoleReport({ ...treasuryInput,
       overdue: [{ ...treasuryInput.overdue[0], aging_complete: false }] })).toThrow(/aging is incomplete/i)

@@ -39,7 +39,7 @@ async function loadRoleSources(role, month) {
       .select('id,category,description,reference_number,amount,expense_date,status')
       .gte('expense_date',dates.from).lte('expense_date',dates.to)).order('expense_date')),
     fetchAll(() => supabase.from('properties')
-      .select('id,block,lot_number,homeowner_name,homeowner_status').order('id')),
+      .select('id,block,lot_number,homeowner_name,homeowner_status,property_classification').order('id')),
     fetchAll(() => supabase.from('property_overdue_summary')
       .select('property_id,is_overdue,days_overdue,overdue_amount,aging_complete').order('property_id'), { tiebreaker: null }),
     fetchAll(() => supabase.from('collection_actions')
@@ -64,7 +64,9 @@ async function loadRoleSources(role, month) {
 }
 
 function Table({ model }) {
-  return <div className="reports-table-wrap"><table data-column-count={model.head.length}>
+  // treasurer-overdue-layout-v1: only the Treasurer confidential overdue table needs six balanced columns.
+  const overdue = model.title === 'Overdue active accounts — confidential' && model.head.length === 6
+  return <div className={overdue ? 'reports-table-wrap treasurer-overdue-table' : 'reports-table-wrap'}><table data-column-count={model.head.length}>
     <thead><tr>{model.head.map((v, i) => <th key={i}>{v}</th>)}</tr></thead>
     <tbody>{model.rows.length ? model.rows.map((row, i) => <tr key={i}>
       {row.map((v, j) => <td key={j} className={j === row.length - 1 ? 'is-right' : undefined}>{v}</td>)}
