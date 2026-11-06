@@ -190,18 +190,20 @@
 
 .homeowners-finder-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 12px 18px 18px;
 }
 
 .homeowners-finder-controls > .sel-root {
-  flex: 0 0 210px;
-  width: 210px;
+  flex: 0 1 190px;
+  width: 190px;
+  min-width: 170px;
 }
 
 .homeowners-search-wrap {
   position: relative;
-  flex: 1;
+  flex: 1 1 300px;
   min-width: 0;
 }
 

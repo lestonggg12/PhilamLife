@@ -234,6 +234,7 @@ export default function HomeownersPage() {
   const [voidError, setVoidError] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
@@ -489,18 +490,20 @@ useEffect(() => {
   )
 
   const hasQuery = debouncedSearch.trim().length > 0
-  const hasFilter = statusFilter !== 'all'
+  const hasFilter = statusFilter !== 'all' || classificationFilter !== 'all'
 
   const filteredDirectory = useMemo(() => {
     if (!hasQuery && !hasFilter) return []
     return directoryEntries.filter(({ property, status }) => {
       const matchesSearch = matchesHomeownerSearch(property, debouncedSearch)
       const matchesStatus = statusFilter === 'all' || status.key === statusFilter
-      return matchesSearch && matchesStatus
+      const classification = String(property.property_classification || 'unclassified').trim().toLowerCase() || 'unclassified'
+      const matchesClassification = classificationFilter === 'all' || classification === classificationFilter
+      return matchesSearch && matchesStatus && matchesClassification
     })
-  }, [debouncedSearch, directoryEntries, hasFilter, hasQuery, statusFilter])
+  }, [classificationFilter, debouncedSearch, directoryEntries, hasFilter, hasQuery, statusFilter])
 
-  const directoryPage = useListPage(filteredDirectory, [search, statusFilter], 25)
+  const directoryPage = useListPage(filteredDirectory, [search, statusFilter, classificationFilter], 25)
   const showResults = resultsOpen && (hasQuery || hasFilter)
 
   function handleSelectHomeowner(id) {
@@ -968,6 +971,8 @@ useEffect(() => {
               </div>
             )}
           </div>
+
+          <Select ariaLabel="Filter homeowners by property classification" value={classificationFilter} onChange={(value) => { setClassificationFilter(value); setResultsOpen(true) }} options={[['all', 'All classifications'], ['lot_owner', 'Lot owners'], ['homeowner', 'Homeowners'], ['unclassified', 'Unclassified']].map(([value, label]) => ({ value, label }))} />
 
           <Select ariaLabel="Filter homeowners by account status" value={statusFilter} onChange={(value) => { setStatusFilter(value); setResultsOpen(true) }} options={[['all', 'All account statuses'], ['current', 'Current'], ['balance', 'With balance'], ['no-history', 'No payment history']].map(([value, label]) => ({ value, label }))} />
         </div>
