@@ -140,7 +140,7 @@ export default function DateField({
           </div>
           {!monthOnly && clearable && <button type="button" className="tsr-date-clear" onClick={() => { onChange(''); setOpen(false) }} disabled={!value}>Clear</button>}
         </div>
-      ), document.body)}
+      ), rootRef.current?.closest('dialog') || document.body)}
     </div>
   )
 }

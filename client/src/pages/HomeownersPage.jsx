@@ -1,6 +1,7 @@
 import { notifySuccess, notifyAction } from '../lib/actionFeedback'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Select from '../components/Select'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -24,16 +25,25 @@ import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
 import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
+import { openPaymentMonthPrint } from '../lib/paymentMonthPrint'
+import { ReceiptDialog } from '../components/ReceiptSheet'
+import { buildReceiptModel } from '../lib/receiptModel'
+import { printReceipt } from '../lib/printReceipt'
+import { recordReceiptActivity } from '../lib/receiptActivityAudit'
+import { useSettledAmountStatus } from '../lib/useSettledAmount'
+import ActionDialog from '../components/ActionDialog'
 import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
 import HomeownerLotChips from '../components/HomeownerLotChips'
+import DateField from '../components/DateField'
 import { duplicateLotMessage, isDuplicateLotError } from '../lib/homeownerLots'
 import HomeownerActionsMenu from '../components/HomeownerActionsMenu'
 import '../components/HomeownerProfileRefresh.css'
 import { Pager } from '../components/PagerControls'
 import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 import '../components/HomeownerDirectoryPaging.css'
+import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -211,6 +221,7 @@ export default function HomeownersPage() {
   const { homeownerId } = useParams()
   const confirm = useConfirm()
   const [adminDialog, setAdminDialog] = useState(null)
+  const [classificationPropertyId, setClassificationPropertyId] = useState(null)
   const [balanceDialog, setBalanceDialog] = useState(null)
   const [breakdownKey, setBreakdownKey] = useState(0)
   const [balanceBreakdownOpen, setBalanceBreakdownOpen] = useState(false)
@@ -225,27 +236,47 @@ export default function HomeownersPage() {
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [currentUser, setCurrentUser] = useState(null)
   const [voidTarget, setVoidTarget] = useState(null)
+  const [historyReceipt, setHistoryReceipt] = useState(null)
+  const [openingHistoryReceipt, setOpeningHistoryReceipt] = useState('')
+  const [historyReceiptError, setHistoryReceiptError] = useState('')
+  const [historyPrintNotice, setHistoryPrintNotice] = useState('')
+  const historySettlement = useSettledAmountStatus(historyReceipt?.kind === 'service' ? historyReceipt.row : null)
   const [voidReason, setVoidReason] = useState('')
   const [voiding, setVoiding] = useState(false)
   const [voidError, setVoidError] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [historyMonth, setHistoryMonth] = useState(() => {
+    const now = getManilaYearMonth(new Date())
+    return `${now.year}-${String(now.month + 1).padStart(2, '0')}`
+  })
   const [trackerOpen, setTrackerOpen] = useState(false)
   const [trackerView, setTrackerView] = useState('monthly')
+  const [expandedTrackerMonth, setExpandedTrackerMonth] = useState(null)
   const [trackerYear, setTrackerYear] = useState(() =>
     getManilaYearMonth(new Date())?.year || new Date().getFullYear(),
   )
   const [loading, setLoading] = useState(() => !homeownerDirectoryCache.properties)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const classificationDialogRef = useRef(null)
   const searchWrapRef = useRef(null)
   const trackerRef = useRef(null)
   const detailCacheRef = useRef(new Map())
   const detailRequestRef = useRef(0)
 
+  useEffect(() => {
+    const dialog = classificationDialogRef.current
+    if (!dialog || dialog.open) return undefined
+    dialog.showModal()
+    return () => {
+      if (dialog.open) dialog.close()
+    }
+  }, [classificationPropertyId, homeownerId])
   useEffect(() => {
     loadHomeowners()
   }, [])
@@ -275,8 +306,11 @@ useEffect(() => {
 
   useEffect(() => {
     setActiveTab('overview')
+    const now = getManilaYearMonth(new Date())
+    setHistoryMonth(`${now.year}-${String(now.month + 1).padStart(2, '0')}`)
     setTrackerOpen(false)
     setTrackerView('monthly')
+    setExpandedTrackerMonth(null)
     setTrackerYear(
       getManilaYearMonth(new Date())?.year || new Date().getFullYear(),
     )
@@ -322,6 +356,34 @@ useEffect(() => {
     setVoidError('')
   }
 
+  async function openHomeownerHistoryReceipt(item) {
+    if (openingHistoryReceipt || !selectedPropertyId) return
+    const isService = item.id.startsWith('service-')
+    const sourceRow = isService
+      ? selectedServices.find((row) => `service-${row.id}` === item.id)
+      : selectedPayments.find((row) => `payment-${row.id}` === item.id)
+    if (!sourceRow) {
+      setHistoryReceiptError('Receipt details are unavailable. Refresh the homeowner records and try again.')
+      return
+    }
+    setOpeningHistoryReceipt(item.id)
+    setHistoryReceiptError('')
+    try {
+      const table = isService ? 'service_transactions' : 'payments'
+      const { data, error } = await supabase.from(table).select('*')
+        .eq('id', sourceRow.id).eq('property_id', selectedPropertyId).maybeSingle()
+      if (error) throw error
+      if (!data || String(data.id) !== String(sourceRow.id)) {
+        throw new Error('The receipt could not be verified for this property.')
+      }
+      await recordReceiptActivity('Receipt Viewed', { kind: isService ? 'service' : 'payment', receiptNumber: data.receipt_number, recordId: data.id })
+      setHistoryReceipt({ kind: isService ? 'service' : 'payment', row: data, propertyId: selectedPropertyId })
+    } catch (failure) {
+      setHistoryReceiptError(failure?.message || 'Unable to open receipt. Please refresh and retry.')
+    } finally {
+      setOpeningHistoryReceipt('')
+    }
+  }
   async function confirmVoid(event) {
     event.preventDefault()
     if (voiding || !canVoidPayments || !voidTarget) return
@@ -432,7 +494,7 @@ useEffect(() => {
         fetchAll(() => supabase
           .from('properties')
           .select(
-            'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance',
+            'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance, property_classification',
           )
           .order('homeowner_name')),
         fetchAll(() => supabase
@@ -474,18 +536,20 @@ useEffect(() => {
   )
 
   const hasQuery = debouncedSearch.trim().length > 0
-  const hasFilter = statusFilter !== 'all'
+  const hasFilter = statusFilter !== 'all' || classificationFilter !== 'all'
 
   const filteredDirectory = useMemo(() => {
     if (!hasQuery && !hasFilter) return []
     return directoryEntries.filter(({ property, status }) => {
       const matchesSearch = matchesHomeownerSearch(property, debouncedSearch)
       const matchesStatus = statusFilter === 'all' || status.key === statusFilter
-      return matchesSearch && matchesStatus
+      const classification = String(property.property_classification || 'unclassified').trim().toLowerCase() || 'unclassified'
+      const matchesClassification = classificationFilter === 'all' || classification === classificationFilter
+      return matchesSearch && matchesStatus && matchesClassification
     })
-  }, [debouncedSearch, directoryEntries, hasFilter, hasQuery, statusFilter])
+  }, [classificationFilter, debouncedSearch, directoryEntries, hasFilter, hasQuery, statusFilter])
 
-  const directoryPage = useListPage(filteredDirectory, [search, statusFilter], 25)
+  const directoryPage = useListPage(filteredDirectory, [search, statusFilter, classificationFilter], 25)
   const showResults = resultsOpen && (hasQuery || hasFilter)
   const homeownerStats = useMemo(() => ({
     total: directoryEntries.length,
@@ -522,6 +586,11 @@ useEffect(() => {
   )
 
   const selectedPropertyId = selectedProperty?.id ?? null
+
+  useEffect(() => {
+    setHistoryReceipt(null)
+    setHistoryReceiptError('')
+  }, [selectedPropertyId])
 
   // Load only this homeowner's payments and service purchases.
   useEffect(() => {
@@ -712,6 +781,13 @@ useEffect(() => {
     return history
   }, [activeTab, history])
 
+  // Filter by the actual payment date in Asia/Manila, not the dues coverage month.
+  // Keep voided records visible in the historical ledger, exactly as before.
+  const historyMonthRows = useMemo(() => visibleHistory.filter((item) => {
+    const paid = getManilaYearMonth(item.paidAt)
+    return paid && `${paid.year}-${String(paid.month + 1).padStart(2, '0')}` === historyMonth
+  }), [visibleHistory, historyMonth])
+
   const trackerRecords = useMemo(
     () =>
       history
@@ -765,6 +841,37 @@ useEffect(() => {
     [trackerRecords, trackerYear],
   )
 
+  const monthDialogRef = useRef(null)
+  const selectedTrackerMonth = expandedTrackerMonth === null ? null : monthlyTracker[expandedTrackerMonth]
+
+  useEffect(() => {
+    if (!trackerOpen || trackerView !== 'monthly' || !selectedTrackerMonth) return undefined
+    const previousFocus = document.activeElement
+    const dialog = monthDialogRef.current
+    dialog?.focus()
+    function handleDialogKey(event) {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        setExpandedTrackerMonth(null)
+      }
+      if (event.key !== 'Tab' || !dialog) return
+      const targets = Array.from(dialog.querySelectorAll('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'))
+      if (!targets.length) { event.preventDefault(); return }
+      const first = targets[0]
+      const last = targets[targets.length - 1]
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleDialogKey)
+    return () => {
+      document.removeEventListener('keydown', handleDialogKey)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [trackerOpen, trackerView, expandedTrackerMonth, trackerYear, homeownerId])
+
   const annualTracker = useMemo(
     () =>
       trackerYears.map((year) => {
@@ -797,6 +904,7 @@ useEffect(() => {
   }
 
   function closePaymentTracker() {
+    setExpandedTrackerMonth(null)
     setTrackerOpen(false)
   }
 
@@ -956,6 +1064,8 @@ useEffect(() => {
             )}
           </div>
 
+          <Select ariaLabel="Filter homeowners by property classification" value={classificationFilter} onChange={(value) => { setClassificationFilter(value); setResultsOpen(true) }} options={[['all', 'All classifications'], ['lot_owner', 'Lot owners'], ['homeowner', 'Homeowners'], ['unclassified', 'Unclassified']].map(([value, label]) => ({ value, label }))} />
+
           <Select ariaLabel="Filter homeowners by account status" value={statusFilter} onChange={(value) => { setStatusFilter(value); setResultsOpen(true) }} options={[['all', 'All account statuses'], ['current', 'Current'], ['balance', 'With balance'], ['no-history', 'No payment history']].map(([value, label]) => ({ value, label }))} />
         </div>
       </section>
@@ -982,7 +1092,13 @@ useEffect(() => {
               <div className="homeowner-profile-identity">
                 <div className="homeowner-profile-title-row">
                   <div>
-                    <p>Homeowner profile</p>
+                    <p>
+  {selectedProperty.property_classification === 'homeowner'
+    ? 'Homeowner profile'
+    : selectedProperty.property_classification === 'lot_owner'
+      ? 'Lot owner profile'
+      : 'Property profile'}
+</p>
                     <div className="homeowner-name-row">
                       <h2>{selectedProperty.homeowner_name}</h2>
                       <span className={`homeowner-account-badge badge-${selectedStatus.key}`}>
@@ -1036,6 +1152,16 @@ useEffect(() => {
                       </button>
                     </>
                   )}
+                  {import.meta.env.DEV &&
+                    import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true' &&
+                    canManageHomeowners && (
+                      <button
+                        type="button"
+                        onClick={() => setClassificationPropertyId(selectedProperty.id)}
+                      >
+                        Property Classification
+                      </button>
+                    )}
                   <button
                     type="button"
                     aria-expanded={trackerOpen}
@@ -1292,7 +1418,7 @@ useEffect(() => {
                           type="button"
                           className={trackerView === 'monthly' ? 'is-active' : ''}
                           aria-pressed={trackerView === 'monthly'}
-                          onClick={() => setTrackerView('monthly')}
+                          onClick={() => { setTrackerView('monthly'); setExpandedTrackerMonth(null) }}
                         >
                           Monthly
                         </button>
@@ -1300,7 +1426,7 @@ useEffect(() => {
                           type="button"
                           className={trackerView === 'annual' ? 'is-active' : ''}
                           aria-pressed={trackerView === 'annual'}
-                          onClick={() => setTrackerView('annual')}
+                          onClick={() => { setTrackerView('annual'); setExpandedTrackerMonth(null) }}
                         >
                           Annual
                         </button>
@@ -1308,7 +1434,7 @@ useEffect(() => {
                       {trackerView === 'monthly' && (
                         <label className="homeowner-tracker-year">
                           <span>Year</span>
-                          <Select ariaLabel="Payment analytics year" value={String(trackerYear)} onChange={(value) => setTrackerYear(Number(value))} options={trackerYears.map((year) => ({ value: String(year), label: String(year) }))} />
+                          <Select ariaLabel="Payment analytics year" value={String(trackerYear)} onChange={(value) => { setTrackerYear(Number(value)); setExpandedTrackerMonth(null) }} options={trackerYears.map((year) => ({ value: String(year), label: String(year) }))} />
                         </label>
                       )}
                     </div>
@@ -1329,14 +1455,22 @@ useEffect(() => {
                           </tr>
                         </thead>
                         <tbody>
-                          {monthlyTracker.map((month) => (
-                            <tr key={month.month}>
-                              <td><strong>{month.month}</strong></td>
+                          {monthlyTracker.map((month, monthIndex) => (
+                            <tr key={month.month} className="homeowner-tracker-row">
                               <td>
-                                <span className={`homeowner-tracker-status tracker-${month.status.key}`}>
-                                  {month.status.label}
-                                </span>
+                                <button
+                                  type="button"
+                                  className="homeowner-tracker-month-button"
+                                  aria-haspopup="dialog"
+                                  aria-label={`View ${month.month} ${trackerYear} payment breakdown`}
+                                  onClick={() => setExpandedTrackerMonth(monthIndex)}
+                                >
+                                  <span aria-hidden="true">▸</span>
+                                  <strong>{month.month}</strong>
+                                  <span className="homeowner-tracker-click-hint">Details</span>
+                                </button>
                               </td>
+                              <td><span className={`homeowner-tracker-status tracker-${month.status.key}`}>{month.status.label}</span></td>
                               <td>{month.records.length}</td>
                               <td className="homeowner-number">{peso.format(month.dues)}</td>
                               <td className="homeowner-number">{peso.format(month.services)}</td>
@@ -1378,6 +1512,97 @@ useEffect(() => {
                   <p className="homeowner-tracker-note">
                     Voided records are excluded. A blank month means no payment was recorded; it does not automatically mean an unpaid balance.
                   </p>
+
+                  {trackerView === 'monthly' && selectedTrackerMonth && createPortal(
+                    <div className="homeowner-month-overlay" onClick={(event) => { event.stopPropagation(); setExpandedTrackerMonth(null) }}>
+                      <section
+                        ref={monthDialogRef}
+                        className="homeowner-month-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="homeowner-month-dialog-title"
+                        aria-describedby="homeowner-month-dialog-description"
+                        tabIndex={-1}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <header className="homeowner-month-dialog-header">
+                          <div>
+                            <p className="homeowner-month-eyebrow">HOA PAYMENT RECORDS</p>
+                            <h2 id="homeowner-month-dialog-title">{selectedTrackerMonth.month} {trackerYear} · Payment breakdown</h2>
+                            <p id="homeowner-month-dialog-description">{selectedProperty?.homeowner_name} · {selectedProperty?.block} · Lot {selectedProperty?.lot_number}</p>
+                          </div>
+                          <button type="button" className="homeowner-month-close-icon" aria-label="Close monthly payment breakdown" onClick={() => setExpandedTrackerMonth(null)}>×</button>
+                        </header>
+                        <div className="homeowner-month-dialog-body">
+                          <div className="homeowner-month-summary">
+                            <div><span>Payment status</span><strong><span className={`homeowner-month-pill is-${selectedTrackerMonth.status.key}`}>{selectedTrackerMonth.status.label}</span></strong></div>
+                            <div><span>Recorded transactions</span><strong>{selectedTrackerMonth.records.length}</strong></div>
+                            <div><span>Total payments received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
+                          </div>
+                          <div className="homeowner-month-transaction-section">
+                          <h3 className="homeowner-month-section-title">Transactions recorded during this month</h3>
+                          {selectedTrackerMonth.records.length > 0 ? (
+                            <div className="homeowner-month-table-scroll" role="region" aria-label="Monthly payment transactions" tabIndex={0}>
+                              <table className="homeowner-month-table">
+                                <thead><tr><th scope="col">Date paid</th><th scope="col">Description / Coverage</th><th scope="col">Receipt / Method</th><th scope="col">Status</th><th scope="col">Amount paid</th></tr></thead>
+                                <tbody>
+                                  {selectedTrackerMonth.records.map((record) => {
+                                    const paidDateText = formatDate(record.paidAt, organization.dateFormat)
+                                    const dateSplit = paidDateText.indexOf(', ')
+                                    const datePart = dateSplit >= 0 ? paidDateText.slice(0, dateSplit) : paidDateText
+                                    const timePart = dateSplit >= 0 ? paidDateText.slice(dateSplit + 2) : ''
+                                    return (
+                                      <tr key={record.id}>
+                                        <td><span className="homeowner-month-date-main">{datePart}</span>{timePart && <span className="homeowner-month-date-sub">{timePart}</span>}</td>
+                                        <td><span className="homeowner-month-description-main">{record.description || '—'}</span><span className={`homeowner-month-pill homeowner-month-category-pill ${record.kind === 'dues' ? 'is-dues' : record.kind === 'services' ? 'is-services' : 'is-other'}`}>{record.category}</span></td>
+                                        <td><span className="homeowner-month-receipt-main">{record.receipt}</span><span className="homeowner-month-receipt-sub">{record.method}</span></td>
+                                        <td><span className={`homeowner-month-pill ${['paid', 'completed'].includes(String(record.statusKey).toLowerCase()) ? 'is-paid' : ['partial', 'pending'].includes(String(record.statusKey).toLowerCase()) ? 'is-partial' : String(record.statusKey).toLowerCase() === 'voided' ? 'is-voided' : 'is-neutral'}`}>{record.status}</span></td>
+                                        <td className="homeowner-number">{peso.format(record.amount)}</td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="homeowner-month-empty">No payment transactions were recorded for this homeowner in {selectedTrackerMonth.month} {trackerYear}. This does not establish whether dues were paid or unpaid.</p>
+                          )}
+                          </div>
+                          <div className="homeowner-month-bottom">
+                            <p className="homeowner-month-clarification">Grouped by payment date in Manila time, not by the month covered by dues. Voided records are excluded. This is a payment activity summary, not a statement of outstanding balance or a certification that dues are fully paid.</p>
+                            <div className="homeowner-month-totals" aria-label="Payment category totals">
+                            <div><span>Association dues</span><strong className={Number(selectedTrackerMonth.dues) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.dues)}</strong></div>
+                            <div><span>Amenities &amp; services</span><strong className={Number(selectedTrackerMonth.services) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.services)}</strong></div>
+                            <div><span>Other</span><strong className={Number(selectedTrackerMonth.other) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.other)}</strong></div>
+                            <div className="homeowner-month-grand-total"><span>Total received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
+                            </div>
+                          </div>
+                          
+                        </div>
+                        <footer className="homeowner-month-dialog-footer">
+                          
+                          <button type="button" className="homeowner-month-action-secondary" onClick={() => setExpandedTrackerMonth(null)}>Close</button>
+                          <button type="button" className="homeowner-month-action-print" onClick={() => openPaymentMonthPrint({
+                                          hoaName: organization.hoaName,
+                                          preparedBy: currentUser?.full_name || currentUser?.email || 'Not recorded',
+                                          preparedRole: currentUser?.role || '',
+                                          homeownerName: selectedProperty?.homeowner_name,
+                                          block: selectedProperty?.block,
+                                          lot: selectedProperty?.lot_number,
+                                          month: selectedTrackerMonth.month,
+                                          year: trackerYear,
+                                          records: selectedTrackerMonth.records,
+                                          dues: selectedTrackerMonth.dues,
+                                          services: selectedTrackerMonth.services,
+                                          other: selectedTrackerMonth.other,
+                                          total: selectedTrackerMonth.total,
+                                        })}>
+                            Print {selectedTrackerMonth.month} breakdown
+                          </button>
+                        </footer>
+                      </section>
+                    </div>, document.body
+                  )}
                 </section>
               </div>
             )}
@@ -1435,6 +1660,15 @@ useEffect(() => {
                   <h3>{activeTab === 'overview' ? 'Recent Payment Activity' : 'Payment History'}</h3>
                   <p>Official receipts connected to this homeowner and property.</p>
                 </div>
+                <label className="homeowner-history-month-picker">
+                  <span>Payment month</span>
+                  <DateField
+                    ariaLabel="Filter payment history by month"
+                    monthOnly
+                    value={historyMonth}
+                    onChange={setHistoryMonth}
+                  />
+                </label>
               </div>
               <div className="homeowner-history-table-wrap">
                 <table className="homeowner-history-table">
@@ -1452,10 +1686,10 @@ useEffect(() => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).length === 0 ? (
-                      <tr><td colSpan="9" className="homeowners-empty">No payment records in this category.</td></tr>
+                    {historyMonthRows.length === 0 ? (
+                      <tr><td colSpan="9" className="homeowners-empty">No payment records for the selected month and category.</td></tr>
                     ) : (
-                      (activeTab === 'overview' ? visibleHistory.slice(0, 8) : visibleHistory).map((item) => (
+                      historyMonthRows.map((item) => (
                         <tr key={item.id}>
                           <td>{formatDate(item.paidAt, organization.dateFormat)}</td>
                           <td><strong>{item.receipt}</strong></td>
@@ -1468,9 +1702,14 @@ useEffect(() => {
                           </td>
                           <td><span className={`homeowner-payment-status status-${normalize(item.status).replace(/\s+/g, '-')}`}>{item.status}</span></td>
                           <td>
-                            {canVoidPayments && item.id.startsWith('payment-') && item.statusKey !== 'voided' && (
-                              <button type="button" className="homeowner-void-link" onClick={() => openVoid(item)}>Void</button>
-                            )}
+                            <div className="homeowner-history-actions">
+                              <button type="button" className="homeowner-receipt-view-link" onClick={() => openHomeownerHistoryReceipt(item)} disabled={Boolean(openingHistoryReceipt)}>
+                                {openingHistoryReceipt === item.id ? 'Opening…' : 'View'}
+                              </button>
+                              {canVoidPayments && item.id.startsWith('payment-') && item.statusKey !== 'voided' && (
+                                <button type="button" className="homeowner-void-link" onClick={() => openVoid(item)}>Void</button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1483,6 +1722,68 @@ useEffect(() => {
         )}
       </main>
 
+      {import.meta.env.DEV &&
+        import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true' &&
+        classificationPropertyId != null &&
+        selectedProperty &&
+        String(selectedProperty.id) === String(classificationPropertyId) && (
+          <dialog
+            ref={classificationDialogRef}
+            className="phase1d-dialog"
+            aria-labelledby="phase1d-dialog-title"
+            onClose={() => { setClassificationPropertyId(null); document.querySelector('.homeowner-actions-disclosure > button')?.focus() }}
+          >
+            <header className="phase1d-dialog-header">
+              <div>
+                <h2 id="phase1d-dialog-title">Property Classification</h2>
+                <p>{selectedProperty.block}, Lot {selectedProperty.lot_number}</p>
+              </div>
+              <button
+                type="button"
+                className="phase1d-dialog-close"
+                aria-label="Close property classification"
+                onClick={() => classificationDialogRef.current?.close()}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </header>
+            <PropertyClassificationPanel
+              key={selectedProperty.id}
+              propertyId={selectedProperty.id}
+              userRole={userRole}
+              onChanged={() => loadHomeowners(true)}
+              onClose={() => classificationDialogRef.current?.close()}
+            />
+          </dialog>
+        )}
+      {historyReceiptError && (
+        <ActionDialog open title="Receipt unavailable" message={historyReceiptError} onConfirm={() => setHistoryReceiptError('')} />
+      )}
+      {historyReceipt && historyReceipt.propertyId === selectedPropertyId && (() => {
+        const receiptModel = buildReceiptModel(historyReceipt.kind, historyReceipt.row, organization, {
+          settledAmount: historySettlement.amount,
+        })
+        return (
+          <ReceiptDialog
+            model={receiptModel}
+            verificationLoading={historySettlement.loading}
+            verificationError={historySettlement.error}
+            onClose={() => setHistoryReceipt(null)}
+            onPrint={(setup) => {
+              void recordReceiptActivity('Receipt Print Requested', {
+                kind: historyReceipt.kind, receiptNumber: historyReceipt.row.receipt_number, recordId: historyReceipt.row.id,
+              }).catch((error) => setHistoryReceiptError(`Receipt print activity could not be logged: ${error.message}`))
+              printReceipt(receiptModel, setHistoryPrintNotice, setup)
+            }}
+          />
+        )
+      })()}
+      <ActionDialog
+        open={Boolean(historyPrintNotice)}
+        title="Print window blocked"
+        message={historyPrintNotice}
+        onConfirm={() => setHistoryPrintNotice('')}
+      />
       {voidTarget && (
         <div className="homeowner-void-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
           <form className="homeowner-void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>

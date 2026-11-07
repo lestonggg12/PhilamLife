@@ -152,6 +152,12 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
   const previous = num(row.previous_balance)
   const remaining = num(row.remaining_balance)
   const voided = row.status === 'Voided'
+  const manualDiscount = row.manual_discount || null
+  const manualDiscountAmount = num(manualDiscount?.discount_amount)
+  const manualGross = manualDiscountAmount > 0
+    ? num(manualDiscount?.gross_amount) || paid + manualDiscountAmount
+    : paid
+  const returnedChange = row.receipt_breakdown?.returned_change || null
 
 const annualDiscount = row.receipt_breakdown?.annual_advance_discount ?? null
 const isAnnualDiscount = Boolean(
@@ -245,6 +251,21 @@ const annualDiscountAmount = isAnnualDiscount
     }
   }
 
+  if (manualDiscountAmount > 0 && !isAnnualDiscount) {
+    summary.splice(Math.max(0, summary.length - 2), 0,
+      { label: 'Payment before discount', value: money(manualGross) },
+      { label: 'Less: Discount', value: `− ${money(manualDiscountAmount)}` },
+    )
+    if (manualDiscount?.charge_id && manualDiscount?.approval_reference) {
+      notes.push({ label: 'Discount authorization', text: manualDiscount.approval_reference })
+    }
+  }
+  if (returnedChange && num(returnedChange.change_amount) > 0) {
+    summary.splice(Math.max(0, summary.length - 1), 0,
+      { label: 'Cash tendered', value: money(returnedChange.cash_tendered) },
+      { label: 'Change returned', value: money(returnedChange.change_amount) },
+    )
+  }
   if (row.note) notes.push({ label: 'Note', text: row.note })
 
   return {
@@ -267,7 +288,7 @@ const annualDiscountAmount = isAnnualDiscount
     meta: isAnnualDiscount
       ? 'Regular 12-month dues before discount'
       : '',
-    amount: money(isAnnualDiscount ? annualGross : paid),
+    amount: money(isAnnualDiscount ? annualGross : manualGross),
   },
 ],
     summary,

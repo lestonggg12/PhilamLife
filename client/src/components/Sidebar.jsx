@@ -120,16 +120,16 @@ export default function Sidebar({
     },
     {
       name: 'Reports',
-      path: '/reports',
+      path: role === 'admin' ? '/reports' : role === 'treasurer' ? '/treasurer/reports' : '/secretary/reports',
       icon: BarChart3,
-      roles: ['admin', 'treasurer'],
+      roles: ['admin', 'treasurer', 'secretary'],
     },
 
     {
       name: 'Official Receipts',
       path: '/secretary/receipts',
       icon: FileText,
-      roles: ['secretary'],
+      roles: ['secretary', 'treasurer'],
     },
   ].filter((item) => item.roles.includes(role))
 

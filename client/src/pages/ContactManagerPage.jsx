@@ -1,5 +1,5 @@
 import TransferHomeownerPicker from '../components/TransferHomeownerPicker'
-import { transferRequest } from '../lib/homeownerTransfer'
+import { transferRequest, transferAmountDescription } from '../lib/homeownerTransfer'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useRef, useState } from 'react'
 import DateField from '../components/DateField'
@@ -279,7 +279,13 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         if (error) throw error
         const result = confirmedTransfer(data)
         const targetName = transferForm.transferTo === 'existing' ? transferForm.targetProperty.homeowner_name : transferForm.newHomeownerName.trim()
-        message = `${contact.block}, Lot ${contact.lot_number} was transferred to ${targetName}. Balance transferred: ${result.transferred_balance.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}. Previous payment history was preserved.`
+        const transferred = transferAmountDescription(result.transferred_balance)
+        const amountText = transferred.kind === 'debt'
+          ? `Outstanding balance transferred to the new lot account: ${transferred.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`
+          : transferred.kind === 'credit'
+            ? `Advance credit transferred to the new lot account: ${transferred.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`
+            : 'No balance or advance credit was transferred'
+        message = `${contact.block}, Lot ${contact.lot_number} was transferred to ${targetName}. ${amountText}. Previous payment history remains with the former owner's archived account.`
       } else {
         await moveContact(supabase, contact, transferForm)
         message = `${contact.homeowner_name} was marked as Moved. Their profile and payment history were preserved.`
@@ -613,8 +619,18 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               }
             />
 
+            {transferForm.status === 'transferred' && (() => {
+              const preview = transferAmountDescription(pendingTransferContact.current_balance)
+              return (
+                <div className="contact-transfer-balance-preview" aria-label="Balance and credit transfer preview">
+                  <strong>Balance or credit to carry over</strong>
+                  <span>{preview.label}: {preview.amount == null ? 'Unavailable' : preview.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}</span>
+                  <small>Preview from the last loaded account record. The server transfers the latest signed balance when you confirm. This is not a separate payment.</small>
+                </div>
+              )
+            })()}
             <p className="contact-transfer-note">
-              {transferForm.status === 'transferred' ? 'This lot’s balance or advance payment moves to its new owner. Other lots keep their own balances. Previous records are kept.' : 'This frees the lot while keeping the homeowner’s records.'}
+              {transferForm.status === 'transferred' ? 'Only this lot’s current signed account balance moves to the new lot account: an amount owed stays an amount owed, and an advance credit stays a credit. Payment receipts and prior history remain with the former owner. The actual amount is determined at confirmation.' : 'This frees the lot while keeping the homeowner’s records.'}
             </p>
 
             </fieldset>

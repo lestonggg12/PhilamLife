@@ -35,6 +35,7 @@ export default function BalanceBreakdown({
 }) {
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState(null)
+  const [transferCreditDetails, setTransferCreditDetails] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPenalties, setShowPenalties] = useState(false)
@@ -51,6 +52,7 @@ export default function BalanceBreakdown({
     if (!propertyId) {
       setItems([])
       setSummary(null)
+      setTransferCreditDetails([])
       return undefined
     }
 
@@ -69,7 +71,7 @@ export default function BalanceBreakdown({
         else if (Number(posted) > 0 && onPostedRef.current) onPostedRef.current(Number(posted))
       }
 
-      const [itemsResult, summaryResult] = await Promise.all([
+      const [itemsResult, summaryResult, transfersResult] = await Promise.all([
         supabase
           .from('property_balance_items')
           .select('kind, ref_id, category, item_date, label, original, unpaid, penalty_no, rate, base_amount')
@@ -80,13 +82,32 @@ export default function BalanceBreakdown({
           .select('*')
           .eq('property_id', Number(propertyId))
           .maybeSingle(),
+        supabase.from('homeowner_balance_transfers')
+          .select('id,previous_property_id,transferred_balance,effective_date,note')
+          .eq('new_property_id', Number(propertyId)),
       ])
       if (cancelled) return
 
-      const failure = itemsResult.error || summaryResult.error
+      const failure = itemsResult.error || summaryResult.error || transfersResult.error
       if (failure) setError(`Could not load the balance breakdown: ${failure.message}`)
       setItems(itemsResult.data || [])
       setSummary(summaryResult.data || null)
+      if (transfersResult.error) {
+        setTransferCreditDetails([])
+      } else {
+        const transfers = transfersResult.data || []
+        if (transfers.length) {
+          const { data: formerOwners, error: formerError } = await supabase
+            .from('properties').select('id,homeowner_name,block,lot_number')
+            .in('id', transfers.map((row) => row.previous_property_id))
+          if (cancelled) return
+          if (formerError) setError(`Could not load the transfer source: ${formerError.message}`)
+          const byId = new Map((formerOwners || []).map((row) => [String(row.id), row]))
+          setTransferCreditDetails(transfers.map((row) => ({ ...row, formerOwner: byId.get(String(row.previous_property_id)) || null })))
+        } else {
+          setTransferCreditDetails([])
+        }
+      }
       setLoading(false)
     }
 
@@ -124,8 +145,11 @@ export default function BalanceBreakdown({
   const entries = items.filter((item) => item.kind === 'entry')
   const penalties = items.filter((item) => item.kind === 'penalty')
   const duesTotal = Number(summary?.unpaid_dues_total) || 0
-  const otherItems = items.filter((item) => ['opening', 'charge', 'adjustment'].includes(item.kind))
-  const hasContent = entries.length > 0 || penalties.length > 0 || duesTotal > 0 || otherItems.length > 0
+  const transferAdjustments = new Set(transferCreditDetails.map((transfer) => String(transfer.id).toLowerCase()))
+  const isIncomingTransfer = (item) => item.kind === 'adjustment' &&
+    [...transferAdjustments].some((id) => String(item.label || '').toLowerCase().includes(id))
+  const otherItems = items.filter((item) => ['opening', 'charge', 'adjustment'].includes(item.kind) && !isIncomingTransfer(item))
+  const hasContent = entries.length > 0 || penalties.length > 0 || duesTotal > 0 || otherItems.length > 0 || transferCreditDetails.length > 0
 
   if (!hasContent) {
     if (loading || !error) return null
@@ -239,10 +263,46 @@ export default function BalanceBreakdown({
         </div>
       )}
 
+      {transferCreditDetails.length > 0 && (
+        <div className="bb-block bb-transfer-block">
+          <h4>Balance or credit received at ownership transfer</h4>
+          {transferCreditDetails.map((transfer) => {
+            const amount = Number(transfer.transferred_balance)
+            const isCredit = amount < 0
+            const previous = transfer.formerOwner
+            return (
+              <div className="bb-transfer-detail" key={transfer.id}>
+                <div className="bb-row">
+                  <div className="bb-main">
+                    <strong>{isCredit ? 'Advance credit carried over' : amount > 0 ? 'Outstanding debt carried over' : 'No balance carried over'}</strong>
+                    <small>From {previous?.homeowner_name || 'former owner'}{previous?.block ? ` · ${previous.block}, Lot ${previous.lot_number}` : ''}</small>
+                    <small>Transfer effective {formatDay(transfer.effective_date)}</small>
+                  </div>
+                  <div className="bb-amounts"><strong>{peso.format(Math.abs(amount))}</strong></div>
+                </div>
+                <p className="bb-transfer-explanation">
+                  {isCredit
+                    ? 'This amount was received as advance credit, not a debt or a new payment. Subsequent dues or charges may use the credit.'
+                    : amount > 0
+                      ? 'This amount was received as an outstanding obligation of the transferred lot. It is not a payment.'
+                      : 'This ownership transfer carried no outstanding debt or advance credit.'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <div className="bb-row bb-total">
         <div className="bb-main"><strong>Total due</strong></div>
         <div className="bb-amounts"><strong>{peso.format(Number(summary?.grand_total_due) || 0)}</strong></div>
       </div>
+      {Number(summary?.current_balance) < 0 && (
+        <div className="bb-row bb-credit-total">
+          <div className="bb-main"><strong>Available advance credit on this account</strong><small>Current net account credit, including any transfer and subsequent activity</small></div>
+          <div className="bb-amounts"><strong>{peso.format(-Number(summary.current_balance))}</strong></div>
+        </div>
+      )}
 
       {voidTarget && (
         <form className="bb-void" onSubmit={confirmVoid}>

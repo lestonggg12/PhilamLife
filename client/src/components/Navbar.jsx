@@ -21,6 +21,8 @@ const PAGE_LABELS = {
   '/treasurer/expenses': 'Expenses',
   '/secretary/services': 'Services',
   '/reports': 'Reports',
+  '/secretary/reports': 'Reports',
+  '/treasurer/reports': 'Reports',
   '/secretary/receipts': 'Official Receipts',
   '/system-settings': 'System Settings',
 }

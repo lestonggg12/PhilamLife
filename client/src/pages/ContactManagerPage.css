@@ -1207,3 +1207,8 @@
 }
 
 .contact-modal[aria-busy="true"] { cursor: progress; }
+
+.contact-transfer-balance-preview { display: grid; gap: 5px; padding: 12px 14px; border: 1px solid #cbdce9; border-radius: 8px; background: #f4f8fc; color: #17384f; }
+.contact-transfer-balance-preview strong { font-size: 0.85rem; }
+.contact-transfer-balance-preview span { font-size: 0.95rem; font-weight: 700; }
+.contact-transfer-balance-preview small { color: #52677a; font-size: 0.76rem; line-height: 1.45; }

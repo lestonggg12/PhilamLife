@@ -58,6 +58,7 @@ const OfficialReceiptsPage = lazy(
 )
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const RoleReportsPage = lazy(() => import('./pages/RoleReportsPage'))
 const AnnualReportsPage = lazy(() => import('./pages/AnnualReportsPage'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'))
@@ -362,8 +363,8 @@ function AppContent() {
               <Route
                 path="/secretary/receipts"
                 element={guarded(
-                  ['secretary'],
-                  <OfficialReceiptsPage />
+                  ['secretary', 'treasurer'],
+                  <OfficialReceiptsPage user={user} />
                 )}
               />
 
@@ -394,11 +395,13 @@ function AppContent() {
               <Route
                 path="/reports"
                 element={guarded(
-                  ['admin', 'treasurer'],
+                  ['admin'],
                   <ReportsPage user={user} />
                 )}
               />
-              <Route path="/reports/annual" element={guarded(['admin', 'treasurer'], <AnnualReportsPage />)} />
+              <Route path="/reports/annual" element={guarded(['admin'], <AnnualReportsPage />)} />
+              <Route path="/secretary/reports" element={guarded(['secretary'], <RoleReportsPage user={user} reportRole="secretary" />)} />
+              <Route path="/treasurer/reports" element={guarded(['treasurer'], <RoleReportsPage user={user} reportRole="treasurer" />)} />
               <Route
                 path="/activity-log"
                 element={guarded(

@@ -10,6 +10,7 @@ import { useOrganization } from '../context/OrganizationContext'
 import './SystemSettingsPage.css'
 import PricePerSqmForm from '../components/PricePerSqmForm'
 import LatePenaltySettings from '../components/LatePenaltySettings'
+import ExpenseBudgetSettings from '../components/ExpenseBudgetSettings'
 import Skeleton from '../components/skeleton/Skeleton'
 
 const EXPORTS = [
@@ -41,6 +42,7 @@ const HISTORY_KEY = 'philam_settings_export_history'
 function Icon({ name, size = 18 }) {
   const paths = {
     general: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></>,
+    budget: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 14h10" /></>,
     security: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
     backup: <><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></>,
     download: <><path d="M12 3v12m-4-4 4 4 4-4" /><path d="M5 19h14" /></>,
@@ -112,6 +114,7 @@ export default function SystemSettingsPage({ user }) {
 
   const tabs = useMemo(() => [
     ['general', 'General'],
+    ['budget', 'Expense Budgets'],
     ['security', 'Security'],
     ['backup', 'Backup & Data'],
   ], [])
@@ -326,7 +329,7 @@ export default function SystemSettingsPage({ user }) {
         <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
         <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
       </SettingsCard>
-        <SettingsCard className="ss-penalty-card" title="Late-payment penalty" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
+        <SettingsCard className="ss-penalty-card" title="Annual Penalty Rates" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
           <LatePenaltySettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
         </SettingsCard>
         <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
@@ -340,6 +343,8 @@ export default function SystemSettingsPage({ user }) {
           <SelectField label="Date Format" value={settings.date_format} onChange={(v) => update('date_format', v)} options={['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'].map((v) => [v, v])} />
         </SettingsCard>
       </div>}
+
+      {activeTab === 'budget' && <ExpenseBudgetSettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />}
 
       {activeTab === 'security' && <SettingsCard title="Security preferences" subtitle="Configure account and session policies." full>
         <div className="ss-toggle-list">
@@ -369,7 +374,7 @@ export default function SystemSettingsPage({ user }) {
         </SettingsCard>
       </div>}
 
-      {activeTab !== 'backup' && <div className="ss-save-bar"><span>Saves organization, billing, regional and security preferences. Dues rate and penalty settings have their own Save buttons.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving || !settingsLoaded}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
+      {activeTab !== 'backup' && activeTab !== 'budget' && <div className="ss-save-bar"><span>Saves organization, billing, regional and security preferences. Dues rate and penalty settings have their own Save buttons.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving || !settingsLoaded}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
     </div>
   )
 }

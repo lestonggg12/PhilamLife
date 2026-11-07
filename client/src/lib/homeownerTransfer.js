@@ -31,3 +31,13 @@ export function transferRequest(previousProperty, form) {
   if (!name) throw new Error('Enter the new homeowner name.')
   return { name: 'transfer_homeowner_guarded', args: { ...common, p_new_homeowner_name: name } }
 }
+
+// Signed HOA property balances: positive is debt, negative is advance credit.
+// The transfer RPC moves the signed amount unchanged.
+export function transferAmountDescription(value) {
+  const balance = Number(value);
+  if (!Number.isFinite(balance)) return { kind: 'unknown', label: 'Account amount unavailable' };
+  if (balance > 0) return { kind: 'debt', label: 'Outstanding balance (amount owed)', amount: balance };
+  if (balance < 0) return { kind: 'credit', label: 'Advance credit (prepaid funds)', amount: -balance };
+  return { kind: 'clear', label: 'No outstanding balance or advance credit', amount: 0 };
+}

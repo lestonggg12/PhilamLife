@@ -1,7 +1,7 @@
 import { calendarToday, isCalendarDate } from './eventCalendar'
 import { ilikeAny, pageWindow, searchTokens } from './pagedQuery'
 
-export const CONTACT_COLUMNS = 'id, homeowner_id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at'
+export const CONTACT_COLUMNS = 'id, homeowner_id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at, current_balance'
 const SEARCH_COLUMNS = ['homeowner_name', 'block', 'contact_phone', 'contact_email', 'homeowner_status', 'status_reason']
 
 export function contactSearchTokens(search) {

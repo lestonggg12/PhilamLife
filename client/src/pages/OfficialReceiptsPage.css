@@ -990,3 +990,107 @@
 .official-receipts-filters .official-search-control > input[type="search"]::placeholder {
   text-align: left;
 }
+/* Scoped Official Receipts cancellation action. */
+.official-void-button {
+  margin-left: 8px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid #c55b50;
+  border-radius: 8px;
+  background: #fff;
+  color: #a7392b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.official-void-button:hover:not(:disabled) { background: #fde9e6; }
+.official-void-button:focus-visible { outline: 2px solid #a7392b; outline-offset: 2px; }
+.official-void-button:disabled { cursor: not-allowed; opacity: 0.55; }
+/* PHILAMLIFE RECEIPTS NO HORIZONTAL SCROLL V1
+   Scoped to Official Receipts. Keep receipt values and actions visible. */
+.official-receipts-page, .official-receipts-records,
+.official-receipts-table-wrap { min-width: 0; max-width: 100%; }
+.official-receipts-table-wrap { overflow-x: visible; }
+.official-receipts-table {
+  width: 100%; min-width: 0; table-layout: fixed;
+}
+/* Exact 100% allocation. More room for receipt, payer and description. */
+.official-receipts-table th:nth-child(1) { width: 12%; }
+.official-receipts-table th:nth-child(2) { width: 14%; }
+.official-receipts-table th:nth-child(3) { width: 13%; }
+.official-receipts-table th:nth-child(4) { width: 18%; }
+.official-receipts-table th:nth-child(5) { width: 16%; }
+.official-receipts-table th:nth-child(6) { width: 12%; }
+.official-receipts-table th:nth-child(7) { width: 7%; }
+.official-receipts-table th:nth-child(8) { width: 8%; }
+.official-receipts-table th, .official-receipts-table td {
+  box-sizing: border-box; padding: 12px 7px;
+  white-space: normal; overflow-wrap: normal; word-break: normal;
+  vertical-align: middle;
+}
+.official-receipts-table td:first-child strong { overflow-wrap: anywhere; }
+.official-receipts-table td:nth-child(4) strong,
+.official-receipts-table td:nth-child(4) small,
+.official-receipts-table td:nth-child(5) { overflow-wrap: break-word; }
+.official-receipts-table td:nth-child(6) {
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.official-receipts-table td:nth-child(8) { padding: 8px 5px; text-align: center; white-space: normal; }
+.official-receipts-table td:nth-child(8) .official-view-button,
+.official-receipts-table td:nth-child(8) .official-void-button {
+  display: flex; width: 100%; min-width: 0; min-height: 32px;
+  margin: 0; padding: 5px 3px; gap: 4px;
+  align-items: center; justify-content: center;
+  box-sizing: border-box; font-size: 12px; white-space: nowrap;
+}
+.official-receipts-table td:nth-child(8) .official-view-button + .official-void-button { margin-top: 6px; }
+/* Never force an 850px-wide table in a narrower available area. */
+@media (max-width: 1100px) {
+  .official-receipts-table { min-width: 0; }
+}
+/* Narrow windows: each receipt becomes a labelled card, no sideways scrolling. */
+@media (max-width: 850px) {
+  .official-receipts-table { display: block; width: 100%; min-width: 0; }
+  .official-receipts-table thead { display: none; }
+  .official-receipts-table tbody { display: grid; gap: 12px; }
+  .official-receipts-table tbody tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    border: 1px solid #d9e6f0; border-radius: 10px; padding: 8px;
+    background: #fff;
+  }
+  .official-receipts-table tbody td {
+    display: block; width: auto; max-width: none; min-width: 0;
+    padding: 8px 9px; border-bottom: 1px solid #e9eff4;
+    overflow: visible; text-overflow: clip; white-space: normal;
+  }
+  .official-receipts-table tbody td::before {
+    display: block; margin-bottom: 5px; color: #657e92;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .official-receipts-table tbody td:nth-child(1)::before { content: 'Receipt number'; }
+  .official-receipts-table tbody td:nth-child(2)::before { content: 'Issued'; }
+  .official-receipts-table tbody td:nth-child(3)::before { content: 'Type'; }
+  .official-receipts-table tbody td:nth-child(4)::before { content: 'Homeowner'; }
+  .official-receipts-table tbody td:nth-child(5)::before { content: 'Payment details'; }
+  .official-receipts-table tbody td:nth-child(6)::before { content: 'Amount'; }
+  .official-receipts-table tbody td:nth-child(7)::before { content: 'Method'; }
+  .official-receipts-table tbody td:nth-child(8)::before { content: 'Actions'; }
+  .official-receipts-table tbody td:nth-child(5) { grid-column: 1 / -1; }
+  .official-receipts-table tbody td:nth-child(8) { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .official-receipts-table tbody td:nth-child(8)::before { flex-basis: 100%; }
+  .official-receipts-table tbody td:nth-child(8) .official-view-button,
+  .official-receipts-table tbody td:nth-child(8) .official-void-button { width: auto; min-width: 70px; }
+  .official-receipts-table tbody td:nth-child(8) .official-view-button + .official-void-button { margin-top: 0; }
+  .official-receipts-table tbody td[colspan] {
+    grid-column: 1 / -1; width: auto; text-align: center;
+  }
+  .official-receipts-table tbody td[colspan]::before { content: none; }
+}
+@media (max-width: 500px) {
+  .official-receipts-table tbody tr { grid-template-columns: minmax(0, 1fr); }
+  .official-receipts-table tbody td:nth-child(5),
+  .official-receipts-table tbody td[colspan] { grid-column: 1; }
+}
