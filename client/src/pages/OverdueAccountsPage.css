@@ -404,7 +404,7 @@
 
 @media (max-width: 900px) {
   .overdue-summary {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .overdue-aging-row {
@@ -684,5 +684,11 @@
 
   .overdue-header .overdue-refresh-button {
     align-self: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .overdue-summary {
+    grid-template-columns: 1fr;
   }
 }

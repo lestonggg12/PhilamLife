@@ -328,7 +328,7 @@ export default function ActivityLogPage() {
 
   return <div className="activity-log-page" style={{ '--al-toolbar-height': `${toolbarHeight}px` }}>
     <header className="al-header"><div><h1>Activity Log</h1><p>Search and review system activity across your team.</p></div></header>
-    <section className="al-stats-grid" aria-label="Activity summaries">
+    <section className="al-stats-grid" aria-label="Activity summaries" aria-busy={loading}>
       <article className="al-stat-card"><div className="al-stat-top"><span>Total Events</span><span className="al-stat-icon al-stat-icon-blue"><Activity size={18} /></span></div><strong>{loading ? '—' : activityStats.total.toLocaleString('en-PH')}</strong><small>Matching the current filters</small></article>
       <article className="al-stat-card"><div className="al-stat-top"><span>Most Active User</span><span className="al-stat-icon al-stat-icon-green"><Users size={18} /></span></div><strong className="al-stat-value-text">{loading ? '—' : activityStats.mostActive}</strong><small>Events in the selected range</small></article>
       <article className="al-stat-card"><div className="al-stat-top"><span>Top Action</span><span className="al-stat-icon al-stat-icon-blue"><Zap size={18} /></span></div><strong className="al-stat-value-text">{loading ? '—' : activityStats.topAction}</strong><small>Most common recorded action</small></article>

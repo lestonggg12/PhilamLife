@@ -323,7 +323,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      <div className="contact-summary">
+      <div className="contact-summary" aria-label="Contact summaries" aria-busy={countsLoading}>
         <div className="contact-summary-item is-active">
           <div className="contact-summary-top"><span>Total Contacts</span><span className="contact-summary-icon"><Users size={18} /></span></div>
           <strong>{countsLoading || !counts ? '—' : (counts.active + counts.moved + counts.transferred).toLocaleString('en-PH')}</strong>

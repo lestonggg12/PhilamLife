@@ -425,7 +425,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      <div className="doc-summary">
+      <div className="doc-summary" aria-label="Document summaries" aria-busy={loading || refreshing}>
         <div className="doc-summary-item">
           <span><FileText size={18} /> Matching documents</span>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredDocuments.length}</strong>

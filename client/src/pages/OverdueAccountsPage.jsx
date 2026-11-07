@@ -309,7 +309,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         </button>
       </div>
 
-      <div className="overdue-summary">
+      <div className="overdue-summary" aria-label="Overdue account summaries" aria-busy={loading || refreshing}>
         <div className="overdue-summary-item overdue-summary-flag">
           <span><Users size={18} /> Matching accounts</span>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : filtered.length}</strong>

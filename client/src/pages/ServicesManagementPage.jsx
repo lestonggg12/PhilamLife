@@ -1229,20 +1229,11 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
       </header>
 
-      {pageError && <p className="services-error">{pageError}</p>}
-      {!loading && !canManageServices && (
-        <p className="services-notice">
-          {canRecordServicePayments
-            ? 'You may record service payments and collect unpaid balances. Service catalog editing remains Secretary-only.'
-            : 'Service payments may be recorded only by an active Secretary or Treasurer.'}
-        </p>
-      )}
-
-      <section className="services-summary" aria-label="Service summaries">
+      <section className="services-summary" aria-label="Service summaries" aria-busy={loading}>
         <article>
           <span className="services-summary-icon" aria-hidden="true"><CheckCircle size={17} /></span>
           <span>Active Services</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.activeServices}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : pageError ? 'Unavailable' : summary.activeServices}</strong>
           <small>Available village amenities</small>
         </article>
         <article>
@@ -1264,6 +1255,15 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
           <small>Permanent service records</small>
         </article>
       </section>
+
+      {pageError && <p className="services-error">{pageError}</p>}
+      {!loading && !canManageServices && (
+        <p className="services-notice">
+          {canRecordServicePayments
+            ? 'You may record service payments and collect unpaid balances. Service catalog editing remains Secretary-only.'
+            : 'Service payments may be recorded only by an active Secretary or Treasurer.'}
+        </p>
+      )}
 
       {statsError && <p role="alert" className="services-error">{statsError}</p>}
       {!statsError && balances.length > 0 && (

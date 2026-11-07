@@ -1114,6 +1114,12 @@
   }
 }
 
+@media (max-width: 1024px) and (min-width: 761px) {
+  .contact-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 600px) {
   .contact-page {
     padding: 16px;

@@ -593,7 +593,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         </div>
       </header>
 
-      <section className="cal-summary" aria-label="Event summaries">
+      <section className="cal-summary" aria-label="Event summaries" aria-busy={loading || refreshing}>
         {[
           ['Events This Month', calendarStats.thisMonth, 'Month view', 'cal-stat-blue'],
           ['Upcoming Next 7 Days', calendarStats.upcoming, 'Scheduled events', 'cal-stat-green'],

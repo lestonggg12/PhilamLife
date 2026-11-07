@@ -873,16 +873,10 @@ export default function OfficialReceiptsPage() {
         </div>
       </header>
 
-      {pageError && (
-        <p className="official-receipts-error">
-          {pageError}
-        </p>
-      )}
-      {summaryError && <p className="official-receipts-error" role="alert">{summaryError}</p>}
-
       <section
         className="official-receipts-summary"
         aria-label="Receipt summaries"
+        aria-busy={loading || (!summary && !summaryError)}
       >
         <article>
           <span
@@ -985,6 +979,13 @@ export default function OfficialReceiptsPage() {
           </div>
         </article>
       </section>
+
+      {pageError && (
+        <p className="official-receipts-error">
+          {pageError}
+        </p>
+      )}
+      {summaryError && <p className="official-receipts-error" role="alert">{summaryError}</p>}
 
       <section className="official-receipts-records">
         <div className="official-records-heading">
