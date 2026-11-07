@@ -547,6 +547,19 @@ export default function EventCalendarPage({ user: suppliedUser }) {
       })
   }, [events, search, statusFilter, today])
 
+  const calendarStats = useMemo(() => {
+    const nextDate = new Date(`${today}T00:00:00Z`)
+    nextDate.setUTCDate(nextDate.getUTCDate() + 7)
+    const nextSevenDays = nextDate.toISOString().slice(0, 10)
+    const thisMonth = today.slice(0, 7)
+    return {
+      thisMonth: filteredEvents.filter((event) => event.event_date.startsWith(thisMonth)).length,
+      upcoming: filteredEvents.filter((event) => event.event_date >= today && event.event_date < nextSevenDays).length,
+      today: filteredEvents.filter((event) => event.event_date === today).length,
+      completed: filteredEvents.filter((event) => event.event_date < today).length,
+    }
+  }, [filteredEvents, today])
+
   return (
     <div className="cal-page">
       <header className="cal-header">
@@ -580,19 +593,19 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         </div>
       </header>
 
-      <section className="cal-summary" aria-label="Event summaries">
-        <article>
-          <span>Total events</span>
-          <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : events.length}</strong>
-        </article>
-        <article>
-          <span>Upcoming</span>
-          <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : upcomingCount}</strong>
-        </article>
-        <article>
-          <span>This month</span>
-          <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : thisMonthCount}</strong>
-        </article>
+      <section className="cal-summary" aria-label="Event summaries" aria-busy={loading || refreshing}>
+        {[
+          ['Events This Month', calendarStats.thisMonth, 'Month view', 'cal-stat-blue'],
+          ['Upcoming Next 7 Days', calendarStats.upcoming, 'Scheduled events', 'cal-stat-green'],
+          ["Today's Events", calendarStats.today, 'Events on the current date', 'cal-stat-warning'],
+          ['Completed', calendarStats.completed, 'Past events', 'cal-stat-muted'],
+        ].map(([label, value, footer, tone]) => (
+          <article className="cal-stat-card" key={label}>
+            <div className="cal-stat-top"><span>{label}</span><span className={`cal-stat-icon ${tone}`}><Clock size={18} /></span></div>
+            <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : value.toLocaleString('en-PH')}</strong>
+            <small>{footer}</small>
+          </article>
+        ))}
       </section>
 
       <div className="cal-toolbar">

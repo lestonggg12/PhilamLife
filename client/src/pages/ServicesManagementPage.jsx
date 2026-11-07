@@ -1229,6 +1229,33 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
       </header>
 
+      <section className="services-summary" aria-label="Service summaries" aria-busy={loading}>
+        <article>
+          <span className="services-summary-icon" aria-hidden="true"><CheckCircle size={17} /></span>
+          <span>Active Services</span>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : pageError ? 'Unavailable' : summary.activeServices}</strong>
+          <small>Available village amenities</small>
+        </article>
+        <article>
+          <span className="services-summary-icon" aria-hidden="true"><CreditCard size={17} /></span>
+          <span>Transactions This Month</span>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.monthlyTransactions}</strong>
+          <small>Service payments recorded</small>
+        </article>
+        <article>
+          <span className="services-summary-icon" aria-hidden="true"><RefreshCw size={17} /></span>
+          <span>Collections This Month</span>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : statsError ? 'Unavailable' : peso.format(summary.monthlyCollections)}</strong>
+          <small>Based on Manila time</small>
+        </article>
+        <article>
+          <span className="services-summary-icon" aria-hidden="true"><FileText size={17} /></span>
+          <span>Receipts Issued</span>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.receipts}</strong>
+          <small>Permanent service records</small>
+        </article>
+      </section>
+
       {pageError && <p className="services-error">{pageError}</p>}
       {!loading && !canManageServices && (
         <p className="services-notice">
@@ -1237,29 +1264,6 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
             : 'Service payments may be recorded only by an active Secretary or Treasurer.'}
         </p>
       )}
-
-      <section className="services-summary" aria-label="Service summaries">
-        <article>
-          <span>Active Services</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.activeServices}</strong>
-          <small>Available village amenities</small>
-        </article>
-        <article>
-          <span>Transactions This Month</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.monthlyTransactions}</strong>
-          <small>Service payments recorded</small>
-        </article>
-        <article>
-          <span>Collections This Month</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : statsError ? 'Unavailable' : peso.format(summary.monthlyCollections)}</strong>
-          <small>Based on Manila time</small>
-        </article>
-        <article>
-          <span>Receipts Issued</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.receipts}</strong>
-          <small>Permanent service records</small>
-        </article>
-      </section>
 
       {statsError && <p role="alert" className="services-error">{statsError}</p>}
       {!statsError && balances.length > 0 && (

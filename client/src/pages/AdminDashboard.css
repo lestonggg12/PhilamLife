@@ -9,6 +9,7 @@
 
 .dash-admin-dashboard {
   position: relative;
+  padding-top: 22px;
 }
 
 /* ---------- Shared glass card ---------- */
@@ -680,3 +681,15 @@
     margin: 10px 0 6px;
   }
 }
+
+/* Portal-wide dashboard sizing reference. */
+.dash-admin-dashboard .dash-page-header,
+.dash-admin-dashboard .dash-stat-card {
+  border-radius: 22px;
+}
+
+.dash-admin-dashboard .dash-page-header { min-height: 124px; }
+.dash-admin-dashboard .dash-stat-card { min-height: 124px; padding: 16px 18px; }
+.dash-admin-dashboard .dash-stat-icon-box { width: 40px; height: 40px; border-radius: 11px; }
+.dash-admin-dashboard .dash-stat-value { margin-top: 10px; font-size: 28px; font-weight: 600; }
+.dash-admin-dashboard .dash-stat-footer { font-size: 13px; line-height: 1.4; }

@@ -460,6 +460,18 @@ async function downloadStatementPdf() {
     )
   }, [ledgerEntries])
 
+  const filteredTotals = useMemo(() => {
+    return filtered.reduce(
+      (result, entry) => ({
+        totalDue: result.totalDue + entry.totalPaid + entry.balance,
+        totalPaid: result.totalPaid + entry.totalPaid,
+        totalBalance: result.totalBalance + entry.balance,
+        totalCredit: result.totalCredit + entry.unallocatedCredit,
+      }),
+      { totalDue: 0, totalPaid: 0, totalBalance: 0, totalCredit: 0 },
+    )
+  }, [filtered])
+
   function toggleSort(key) {
     setSortConfig((current) => {
       if (current.key === key) {
@@ -506,20 +518,24 @@ async function downloadStatementPdf() {
 
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
-          <div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={20} /></div>
-          <div><p className="ledger-summary-label">Recorded payments + outstanding (not total billed)</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalDue)}</p></div>
+          <div className="ledger-summary-top"><p className="ledger-summary-label">Total Billed</p><div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={18} /></div></div>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalDue)}</p>
+          <small>Recorded payments + outstanding</small>
         </div>
         <div className="ledger-summary-card glass-card">
-          <div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={20} /></div>
-          <div><p className="ledger-summary-label">Total Collected</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalPaid)}</p></div>
+          <div className="ledger-summary-top"><p className="ledger-summary-label">Total Collected</p><div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={18} /></div></div>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalPaid)}</p>
+          <small>Payments in the filtered ledger</small>
         </div>
         <div className="ledger-summary-card glass-card">
-          <div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={20} /></div>
-          <div><p className="ledger-summary-label">Outstanding Balance</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalBalance)}</p></div>
+          <div className="ledger-summary-top"><p className="ledger-summary-label">Outstanding</p><div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={18} /></div></div>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalBalance)}</p>
+          <small>Balance due in the filtered ledger</small>
         </div>
         <div className="ledger-summary-card glass-card">
-          <div className="ledger-summary-icon ledger-summary-icon-paid"><CreditCard size={20} /></div>
-          <div><p className="ledger-summary-label">Available Credit</p><p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(totals.totalCredit)}</p></div>
+          <div className="ledger-summary-top"><p className="ledger-summary-label">Available Credit</p><div className="ledger-summary-icon ledger-summary-icon-paid"><CreditCard size={18} /></div></div>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalCredit)}</p>
+          <small>Advance credit in the filtered ledger</small>
         </div>
       </div>
 

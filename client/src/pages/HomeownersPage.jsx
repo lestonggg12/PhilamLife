@@ -552,6 +552,12 @@ useEffect(() => {
 
   const directoryPage = useListPage(filteredDirectory, [search, statusFilter, classificationFilter], 25)
   const showResults = resultsOpen && (hasQuery || hasFilter)
+  const homeownerStats = useMemo(() => ({
+    total: directoryEntries.length,
+    lotOwners: new Set(directoryEntries.map(({ property }) => property.homeowner_id || `property-${property.id}`)).size,
+    withBalance: directoryEntries.filter(({ status }) => status.key === 'balance').length,
+    fullyPaid: directoryEntries.filter(({ status }) => status.key === 'current').length,
+  }), [directoryEntries])
 
   function handleSelectHomeowner(id) {
     navigate(`/homeowners/${id}`, { replace: true, preventScrollReset: true })
@@ -949,6 +955,34 @@ useEffect(() => {
         </div>
       </header>
 
+      <section className="homeowners-stat-grid" aria-label="Homeowner summaries">
+        <article className="homeowners-stat-card">
+          <div className="homeowners-stat-top"><span>Total Homeowners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
+          <strong>{loading ? '—' : homeownerStats.total.toLocaleString('en-PH')}</strong>
+          <small>Active directory records</small>
+        </article>
+        <article className="homeowners-stat-card">
+          <div className="homeowners-stat-top"><span>Active</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><Home size={18} /></span></div>
+          <strong>{loading ? '—' : homeownerStats.total.toLocaleString('en-PH')}</strong>
+          <small>Active directory records</small>
+        </article>
+        <article className="homeowners-stat-card">
+          <div className="homeowners-stat-top"><span>Lot Owners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
+          <strong>{loading ? '—' : homeownerStats.lotOwners.toLocaleString('en-PH')}</strong>
+          <small>Unique owners across all lots</small>
+        </article>
+        <article className="homeowners-stat-card">
+          <div className="homeowners-stat-top"><span>With Balance</span><span className="homeowners-stat-icon homeowners-stat-icon-warning"><CreditCard size={18} /></span></div>
+          <strong>{loading ? '—' : homeownerStats.withBalance.toLocaleString('en-PH')}</strong>
+          <small>Accounts with a balance due</small>
+        </article>
+        <article className="homeowners-stat-card">
+          <div className="homeowners-stat-top"><span>Fully Paid</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><FileText size={18} /></span></div>
+          <strong>{loading ? '—' : homeownerStats.fullyPaid.toLocaleString('en-PH')}</strong>
+          <small>Current accounts with payment history</small>
+        </article>
+      </section>
+
       {pageError && <p className="homeowners-error">{pageError}</p>}
       <section className="homeowners-finder">
         <div className="homeowners-finder-heading">
@@ -1158,33 +1192,25 @@ useEffect(() => {
                 ))
                 : <>
                   <article>
+                    <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
                     <span>Total Paid</span>
                     <strong>{peso.format(summary.totalPaid)}</strong>
                     <small>All non-voided collections</small>
                   </article>
                   <article className={summary.outstanding > 0 ? 'has-balance' : ''}>
+                    <span className="homeowner-summary-icon"><AlertCircle size={18} /></span>
                     <span>Current Balance</span>
                     <strong>{peso.format(summary.outstanding)}</strong>
                     <small>{summary.outstanding > 0 ? 'Payment still required' : 'No recorded balance'}</small>
                   </article>
                   <article className={summary.credit > 0 ? 'has-credit' : ''}>
+                    <span className="homeowner-summary-icon"><Home size={18} /></span>
                     <span>Credit</span>
                     <strong>{peso.format(summary.credit)}</strong>
                     <small>{summary.credit > 0 ? 'Applied to next dues' : 'No advance credit'}</small>
                   </article>
                   <article>
-                    <span>Monthly Dues</span>
-                    <strong>{formatDues(duesByProperty.get(Number(selectedProperty.id))?.monthly_dues)}</strong>
-                    <small>
-                      {formatLotSize(duesByProperty.get(Number(selectedProperty.id))?.lot_size_sqm)} · {formatRate(duesByProperty.get(Number(selectedProperty.id))?.price_per_sqm)}
-                    </small>
-                  </article>
-                  <article>
-                    <span>Last Payment</span>
-                    <strong className="homeowner-summary-date">{summary.lastPayment}</strong>
-                    <small>Manila date and time</small>
-                  </article>
-                  <article>
+                    <span className="homeowner-summary-icon"><FileText size={18} /></span>
                     <span>Receipts</span>
                     <strong>{summary.receipts}</strong>
                     <small>Across all categories</small>

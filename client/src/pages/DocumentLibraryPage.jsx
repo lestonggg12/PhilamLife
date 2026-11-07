@@ -384,6 +384,12 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     0,
   )
   const categoryCount = new Set(documents.map((document) => document.category)).size
+  const filteredTotalSize = filteredDocuments.reduce(
+    (sum, document) => sum + (Number(document.file_size) || 0),
+    0,
+  )
+  const filteredCategoryCount = new Set(filteredDocuments.map((document) => document.category)).size
+  const filteredPendingCount = filteredDocuments.filter((document) => document.deletion_requested_at).length
 
   return (
     <div className="doc-library">
@@ -419,18 +425,22 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
       </div>
 
-      <div className="doc-summary">
+      <div className="doc-summary" aria-label="Document summaries" aria-busy={loading || refreshing}>
         <div className="doc-summary-item">
-          <span>Total documents</span>
-          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : documents.length}</strong>
+          <span><FileText size={18} /> Matching documents</span>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredDocuments.length}</strong>
         </div>
         <div className="doc-summary-item">
-          <span>Library file sizes</span>
-          <strong>{loading ? '—' : formatFileSize(totalSize)}</strong>
+          <span><Download size={18} /> Matching file size</span>
+          <strong>{loading ? '—' : formatFileSize(filteredTotalSize)}</strong>
         </div>
         <div className="doc-summary-item">
-          <span>Categories used</span>
-          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : categoryCount}</strong>
+          <span><Search size={18} /> Categories in view</span>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredCategoryCount}</strong>
+        </div>
+        <div className="doc-summary-item">
+          <span><AlertCircle size={18} /> Deletion pending</span>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredPendingCount}</strong>
         </div>
       </div>
 

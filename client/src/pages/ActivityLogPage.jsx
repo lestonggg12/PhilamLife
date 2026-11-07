@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import Select from '../components/Select'
 import DateField from '../components/DateField'
+import { Activity, CreditCard, Users, Zap } from '../components/Icons'
 import './ActivityLogPage.css'
 
 const ZONE = 'Asia/Manila'
@@ -283,6 +284,21 @@ export default function ActivityLogPage() {
     const term = debouncedSearch.trim().toLowerCase()
     return logs.filter((log) => log.dateKey >= first && log.dateKey <= last && (!user || String(log.user_id || 'system') === user) && (!role || log.role.toLowerCase() === role) && (!action || log.action === action) && matchesActivitySearch(log, term))
   }, [logs, first, last, user, role, action, debouncedSearch])
+  const activityStats = useMemo(() => {
+    const countBy = (items) => {
+      const counts = new Map()
+      items.forEach((item) => counts.set(item, (counts.get(item) || 0) + 1))
+      return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]
+    }
+    const mostActive = countBy(filtered.map((log) => log.user || 'System'))
+    const topAction = countBy(filtered.map((log) => log.action || 'Other activity'))
+    return {
+      total: filtered.length,
+      mostActive: mostActive ? `${mostActive[0]} (${mostActive[1]})` : '—',
+      topAction: topAction ? `${topAction[0]} (${topAction[1]})` : '—',
+      payments: filtered.filter((log) => /payment/i.test(log.action || '')).length,
+    }
+  }, [filtered])
   useEffect(() => { setLimit(25) }, [first, last, user, role, action, debouncedSearch, revision])
   const users = [...new Map(logs.map((log) => [String(log.user_id || 'system'), log.user])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
   const actions = [...new Set(logs.map((log) => log.action).filter(Boolean))].sort()
@@ -312,6 +328,12 @@ export default function ActivityLogPage() {
 
   return <div className="activity-log-page" style={{ '--al-toolbar-height': `${toolbarHeight}px` }}>
     <header className="al-header"><div><h1>Activity Log</h1><p>Search and review system activity across your team.</p></div></header>
+    <section className="al-stats-grid" aria-label="Activity summaries" aria-busy={loading}>
+      <article className="al-stat-card"><div className="al-stat-top"><span>Total Events</span><span className="al-stat-icon al-stat-icon-blue"><Activity size={18} /></span></div><strong>{loading ? '—' : activityStats.total.toLocaleString('en-PH')}</strong><small>Matching the current filters</small></article>
+      <article className="al-stat-card"><div className="al-stat-top"><span>Most Active User</span><span className="al-stat-icon al-stat-icon-green"><Users size={18} /></span></div><strong className="al-stat-value-text">{loading ? '—' : activityStats.mostActive}</strong><small>Events in the selected range</small></article>
+      <article className="al-stat-card"><div className="al-stat-top"><span>Top Action</span><span className="al-stat-icon al-stat-icon-blue"><Zap size={18} /></span></div><strong className="al-stat-value-text">{loading ? '—' : activityStats.topAction}</strong><small>Most common recorded action</small></article>
+      <article className="al-stat-card"><div className="al-stat-top"><span>Payments Recorded</span><span className="al-stat-icon al-stat-icon-green"><CreditCard size={18} /></span></div><strong>{loading ? '—' : activityStats.payments.toLocaleString('en-PH')}</strong><small>Payment events in this view</small></article>
+    </section>
     <section className="al-toolbar" ref={toolbarRef} aria-label="Activity controls">
       <div className="al-toolbar-main">
         <div className="al-search-row"><label className="al-search"><span className="al-sr-only">Search activity</span><input type="search" aria-label="Search activity" placeholder="User, action, or description" value={search} onChange={(event) => setSearch(event.target.value)} /></label>

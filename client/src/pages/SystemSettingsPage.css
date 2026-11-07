@@ -49,6 +49,43 @@
   border-radius: 12px;
 }
 
+.ss-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0 24px;
+}
+
+.ss-stat-card {
+  position: relative;
+  min-width: 0;
+  padding: 20px 22px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  backdrop-filter: blur(22px) saturate(190%);
+  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ss-stat-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 100%);
+  content: '';
+  pointer-events: none;
+}
+
+.ss-stat-card:hover { transform: translateY(-2px); box-shadow: 0 26px 48px -20px rgba(15, 63, 106, 0.34), 0 3px 12px rgba(20, 100, 160, 0.1); }
+.ss-stat-card > * { position: relative; z-index: 1; }
+.ss-stat-icon { display: grid; width: 30px; height: 30px; margin-bottom: 12px; place-items: center; border: 1px solid rgba(255, 255, 255, 0.75); border-radius: 10px; background: rgba(255, 255, 255, 0.46); color: var(--primary); }
+.ss-stat-label { display: block; color: var(--text-muted); font-family: var(--font-mono, var(--font-body)); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+.ss-stat-card strong { display: block; margin-top: 8px; overflow-wrap: anywhere; color: var(--text-dark); font-family: var(--font-display); font-size: clamp(1.05rem, 1.8vw, 1.4rem); line-height: 1.15; }
+.ss-stat-card small { display: block; margin-top: 6px; overflow-wrap: anywhere; color: var(--text-muted); font-family: var(--font-body); font-size: 0.72rem; }
+
 .ss-header h1 {
   margin: 0 0 2px;
   color: var(--text-dark);
@@ -206,6 +243,10 @@
 /* System preferences has long select text, so keep it at two columns */
 .ss-preferences-card .ss-fields {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ss-penalty-card .ss-fields > .lps {
+  grid-column: 1 / -1;
 }
 
 .ss-field {
@@ -549,6 +590,7 @@ button:disabled {
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
+  .ss-stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ss-card-grid { grid-template-columns: 1fr; }
   .ss-card-grid > .ss-penalty-card { order: 0; }
   .ss-export-grid { grid-template-columns: 1fr; }
@@ -557,6 +599,8 @@ button:disabled {
 @media (max-width: 640px) {
   .ss-page { padding: 12px; }
   .ss-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ss-stat-row { grid-template-columns: 1fr; margin-top: 16px; }
+  .ss-tabs { margin-top: 18px; }
   .ss-tabs button { padding-inline: 10px; }
   .ss-card { padding: 14px; }
   .ss-fields,

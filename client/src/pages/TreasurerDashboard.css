@@ -637,3 +637,18 @@
     gap: 8px;
   }
 }
+
+/* Match the Admin and Secretary portal header/stat dimensions. */
+.treasurer-dashboard .treasurer-hero,
+.treasurer-dashboard .treasurer-stat-card {
+  border-radius: 22px;
+}
+
+.treasurer-dashboard .treasurer-hero { min-height: 124px; padding: 24px 28px; }
+.treasurer-dashboard .treasurer-hero h1 { font-size: 30px; line-height: 1.15; }
+.treasurer-dashboard .treasurer-eyebrow { font-size: 11px; }
+.treasurer-dashboard .treasurer-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.treasurer-dashboard .treasurer-stat-card { min-height: 124px; padding: 16px 18px; container-type: normal; }
+.treasurer-dashboard .treasurer-stat-heading svg { width: 40px; height: 40px; padding: 10px; border: 1px solid rgba(255,255,255,.7); border-radius: 11px; background: rgba(255,255,255,.5); box-shadow: inset 0 1px 1px rgba(255,255,255,.9), 0 4px 10px -4px rgba(15,63,106,.25); }
+.treasurer-dashboard .treasurer-stat-card > strong { margin-top: 10px; margin-bottom: 0; font-size: 28px; font-weight: 600; }
+.treasurer-dashboard .treasurer-stat-card > small { margin-top: 6px; font-size: 13px; line-height: 1.4; }

@@ -1,5 +1,5 @@
-.lps { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 12px; }
-.lps > .ss-info { grid-column: auto; }
+.lps { display: grid; width: 100%; max-width: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.lps > .ss-info { grid-column: auto; width: 100%; min-width: 0; box-sizing: border-box; overflow-wrap: anywhere; }
 .lps > .lps-defaults,
 .lps > .lps-heading,
 .lps > .lps-empty,
@@ -7,9 +7,11 @@
 .lps > .lps-add,
 .lps > .ss-message { grid-column: 1 / -1; }
 .lps-defaults,
-.lps-add { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.lps-add { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
 .lps-defaults .ss-field,
-.lps-add .ss-field { flex: 1 1 180px; }
+.lps-add .ss-field { min-width: 0; }
+.lps-defaults .ss-primary,
+.lps-add .ss-primary { grid-column: 1 / -1; justify-self: start; }
 .lps-heading { margin: 8px 0 0; font-size: 0.95rem; }
 .lps-empty { margin: 0; color: #5b6b82; font-size: 0.9rem; }
 .lps-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
@@ -21,8 +23,12 @@
 .lps-link:disabled { opacity: 0.5; cursor: default; }
 .lps-danger { color: #b3261e; }
 
-@media (max-width: 700px) {
+@media (max-width: 600px) {
   .lps { grid-template-columns: 1fr; }
+  .lps-defaults,
+  .lps-add { grid-template-columns: 1fr; }
+  .lps-defaults .ss-primary,
+  .lps-add .ss-primary { grid-column: 1; }
   .lps > .ss-info,
   .lps > .lps-defaults,
   .lps > .lps-heading,
