@@ -1240,21 +1240,25 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
       <section className="services-summary" aria-label="Service summaries">
         <article>
+          <span className="services-summary-icon" aria-hidden="true"><CheckCircle size={17} /></span>
           <span>Active Services</span>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : summary.activeServices}</strong>
           <small>Available village amenities</small>
         </article>
         <article>
+          <span className="services-summary-icon" aria-hidden="true"><CreditCard size={17} /></span>
           <span>Transactions This Month</span>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.monthlyTransactions}</strong>
           <small>Service payments recorded</small>
         </article>
         <article>
+          <span className="services-summary-icon" aria-hidden="true"><RefreshCw size={17} /></span>
           <span>Collections This Month</span>
           <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : statsError ? 'Unavailable' : peso.format(summary.monthlyCollections)}</strong>
           <small>Based on Manila time</small>
         </article>
         <article>
+          <span className="services-summary-icon" aria-hidden="true"><FileText size={17} /></span>
           <span>Receipts Issued</span>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.receipts}</strong>
           <small>Permanent service records</small>

@@ -143,14 +143,34 @@
 }
 
 .official-receipts-summary article {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   gap: 14px;
   min-height: 128px;
   padding: 20px;
   border: 1px solid rgba(20, 100, 160, 0.14);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  backdrop-filter: blur(22px) saturate(190%);
+  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.official-receipts-summary article::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 100%);
+  content: '';
+  pointer-events: none;
+}
+
+.official-receipts-summary article:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 26px 48px -20px rgba(15, 63, 106, 0.34), 0 3px 12px rgba(20, 100, 160, 0.1);
 }
 
 .official-summary-icon {
@@ -183,7 +203,14 @@
 }
 
 .official-receipts-summary article > div {
+  position: relative;
+  z-index: 1;
   min-width: 0;
+}
+
+.official-receipts-summary article > .official-summary-icon {
+  position: relative;
+  z-index: 1;
 }
 
 .official-receipts-summary small {

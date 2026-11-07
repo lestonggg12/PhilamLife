@@ -2,7 +2,7 @@ import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
+import { AlertCircle, Calendar, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { describeOverdueAccount, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
 import { fetchAll } from '../lib/fetchAll'
@@ -236,6 +236,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     return summarizeOverdueAccounts(accounts)
   }, [accounts])
 
+  const filteredSummary = useMemo(() => summarizeOverdueAccounts(filtered), [filtered])
+
   function openLogForm(account) {
     setLogTarget(account)
     setLogForm({ action_type: ACTION_TYPES[0], details: '', document_reference: '' })
@@ -309,20 +311,20 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
       <div className="overdue-summary">
         <div className="overdue-summary-item overdue-summary-flag">
-          <span>Overdue accounts</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : summary.overdueCount}</strong>
+          <span><Users size={18} /> Matching accounts</span>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : filtered.length}</strong>
         </div>
         <div className="overdue-summary-item">
-          <span>Overdue balance</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : organization.formatMoney(summary.overdueBalance)}</strong>
+          <span><AlertCircle size={18} /> Overdue balance</span>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : organization.formatMoney(filteredSummary.overdueBalance)}</strong>
         </div>
         <div className="overdue-summary-item">
-          <span>Not yet overdue (on overdue accounts)</span>
-          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : organization.formatMoney(summary.currentPortion)}</strong>
+          <span><Calendar size={18} /> Current portion</span>
+          <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : organization.formatMoney(filteredSummary.currentPortion)}</strong>
         </div>
         <div className="overdue-summary-item">
-          <span>Total accounts</span>
-          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : summary.totalAccounts}</strong>
+          <span><Phone size={18} /> Follow-ups logged</span>
+          <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !dataAvailable ? 'Unavailable' : filtered.reduce((total, account) => total + account.actionCount, 0)}</strong>
         </div>
       </div>
 

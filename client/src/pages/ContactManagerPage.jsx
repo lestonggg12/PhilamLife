@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { useSearchParams } from 'react-router-dom'
-import { Edit, FileArchive, Mail, Phone, RefreshCw, Search } from '../components/Icons'
+import { Edit, FileArchive, Mail, Phone, RefreshCw, Search, Users } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { Pager } from '../components/PagerControls'
 import useDebouncedValue from '../hooks/useDebouncedValue'
@@ -325,16 +325,24 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       <div className="contact-summary">
         <div className="contact-summary-item is-active">
-          <strong>{countsLoading || !counts ? '—' : String(counts.active).padStart(2, '0')}</strong>
-          <span>Active property accounts</span>
+          <div className="contact-summary-top"><span>Total Contacts</span><span className="contact-summary-icon"><Users size={18} /></span></div>
+          <strong>{countsLoading || !counts ? '—' : (counts.active + counts.moved + counts.transferred).toLocaleString('en-PH')}</strong>
+          <small>All property accounts</small>
         </div>
         <div className="contact-summary-item is-moved">
-          <strong>{countsLoading || !counts ? '—' : String(counts.moved).padStart(2, '0')}</strong>
-          <span>Moved property accounts</span>
+          <div className="contact-summary-top"><span>Active</span><span className="contact-summary-icon contact-summary-icon-green"><Users size={18} /></span></div>
+          <strong>{countsLoading || !counts ? '—' : counts.active.toLocaleString('en-PH')}</strong>
+          <small>Active property accounts</small>
         </div>
         <div className="contact-summary-item is-transferred">
-          <strong>{countsLoading || !counts ? '—' : String(counts.transferred).padStart(2, '0')}</strong>
-          <span>Transferred property accounts</span>
+          <div className="contact-summary-top"><span>Inactive</span><span className="contact-summary-icon contact-summary-icon-warning"><Users size={18} /></span></div>
+          <strong>{countsLoading || !counts ? '—' : (counts.moved + counts.transferred).toLocaleString('en-PH')}</strong>
+          <small>Moved and transferred accounts</small>
+        </div>
+        <div className="contact-summary-item is-categories">
+          <div className="contact-summary-top"><span>Categories</span><span className="contact-summary-icon contact-summary-icon-muted"><FileArchive size={18} /></span></div>
+          <strong>{countsLoading || !counts ? '—' : Object.keys(counts).length.toLocaleString('en-PH')}</strong>
+          <small>Active, moved, transferred</small>
         </div>
       </div>
 

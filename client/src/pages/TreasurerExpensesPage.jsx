@@ -3,7 +3,7 @@ import { expenseDateControlError, expenseEvidenceControlError } from '../lib/exp
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { DollarSign, Plus, Trash2, AlertCircle, X } from '../components/Icons'
+import { CheckCircle, DollarSign, FileText, Plus, Trash2, AlertCircle, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { parseExpenseAmount, isValidExpenseDate, isVoidedExpense, summarizeExpenses } from '../lib/expenseSummary'
@@ -590,37 +590,45 @@ const isReadOnly = !canRecordExpenses
 
       <div className="tex-stats-grid">
         <div className="tex-stat-card">
+          <span className="tex-stat-icon" aria-hidden="true"><DollarSign size={17} /></span>
           <span className="tex-stat-label">
-            Total {monthLabel(selectedMonth)}
+            Net {monthLabel(selectedMonth)}
           </span>
           <h3 className="tex-stat-value">
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalSelectedMonth)}
           </h3>
+          <small>Selected month operating expenses</small>
         </div>
 
         <div className="tex-stat-card">
-          <span className="tex-stat-label">Net Expenses (Excl. Voided)</span>
+          <span className="tex-stat-icon" aria-hidden="true"><CheckCircle size={17} /></span>
+          <span className="tex-stat-label">All-time net expenses</span>
           <h3 className="tex-stat-value">
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalAllTime)}
           </h3>
+          <small>All recorded expenses</small>
         </div>
 
         <div className="tex-stat-card">
+          <span className="tex-stat-icon" aria-hidden="true"><FileText size={17} /></span>
           <span className="tex-stat-label">
             {monthLabel(selectedMonth)} Entries
           </span>
           <h3 className="tex-stat-value">
             {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : pageError ? 'Unavailable' : summary.count}
           </h3>
+          <small>Entries in the selected month</small>
         </div>
 
         <div className="tex-stat-card">
+          <span className="tex-stat-icon" aria-hidden="true"><AlertCircle size={17} /></span>
           <span className="tex-stat-label">Top Category</span>
           <h3 className="tex-stat-value tex-stat-value-sm">
             {loading || !summary.topCategory
               ? '—'
               : summary.topCategory.name}
           </h3>
+          <small>Highest selected-month category</small>
         </div>
       </div>
 

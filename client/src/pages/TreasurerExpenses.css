@@ -151,7 +151,9 @@
 
 .tex-page .tex-stat-card {
   min-width: 0;
-  padding: 20px;
+  position: relative;
+  min-height: 124px;
+  padding: 16px 18px;
   border-radius: 24px;
   transition: transform 0.2s ease;
   container-type: inline-size;
@@ -161,12 +163,28 @@
   transform: translateY(-2px);
 }
 
+.tex-page .tex-stat-icon {
+  display: grid;
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.46);
+  color: var(--primary);
+}
+
 .tex-page .tex-stat-label {
   display: block;
+  max-width: 145px;
   margin: 0;
   color: var(--text-muted);
   font-family: var(--font-mono, var(--font-body));
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.45px;
   line-height: 1.4;
@@ -175,14 +193,21 @@
 
 .tex-page .tex-stat-value {
   display: block;
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   color: var(--text-dark);
   font-family: var(--font-display);
-  font-size: clamp(14px, 12.5cqw, 26px);
+  font-size: 28px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 1.15;
   white-space: nowrap;
+}
+
+.tex-page .tex-stat-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font: 13px/1.4 var(--font-body);
 }
 
 /* "Top Category" is text: wrap, never cut */

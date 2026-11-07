@@ -283,6 +283,33 @@ export default function SystemSettingsPage({ user }) {
         <span className="ss-admin-badge">Admin access</span>
       </header>
 
+      <section className="ss-stat-row" aria-label="Settings summary">
+        <article className="ss-stat-card">
+          <span className="ss-stat-icon" aria-hidden="true"><Icon name="general" /></span>
+          <span className="ss-stat-label">Organization</span>
+          <strong>{settings.hoa_name}</strong>
+          <small>{settings.address || 'Address not configured'}</small>
+        </article>
+        <article className="ss-stat-card">
+          <span className="ss-stat-icon" aria-hidden="true"><Icon name="general" /></span>
+          <span className="ss-stat-label">Billing schedule</span>
+          <strong>Day {settings.billing_day}</strong>
+          <small>Due day {settings.due_day} · {settings.grace_period_days} grace days</small>
+        </article>
+        <article className="ss-stat-card">
+          <span className="ss-stat-icon" aria-hidden="true"><Icon name="security" /></span>
+          <span className="ss-stat-label">Security policy</span>
+          <strong>{settings.require_strong_password ? 'Strong passwords' : 'Standard passwords'}</strong>
+          <small>{settings.session_timeout} minute session timeout</small>
+        </article>
+        <article className="ss-stat-card">
+          <span className="ss-stat-icon" aria-hidden="true"><Icon name="backup" /></span>
+          <span className="ss-stat-label">Export history</span>
+          <strong>{history.length}</strong>
+          <small>Downloads recorded in this browser</small>
+        </article>
+      </section>
+
       <nav className="ss-tabs" aria-label="Settings sections">
         {tabs.map(([id, label]) => <button key={id} type="button" className={activeTab === id ? 'active' : ''} onClick={() => { setActiveTab(id); setMessage(null) }}><Icon name={id} />{label}</button>)}
       </nav>

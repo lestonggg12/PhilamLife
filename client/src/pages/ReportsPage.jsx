@@ -426,6 +426,33 @@ export default function ReportsPage({ user: suppliedUser }) {
         </div>
       </header>
 
+      <section className="reports-stat-row no-print" aria-label="Monthly report summary">
+        <article className="reports-stat-card">
+          <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
+          <span className="reports-stat-label">Total revenue</span>
+          <strong>{report ? money(kpis.totalIncome) : '—'}</strong>
+          <small>{monthLabel}</small>
+        </article>
+        <article className="reports-stat-card">
+          <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
+          <span className="reports-stat-label">Disbursements</span>
+          <strong>{report ? money(kpis.totalExpenses) : '—'}</strong>
+          <small>{monthLabel}</small>
+        </article>
+        <article className="reports-stat-card">
+          <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
+          <span className="reports-stat-label">Net result</span>
+          <strong>{report ? money(Math.abs(kpis.netIncome)) : '—'}</strong>
+          <small>{report ? (kpis.netIncome >= 0 ? 'Surplus' : 'Deficit') : 'Verified monthly total'}</small>
+        </article>
+        <article className="reports-stat-card">
+          <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
+          <span className="reports-stat-label">Outstanding balances</span>
+          <strong>{report ? money(kpis.totalOutstanding) : '—'}</strong>
+          <small>{monthLabel}</small>
+        </article>
+      </section>
+
       {loadFailure && <p className="reports-error">Could not load every record needed for this report ({loadFailure}). Totals may be incomplete, so PDF download is disabled until the data loads. Refresh the page to try again.</p>}
 
       {loading ? (

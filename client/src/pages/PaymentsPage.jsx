@@ -1453,19 +1453,28 @@ function selectHomeowner(property) {
 
       <section className="payments-summary" aria-label="Payment overview">
         <article className="payments-summary-card payments-summary-collected">
+          <span className="payments-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7h18v12H3z" /><path d="M3 10h18M7 15h3" /></svg></span>
           <span className="payments-summary-label">Total collected</span>
           <strong>{summary ? peso.format(Number(summary.dues_collected) || 0) : '—'}</strong>
           <small>Excludes voided payments · {summaryLabel}</small>
         </article>
         <article className="payments-summary-card payments-summary-records">
+          <span className="payments-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 4h14v16H5z" /><path d="m8 12 2.5 2.5L16 9" /></svg></span>
           <span className="payments-summary-label">Completed payments</span>
           <strong>{summary ? summary.completed_count : '—'}</strong>
           <small>{summary ? summary.payment_count : 0} record{summary?.payment_count === 1 ? '' : 's'} · {summaryLabel}</small>
         </article>
         <article className="payments-summary-card payments-summary-homeowners">
+          <span className="payments-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3" /><path d="M3 19c0-3 2.5-5 6-5s6 2 6 5M16 11a3 3 0 1 0 0-6M16 14c3 0 5 1.8 5 5" /></svg></span>
           <span className="payments-summary-label">Homeowners served</span>
           <strong>{summary ? summary.homeowners_served : '—'}</strong>
           <small>Unique properties collected</small>
+        </article>
+        <article className="payments-summary-card payments-summary-visible">
+          <span className="payments-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></svg></span>
+          <span className="payments-summary-label">Records in view</span>
+          <strong>{pageInfo.total || pageInfo.minimum || 0}</strong>
+          <small>{searching ? 'Matches for current search' : `Payments for ${summaryLabel}`}</small>
         </article>
       </section>
 
