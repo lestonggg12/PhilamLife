@@ -45,6 +45,7 @@ import { Pager } from '../components/PagerControls'
 import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 import '../components/HomeownerDirectoryPaging.css'
 import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
+import AccountActivity from '../components/AccountActivity'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -1514,6 +1515,8 @@ useEffect(() => {
                     Voided records are excluded. A blank month means no payment was recorded; it does not automatically mean an unpaid balance.
                   </p>
 
+                  <AccountActivity propertyId={selectedPropertyId} year={trackerView === 'monthly' ? trackerYear : undefined} refreshKey={detailReloadKey} />
+
                   {trackerView === 'monthly' && selectedTrackerMonth && createPortal(
                     <div className="homeowner-month-overlay" onClick={(event) => { event.stopPropagation(); setExpandedTrackerMonth(null) }}>
                       <section
@@ -1578,7 +1581,7 @@ useEffect(() => {
                             <div className="homeowner-month-grand-total"><span>Total received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
                             </div>
                           </div>
-                          
+                          <AccountActivity propertyId={selectedPropertyId} month={`${trackerYear}-${String(expandedTrackerMonth + 1).padStart(2, '0')}`} refreshKey={detailReloadKey} />
                         </div>
                         <footer className="homeowner-month-dialog-footer">
                           
@@ -1719,6 +1722,7 @@ useEffect(() => {
                 </table>
               </div>
             </section>
+            <AccountActivity propertyId={selectedPropertyId} month={historyMonth} refreshKey={detailReloadKey} />
           </>
         )}
       </main>

@@ -1,0 +1,27 @@
+.account-activity { box-sizing:border-box; width:100%; margin-top:20px; padding:20px; background:#fff; border:1px solid #d6e5f1; border-radius:14px; color:#183d57; font-family:var(--font-body,sans-serif); }
+.account-activity-heading { display:flex; align-items:center; gap:10px; }
+.account-activity-heading > svg { flex-shrink:0; color:#1464a0; }
+.account-activity-heading > div { min-width:0; flex:1; }
+.account-activity h3 { font-size:15px; margin:0; }
+.account-activity-heading p { font-size:12px; color:#607c93; margin:5px 0 0; }
+.account-activity button { border:1px solid #ccdfef; border-radius:8px; padding:7px 11px; background:#f7fbff; color:#1464a0; cursor:pointer; font:inherit; font-size:12px; transition:background-color var(--motion-fast) var(--ease-out); }
+.account-activity button:hover { background:#eaf4fc; }
+.account-activity button:disabled { opacity:.6; cursor:default; }
+.account-activity-note { color:#607c93; font-size:12px; line-height:1.6; margin:14px 0; }
+.account-activity > ol { list-style:none; padding:0; margin:0; }
+.account-activity > ol > li { display:flex; align-items:flex-start; gap:11px; border-top:1px solid #e3edf5; padding:15px 0; }
+.account-activity-icon { flex-shrink:0; display:flex; padding:8px; color:#1464a0; background:#edf6fd; border-radius:9px; }
+.account-activity-icon.is-transaction_voided { color:#a83636; background:#fff1f1; }
+.account-activity-icon.is-penalty_applied { color:#946021; background:#fff7e9; }
+.account-activity-content { min-width:0; flex:1; overflow-wrap:anywhere; }
+.account-activity-content strong { font-size:13px; }
+.account-activity-content p { margin:6px 0; font-size:13px; line-height:1.6; }
+.account-activity-content small { font-size:11px; color:#607c93; }
+.account-activity-content details { margin-top:9px; font-size:12px; }
+.account-activity-content summary { cursor:pointer; color:#1464a0; }
+.account-activity-content details li { margin:6px 0; }
+.account-activity-content details small { display:block; }
+.account-activity-empty,.account-activity-skeleton { padding:18px 12px; border-radius:9px; background:#f5f9fc; color:#607c93; font-size:13px; }
+.account-activity-error { padding:10px; background:#fff4e6; font-size:12px; }
+.account-activity-more { display:block; margin:8px auto 0; }
+@media(max-width:480px) { .account-activity { padding:14px; } .account-activity-heading { gap:8px; } .account-activity-heading p { line-height:1.5; } }

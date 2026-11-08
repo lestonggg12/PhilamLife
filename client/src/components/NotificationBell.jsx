@@ -1,0 +1,144 @@
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
+import { Bell, CalendarClock, Coins, TriangleAlert, Ban, UserRound, Settings } from 'lucide-react'
+import { supabase } from '../lib/supabaseClient'
+import { fetchSystemNotifications, markAllNotificationsRead, markNotificationsRead,
+  notificationLink, popoverPosition, relativeManilaTime, unreadBadge } from '../lib/systemNotifications'
+import { mergeLiveNotification, watchStaffInserts } from '../lib/notificationRealtime'
+import './NotificationBell.css'
+
+const icons = { collection_reminder: CalendarClock, collection_run: Coins, penalty_anniversary: TriangleAlert, transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert }
+
+export default function NotificationBell({ user }) {
+  const navigate = useNavigate()
+  const panelId = useId()
+  const trigger = useRef(null)
+  const panel = useRef(null)
+  const generation = useRef(0)
+  const [open, setOpen] = useState(false)
+  const [data, setData] = useState({ items: [], unread: 0 })
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [position, setPosition] = useState({})
+  const enabled = ['admin', 'secretary', 'treasurer'].includes(user?.role) && !!user?.id
+
+  const refresh = useCallback(async () => {
+    const request = ++generation.current
+    try {
+      const next = await fetchSystemNotifications(supabase)
+      if (request === generation.current) { setData(next); setError('') }
+    } catch {
+      if (request === generation.current) setError('Notifications could not be refreshed. Please retry.')
+    } finally {
+      if (request === generation.current) setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    setOpen(false)
+    setData({ items: [], unread: 0 })
+    setLoading(true)
+    if (!enabled) return
+    const stopRealtime = watchStaffInserts(supabase, {
+      table: 'notifications',
+      onInsert: (row) => {
+        generation.current++
+        setData((current) => mergeLiveNotification(current, row))
+      },
+      refresh,
+    })
+    void refresh()
+    const interval = window.setInterval(refresh, 60000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      generation.current++
+      stopRealtime()
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [enabled, user?.id, refresh])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const reposition = () => setPosition(popoverPosition(trigger.current.getBoundingClientRect(), {
+      width: window.innerWidth, height: window.innerHeight,
+    }))
+    reposition()
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
+    const outside = (event) => {
+      if (!panel.current?.contains(event.target) && !trigger.current?.contains(event.target)) setOpen(false)
+    }
+    const key = (event) => {
+      if (event.key === 'Escape') { setOpen(false); trigger.current?.focus() }
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', key)
+    panel.current?.focus()
+    return () => {
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', key)
+    }
+  }, [open])
+
+  const mark = async (item) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await markNotificationsRead(supabase, user.id, [item.id])
+      setOpen(false)
+      navigate(notificationLink(item.link, user.role))
+      await refresh()
+    } catch { setError('Could not mark this notification as read. Please retry.') }
+    finally { setBusy(false) }
+  }
+  const markAll = async () => {
+    setBusy(true)
+    try { await markAllNotificationsRead(supabase, user.id); await refresh() }
+    catch { setError('Could not mark all notifications as read. Please retry.') }
+    finally { setBusy(false) }
+  }
+
+  if (!enabled) return null
+  return <>
+    <button type="button" ref={trigger} className="notification-bell motion-interactive"
+      aria-label={`Notifications${data.unread ? `, ${data.unread} unread` : ''}`}
+      aria-expanded={open} aria-controls={open ? panelId : undefined} aria-haspopup="dialog"
+      onClick={() => setOpen((value) => !value)}>
+      <Bell size={19} aria-hidden="true" />
+      {data.unread > 0 && <span className="notification-badge">{unreadBadge(data.unread)}</span>}
+    </button>
+    {open && createPortal(<section id={panelId} ref={panel} tabIndex={-1} role="dialog"
+      aria-label="System notifications" className="notification-panel motion-page-enter" style={position}>
+      <header><h2>Notifications</h2><button type="button" disabled={busy || !data.unread} onClick={markAll}>Mark all as read</button>
+        <button type="button" aria-label="Close notifications" onClick={() => { setOpen(false); trigger.current?.focus() }}>×</button></header>
+      {error && <div className="notification-error" role="alert">{error} <button type="button" onClick={refresh}>Retry</button></div>}
+      {loading ? <div aria-busy="true" aria-label="Loading notifications">{[1, 2, 3].map((key) => <div key={key} className="notification-skeleton" />)}</div>
+        : !data.items.length ? <div className="notification-empty"><Bell size={26} /><p>{error ? 'Notifications are unavailable.' : 'You’re all caught up.'}</p><small>Collection reminders, account activity, voids, and settings updates appear here.</small></div>
+          : <ul>{data.items.map((item) => {
+            const Icon = icons[item.kind] || Bell
+            return <li key={item.id} className={item.read ? '' : 'notification-unread'}>
+              <button type="button" className="notification-item" disabled={busy} onClick={() => mark(item)}>
+                <Icon className="notification-kind" size={19} aria-hidden="true" />
+                <span className="notification-copy"><strong>{item.title}</strong><span className="notification-body">{item.body}</span>
+                  <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', timeZoneName: 'short' })}>{relativeManilaTime(item.created_at)}</time></span>
+                {!item.read && <span className="notification-dot" aria-label="Unread" />}
+              </button>
+              <details className="notification-details"><summary>View details{item.payload?.top_accounts?.length ? ' and largest accounts' : ''}</summary>
+                <p>{item.body}</p>
+                {item.payload?.actor_name && <small>Recorded by {item.payload.actor_name}</small>}
+                {!!item.payload?.related_reversals?.length && <ul>{item.payload.related_reversals.map((row) => <li key={`${row.kind}:${row.reference}`}>{row.kind}: {row.amount_formatted}</li>)}</ul>}
+                {item.payload?.observed_on && <small>Figures observed on {item.payload.observed_on} (Manila).</small>}
+                {item.payload?.top_accounts?.map((account) => <div className="notification-account" key={account.property_id}>
+                  <span>{account.name}<small>Block {account.block} · Lot {account.lot_number}</small></span><strong>{account.amount_formatted}</strong>
+                </div>)}
+              </details>
+            </li>
+          })}</ul>}
+    </section>, document.body)}
+  </>
+}

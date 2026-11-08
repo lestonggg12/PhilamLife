@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import './Navbar.css'
+import NotificationBell from './NotificationBell'
 import { LogOut, Menu } from './Icons'
 import { useOrganization } from '../context/OrganizationContext'
 
@@ -79,6 +80,7 @@ export default function Navbar({ user, onLogout, menuOpen = false, onMenuToggle 
         </div>
 
         <div className="navbar-right">
+          <NotificationBell user={user} />
           <button className="navbar-signout" onClick={handleLogoutClick}>
             <LogOut size={15} />
             <span>Sign Out</span>

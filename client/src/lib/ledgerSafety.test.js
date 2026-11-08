@@ -83,6 +83,6 @@ describe('Ledger financial safety', () => {
     expect(page).toContain('!ledgerVerified || pageError')
     expect(page).toContain('reconcilesWithStoredBalance')
     expect(page).toContain('Could not generate statement PDF')
-    expect(page).toContain('not total billed')
+    expect(page).toContain("{ key: 'paidAmount', label: 'Last Payment Amount' }")
   })
 })
