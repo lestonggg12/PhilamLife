@@ -2,6 +2,7 @@ import React from 'react'
 import { supabase } from './supabaseClient'
 import { loadReceiptAlignment, receiptAlignmentOffsets } from './receiptAlignment'
 import { notifySuccess } from './actionFeedback'
+import { recordReceiptActivity } from './receiptActivityAudit'
 import { renderToStaticMarkup } from 'react-dom/server'
 import PreprintedReceipt from '../components/PreprintedReceipt'
 import receiptCss from '../components/PreprintedReceipt.css?inline'
@@ -37,6 +38,9 @@ export async function printReceipt(model, onPrintError, setup = {}) {
     }
     if (printWindow.closed) return
     const html = receiptPrintHtml(model, { alignment: shared })
+    // Printing is released only after the server confirms the audit row.
+    await recordReceiptActivity('Receipt Print Requested', { kind: model.kind, recordId: model.sourceId })
+    if (printWindow.closed) return
     printWindow.document.open()
     printWindow.addEventListener('load', () => {
       printWindow.focus()

@@ -6,7 +6,7 @@ import { buildReceiptModel } from './receiptModel'
 import { receiptPrintHtml, printReceipt } from './printReceipt'
 import PreprintedReceipt from '../components/PreprintedReceipt'
 const db = vi.hoisted(() => ({ single: vi.fn() }))
-vi.mock('./supabaseClient', () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ single: db.single }) }) }) } }))
+vi.mock('./supabaseClient', () => ({ supabase: { rpc: vi.fn().mockResolvedValue({error:null}), from: () => ({ select: () => ({ eq: () => ({ single: db.single }) }) }) } }))
 
 const organization = { associationName: 'Village Association', address: 'Village address', formatMoney: (v) => String(v), formatDate: (v) => String(v) }
 const row = { id: 1, receipt_number: 'OR-2026-000010', homeowner_name: 'Lily', block_name: 'Block 3', lot_number: 12, amount_paid: '11000.00', amount: '12000.00', paid_at: '2026-10-31T20:00:00Z', coverage_period: 'Association dues - 12 months ahead', recorded_by_name: 'Secretary', status: 'Completed', receipt_breakdown: { annual_advance_discount: { months_covered: 12, gross_amount: '12000.00', discount_amount: '1000.00' } } }

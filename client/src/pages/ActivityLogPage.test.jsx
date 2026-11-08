@@ -1,3 +1,4 @@
+import { ConfirmProvider } from '../components/ConfirmDialog'
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -37,7 +38,7 @@ describe('Activity Log presentation', () => {
       .toBe('Price per square meter: 7.00 → 4.00')
   })
   it('renders six loading rows, labeled controls, and no status column', () => {
-    const html = renderToStaticMarkup(<ActivityLogPage />)
+    const html = renderToStaticMarkup(<ConfirmProvider><ActivityLogPage /></ConfirmProvider>)
     expect(html.match(/class="al-skeleton"/g)).toHaveLength(6)
     expect(html).toContain('Search activity')
     expect(html).toContain('Action type')

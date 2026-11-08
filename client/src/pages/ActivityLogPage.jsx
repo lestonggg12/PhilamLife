@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Skeleton from '../components/skeleton/Skeleton'
 import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
+import { loadActivityMonth } from '../lib/activityArchive'
+import ActivityArchiveStatus from '../components/ActivityArchiveStatus'
 import Select from '../components/Select'
 import DateField from '../components/DateField'
 import { Activity, CreditCard, Users, Zap } from '../components/Icons'
+import { staffActivityCopy, staffActionLabel, loadStaffActivityContext } from '../lib/staffActivityText'
 import './ActivityLogPage.css'
 
 const ZONE = 'Asia/Manila'
@@ -24,7 +26,7 @@ const timeFormat = new Intl.DateTimeFormat('en-PH', {
 const fullFormat = new Intl.DateTimeFormat('en-PH', {
   timeZone: ZONE,
   dateStyle: 'full',
-  timeStyle: 'long',
+  timeStyle: 'short',
   hour12: true,
 })
 const groupFormat = new Intl.DateTimeFormat('en-US', {
@@ -262,10 +264,11 @@ export function matchesActivitySearch(log, search) {
   const term = String(search || '')
     .trim()
     .toLowerCase()
-  const display = activityDisplay(log)
+  const original = activityDisplay(log)
+  const display = { ...original, ...staffActivityCopy(log, original, log.staffContext) }
   return (
     !term ||
-    `${log.user || ''} ${log.action || ''} ${display.raw} ${display.text} ${display.subject} ${display.detail}`
+    `${original.text} ${display.text} ${display.action} ${log.user || ''} ${log.action || ''} ${display.raw} ${display.text} ${display.subject} ${display.detail}`
       .toLowerCase()
       .includes(term)
   )
@@ -287,7 +290,8 @@ function HeaderClock() {
 }
 
 function ActivityRow({ log, onOpen }) {
-  const display = activityDisplay(log)
+  const original = activityDisplay(log)
+  const display = { ...original, ...staffActivityCopy(log, original, log.staffContext) }
   return (
     <li
       className={`al-entry ${display.status ? `al-${display.status}` : ''}`}
@@ -297,12 +301,12 @@ function ActivityRow({ log, onOpen }) {
       <div className="al-row">
         <div className="al-user">
           <strong>{log.user}</strong>
-          <span>{log.role || 'Unknown role'}</span>
+          <span>{log.role ? log.role.charAt(0).toUpperCase() + log.role.slice(1) : 'Role not recorded'}</span>
         </div>
         <div className="al-action">
-          <span className="al-badge" title={log.action || 'Activity'}>
+          <span className="al-badge" title={display.action}>
             {actionIcon(log.action)}
-            <span>{log.action || 'Activity'}</span>
+            <span>{display.action}</span>
           </span>
         </div>
         <div className="al-summary">
@@ -333,7 +337,7 @@ function ActivityRow({ log, onOpen }) {
           className="al-expand"
           data-expand-id={log.id}
           aria-haspopup="dialog"
-          aria-label={`View ${log.action || 'activity'} details for ${log.user}`}
+          aria-label={`View ${display.action} details for ${log.user}`}
         >
           <svg
             width="16"
@@ -414,9 +418,10 @@ function ActivityModal({ logs, id, onChange, onClose }) {
       }
     }
   }
-  const display = activityDisplay(log)
+  const original = activityDisplay(log)
+  const display = { ...original, ...staffActivityCopy(log, original, log.staffContext) }
   const time = new Date(log.created_at)
-  const metadata = log.metadata && typeof log.metadata === 'object' ? Object.entries(log.metadata) : []
+
   return createPortal(
     <div
       className="al-modal-layer"
@@ -437,7 +442,7 @@ function ActivityModal({ logs, id, onChange, onClose }) {
           <div className="al-m-head">
             <span className="al-m-badge">
               {actionIcon(log.action)}
-              {log.action || 'Activity'}
+              {display.action}
             </span>
             <button type="button" className="al-m-close" onClick={onClose} aria-label="Close details">
               <svg
@@ -461,7 +466,7 @@ function ActivityModal({ logs, id, onChange, onClose }) {
           )}
           {display.status === 'warning' && (
             <div className="al-m-banner warning" role="note">
-              Destructive action: something was voided, deleted or removed.
+              This action cancelled a transaction, deleted a document or removed a record. See the explanation below.
             </div>
           )}
           <div className="al-m-titlerow">
@@ -482,7 +487,7 @@ function ActivityModal({ logs, id, onChange, onClose }) {
                 </span>
                 <div>
                   <strong>{log.user}</strong>
-                  <small>{log.role || 'Unknown role'}</small>
+                  <small>{log.role ? log.role.charAt(0).toUpperCase() + log.role.slice(1) : 'Role not recorded'}</small>
                 </div>
               </div>
             </div>
@@ -491,35 +496,13 @@ function ActivityModal({ logs, id, onChange, onClose }) {
               <strong>{timeFormat.format(time)}</strong>
               <small>{dateFull.format(time)}</small>
             </div>
-            <div className="al-m-card">
-              <span className="al-m-label">Record</span>
-              <strong>#{log.id}</strong>
-              <small>Activity ID</small>
-            </div>
+
           </div>
           <div className="al-m-section">
-            <h3>Description</h3>
+            <h3>What happened</h3>
             <p className="al-m-text">{display.text || 'Unknown record'}</p>
           </div>
-          {display.raw !== display.text && (
-            <div className="al-m-section">
-              <h3>Original description</h3>
-              <p className="al-m-text">{display.raw}</p>
-            </div>
-          )}
-          {metadata.length > 0 && (
-            <div className="al-m-section">
-              <h3>More details</h3>
-              <dl className="al-m-meta">
-                {metadata.map(([key, value]) => (
-                  <React.Fragment key={key}>
-                    <dt>{key}</dt>
-                    <dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')}</dd>
-                  </React.Fragment>
-                ))}
-              </dl>
-            </div>
-          )}
+
           <div className="al-m-foot">
             <button type="button" className="al-m-nav" onClick={() => go(-1)} disabled={index === 0}>
               <svg
@@ -606,7 +589,7 @@ export default function ActivityLogPage() {
       : range === 'custom'
         ? end
         : today
-  // Keep the existing monthly fetchAll query and profile enrichment unchanged.
+  // Read each requested month from the live table and verified private archives.
   // Each requested month is read separately; filters and 25-row disclosure are local.
   const firstMonth = first?.slice(0, 7)
   const lastMonth = last?.slice(0, 7)
@@ -658,16 +641,7 @@ export default function ActivityLogPage() {
           visibleMonth <= lastMonth;
           visibleMonth = shiftMonth(visibleMonth, 1)
         ) {
-          const monthStart = boundary(visibleMonth)
-          const monthEnd = boundary(shiftMonth(visibleMonth, 1))
-          const { data: fetchedLogs, error: activityError } = await fetchAll(() =>
-            supabase
-              .from('activity_log')
-              .select('*')
-              .gte('created_at', monthStart)
-              .lt('created_at', monthEnd)
-              .order('created_at', { ascending: false }),
-          )
+          const { data: fetchedLogs, error: activityError } = await loadActivityMonth(supabase, visibleMonth)
           if (cancelled) return
           if (activityError) throw activityError
           activityData.push(...(fetchedLogs || []))
@@ -683,13 +657,16 @@ export default function ActivityLogPage() {
           if (!profileError) profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]))
           else setProfileWarning(true)
         }
+        const staffContext = await loadStaffActivityContext(supabase, activityData)
+        if (cancelled) return
         const prepared = activityData.map((log) => {
           const profile = profileMap.get(log.user_id)
           return {
             ...log,
             dateKey: dateKey(new Date(log.created_at)),
-            user: profile?.full_name || profile?.email || 'System',
-            role: profile?.role || '',
+            staffContext,
+            user: log.archived_actor?.name || profile?.full_name || profile?.email || (log.user_id ? 'Staff name unavailable' : 'System'),
+            role: log.archived_actor?.role ?? profile?.role ?? '',
             description: log.target || log.description || '',
           }
         })
@@ -738,7 +715,7 @@ export default function ActivityLogPage() {
     return {
       total: filtered.length,
       mostActive: mostActive ? `${mostActive[0]} (${mostActive[1]})` : '—',
-      topAction: topAction ? `${topAction[0]} (${topAction[1]})` : '—',
+      topAction: topAction ? `${staffActionLabel(topAction[0])} (${topAction[1]})` : '—',
       payments: filtered.filter((log) => /payment/i.test(log.action || '')).length,
     }
   }, [filtered])
@@ -764,7 +741,7 @@ export default function ActivityLogPage() {
       clear: () => setUser(''),
     },
     role && { key: 'role', label: `Role: ${role}`, clear: () => setRole('') },
-    action && { key: 'action', label: action, clear: () => setAction('') },
+    action && { key: 'action', label: staffActionLabel(action), clear: () => setAction('') },
     range !== DEFAULT_RANGE && {
       key: 'date',
       label: range === 'custom' ? `${start || 'Start'} – ${end || 'End'}` : RANGE_LABELS[range],
@@ -821,6 +798,7 @@ export default function ActivityLogPage() {
         </div>
         <HeaderClock />
       </header>
+      <ActivityArchiveStatus onChanged={() => setRevision((value) => value + 1)} />
       <section className="al-stats-grid" aria-label="Activity summaries" aria-busy={loading}>
         <article className="al-stat-card">
           <div className="al-stat-top">
@@ -922,7 +900,7 @@ export default function ActivityLogPage() {
             ])}
             {select('Action type', action, setAction, [
               ['', 'All actions'],
-              ...actions.map((value) => [value, value]),
+              ...actions.map((value) => [value, staffActionLabel(value)]),
             ])}
             {select('Date range', range, setRange, Object.entries(RANGE_LABELS))}
             {range === 'all' && (
@@ -1001,8 +979,7 @@ export default function ActivityLogPage() {
         </div>
         {profileWarning && !loading && (
           <p className="al-notice" role="status">
-            Some user details are unavailable. Activity is still shown; missing profiles use System and
-            Unknown role.
+            Some staff details could not be found. Their activity is still shown; unavailable names and roles are labelled clearly.
           </p>
         )}
         {loading ? (

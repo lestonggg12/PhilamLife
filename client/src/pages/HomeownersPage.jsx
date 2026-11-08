@@ -1774,12 +1774,7 @@ useEffect(() => {
             verificationLoading={historySettlement.loading}
             verificationError={historySettlement.error}
             onClose={() => setHistoryReceipt(null)}
-            onPrint={(setup) => {
-              void recordReceiptActivity('Receipt Print Requested', {
-                kind: historyReceipt.kind, receiptNumber: historyReceipt.row.receipt_number, recordId: historyReceipt.row.id,
-              }).catch((error) => setHistoryReceiptError(`Receipt print activity could not be logged: ${error.message}`))
-              printReceipt(receiptModel, setHistoryPrintNotice, setup)
-            }}
+            onPrint={(setup) => printReceipt(receiptModel, setHistoryPrintNotice, setup)}
           />
         )
       })()}

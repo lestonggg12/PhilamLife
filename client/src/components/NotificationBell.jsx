@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, CalendarClock, Coins, TriangleAlert, Ban, UserRound, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchSystemNotifications, markAllNotificationsRead, markNotificationsRead,
-  notificationLink, popoverPosition, relativeManilaTime, unreadBadge } from '../lib/systemNotifications'
+  notificationLink, popoverPosition, relativeManilaTime, unreadBadge, NOTIFICATION_LIMIT, isCurrentNotification } from '../lib/systemNotifications'
 import { mergeLiveNotification, watchStaffInserts } from '../lib/notificationRealtime'
+import { staffNotificationCopy } from '../lib/staffActivityText'
 import './NotificationBell.css'
 
 const icons = { collection_reminder: CalendarClock, collection_run: Coins, penalty_anniversary: TriangleAlert, transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert }
@@ -60,6 +61,18 @@ export default function NotificationBell({ user }) {
     }
   }, [enabled, user?.id, refresh])
 
+  useEffect(() => {
+    if (!enabled) return
+    const expiries = data.items.map((item) => Date.parse(item.expires_at)).filter(Number.isFinite)
+    if (!expiries.length) return
+    const delay = Math.max(1, Math.min(2147483647, Math.min(...expiries) - Date.now() + 1))
+    const timer = window.setTimeout(() => {
+      setData((current) => ({ ...current, items: current.items.filter((item) => isCurrentNotification(item)) }))
+      void refresh()
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [data.items, enabled, refresh])
+
   useLayoutEffect(() => {
     if (!open) return
     const reposition = () => setPosition(popoverPosition(trigger.current.getBoundingClientRect(), {
@@ -87,6 +100,7 @@ export default function NotificationBell({ user }) {
 
   const mark = async (item) => {
     if (busy) return
+    if (!isCurrentNotification(item)) { void refresh(); return }
     setBusy(true)
     try {
       await markNotificationsRead(supabase, user.id, [item.id])
@@ -119,22 +133,23 @@ export default function NotificationBell({ user }) {
       {error && <div className="notification-error" role="alert">{error} <button type="button" onClick={refresh}>Retry</button></div>}
       {loading ? <div aria-busy="true" aria-label="Loading notifications">{[1, 2, 3].map((key) => <div key={key} className="notification-skeleton" />)}</div>
         : !data.items.length ? <div className="notification-empty"><Bell size={26} /><p>{error ? 'Notifications are unavailable.' : 'You’re all caught up.'}</p><small>Collection reminders, account activity, voids, and settings updates appear here.</small></div>
-          : <ul>{data.items.map((item) => {
+          : <ul>{data.items.slice(0, NOTIFICATION_LIMIT).map((item) => {
+            const copy = staffNotificationCopy(item)
             const Icon = icons[item.kind] || Bell
             return <li key={item.id} className={item.read ? '' : 'notification-unread'}>
               <button type="button" className="notification-item" disabled={busy} onClick={() => mark(item)}>
                 <Icon className="notification-kind" size={19} aria-hidden="true" />
-                <span className="notification-copy"><strong>{item.title}</strong><span className="notification-body">{item.body}</span>
+                <span className="notification-copy"><strong>{copy.title}</strong><span className="notification-body">{copy.body}</span>
                   <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', timeZoneName: 'short' })}>{relativeManilaTime(item.created_at)}</time></span>
                 {!item.read && <span className="notification-dot" aria-label="Unread" />}
               </button>
               <details className="notification-details"><summary>View details{item.payload?.top_accounts?.length ? ' and largest accounts' : ''}</summary>
-                <p>{item.body}</p>
+                <p>{copy.body}</p>
                 {item.payload?.actor_name && <small>Recorded by {item.payload.actor_name}</small>}
-                {!!item.payload?.related_reversals?.length && <ul>{item.payload.related_reversals.map((row) => <li key={`${row.kind}:${row.reference}`}>{row.kind}: {row.amount_formatted}</li>)}</ul>}
-                {item.payload?.observed_on && <small>Figures observed on {item.payload.observed_on} (Manila).</small>}
+                {!!copy.related.length && <ul>{copy.related.map((description, index) => <li key={index}>{description}</li>)}</ul>}
+                {item.payload?.observed_on && <small>Account information checked on {item.payload.observed_on} (Philippine time).</small>}
                 {item.payload?.top_accounts?.map((account) => <div className="notification-account" key={account.property_id}>
-                  <span>{account.name}<small>Block {account.block} · Lot {account.lot_number}</small></span><strong>{account.amount_formatted}</strong>
+                  <span>{account.name}<small>{String(account.block).match(/block/i) ? account.block : `Block ${account.block}`}  · Lot {account.lot_number}</small></span><strong>{account.amount_formatted}</strong>
                 </div>)}
               </details>
             </li>

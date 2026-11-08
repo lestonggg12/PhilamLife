@@ -1212,12 +1212,7 @@ export default function OfficialReceiptsPage({ user }) {
             verificationLoading={settlement.loading}
             verificationError={settlement.error}
             onClose={() => setSelectedReceipt(null)}
-            onPrint={(setup) => {
-              void recordReceiptActivity('Receipt Print Requested', {
-                kind: selectedReceipt.type, receiptNumber: selectedReceipt.receiptNumber, recordId: selectedReceipt.sourceId,
-              }).catch((error) => setPageError(`Receipt print activity could not be logged: ${error.message}`))
-              printReceipt(receiptModel, setPopupNotice, setup)
-            }}
+            onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
           >
             {canVoidReceipts && !receiptModel.voided && (
               <button type="button" className="rcpt-btn rcpt-btn-danger"

@@ -1,4 +1,8 @@
 // All amounts and account totals are supplied and formatted by Postgres.
+export const NOTIFICATION_LIMIT = 3
+export function isCurrentNotification(item, now = Date.now()) {
+  return !item.expires_at || (Number.isFinite(Date.parse(item.expires_at)) && Date.parse(item.expires_at) > now)
+}
 export const NOTIFICATION_LINK = '/overdue-accounts'
 export const unreadBadge = (count) => count > 9 ? '9+' : String(count)
 export function notificationLink(link, role) {
@@ -26,7 +30,7 @@ export function popoverPosition(anchor, viewport, height = 480) {
   const below = viewport.height - anchor.bottom - gap * 2
   const above = anchor.top - gap * 2
   const flipped = below < Math.min(height, 240) && above > below
-  const maxHeight = Math.max(0, flipped ? above : below)
+  const maxHeight = Math.min(height, Math.max(0, flipped ? above : below))
   return {
     left: Math.max(gap, Math.min(anchor.right - width, viewport.width - width - gap)),
     width, maxHeight,
@@ -41,13 +45,13 @@ const unreadQuery = (db) => db.from('notifications')
 export async function fetchSystemNotifications(db) {
   const [latest, unread] = await Promise.all([
     db.from('notifications').select('*, notification_reads(notification_id)')
-      .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(20),
+      .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(NOTIFICATION_LIMIT),
     unreadQuery(db).limit(0),
   ])
   if (latest.error) throw latest.error
   if (unread.error) throw unread.error
   return {
-    items: (latest.data || []).map((item) => ({ ...item, read: item.notification_reads?.length > 0 })),
+    items: (latest.data || []).filter((item) => isCurrentNotification(item)).slice(0, NOTIFICATION_LIMIT).map((item) => ({ ...item, read: item.notification_reads?.length > 0 })),
     unread: unread.count || 0,
   }
 }

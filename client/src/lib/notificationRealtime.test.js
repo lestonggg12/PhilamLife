@@ -82,14 +82,18 @@ describe('instant bell rendering', () => {
     const state = mergeLiveNotification({ items: [], unread: 0 }, row)
     expect(mergeLiveNotification(state, row)).toBe(state)
   })
-  it('keeps the newest twenty while counting unread across the history', () => {
+  it('keeps the newest three while counting unread across the history', () => {
     const items = Array.from({ length: 20 }, (_, i) => ({ ...row, id: `old-${i}`, created_at: '2026-11-07T10:00:00Z', read: false }))
     const state = mergeLiveNotification({ items, unread: 25 }, row)
-    expect(state.items).toHaveLength(20); expect(state.unread).toBe(26); expect(state.items[0].id).toBe('new')
+    expect(state.items).toHaveLength(3); expect(state.unread).toBe(26); expect(state.items[0].id).toBe('new')
   })
   it('ignores malformed payloads so the server read can recover', () => {
     const state = { items: [], unread: 0 }
     expect(mergeLiveNotification(state, { id: 'bad' })).toBe(state)
     expect(mergeLiveNotification(state, { ...row, created_at: 'invalid' })).toBe(state)
   })
+})
+it('ignores already-expired incoming notifications',()=>{
+ const state={items:[],unread:0}
+ expect(mergeLiveNotification(state,{id:'expired',kind:'settings_changed',created_at:'2026-01-01T00:00:00Z',expires_at:'2026-02-01T00:00:00Z'})).toBe(state)
 })
