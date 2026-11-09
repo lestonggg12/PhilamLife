@@ -19,18 +19,21 @@ describe('durable document deletion', () => {
   })
   it('never removes bytes when the marker cannot be saved', async () => {
     const c = client({ start: { data: null, error: { message: 'Forbidden' } } })
-    await expect(deleteDocumentSafely(c, doc.id)).rejects.toThrow('Could not start deletion')
+    await expect(deleteDocumentSafely(c, doc.id)).rejects.toThrow('Could not confirm the deletion request')
     expect(c.remove).not.toHaveBeenCalled(); expect(c.rpc).toHaveBeenCalledTimes(1)
   })
   it('keeps a retryable marker when Storage fails', async () => {
-    const c = client({ remove: { data: null, error: { message: 'Offline' } } }), pending = vi.fn()
+    const c = client({
+      remove: { data: null, error: { message: 'Offline' } },
+      finish: { data: null, error: { message: 'The file has not been removed' } },
+    }), pending = vi.fn()
     await expect(deleteDocumentSafely(c, doc.id, pending)).rejects.toThrow('Retry deletion')
-    expect(pending).toHaveBeenCalledWith(doc); expect(c.rpc).toHaveBeenCalledTimes(1)
+    expect(pending).toHaveBeenCalledWith(doc); expect(c.rpc).toHaveBeenCalledTimes(2)
   })
-  it('does not call finalization when the Storage connection throws', async () => {
+  it('confirms deletion if the Storage connection is lost after removal', async () => {
     const c = client(); c.remove.mockRejectedValue(new Error('Connection lost'))
-    await expect(deleteDocumentSafely(c, doc.id)).rejects.toThrow('Deletion is pending')
-    expect(c.rpc).toHaveBeenCalledTimes(1)
+    await expect(deleteDocumentSafely(c, doc.id)).resolves.toEqual({ alreadyDeleted: false })
+    expect(c.rpc).toHaveBeenCalledTimes(2)
   })
   it('keeps the pending record when bytes are gone but metadata finalization fails', async () => {
     const c = client({ finish: { data: null, error: { message: 'Audit unavailable' } } })
@@ -52,7 +55,7 @@ describe('durable document deletion', () => {
   })
   it.each([null, { ...doc, id: 'other' }, { ...doc, deletion_requested_at: null }, { ...doc, storage_path: 'email-campaigns/other.pdf' }])('rejects an unverified response: %j', async (document) => {
     const c = client({ start: { data: { document }, error: null } })
-    await expect(deleteDocumentSafely(c, doc.id)).rejects.toThrow('Could not start deletion')
+    await expect(deleteDocumentSafely(c, doc.id)).rejects.toThrow('Could not confirm the deletion request')
     expect(c.remove).not.toHaveBeenCalled()
   })
   it('does not accept a successful but unconfirmed final response', async () => {
