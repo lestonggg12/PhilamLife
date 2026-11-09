@@ -29,7 +29,7 @@ import {
   applySearch,
   applyTimeRange,
   countLabel,
-  dayRange,
+  dateSpanRange,
   interpretPage,
   pageCount,
   pageWindow,
@@ -99,21 +99,6 @@ const paymentTime = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
-const chipDate = new Intl.DateTimeFormat('en-PH', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'Asia/Manila',
-})
-
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-const CALENDAR_MONTH_LABEL = new Intl.DateTimeFormat('en-PH', {
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'Asia/Manila',
-})
-
 function pad2(value) {
   return String(value).padStart(2, '0')
 }
@@ -160,214 +145,245 @@ function shiftDateKey(key, delta) {
   return dateKeyOf(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
-function buildCalendarWeeks(viewYear, viewMonth) {
-  const firstOfMonth = new Date(viewYear, viewMonth, 1)
-  const startWeekday = firstOfMonth.getDay()
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate()
+/* ---------- Date range picker (quick presets + range calendar) ---------- */
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const MONTH_FORMAT = new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
-  const cells = []
+// Pure calendar math on 'YYYY-MM-DD' keys, so the Manila date never shifts with the browser timezone.
+const toDate = (key) => new Date(`${key}T00:00:00Z`)
+const toKey = (date) => date.toISOString().slice(0, 10)
+const addDays = (key, days) => { const date = toDate(key); date.setUTCDate(date.getUTCDate() + days); return toKey(date) }
+const monthStart = (key) => `${key.slice(0, 7)}-01`
+const monthEnd = (key) => { const date = toDate(monthStart(key)); date.setUTCMonth(date.getUTCMonth() + 1, 0); return toKey(date) }
+const shiftMonth = (key, offset) => { const date = toDate(monthStart(key)); date.setUTCMonth(date.getUTCMonth() + offset); return toKey(date) }
 
-  for (let i = 0; i < startWeekday; i += 1) {
-    const day = daysInPrevMonth - startWeekday + 1 + i
-    const date = new Date(viewYear, viewMonth - 1, day)
-
-    cells.push({
-      day,
-      outside: true,
-      dateKey: dateKeyOf(date.getFullYear(), date.getMonth(), day),
-    })
-  }
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push({
-      day,
-      outside: false,
-      dateKey: dateKeyOf(viewYear, viewMonth, day),
-    })
-  }
-
-  const trailingCount = (7 - (cells.length % 7)) % 7
-
-  for (let day = 1; day <= trailingCount; day += 1) {
-    const date = new Date(viewYear, viewMonth + 1, day)
-
-    cells.push({
-      day,
-      outside: true,
-      dateKey: dateKeyOf(date.getFullYear(), date.getMonth(), day),
-    })
-  }
-
-  const weeks = []
-
-  for (let i = 0; i < cells.length; i += 7) {
-    weeks.push(cells.slice(i, i + 7))
-  }
-
-  return weeks
+function paymentPresets(today) {
+  const lastMonthEnd = addDays(monthStart(today), -1)
+  return [
+    { id: 'today', label: 'Today', from: today, to: today },
+    { id: 'yesterday', label: 'Yesterday', from: addDays(today, -1), to: addDays(today, -1) },
+    { id: '7d', label: 'Last 7 days', from: addDays(today, -6), to: today },
+    { id: '30d', label: 'Last 30 days', from: addDays(today, -29), to: today },
+    { id: 'month', label: 'This month', from: monthStart(today), to: today },
+    { id: 'lastmonth', label: 'Last month', from: monthStart(lastMonthEnd), to: monthEnd(lastMonthEnd) },
+    { id: 'year', label: 'This year', from: `${today.slice(0, 4)}-01-01`, to: today },
+    { id: 'lastyear', label: 'Last year', from: `${Number(today.slice(0, 4)) - 1}-01-01`, to: `${Number(today.slice(0, 4)) - 1}-12-31` },
+    { id: 'all', label: 'All time', from: '2000-01-01', to: today },
+  ]
 }
 
-function PaymentCalendar({
-  selectedDateKey,
-  activeDateKeys,
-  onSelectDate,
-  onViewMonthChange,
+function monthCells(cursor) {
+  const first = toDate(monthStart(cursor))
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(first)
+    date.setUTCDate(1 - first.getUTCDay() + index)
+    const key = toKey(date)
+    return { key, day: date.getUTCDate(), outside: key.slice(0, 7) !== cursor.slice(0, 7) }
+  })
+}
+
+/**
+ * Date-range picker body: quick presets on the left, a range calendar on the right.
+ * The page owns the open/close animation; this component only reports a choice.
+ */
+function PaymentDateRange({
+  from, to, preset, todayKey, activeDateKeys, onViewMonthChange, onApply, onCancel, formatLabel,
 }) {
-  const manilaAnchor = manilaToday()
+  const presets = useMemo(() => paymentPresets(todayKey), [todayKey])
+  const [cursor, setCursor] = useState(() => monthStart(to > todayKey ? todayKey : to))
+  const [draft, setDraft] = useState({ from, to, preset })
 
-  const [viewYear, setViewYear] = useState(
-    selectedDateKey
-      ? Number(selectedDateKey.slice(0, 4))
-      : manilaAnchor.year,
-  )
-  const [viewMonth, setViewMonth] = useState(
-    selectedDateKey
-      ? Number(selectedDateKey.slice(5, 7)) - 1
-      : manilaAnchor.month,
-  )
-
-  const todayKey = dateKeyOf(
-    manilaAnchor.year,
-    manilaAnchor.month,
-    manilaAnchor.day,
-  )
-
-  const weeks = useMemo(
-    () => buildCalendarWeeks(viewYear, viewMonth),
-    [viewYear, viewMonth],
-  )
-
-  // Tell the page which month is showing so it can fetch just that month's dots.
+  // Ask the page for just this month's "has payments" dots.
   useEffect(() => {
-    if (onViewMonthChange) onViewMonthChange(viewYear, viewMonth)
-  }, [viewYear, viewMonth])
+    if (onViewMonthChange) onViewMonthChange(Number(cursor.slice(0, 4)), Number(cursor.slice(5, 7)) - 1)
+  }, [cursor])
 
-  function goToPrevMonth() {
-    setViewMonth((month) => {
-      if (month === 0) {
-        setViewYear((year) => year - 1)
-        return 11
-      }
+  const picking = draft.to === null
+  const low = picking ? draft.from : draft.from <= draft.to ? draft.from : draft.to
+  const high = picking ? draft.from : draft.from <= draft.to ? draft.to : draft.from
+  const atCurrentMonth = cursor.slice(0, 7) >= todayKey.slice(0, 7)
 
-      return month - 1
-    })
+  function pickCell(key) {
+    if (picking) {
+      const [start, end] = key < draft.from ? [key, draft.from] : [draft.from, key]
+      setDraft({ from: start, to: end, preset: 'custom' })
+    } else {
+      setDraft({ from: key, to: null, preset: 'custom' })
+    }
   }
 
-  function goToNextMonth() {
-    setViewMonth((month) => {
-      if (month === 11) {
-        setViewYear((year) => year + 1)
-        return 0
-      }
-
-      return month + 1
-    })
-  }
-
-  function jumpToToday() {
-    const { year, month, day } = manilaToday()
-
-    setViewYear(year)
-    setViewMonth(month)
-    onSelectDate(dateKeyOf(year, month, day))
-  }
-
-  const atCurrentMonth =
-    viewYear > manilaAnchor.year ||
-    (viewYear === manilaAnchor.year && viewMonth >= manilaAnchor.month)
-  const onTodayAlready = selectedDateKey === todayKey && atCurrentMonth
-
-  const chevron = (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  )
+  const summary = picking ? 'Pick an end date' : formatLabel(low, high, draft.preset)
 
   return (
-    <div
-      className="payments-calendar-popover"
-      role="dialog"
-      aria-label="Choose a payment date"
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <div className="payments-calendar-nav">
-        <button
-          type="button"
-          className="payments-calendar-nav-button previous"
-          onClick={goToPrevMonth}
-          aria-label="Previous month"
-        >
-          {chevron}
-        </button>
-
-        <strong className="payments-calendar-title">
-          {CALENDAR_MONTH_LABEL.format(new Date(viewYear, viewMonth, 1))}
-        </strong>
-
-        <button
-          type="button"
-          className="payments-calendar-nav-button"
-          onClick={goToNextMonth}
-          disabled={atCurrentMonth}
-          aria-label="Next month"
-        >
-          {chevron}
-        </button>
-      </div>
-
-      <div className="payments-calendar-weekdays">
-        {WEEKDAY_LABELS.map((label) => (
-          <span key={label}>{label}</span>
+    <div className="payments-range" role="dialog" aria-label="Choose payment dates">
+      <div className="payments-range-presets">
+        <h3>Quick select</h3>
+        {presets.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={draft.preset === item.id}
+            onClick={() => onApply(item.from, item.to, item.id)}
+          >
+            {item.label}
+          </button>
         ))}
       </div>
 
-      <div className="payments-calendar-grid">
-        {weeks.flat().map((cell) => {
-          const isSelected = cell.dateKey === selectedDateKey
-          const isToday = cell.dateKey === todayKey
-          const isFuture = cell.dateKey > todayKey
-          const hasPayments = activeDateKeys.has(cell.dateKey)
+      <div className="payments-range-calendar">
+        <div className="payments-range-nav">
+          <button type="button" aria-label="Previous month" onClick={() => setCursor(shiftMonth(cursor, -1))}>‹</button>
+          <strong>{MONTH_FORMAT.format(toDate(cursor))}</strong>
+          <button type="button" aria-label="Next month" disabled={atCurrentMonth} onClick={() => setCursor(shiftMonth(cursor, 1))}>›</button>
+        </div>
 
-          const classNames = [
-            'payments-calendar-day',
-            cell.outside ? 'payments-calendar-day-outside' : '',
-            isFuture ? 'payments-calendar-day-future' : '',
-            isToday ? 'payments-calendar-day-today' : '',
-            isSelected ? 'payments-calendar-day-selected' : '',
-            hasPayments && !cell.outside ? 'payments-calendar-day-dot' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')
+        <div className="payments-range-weekdays" aria-hidden="true">
+          {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
+        </div>
 
-          return (
-            <button
-              type="button"
-              key={cell.dateKey}
-              className={classNames}
-              disabled={isFuture}
-              aria-pressed={isSelected}
-              onClick={() => onSelectDate(cell.dateKey)}
-            >
-              {cell.day}
-            </button>
-          )
-        })}
+        <div className="payments-range-grid">
+          {monthCells(cursor).map((cell) => {
+            const edge = cell.key === low || cell.key === high
+            const classes = [
+              cell.outside ? 'is-outside' : '',
+              cell.key >= low && cell.key <= high ? 'is-in-range' : '',
+              edge ? 'is-edge' : '',
+              cell.key === todayKey ? 'is-today' : '',
+              activeDateKeys?.has(cell.key) ? 'has-payments' : '',
+            ].filter(Boolean).join(' ')
+            return (
+              <button
+                key={cell.key}
+                type="button"
+                className={classes}
+                disabled={cell.key > todayKey}
+                aria-pressed={edge}
+                aria-label={cell.key}
+                onClick={() => pickCell(cell.key)}
+              >
+                {cell.day}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="payments-range-legend">
+          <span><i /> Has payments</span>
+          <span>Click a start date, then an end date</span>
+        </div>
       </div>
 
-      <div className="payments-calendar-legend-row">
-        <div className="payments-calendar-legend">
-          <span><i className="payments-calendar-key-today" /> Today</span>
-          <span><i className="payments-calendar-key-dot" /> Has payments</span>
+      <div className="payments-range-foot">
+        <span>{summary}</span>
+        <div>
+          <button type="button" className="payments-secondary" onClick={onCancel}>Cancel</button>
+          <button
+            type="button"
+            className="payments-primary"
+            disabled={picking}
+            onClick={() => onApply(low, high, 'custom')}
+          >
+            Apply
+          </button>
         </div>
-        <button
-          type="button"
-          className="payments-calendar-today-link"
-          onClick={jumpToToday}
-          disabled={onTodayAlready}
-        >
-          Jump to today
-        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ---------- Payment details pop-up (opens when a row is clicked) ---------- */
+function PaymentDetailDialog({ payment, formatDate, canVoid, onClose, onVoid, onReceipt }) {
+  const dialogRef = useRef(null)
+  const isVoided = payment.status === 'Voided'
+  const amount = peso.format(Number(payment.amount_paid ?? payment.amount) || 0)
+
+  useEffect(() => {
+    const previous = document.activeElement
+    dialogRef.current?.focus({ preventScroll: true })
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }) }
+  }, [])
+
+  function handleKeys(event) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+    } else if (event.key === 'Tab') {
+      const nodes = [...dialogRef.current.querySelectorAll('button:not(:disabled)')]
+      if (!nodes.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || active === dialogRef.current)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+  }
+
+  const details = [
+    ['Receipt', payment.receipt_number],
+    ['Recorded', formatDate(payment.paid_at, { withTime: true })],
+    ['Homeowner', payment.homeowner_name],
+    ['Property', `${payment.block_name} · Lot ${payment.lot_number}`],
+    ['Details', payment.coverage_period, true],
+    ['Method', payment.payment_method],
+  ]
+
+  return (
+    <div className="payments-overlay advance-overlay" onMouseDown={onClose}>
+      <div
+        ref={dialogRef}
+        className="advance-dialog payment-detail"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payment-detail-title"
+        tabIndex={-1}
+        onKeyDown={handleKeys}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="void-head">
+          <div className="advance-icon payment-detail-icon" aria-hidden="true">₱</div>
+          <div>
+            <h2 id="payment-detail-title">Payment {payment.receipt_number}</h2>
+            <p>
+              <span className={isVoided ? 'payments-status-voided' : 'payments-status-completed'}>
+                {isVoided ? 'Voided' : 'Completed'}
+              </span>
+            </p>
+          </div>
+          <button type="button" className="payment-detail-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+
+        <dl className="void-summary">
+          {details.map(([label, value, wide]) => (
+            <div key={label} className={wide ? 'is-wide' : ''}>
+              <dt>{label}</dt>
+              <dd>{value || '—'}</dd>
+            </div>
+          ))}
+          <div className="is-amount">
+            <dt>Amount</dt>
+            <dd>{amount}</dd>
+          </div>
+        </dl>
+
+        {isVoided && (
+          <p className="void-callout">
+            This payment was voided. Reason: <strong>{payment.void_reason || 'Not recorded'}</strong>
+          </p>
+        )}
+
+        <div className="payment-detail-actions">
+          {canVoid && !isVoided && (
+            <button type="button" className="payments-secondary payment-detail-void" onClick={onVoid}>× Void payment</button>
+          )}
+          <span className="payment-detail-spacer" />
+          <button type="button" className="payments-secondary" onClick={onClose}>Close</button>
+          <button type="button" className="payments-primary" onClick={onReceipt}>View receipt</button>
+        </div>
       </div>
     </div>
   )
@@ -430,6 +446,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [showCharges, setShowCharges] = useState(false)
   const [chargeSearch, setChargeSearch] = useState('')
   const [voidTarget, setVoidTarget] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [detailPayment, setDetailPayment] = useState(null)
   const [voidReason, setVoidReason] = useState('')
   const [voiding, setVoiding] = useState(false)
   const [voidError, setVoidError] = useState('')
@@ -442,7 +460,10 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [chargeHomeownerText, setChargeHomeownerText] = useState('')
   const [chargeMenuOpen, setChargeMenuOpen] = useState(false)
   const [homeownerMenuOpen, setHomeownerMenuOpen] = useState(false)
-  const [selectedDateKey, setSelectedDateKey] = useState(() => todayDateKey())
+  const [range, setRange] = useState(() => {
+    const today = todayDateKey()
+    return { from: today, to: today, preset: 'today' }
+  })
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
 
@@ -776,10 +797,11 @@ const canOfferAnnualDiscount =
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
   const searching = searchTokens(debouncedSearch).length > 0
   const todayKey = todayDateKey()
-  const isToday = selectedDateKey === todayKey
+  const isToday = range.from === todayKey && range.to === todayKey
+  const isSingleDay = range.from === range.to
   const scopeKind = searching ? 'search' : 'day'
-  const listRange = searching ? null : dayRange(selectedDateKey)
-  const scopeKey = `${scopeKind}|${selectedDateKey}|${debouncedSearch}`
+  const listRange = searching ? null : dateSpanRange(range.from, range.to)
+  const scopeKey = `${scopeKind}|${range.from}|${range.to}|${statusFilter}|${debouncedSearch}`
 
   // The page number belongs to one scope; changing day/search starts at page 1.
   const page = pageState.key === scopeKey ? pageState.page : 0
@@ -803,6 +825,8 @@ const canOfferAnnualDiscount =
       let query = supabase.from('payments').select('*', exact ? { count: 'exact' } : undefined)
       query = applyTimeRange(query, 'paid_at', listRange)
       query = applySearch(query, PAYMENT_SEARCH_COLUMNS, debouncedSearch)
+      if (statusFilter === 'voided') query = query.eq('status', 'Voided')
+      if (statusFilter === 'completed') query = query.or('status.is.null,status.neq.Voided')
 
       // id as a tiebreaker keeps pages stable (matches the paid_at, id index).
       const { data, error, count } = await query
@@ -842,8 +866,15 @@ const canOfferAnnualDiscount =
   }, [scopeKey, page, reloadTick])
 
   // Totals for the single day being viewed - computed by the database.
-  const dayLabel = organization.formatDate(`${selectedDateKey}T12:00:00`)
-  const summaryRange = dayRange(selectedDateKey)
+  const formatKey = (key) => organization.formatDate(`${key}T12:00:00`)
+  const rangeLabel = (from, to, preset) => {
+    const named = paymentPresets(todayKey).find((item) => item.id === preset)
+    if (named && !['today', 'yesterday'].includes(preset)) return named.label
+    if (from === to) return from === todayKey ? 'Today' : formatKey(from)
+    return `${formatKey(from)} – ${formatKey(to)}`
+  }
+  const dayLabel = rangeLabel(range.from, range.to, range.preset)
+  const summaryRange = dateSpanRange(range.from, range.to)
   const summaryLabel = isToday ? 'Today' : dayLabel
 
   useEffect(() => {
@@ -1076,13 +1107,14 @@ function selectHomeowner(property) {
     setFormError('')
   }
 
-  function handleSelectCalendarDate(dateKey) {
-    setSelectedDateKey(dateKey)
+  function applyDateRange(from, to, preset) {
+    setRange({ from, to, preset })
     calendar.hide()
   }
 
   function goToToday() {
-    setSelectedDateKey(todayDateKey())
+    const today = todayDateKey()
+    setRange({ from: today, to: today, preset: 'today' })
   }
 
   function openChargeForm() {
@@ -1229,6 +1261,39 @@ function selectHomeowner(property) {
     loadCharges()
     return () => { cancelled = true }
   }, [showCharges, debouncedChargeSearch, reloadTick, properties])
+
+  useEffect(() => {
+    if (!voidTarget) return undefined
+    function closeOnEscape(event) {
+      if (event.key === 'Escape' && !voiding) setVoidTarget(null)
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [voidTarget, voiding])
+
+  async function openReceipt(payment) {
+    const { data: discount, error } = await supabase
+      .from('manual_payment_discounts').select('*')
+      .eq('payment_id', payment.id).maybeSingle()
+    if (error) {
+      setPopupNotice('Could not verify the receipt discount. Please retry.')
+      return
+    }
+    setDetailPayment(null)
+    setReceipt({
+      ...payment,
+      manual_discount: discount || null,
+      remaining_balance: discount
+        ? Math.round((Number(payment.remaining_balance) -
+            Number(discount.discount_amount)) * 100) / 100
+        : payment.remaining_balance,
+    })
+  }
+
+  function voidFromDetail(payment) {
+    setDetailPayment(null)
+    openVoid('payment', payment)
+  }
 
   function openVoid(kind, item) {
     setVoidTarget({ kind, item })
@@ -1529,7 +1594,7 @@ function selectHomeowner(property) {
     }
     goToPage(0)
     // Jump to today so the new receipt is visible even if another day was open.
-    setSelectedDateKey(todayDateKey())
+    goToToday()
     setReloadTick((tick) => tick + 1)
     await refreshPropertyBalance(data.property_id)
     setShowForm(false)
@@ -1620,11 +1685,11 @@ function selectHomeowner(property) {
           <strong>{summary ? summary.homeowners_served : '—'}</strong>
           <small>Unique properties collected</small>
         </article>
-        <article className="payments-summary-card payments-summary-visible">
+        <article className="payments-summary-card payments-summary-voided">
           <span className="payments-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></svg></span>
-          <span className="payments-summary-label">Records in view</span>
-          <strong>{pageInfo.total || pageInfo.minimum || 0}</strong>
-          <small>{searching ? 'Matches for current search' : `Payments for ${summaryLabel}`}</small>
+          <span className="payments-summary-label">Voided</span>
+          <strong>{summary ? summary.voided_count : '—'}</strong>
+          <small>Balance corrected automatically</small>
         </article>
       </section>
 
@@ -1636,13 +1701,27 @@ function selectHomeowner(property) {
               {scopeKind === 'search'
                 ? 'Search results across all dates.'
                 : isToday
-                  ? "Today's payments. Use the arrows or the calendar button for other days, or search all dates."
-                  : `Payments recorded on ${dayLabel}.`}
+                  ? "Today's payments. Use the calendar button for other days or ranges, or search all dates."
+                  : `Payments recorded: ${dayLabel}.`}
             </p>
           </div>
-          <span className="payments-result-count">
-            {listLoading ? '…' : countLabel(pageInfo)}
-          </span>
+          <div className="payments-tabs" role="group" aria-label="Filter by status">
+            {[
+              ['all', 'All', summary?.payment_count],
+              ['completed', 'Completed', summary?.completed_count],
+              ['voided', 'Voided', summary?.voided_count],
+            ].map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={statusFilter === key}
+                onClick={() => setStatusFilter(key)}
+              >
+                {label}
+                {!searching && <span className="payments-tab-count">{count ?? '—'}</span>}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="payments-table-toolbar">
@@ -1668,35 +1747,40 @@ function selectHomeowner(property) {
 
           {!searching && (
             <div className="payments-day-switcher" ref={calendarAnchorRef}>
-              <button
-                type="button"
-                aria-label="Previous day"
-                disabled={listLoading}
-                onClick={() => setSelectedDateKey(shiftDateKey(selectedDateKey, -1))}
-              >
-                ‹
-              </button>
+              {isSingleDay && (
+                <button
+                  type="button"
+                  aria-label="Previous day"
+                  disabled={listLoading}
+                  onClick={() => setRange({ from: shiftDateKey(range.from, -1), to: shiftDateKey(range.from, -1), preset: 'custom' })}
+                >
+                  ‹
+                </button>
+              )}
               <button
                 type="button"
                 className={`payments-day-label-btn ${calendar.open ? 'is-open' : ''}`}
                 onClick={calendar.toggle}
                 aria-expanded={calendar.open}
-                aria-label="Choose a date"
+                aria-haspopup="dialog"
+                aria-label="Choose dates"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                   <rect x="3" y="5" width="18" height="16" rx="2" />
                   <path d="M3 10h18M8 3v4M16 3v4" />
                 </svg>
-                {isToday ? `Today · ${dayLabel}` : dayLabel}
+                {isToday ? `Today · ${formatKey(todayKey)}` : dayLabel}
               </button>
-              <button
-                type="button"
-                aria-label="Next day"
-                disabled={listLoading || selectedDateKey >= todayKey}
-                onClick={() => setSelectedDateKey(shiftDateKey(selectedDateKey, 1))}
-              >
-                ›
-              </button>
+              {isSingleDay && (
+                <button
+                  type="button"
+                  aria-label="Next day"
+                  disabled={listLoading || range.from >= todayKey}
+                  onClick={() => setRange({ from: shiftDateKey(range.from, 1), to: shiftDateKey(range.from, 1), preset: 'custom' })}
+                >
+                  ›
+                </button>
+              )}
               {!isToday && (
                 <button type="button" className="payments-day-today" onClick={goToToday}>
                   Today
@@ -1705,11 +1789,16 @@ function selectHomeowner(property) {
 
               {calendar.mounted && (
                 <div className={`payments-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
-                  <PaymentCalendar
-                    selectedDateKey={selectedDateKey}
+                  <PaymentDateRange
+                    from={range.from}
+                    to={range.to}
+                    preset={range.preset}
+                    todayKey={todayKey}
                     activeDateKeys={activeDateKeys}
-                    onSelectDate={handleSelectCalendarDate}
                     onViewMonthChange={loadActiveDays}
+                    onApply={applyDateRange}
+                    onCancel={calendar.hide}
+                    formatLabel={rangeLabel}
                   />
                 </div>
               )}
@@ -1717,6 +1806,7 @@ function selectHomeowner(property) {
           )}
 
           {searching && <span className="payments-date-chip">All dates</span>}
+          <span className="payments-result-count">{listLoading ? '…' : countLabel(pageInfo)}</span>
         </div>
 
         <table className="payments-table">
@@ -1738,8 +1828,8 @@ function selectHomeowner(property) {
                 <td colSpan="6" className="payments-empty">
                   {scopeKind === 'day' ? (
                     <>
-                      <strong>No payments recorded {isToday ? 'today' : `on ${dayLabel}`}</strong>
-                      <span>Use the arrows or the calendar button to check another day, or search to look through every date.</span>
+                      <strong>No payments recorded {isToday ? 'today' : `for ${dayLabel}`}</strong>
+                      <span>Use the calendar button to check another day or range, or search to look through every date.</span>
                     </>
                   ) : (
                     <>
@@ -1751,7 +1841,19 @@ function selectHomeowner(property) {
               </tr>
             ) : (
               rows.map((payment) => (
-                <tr key={payment.id} className={payment.status === 'Voided' ? 'payments-row-voided' : ''}>
+                <tr
+                  key={payment.id}
+                  className={`payments-row-clickable ${payment.status === 'Voided' ? 'payments-row-voided' : ''}`}
+                  tabIndex={0}
+                  aria-label={`View ${payment.receipt_number}`}
+                  onClick={() => setDetailPayment(payment)}
+                  onKeyDown={(event) => {
+                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault()
+                      setDetailPayment(payment)
+                    }
+                  }}
+                >
                   <td data-label="Receipt / Date">
                     <strong className="payments-receipt-number">{payment.receipt_number}</strong>
                     <small className="payments-secondary-text">
@@ -1780,24 +1882,8 @@ function selectHomeowner(property) {
                     </span>
                   </td>
                   <td data-label="Receipt" className="payments-action-cell">
-                    <div className="payments-row-actions">
-                      <button className="payments-link" type="button" onClick={async () => {
-  const { data: discount, error } = await supabase
-    .from('manual_payment_discounts').select('*')
-    .eq('payment_id', payment.id).maybeSingle()
-  if (error) {
-    setPopupNotice('Could not verify the receipt discount. Please retry.')
-    return
-  }
-  setReceipt({
-    ...payment,
-    manual_discount: discount || null,
-    remaining_balance: discount
-      ? Math.round((Number(payment.remaining_balance) -
-          Number(discount.discount_amount)) * 100) / 100
-      : payment.remaining_balance,
-  })
-}}>
+                    <div className="payments-row-actions" onClick={(event) => event.stopPropagation()}>
+                      <button className="payments-link" type="button" onClick={() => setDetailPayment(payment)}>
                         View <span aria-hidden="true">→</span>
                       </button>
                       {canVoidPayments && payment.status !== 'Voided' && (
@@ -2218,31 +2304,109 @@ function selectHomeowner(property) {
         </div>
       )}
 
-      {voidTarget && (
-        <div className="payments-overlay advance-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
-          <form className="advance-dialog void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>
-            <div className="advance-icon void-icon" aria-hidden="true">!</div>
-            <h2>{voidTarget.kind === 'payment' ? 'Void payment' : 'Void charge'}</h2>
-            <p className="advance-lead">
-              {voidTarget.kind === 'payment'
-                ? `${voidTarget.item.receipt_number} — ${voidTarget.item.homeowner_name} — ${peso.format(Number(voidTarget.item.amount_paid) || 0)}`
-                : `${voidTarget.item.charge_type} — ${propertyById.get(Number(voidTarget.item.property_id))?.homeowner_name || 'Homeowner'} — ${peso.format(Number(voidTarget.item.amount) || 0)}`}
-              <br />
-              {voidTarget.kind === 'payment'
-                ? "The homeowner's balance is corrected automatically. This cannot be undone."
-                : 'This removes the charge from the homeowner\'s balance. It does not cancel any payment — to undo a payment, use Void on the payment itself. This cannot be undone.'}
-            </p>
-            <label className="void-reason">Reason (required)
-              <textarea value={voidReason} onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }} rows="3" maxLength="250" placeholder="e.g., Wrong amount typed" autoFocus />
-            </label>
-            {voidError && <p className="payments-error">{voidError}</p>}
-            <div className="advance-actions">
-              <button type="button" className="payments-secondary" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
-              <button type="submit" className="payments-primary void-confirm" disabled={voiding}>{voiding ? 'Voiding...' : 'Void'}</button>
-            </div>
-          </form>
-        </div>
+      {detailPayment && (
+        <PaymentDetailDialog
+          payment={detailPayment}
+          formatDate={organization.formatDate}
+          canVoid={canVoidPayments}
+          onClose={() => setDetailPayment(null)}
+          onVoid={() => voidFromDetail(detailPayment)}
+          onReceipt={() => openReceipt(detailPayment)}
+        />
       )}
+
+      {voidTarget && (() => {
+        const isPayment = voidTarget.kind === 'payment'
+        const item = voidTarget.item
+        const homeowner = isPayment
+          ? item.homeowner_name
+          : propertyById.get(Number(item.property_id))?.homeowner_name || 'Homeowner'
+        const amount = peso.format(Number(isPayment ? item.amount_paid : item.amount) || 0)
+        const details = isPayment
+          ? [
+              ['Receipt', item.receipt_number],
+              ['Homeowner', homeowner],
+              ['Property', `${item.block_name} · Lot ${item.lot_number}`],
+              ['Method', item.payment_method],
+              ['Details', item.coverage_period, true],
+            ]
+          : [
+              ['Charge', item.charge_type],
+              ['Homeowner', homeowner],
+            ]
+        const quickReasons = isPayment
+          ? ['Wrong amount typed', 'Wrong homeowner', 'Duplicate entry', 'Wrong payment method']
+          : ['Charged by mistake', 'Wrong homeowner', 'Wrong amount']
+        const reasonReady = voidReason.trim().length >= 5
+
+        return (
+          <div className="payments-overlay advance-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
+            <form
+              className="advance-dialog void-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="void-title"
+              onSubmit={confirmVoid}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="void-head">
+                <div className="advance-icon void-icon" aria-hidden="true">!</div>
+                <div>
+                  <h2 id="void-title">{isPayment ? 'Void payment' : 'Void charge'}</h2>
+                  <p>Check the details, then give a reason.</p>
+                </div>
+              </div>
+
+              <dl className="void-summary">
+                {details.map(([label, value, wide]) => (
+                  <div key={label} className={wide ? 'is-wide' : ''}>
+                    <dt>{label}</dt>
+                    <dd>{value || '—'}</dd>
+                  </div>
+                ))}
+                <div className="is-amount">
+                  <dt>Amount</dt>
+                  <dd>{amount}</dd>
+                </div>
+              </dl>
+
+              <p className="void-callout">
+                {isPayment
+                  ? "The homeowner's balance is corrected automatically. This cannot be undone."
+                  : "This removes the charge from the homeowner's balance. It does not cancel any payment — to undo a payment, use Void on the payment itself. This cannot be undone."}
+              </p>
+
+              <label className="void-reason" htmlFor="void-reason-input">
+                <span>Reason <small>{voidReason.length} / 250</small></span>
+                <textarea
+                  id="void-reason-input"
+                  value={voidReason}
+                  onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }}
+                  rows="3"
+                  maxLength="250"
+                  placeholder="Tell us why this is being voided"
+                  autoFocus
+                />
+              </label>
+              <div className="void-quick" aria-label="Common reasons">
+                {quickReasons.map((reason) => (
+                  <button key={reason} type="button" onClick={() => { setVoidReason(reason); setVoidError('') }}>
+                    {reason}
+                  </button>
+                ))}
+              </div>
+
+              {voidError && <p className="payments-error" role="alert">{voidError}</p>}
+              <div className="advance-actions">
+                <button type="button" className="payments-secondary" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
+                <button type="submit" className="payments-primary void-confirm" disabled={voiding || !reasonReady}>
+                  {voiding ? 'Voiding...' : isPayment ? 'Void payment' : 'Void charge'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      })()}
 
       {advanceConfirm && (() => {
         const isFee = advanceConfirm.kind === 'fee'
@@ -2338,4 +2502,4 @@ function selectHomeowner(property) {
       />
     </div>
   )
-}
+} 
