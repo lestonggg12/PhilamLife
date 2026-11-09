@@ -445,7 +445,10 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       })
   }, [properties, summaryByProperty, overdueByProperty, actionsByProperty])
 
-  const blocks = useMemo(() => ['All', ...new Set(properties.map((p) => p.block).filter(Boolean))].sort(), [properties])
+  const blocks = useMemo(
+    () => ['All', ...new Set(properties.map((property) => property.block).filter(Boolean))].sort(),
+    [properties],
+  )
 
   const filtered = useMemo(() => {
     return accounts
