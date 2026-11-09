@@ -5,7 +5,7 @@ import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { buildLedgerStatement, ledgerStatementNotes } from '../lib/ledgerStatement'
+import { buildLedgerStatement, ledgerStatementNotes, readableLedgerText } from '../lib/ledgerStatement'
 import { summarizeLedgerEntries, verifiedLedgerAging, verifyLedgerSources } from '../lib/ledgerSummary'
 import { matchesHomeownerSearch, useListPage } from '../lib/homeownerDirectory'
 import { Pager } from '../components/PagerControls'
@@ -179,20 +179,20 @@ const actorName =
       const [paymentResult, chargeResult, accountAdjustmentResult, enteredResult] = await Promise.all([
         fetchAll(() => supabase
           .from('payments')
-          .select('id, paid_at, created_at, status, coverage_period, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released, receipt_breakdown, payment_method, note, recorded_by_name, void_reason')
+          .select('id, paid_at, created_at, status, coverage_period, charge_type, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released, receipt_breakdown, payment_method, note, recorded_by_name')
           .eq('property_id', entry.id)
           .order('paid_at', { ascending: true })),
         fetchAll(() => supabase
           .from('property_charges')
-          .select('id, created_at, charge_type, description, billing_month, due_date, amount, voided_at, void_reason')
+          .select('id, created_at, charge_type, description, billing_month, due_date, amount, voided_at')
           .eq('property_id', entry.id)
           .order('created_at', { ascending: true })),
         fetchAll(() => supabase.from('account_adjustments')
-          .select('id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at, reversal_reason')
+          .select('id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at')
           .eq('property_id', entry.id)
           .order('created_at')),
         fetchAll(() => supabase.from('balance_entries')
-          .select('id, category, amount, as_of_date, description, created_at, voided_at, void_reason')
+          .select('id, category, amount, as_of_date, description, created_at, voided_at')
           .eq('property_id', entry.id).order('created_at')),
       ])
       if (requestId !== statementRequestRef.current) return
@@ -257,7 +257,7 @@ const actorName =
         balance: Math.max(savedBalance, 0),
         unallocatedCredit: Math.max(-savedBalance, 0),
         closingAdjustment: closingCorrections.reduce((sum, item) => sum + Number(item.adjustment_amount), 0),
-        closingAdjustmentReason: closingCorrections.map(item => item.reason).filter(Boolean).join('; '),
+        closingAdjustmentReason: closingCorrections.map(item => readableLedgerText(item.reason)).filter(Boolean).join(' '),
       } : current)
       setStatementLines(statement.lines)
       setStatementLoading(false)
@@ -554,10 +554,10 @@ const actorName =
                   <div><span>Amount still owed</span><strong>{peso.format(statementAccount.balance)}</strong></div>
                   <div><span>Amount available for future bills</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
                   {statementAccount.statementTotals.netOtherAdjustments !== 0 && (
-                    <div><span>Other balance changes</span><strong>{formatMoney(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
+                    <div><span>Other balance changes</span><strong>{peso.format(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
                   )}
                 </div>
-                <p className="ledger-form-note">Payment and charge history for this lot. All amounts are in Philippine pesos. Dates and times use Philippine time. “For future bills” means you do not owe that amount; it can cover later bills.</p>
+                <p className="ledger-form-note">This statement shows changes to this lot’s balance. Cancelled entries and entries with no effect are omitted. Dates are in Philippine time. Credit for future bills can cover later charges.</p>
                 {ledgerStatementNotes(statementAccount.statementTotals, (value) => peso.format(value)).map((note) => (
                   <p className="ledger-form-note" key={note}>{note}</p>
                 ))}
@@ -580,13 +580,13 @@ const actorName =
                   <col className="statement-column-money" />
                   <col className="statement-column-money" />
                 </colgroup>
-                <thead><tr><th scope="col">Date</th><th scope="col">What happened</th><th scope="col">Reference</th><th scope="col">Amount added</th><th scope="col">Amount deducted</th><th scope="col">Balance after this entry</th></tr></thead>
+                <thead><tr><th scope="col">Date recorded</th><th scope="col">What happened</th><th scope="col">Receipt / reference</th><th scope="col">Amount added</th><th scope="col">Amount deducted</th><th scope="col">Balance after this entry</th></tr></thead>
                 <tbody>
-                  {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">{statementError ? 'Statement history unavailable.' : 'No statement entries found.'}</td></tr> : statementLines.map((line, index) => (
-                    <tr role="row" key={line.id || `${line.transaction_date}-${index}`} className={line.voided ? 'ledger-statement-voided' : line.kind === 'annual-discount' ? 'ledger-statement-discount' : ''}>
-                      <td role="cell" data-label="Date">{line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—'}</td>
+                  {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">{statementError ? 'Statement history unavailable.' : 'No recorded entries changed this lot’s balance.'}</td></tr> : statementLines.map((line, index) => (
+                    <tr role="row" key={line.id || `${line.transaction_date}-${index}`} className={line.kind === 'annual-discount' ? 'ledger-statement-discount' : ''}>
+                      <td role="cell" data-label="Date recorded">{line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—'}</td>
                       <td role="cell" data-label="What happened"><strong>{line.description}</strong>{(line.details || []).map((detail) => <small className="ledger-statement-detail" key={detail}>{detail}</small>)}</td>
-                      <td role="cell" data-label="Reference">{line.reference_number || '—'}</td>
+                      <td role="cell" data-label="Receipt / reference">{line.reference_number || '—'}</td>
                       <td role="cell" data-label="Amount added">{peso.format(Number(line.debit) || 0)}</td>
                       <td role="cell" data-label="Amount deducted">{peso.format(Number(line.credit) || 0)}</td>
                       <td role="cell" data-label="Balance after this entry">{line.running_balance == null ? '—' : formatMoney(line.running_balance)}</td>

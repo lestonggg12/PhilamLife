@@ -25,24 +25,70 @@ export const ledgerCentavos = (value, optional = false) => {
 const cents = ledgerCentavos
 const toAmount = (value) => value / 100
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase()
-const money = (value) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(toAmount(value))
+const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
+const dateFormat = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric',
+})
+const monthFormat = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Manila', year: 'numeric', month: 'long',
+})
+const money = (value) => peso.format(toAmount(value))
+const uuidPattern = /\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gi
+
+export function readableLedgerText(value) {
+  return String(value ?? '')
+    .replace(/\b(?:record|property|payment|charge|source|balance entry)[_ ]id\s*[:=]?\s*\d+\b/gi, '')
+    .replace(uuidPattern, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s:;,–—]+|[\s:;,–—]+$/g, '')
+}
+
+function ledgerDate(value, formatter = dateFormat) {
+  if (!value) return ''
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00+08:00` : value)
+  return Number.isFinite(date.getTime()) ? formatter.format(date) : ''
+}
+
+function chargeCopy(charge) {
+  const description = readableLedgerText(charge.description)
+  const billingMonth = ledgerDate(charge.billing_month, monthFormat)
+  const penalty = /^(?:Annual compound penalty (\d+)|Year (\d+) late penalty): (\d+(?:\.\d+)?)% of (?:PHP |₱)((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?) unpaid/i.exec(description)
+  if (penalty) {
+    const [, cycle, year, rate, base] = penalty
+    const anniversary = /anniversary (\d{4}-\d{2}-\d{2})/i.exec(description)
+    const anniversaryDate = ledgerDate(anniversary?.[1])
+    return {
+      title: 'Annual late-payment penalty',
+      details: [
+        `The system added the year ${cycle || year} penalty at ${Number(rate)}% of the unpaid balance of ₱${base}.`,
+        ...(anniversaryDate ? [`Balance anniversary: ${anniversaryDate}.`] : []),
+      ],
+    }
+  }
+  const category = readableLedgerText(charge.charge_type)
+  if (billingMonth && normalizeStatus(category) === 'association dues') {
+    return { title: `Association dues for ${billingMonth}`, details: [description || 'The monthly association dues for this lot were added to the balance.'] }
+  }
+  return {
+    title: category === 'Penalty / Late Fee' ? 'Late-payment penalty' : category || 'Charge added',
+    details: [description && description !== category ? description : 'This charge increased the amount owed for this lot.'],
+  }
+}
 
 function chargeEntries(charge) {
   const amount = Math.max(cents(charge.amount), 0)
   const voided = Boolean(charge.voided_at)
+  const { title, details } = chargeCopy(charge)
+  const due = ledgerDate(charge.due_date)
   return [{
     id: `charge-${charge.id}`,
     groupId: `charge-${charge.id}`,
     order: 0,
     kind: 'charge',
-    date: charge.voided_at || charge.created_at,
-    description: `${charge.description || charge.charge_type || 'Charge'}${voided ? ' (Cancelled)' : ''}`,
-    reference_number: charge.billing_month ? String(charge.billing_month).slice(0, 7) : '',
-    details: voided
-      ? [`Original charge ${money(amount)}; not counted in the totals or balance.`, ...(charge.void_reason ? [`Reason for cancellation: ${charge.void_reason.startsWith('fixed-balance-inclusive-20261031150000:') ? 'The entered balance already includes penalties, so this extra penalty was cancelled.' : charge.void_reason}`] : [])]
-      : charge.due_date
-        ? [`Final due date: ${charge.due_date} (overdue the following Manila calendar day if unpaid).`]
-        : [],
+    date: charge.created_at,
+    description: title,
+    reference_number: '',
+    details: [...details, ...(due ? [`Final due date: ${due}. Any unpaid amount becomes overdue the following day.`] : [])],
     debit: voided ? 0 : amount,
     credit: 0,
     voided,
@@ -59,23 +105,26 @@ function enteredBalanceEntries(entry) {
   if (amount <= 0) throw new Error('The entered balance is invalid.')
   const voided = Boolean(entry.voided_at)
   const id = `entered-balance-${entry.id}`
+  const asOf = ledgerDate(entry.as_of_date)
+  const category = readableLedgerText(entry.category)
+  const description = readableLedgerText(entry.description)
   return [{
     id, groupId: id, order: 0, kind: 'entered-balance',
-    date: entry.voided_at || entry.created_at,
-    description: `${entry.description || entry.category || 'Entered balance'}${voided ? ' (Cancelled)' : ''}`,
+    date: entry.created_at,
+    description: 'Earlier balance entered',
     reference_number: '',
     details: [
-      ...(entry.as_of_date ? [`Balance as of ${entry.as_of_date}`] : []),
-      ...(voided ? [`Original entered balance ${money(amount)}. Excluded from the current balance.`] : []),
-      ...(voided && entry.void_reason ? [`Reason for cancellation: ${entry.void_reason}`] : []),
+      `The office added an earlier amount owed${category ? ` for ${category.toLowerCase()}` : ''} on the date shown.`,
+      ...(asOf ? [`The earlier balance was reported as of ${asOf}.`] : []),
+      ...(description ? [description] : []),
     ],
     debit: voided ? 0 : amount, credit: 0, delta: voided ? 0 : amount, voided,
     paymentAmount: 0, paymentEffect: 0, cashEffect: 0, explicitAllocated: 0,
   }]
 }
 
-function paymentEntries(payment) {
-  const voided = normalizeStatus(payment.status) === 'voided'
+function paymentEntries(payment, chargesById) {
+  const voided = ['voided', 'cancelled', 'canceled'].includes(normalizeStatus(payment.status))
   const paid = Math.max(cents(payment.amount_paid ?? payment.amount), 0)
   const originalEffect = Math.max(cents(payment.balance_effect ?? payment.amount_paid ?? payment.amount), 0)
   const released = Math.min(Math.max(cents(payment.effect_released, true), 0), originalEffect)
@@ -90,19 +139,36 @@ function paymentEntries(payment) {
     cents(annual?.gross_amount, true) === originalEffect && paid + discount === originalEffect
   const extra = Math.max(originalEffect - paid, 0)
   const unapplied = Math.max(paid - originalEffect, 0)
-  const reference = payment.receipt_number || payment.reference_number || ''
+  const reference = readableLedgerText(payment.receipt_number) || readableLedgerText(payment.reference_number)
+  const receivedOn = ledgerDate(payment.paid_at)
+  const recordedOn = ledgerDate(payment.created_at)
+  const coverage = readableLedgerText(payment.coverage_period) || readableLedgerText(payment.description) || readableLedgerText(payment.charge_type)
+  const method = readableLedgerText(payment.payment_method)
+  const bankReference = readableLedgerText(payment.reference_number)
+  const recorder = readableLedgerText(payment.recorded_by_name)
+  const note = readableLedgerText(payment.note)
   const details = [
-    ...(payment.payment_method ? [`Payment method: ${payment.payment_method}`] : []),
-    ...(payment.reference_number ? [`Payment reference: ${payment.reference_number}`] : []),
-    ...(payment.recorded_by_name ? [`Recorded by: ${payment.recorded_by_name}`] : []),
-    ...(payment.note ? [`Note: ${payment.note}`] : []),
+    `The association received ${money(paid)}. ${money(Math.min(paid, originalEffect))} was originally applied to this lot’s balance.`,
+    ...(coverage ? [`What the payment covered: ${coverage}`] : []),
+    ...(receivedOn && recordedOn && receivedOn !== recordedOn ? [`Payment received on ${receivedOn}.`] : []),
+    ...(method ? [`Payment method: ${method}`] : []),
+    ...(bankReference ? [`Payment reference: ${bankReference}`] : []),
+    ...(recorder ? [`Recorded by: ${recorder}`] : []),
+    ...(note ? [`Note: ${note}`] : []),
+    ...(unapplied ? [`${money(unapplied)} of this receipt did not reduce this lot’s balance.`] : []),
   ]
-  if (validAnnual) details.push(`12 months of dues: ${money(originalEffect)} regular price; ${money(paid)} collected; ${money(discount)} discount for one free month.`)
-  if (voided) details.push(`Original payment ${money(paid)}; not counted in the totals or balance.`, ...(payment.void_reason ? [`Reason for cancellation: ${payment.void_reason}`] : []))
+  for (const allocation of allocations) {
+    const charge = chargesById.get(allocation.property_charge_id)
+    const amount = cents(allocation.allocated_amount)
+    if (charge && !charge.voided_at && amount > 0) {
+      details.push(`Saved allocation: ${money(amount)} toward ${chargeCopy(charge).title}.`)
+    }
+  }
+  if (validAnnual) details.push(`12 months of dues at a regular price of ${money(originalEffect)}. The association collected ${money(paid)} and gave ${money(discount)} off for one free month.`)
   const groupId = `payment-${payment.id}`
   const base = {
     groupId,
-    date: payment.paid_at || payment.created_at,
+    date: payment.created_at || payment.paid_at,
     reference_number: reference,
     voided,
     paymentAmount: 0,
@@ -116,11 +182,11 @@ function paymentEntries(payment) {
     id: groupId,
     order: 0,
     kind: 'payment',
-    description: `${payment.coverage_period || payment.description || 'Payment'}${voided ? ' (Cancelled)' : ''}`,
+    description: 'Payment received',
     details,
     debit: 0,
-    credit: voided ? 0 : paid,
-    delta: voided ? 0 : -paid,
+    credit: voided ? 0 : paid - unapplied,
+    delta: voided ? 0 : unapplied - paid,
     paymentAmount: voided ? 0 : paid,
     paymentEffect: voided ? 0 : effective,
     cashEffect: voided ? 0 : Math.min(paid, effective),
@@ -133,45 +199,53 @@ function paymentEntries(payment) {
     id: `${groupId}-noncash`,
     order: 1,
     kind: validAnnual ? 'annual-discount' : 'recorded-credit',
-    description: `${validAnnual ? 'Discount for paying 12 months ahead - 1 month free' : 'Other amount deducted from your balance'}${voided ? ' (Cancelled)' : ''}`,
-    details: [voided ? `Original discount or deduction ${money(extra)}; not counted in the totals or balance.` : 'This lowers your balance. It is not another payment.'],
+    description: validAnnual ? 'One-month discount for paying a year ahead' : 'Additional reduction recorded with the payment',
+    details: [validAnnual
+      ? `The one-month discount reduced the amount owed by ${money(extra)} without a cash payment.`
+      : `The receipt reduced the amount owed by an additional ${money(extra)}. The saved receipt gives no reason for the additional reduction.`],
     debit: 0,
     credit: voided ? 0 : extra,
     delta: voided ? 0 : -extra,
   })
-  if (unapplied + released > 0) rows.push({
+  if (released > 0) rows.push({
     ...base,
     id: `${groupId}-effect-adjustment`,
     order: 2,
     kind: 'payment-adjustment',
-    description: `Payment amount not used to reduce your balance${voided ? ' (Cancelled)' : ''}`,
-    details: [
-      ...(unapplied ? [`${money(unapplied)} of the received amount was not applied to this account balance.`] : []),
-      ...(released ? [`${money(released)} was added back to the balance after an earlier deduction.`] : []),
-      ...(voided ? ['Not counted in the totals or balance.'] : []),
-    ],
-    debit: voided ? 0 : unapplied + released,
+    description: 'Amount added back after a payment',
+    details: [`The saved receipt shows that ${money(released)} of an earlier reduction was added back. The date of that change is unavailable, so this appears beside its receipt.`],
+    debit: voided ? 0 : released,
     credit: 0,
-    delta: voided ? 0 : unapplied + released,
+    delta: voided ? 0 : released,
   })
   return rows
+}
+
+const adjustmentTitles = {
+  credit: 'Account credit granted',
+  waiver: 'Amount owed waived',
+  write_off: 'Uncollectible amount written off',
+  refund: 'Refund adjustment',
+  debit_correction: 'Correction that increases the balance',
+  credit_correction: 'Correction that reduces the balance',
+  reversal: 'Earlier adjustment reversed',
 }
 
 function adjustmentEntries(adjustment) {
   const reversed = Boolean(adjustment.reversed_at)
   const effect = cents(adjustment.balance_effect)
+  const reason = readableLedgerText(adjustment.reason)
   return [{
     id: `adjustment-${adjustment.id}`,
     groupId: `adjustment-${adjustment.id}`,
     order: 0,
     kind: 'account-adjustment',
     date: adjustment.created_at,
-    description: `Recorded balance correction${reversed ? ' (Undone)' : ''}`,
-    reference_number: adjustment.approval_reference || '',
+    description: adjustmentTitles[adjustment.adjustment_type] || 'Balance correction',
+    reference_number: readableLedgerText(adjustment.approval_reference),
     details: [
-      adjustment.reason || adjustment.adjustment_type || 'Recorded account correction',
-      'This corrects the balance. No money was received.',
-      ...(reversed ? [`Undone on ${String(adjustment.reversed_at).slice(0, 10)}; not counted in the totals.`, ...(adjustment.reversal_reason ? [adjustment.reversal_reason] : [])] : []),
+      `This adjustment ${effect > 0 ? 'increased' : 'reduced'} the lot’s balance by ${money(Math.abs(effect))}.`,
+      reason ? `Reason: ${reason}` : 'The reason was not recorded.',
     ],
     voided: reversed,
     debit: reversed ? 0 : Math.max(effect, 0),
@@ -191,16 +265,18 @@ function compareEntries(a, b) {
   }
   const timeDifference = stamp(a.date) - stamp(b.date)
   if (timeDifference) return timeDifference
-  const aVoidedCharge = a.kind === 'charge' && a.voided
-  const bVoidedCharge = b.kind === 'charge' && b.voided
-  if (aVoidedCharge !== bVoidedCharge) return aVoidedCharge ? 1 : -1
   return a.groupId.localeCompare(b.groupId) || a.order - b.order
 }
 
 export function buildLedgerStatement({ payments = [], charges = [], adjustments = [], balanceEntries = [], storedBalance = 0, openingBalance = null, openingBalanceNote = '', openingBalanceAsOf = null }) {
   const entered = balanceEntries.flatMap(enteredBalanceEntries)
   const enteredTotal = entered.reduce((sum, entry) => sum + entry.debit, 0)
-  const entries = [...entered, ...charges.flatMap(chargeEntries), ...payments.flatMap(paymentEntries), ...adjustments.flatMap(adjustmentEntries)].sort(compareEntries)
+  const chargesById = new Map(charges.map(charge => [charge.id, charge]))
+  const entries = [
+    ...entered, ...charges.flatMap(chargeEntries),
+    ...payments.flatMap(payment => paymentEntries(payment, chargesById)),
+    ...adjustments.flatMap(adjustmentEntries),
+  ].sort(compareEntries)
   const historyDelta = entries.reduce((sum, entry) => sum + entry.delta, 0)
   const storedBalanceCents = cents(storedBalance)
   const inferredOpening = storedBalanceCents - historyDelta
@@ -221,12 +297,18 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
   const lines = []
   let running = opening
   let cashAppliedToExistingBalance = 0
+  const openingAsOf = !enteredTotal && ledgerDate(openingBalanceAsOf)
+  const openingNote = !enteredTotal && readableLedgerText(openingBalanceNote)
   if (opening !== 0) lines.push({
     id: 'opening',
     kind: 'opening',
-    transaction_date: entered.length ? null : openingBalanceAsOf || null,
+    transaction_date: null,
     description: hasExplicitOpening ? 'Starting balance' : 'Starting balance (some older records are missing)',
-    details: openingBalanceNote && !entered.length ? [openingBalanceNote] : [],
+    details: [
+      opening > 0 ? 'Amount owed before the entries shown below.' : 'Credit available before the entries shown below.',
+      ...(openingAsOf ? [`The starting balance was reported as of ${openingAsOf}.`] : []),
+      ...(openingNote ? [openingNote] : []),
+    ],
     reference_number: '',
     debit: toAmount(Math.max(opening, 0)),
     credit: toAmount(Math.max(-opening, 0)),
@@ -236,10 +318,11 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
   for (const entry of entries) {
     if (entry.kind === 'payment') cashAppliedToExistingBalance += Math.min(Math.max(running, 0), entry.cashEffect)
     running += entry.delta
+    if (entry.voided || entry.delta === 0) continue
     lines.push({
       id: entry.id,
       kind: entry.kind,
-      transaction_date: entry.date || null,
+      transaction_date: entry.kind === 'payment-adjustment' ? null : entry.date || null,
       description: entry.description,
       details: entry.details,
       reference_number: entry.reference_number,
@@ -291,7 +374,7 @@ export function ledgerStatementNotes(totals, formatMoney) {
   if (totals.annualDiscountCredit > 0) notes.push(`${formatMoney(totals.annualDiscountCredit)} is the discount for one free month when paying 12 months ahead. It lowers your balance but is not part of the money received.`)
   if (totals.additionalRecordedCredit > 0) notes.push(`${formatMoney(totals.additionalRecordedCredit)} was deducted from your balance in addition to your payment. The saved receipt does not explain this deduction. Please ask the office to check it.`)
   if (totals.documentedAccountAdjustments) notes.push('Balance corrections are listed with their reasons and approval numbers. They are not payments.')
-  if (totals.unallocated > 0) notes.push(`${formatMoney(totals.unallocated)} of the money received did not reduce this lot’s balance. See the entries marked “Payment amount not used to reduce your balance.”`)
+  if (totals.unallocated > 0) notes.push(`${formatMoney(totals.unallocated)} of the money received did not reduce this lot’s balance. The payments received total includes this amount. The transaction table shows only balance changes.`)
   if (totals.inferredAppliedToExistingBalance > 0) notes.push(`${formatMoney(totals.inferredAppliedToExistingBalance)} of your payments reduced an earlier amount owed. The saved records do not show which individual bills were paid.`)
   if (totals.payments > 0 && totals.explicitlyAllocated === 0) notes.push('No individual bill-to-payment allocations are recorded for this lot. The statement shows recorded balance effects, not verification of which specific bills were paid.')
   if (totals.explicitlyAllocated > 0) notes.push(`The records show which bills were paid by ${formatMoney(totals.explicitlyAllocated)} of your payments.`)
