@@ -17,6 +17,7 @@ import { formatDate as formatDateValue } from '../config/organization'
 import ActionDialog from '../components/ActionDialog'
 import { ReceiptDialog } from '../components/ReceiptSheet'
 import Skeleton from '../components/skeleton/Skeleton'
+import { loadPaymentReceipt } from '../lib/paymentReceipt'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import { recordReceiptActivity } from '../lib/receiptActivityAudit'
@@ -536,7 +537,7 @@ function ReceiptCalendar({
 export default function OfficialReceiptsPage({ user }) {
   const { organization } = useOrganization()
   const role = user?.is_active === false ? '' : String(user?.role || '').trim().toLowerCase()
-  const canVoidReceipts = role === 'secretary' || role === 'treasurer'
+  const canVoidReceipt = (kind) => role === 'secretary' || (role === 'treasurer' && kind === 'service')
   // One page (50) of receipts at a time, read from the database.
   const [rows, setRows] = useState([])
   const [pageInfo, setPageInfo] = useState({ total: 0, minimum: 0 })
@@ -785,9 +786,10 @@ export default function OfficialReceiptsPage({ user }) {
       if (!data || String(data.id) !== String(receipt.sourceId)) {
         throw new Error('The requested receipt could not be verified.')
       }
+      const payment = receipt.type === 'service' ? data : await loadPaymentReceipt(supabase, data)
       await recordReceiptActivity('Receipt Viewed', { kind: receipt.type, receiptNumber: data.receipt_number, recordId: data.id })
       setPageError('')
-      setSelectedReceipt(receipt.type === 'service' ? mapServiceReceipt(data) : mapPaymentReceipt(data))
+      setSelectedReceipt(receipt.type === 'service' ? mapServiceReceipt(data) : mapPaymentReceipt(payment))
     } catch (failure) {
       setPageError(`Could not open receipt ${receipt.receiptNumber}: ${failure?.message || 'Connection failed.'}`)
     } finally {
@@ -1185,7 +1187,7 @@ export default function OfficialReceiptsPage({ user }) {
                           <Eye size={16} />
                           {openingId === receipt.id ? 'Opening…' : 'View'}
                         </button>
-                        {canVoidReceipts && !receipt.isVoided && (
+                        {canVoidReceipt(receipt.type) && !receipt.isVoided && (
                           <button type="button" className="official-void-button"
                             disabled={Boolean(openingId)}
                             onClick={() => { setSelectedReceipt(null); setVoidTarget(receipt) }}>
@@ -1214,7 +1216,7 @@ export default function OfficialReceiptsPage({ user }) {
             onClose={() => setSelectedReceipt(null)}
             onPrint={(setup) => printReceipt(receiptModel, setPopupNotice, setup)}
           >
-            {canVoidReceipts && !receiptModel.voided && (
+            {canVoidReceipt(selectedReceipt.type) && !receiptModel.voided && (
               <button type="button" className="rcpt-btn rcpt-btn-danger"
                 onClick={() => { setVoidTarget(selectedReceipt); setSelectedReceipt(null) }}>
                 Void receipt
@@ -1228,7 +1230,7 @@ export default function OfficialReceiptsPage({ user }) {
         <ServiceVoidDialog receipt={voidTarget.raw || { id: voidTarget.sourceId, receipt_number: voidTarget.receiptNumber }}
           onClose={() => setVoidTarget(null)}
           onVoided={() => { setVoidTarget(null); setReloadTick((tick) => tick + 1) }} />
-      ) : (
+      ) : role === 'secretary' && (
         <OfficialRegularVoidDialog
           receipt={voidTarget.raw || { id: voidTarget.sourceId, receipt_number: voidTarget.receiptNumber, homeowner_name: voidTarget.payer }}
           role={role} onClose={() => setVoidTarget(null)}

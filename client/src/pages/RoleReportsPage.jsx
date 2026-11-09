@@ -41,7 +41,7 @@ async function loadRoleSources(role, month) {
     fetchAll(() => supabase.from('properties')
       .select('id,block,lot_number,homeowner_name,homeowner_status,property_classification').order('id')),
     fetchAll(() => supabase.from('property_overdue_summary')
-      .select('property_id,is_overdue,days_overdue,overdue_amount,aging_complete').order('property_id'), { tiebreaker: null }),
+      .select('property_id,is_overdue,days_overdue,overdue_amount,aging_complete,days_1_30_amount,days_31_60_amount,days_61_90_amount,days_90_plus_amount').order('property_id'), { tiebreaker: null }),
     fetchAll(() => supabase.from('collection_actions')
       .select('id,property_id,action_date,action_type').gte('action_date',span.start).lt('action_date',span.end)
       .order('action_date')),

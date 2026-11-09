@@ -28,6 +28,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
 import { openPaymentMonthPrint } from '../lib/paymentMonthPrint'
 import { ReceiptDialog } from '../components/ReceiptSheet'
+import { loadPaymentReceipt } from '../lib/paymentReceipt'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import { recordReceiptActivity } from '../lib/receiptActivityAudit'
@@ -360,8 +361,9 @@ useEffect(() => {
       if (!data || String(data.id) !== String(sourceRow.id)) {
         throw new Error('The receipt could not be verified for this property.')
       }
+      const payment = isService ? data : await loadPaymentReceipt(supabase, data)
       await recordReceiptActivity('Receipt Viewed', { kind: isService ? 'service' : 'payment', receiptNumber: data.receipt_number, recordId: data.id })
-      setHistoryReceipt({ kind: isService ? 'service' : 'payment', row: data, propertyId: selectedPropertyId })
+      setHistoryReceipt({ kind: isService ? 'service' : 'payment', row: payment, propertyId: selectedPropertyId })
     } catch (failure) {
       setHistoryReceiptError(failure?.message || 'Unable to open receipt. Please refresh and retry.')
     } finally {

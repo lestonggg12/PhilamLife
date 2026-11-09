@@ -76,3 +76,8 @@ export function verifyOverdueSnapshot(properties, payments, settings, agingRows)
     throw new Error('Overdue summaries do not match the homeowner accounts. Refresh before relying on the totals.')
   }
 }
+
+// Keep moved debts visible without mixing them into active-account totals.
+export function movedAccountsWithBalance(properties) {
+  return properties.filter(property => property.homeowner_status === 'moved' && Number(property.current_balance) > 0)
+}

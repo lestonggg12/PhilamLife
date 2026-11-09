@@ -45,6 +45,13 @@ describe('buildReceiptModel', () => {
     expect(m.amountInWords).toBe('One Thousand Six Hundred Pesos Only')
   })
 
+  it('discloses Other collections that did not reduce the lot balance', () => {
+    const row = { ...payment, charge_type: 'Other', amount_paid: 200, balance_effect: 50 }
+    expect(buildReceiptModel('payment', row, organization).notes).toContainEqual({
+      label: 'Amount not applied to the lot balance', text: 'PHP 150.00',
+    })
+  })
+
   it('marks a voided payment and keeps the reason', () => {
     const m = buildReceiptModel('payment', { ...payment, status: 'Voided', void_reason: 'Wrong homeowner' }, organization)
     expect(m.voided).toBe(true)

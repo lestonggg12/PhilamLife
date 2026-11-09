@@ -124,12 +124,25 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
     throw Error('Overdue aging is incomplete. A verified delinquency list cannot be generated.')
   }
   const overdueTotal = sum(unpaid, 'overdue_amount')
-  const aging = [
-    ['1–30 days', unpaid.filter(r => r.days_overdue >= 1 && r.days_overdue <= 30)],
-    ['31–60 days', unpaid.filter(r => r.days_overdue >= 31 && r.days_overdue <= 60)],
-    ['61–90 days', unpaid.filter(r => r.days_overdue >= 61 && r.days_overdue <= 90)],
-    ['91+ days', unpaid.filter(r => r.days_overdue >= 91)],
-  ].map(([range, rows]) => [range, String(rows.length), php(sum(rows, 'overdue_amount'))])
+  const bands = [
+    ['1–30 days', 'days_1_30_amount'],
+    ['31–60 days', 'days_31_60_amount'],
+    ['61–90 days', 'days_61_90_amount'],
+    ['91+ days', 'days_90_plus_amount'],
+  ]
+  const agingTotals = bands.map(() => ({ count: 0, cents: 0 }))
+  for (const row of unpaid) {
+    const amounts = bands.map(([, field]) => cents(row[field]))
+    if (amounts.some(amount => amount < 0) || amounts.reduce((a, b) => a + b, 0) !== cents(row.overdue_amount)) {
+      throw Error('Overdue aging bands do not reconcile with the account balance.')
+    }
+    amounts.forEach((amount, index) => {
+      agingTotals[index].cents += amount
+      if (amount > 0) agingTotals[index].count++
+    })
+  }
+  const aging = bands.map(([range], index) =>
+    [range, String(agingTotals[index].count), php(agingTotals[index].cents)])
   const categoryExpenses = grouped(expenses, 'category', 'amount')
   const expenseBudget = budgetComparison(expenses, budgets, month, cents, php)
   const followups = collectionActions.map(a => {
@@ -181,8 +194,8 @@ export function treasurerRoleReport({ month, payments, services, expenses, prope
           table('Actual expenses against monthly approved allocation', ['Category', 'Monthly allocation', 'Actual', 'Variance'], expenseBudget.rows),
         ], expenseBudget.complete ? 'All compared categories have recorded approved annual allocations. Monthly amounts are a pro-rata allocation, not a month-specific board-approved budget.' : 'Some categories lack an approved annual allocation. Their variances and the overall variance cannot be verified; an absent budget is not treated as zero.'),
       section('5. Delinquency Report',
-        `Current receivables snapshot as of ${snapshotDate || 'report generation'}. This section is not a reconstruction of balances at the end of the selected month.`, [
-          table('Overdue account aging', ['Age', 'Accounts', 'Overdue amount'], aging),
+        `Current receivables snapshot as of ${snapshotDate || 'report generation'}. Amounts follow the age of each unpaid charge. A lot can appear in multiple bands. This section does not reconstruct the selected month-end balance.`, [
+          table('Overdue amounts by charge age', ['Age', 'Lots with amounts in band', 'Overdue amount'], aging),
           table('Overdue active accounts — confidential', ['Block', 'Lot', 'Registered name', 'Classification', 'Days overdue', 'Overdue amount'], overdueList),
           table('Recorded collection follow-ups during period', ['Date', 'Block', 'Lot', 'Action'], followups),
         ], 'Restricted to authorized association staff. The detailed list contains registered homeowner names. A current property view cannot prove a historical delinquency position or an old membership status.'),

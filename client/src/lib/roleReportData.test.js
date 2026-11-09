@@ -21,7 +21,8 @@ const treasuryInput = {
   expenses: [{ category: 'Security', description: 'Guard', reference_number: 'R-12',
     expense_date: '2026-11-01', amount: '90.00' }],
   properties: [{ id: 1, block: 'A', lot_number: 4, homeowner_name: 'Sample Member', homeowner_status: 'active' }],
-  overdue: [{ property_id: 1, is_overdue: true, days_overdue: 37, overdue_amount: '20.00', aging_complete: true }],
+  overdue: [{ property_id: 1, is_overdue: true, days_overdue: 37, overdue_amount: '20.00', aging_complete: true,
+    days_1_30_amount: '0.00', days_31_60_amount: '20.00', days_61_90_amount: '0.00', days_90_plus_amount: '0.00' }],
   budgets: [],
   collectionActions: [{ property_id: 1, action_date: '2026-11-06T10:00:00+08:00', action_type: 'Reminder' }],
 }
@@ -60,6 +61,19 @@ describe('role report contexts', () => {
     expect(report.sections[4].intro).toContain('2026-11-06')
     expect(report.sections[4].tables[0].rows[1]).toEqual(['31–60 days', '1', 'PHP 20.00'])
     expect(report.sections[4].tables[1].rows).toHaveLength(1)
+  })
+
+  it('allocates a lot across the stored age bands without double-counting money', () => {
+    const row = { ...treasuryInput.overdue[0], days_overdue: 120, days_1_30_amount: '8.25',
+      days_31_60_amount: '0.00', days_90_plus_amount: '11.75' }
+    const report = treasurerRoleReport({ ...treasuryInput, overdue: [row] })
+    expect(report.sections[4].tables[0].rows).toEqual([
+      ['1–30 days', '1', 'PHP 8.25'], ['31–60 days', '0', 'PHP 0.00'],
+      ['61–90 days', '0', 'PHP 0.00'], ['91+ days', '1', 'PHP 11.75'],
+    ])
+    expect(report.metrics[3][1]).toBe('PHP 20.00')
+    expect(() => treasurerRoleReport({ ...treasuryInput, overdue: [{ ...row, days_90_plus_amount: 12 }] }))
+      .toThrow(/do not reconcile/)
   })
 
   it('includes the saved classification in the confidential overdue table', () => {

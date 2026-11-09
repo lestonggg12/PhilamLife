@@ -266,6 +266,10 @@ const annualDiscountAmount = isAnnualDiscount
       { label: 'Change returned', value: money(returnedChange.change_amount) },
     )
   }
+  if (!voided && row.charge_type === 'Other' && row.balance_effect != null) {
+    const unapplied = Math.round(paid * 100) - Math.round(num(row.balance_effect) * 100)
+    if (unapplied > 0) notes.push({ label: 'Amount not applied to the lot balance', text: money(unapplied / 100) })
+  }
   if (row.note) notes.push({ label: 'Note', text: row.note })
 
   return {

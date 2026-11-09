@@ -218,10 +218,10 @@ const actorName =
         .order('created_at')),
     ])
     if (requestId !== statementRequestRef.current) return
-    const allocationResult = (paymentResult.data || []).length ? await supabase
+    const allocationResult = (paymentResult.data || []).length ? await fetchAll(() => supabase
       .from('property_payment_allocations')
-      .select('payment_id, property_charge_id, allocated_amount')
-      .in('payment_id', (paymentResult.data || []).map((payment) => payment.id))
+      .select('payment_id, property_charge_id, allocated_amount, payments!inner(property_id)')
+      .eq('payments.property_id', entry.id))
       : { data: [], error: null }
     // Multiple historical reconciliations can exist for one property.
     const adjustmentResult = await fetchAll(() => supabase

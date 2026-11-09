@@ -4,7 +4,7 @@ import Select from '../components/Select'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Calendar, Mail, Phone, Plus, RefreshCw, Search, Users, X } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { describeOverdueAccount, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
+import { describeOverdueAccount, movedAccountsWithBalance, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
@@ -184,6 +184,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     })
   }, [properties, summaryByProperty, overdueByProperty, actionsByProperty])
 
+  const movedWithBalance = dataAvailable ? movedAccountsWithBalance(properties) : []
+
   const blocks = useMemo(
     () => ['All', ...new Set(properties.map((p) => p.block).filter(Boolean))].sort(),
     [properties],
@@ -200,7 +202,10 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
   const accountPage = useListPage(filtered, [search, blockFilter, statusFilter, agingFilter])
 
-  const visibleIds = JSON.stringify(accountPage.rows.map((account) => account.id))
+  const visibleIds = JSON.stringify([
+    ...accountPage.rows.map(account => account.id),
+    ...movedWithBalance.map(property => property.id),
+  ])
   useEffect(() => {
     if (loading) return undefined
     let cancelled = false
@@ -329,7 +334,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       </div>
 
       {!loading && summary.overdueCount > 0 && (
-        <div className="overdue-aging-row" role="group" aria-label="Overdue accounts by aging tier">
+        <div className="overdue-aging-row" role="group" aria-label="Overdue accounts grouped by oldest overdue item">
           {AGING_TIERS.map((tier) => (
             <button
               key={tier}
@@ -337,15 +342,45 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               className={`overdue-aging-chip tier-${tier === '90+ days' ? '90plus' : tier.replace(/\D/g, '-')} ${agingFilter === tier ? 'active' : ''}`}
               onClick={() => setAgingFilter(agingFilter === tier ? 'All' : tier)}
             >
-              <span className="overdue-aging-tier">{tier}</span>
+              <span className="overdue-aging-tier">Oldest overdue item: {tier}</span>
               <span className="overdue-aging-count">{summary.byTier[tier].count}</span>
-              <span className="overdue-aging-balance">{organization.formatMoney(summary.byTier[tier].balance)}</span>
+              <span className="overdue-aging-balance">Total past due on these lots: {organization.formatMoney(summary.byTier[tier].balance)}</span>
             </button>
           ))}
         </div>
       )}
 
       {pageError && <p className="overdue-message overdue-error"><AlertCircle size={16} />{pageError}</p>}
+
+      {!loading && !pageError && movedWithBalance.length > 0 && (
+        <section className="overdue-list overdue-moved-review glass-card" aria-label="Moved accounts with outstanding balances">
+          <h2>Moved accounts with outstanding balances</h2>
+          <p>Review these balances separately from the active collection queue.</p>
+          <ul>
+            {movedWithBalance.map((property) => {
+              const aging = overdueByProperty.get(Number(property.id))
+              const account = {
+                id: property.id,
+                name: property.homeowner_name,
+                block: property.block,
+                lot: `Lot ${property.lot_number}`,
+                actions: actionsByProperty.get(property.id) || [],
+              }
+              return (
+                <li key={property.id}>
+                  <strong>{account.name} · {account.block}, {account.lot}</strong>
+                  {' '}— {organization.formatMoney(property.current_balance)} outstanding
+                  {aging?.aging_complete === true && ` · ${organization.formatMoney(aging.overdue_amount)} past due`}
+                  <button type="button" className="overdue-action-link" onClick={() => openLogForm(account)}>Log follow-up</button>
+                  {account.actions.length > 0 && (
+                    <button type="button" className="overdue-action-link" onClick={() => setHistoryTarget(account)}>Follow-up history</button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       <div className="overdue-toolbar">
         <div className="overdue-search-wrap">
@@ -361,7 +396,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
         <div className="overdue-filter-pair">
           <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} options={blocks.map((b) => ({ value: b, label: b === 'All' ? 'All Blocks' : b }))} />
-          <Select ariaLabel="Filter by aging tier" value={agingFilter} onChange={setAgingFilter} options={[{ value: 'All', label: 'All Aging Tiers' }, ...AGING_TIERS.map((t) => ({ value: t, label: t }))]} />
+          <Select ariaLabel="Filter by aging tier" value={agingFilter} onChange={setAgingFilter} options={[{ value: 'All', label: 'All Oldest-Item Age Groups' }, ...AGING_TIERS.map((t) => ({ value: t, label: t }))]} />
         </div>
 
         <div className="overdue-status-tabs" role="tablist" aria-label="Filter by status">

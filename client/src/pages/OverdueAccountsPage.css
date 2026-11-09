@@ -254,6 +254,19 @@
   overflow: hidden;
 }
 
+.overdue-moved-review {
+  padding: 16px 20px;
+}
+
+.overdue-moved-review li {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.overdue-moved-review button {
+  margin-inline-start: 12px;
+}
+
 .overdue-empty {
   padding: 40px 20px;
   text-align: center;

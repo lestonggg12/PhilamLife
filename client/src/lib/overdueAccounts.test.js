@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeOverdueAccount, summarizeOverdueAccounts } from './overdueAccounts'
+import { describeOverdueAccount, movedAccountsWithBalance, summarizeOverdueAccounts } from './overdueAccounts'
 
 describe('overdue accounting', () => {
   const property = { current_balance: 1500 }
@@ -53,4 +53,12 @@ describe('overdue accounting', () => {
       balance: 0, overdue_amount: 0, aging_complete: true,
     }, null).status).toBe('Paid')
   })
+})
+
+it('surfaces only moved accounts with positive balances for separate follow-up', () => {
+  expect(movedAccountsWithBalance([
+    { id: 1, homeowner_status: 'moved', current_balance: '400.00' },
+    { id: 2, homeowner_status: 'moved', current_balance: '-10.00' },
+    { id: 3, homeowner_status: 'active', current_balance: '10.00' },
+  ]).map(row => row.id)).toEqual([1])
 })

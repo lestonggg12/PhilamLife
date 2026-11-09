@@ -3,8 +3,6 @@ import { supabase } from '../lib/supabaseClient'
 import './ActionDialog.css'
 import './ServiceVoidDialog.css'
 
-// Secretary already has UPDATE permission on payments. Treasurer uses the
-// narrow SECURITY DEFINER RPC after its separate migration is deployed.
 export default function OfficialRegularVoidDialog({ receipt, role, onClose, onVoided }) {
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
@@ -22,26 +20,16 @@ export default function OfficialRegularVoidDialog({ receipt, role, onClose, onVo
     setSaving(true)
     setError('')
     try {
-      if (role !== 'secretary' && role !== 'treasurer') throw new Error('Your account cannot void payment receipts.')
-      if (role === 'secretary') {
-        const { data, error: failure } = await supabase.from('payments')
-          .update({ status: 'Voided', void_reason: trimmed })
-          .eq('id', receipt.id)
-          .or('status.is.null,status.neq.Voided')
-          .select('id,status,voided_at')
-        if (failure) throw failure
-        if (!Array.isArray(data) || data.length !== 1 || String(data[0].id) !== String(receipt.id) ||
-            data[0].status !== 'Voided' || !data[0].voided_at) {
-          throw new Error('Could not confirm this receipt void. Refresh before retrying.')
-        }
-      } else {
-        const { data, error: failure } = await supabase.rpc('void_regular_payment_receipt', {
-          p_payment_id: receipt.id, p_reason: trimmed,
-        })
-        if (failure) throw failure
-        if (!data || String(data.id) !== String(receipt.id) || data.status !== 'Voided' || !data.voided_at) {
-          throw new Error('Could not confirm this receipt void. Refresh before retrying.')
-        }
+      if (role !== 'secretary') throw new Error('Only the Secretary can void regular payment receipts.')
+      const { data, error: failure } = await supabase.from('payments')
+        .update({ status: 'Voided', void_reason: trimmed })
+        .eq('id', receipt.id)
+        .or('status.is.null,status.neq.Voided')
+        .select('id,status,voided_at')
+      if (failure) throw failure
+      if (!Array.isArray(data) || data.length !== 1 || String(data[0].id) !== String(receipt.id) ||
+          data[0].status !== 'Voided' || !data[0].voided_at) {
+        throw new Error('Could not confirm this receipt void. Refresh before retrying.')
       }
       onVoided()
     } catch (failure) {

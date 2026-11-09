@@ -18,6 +18,7 @@ import BalanceBreakdown from '../components/BalanceBreakdown'
 import Select from '../components/Select'
 import DateField from '../components/DateField'
 import { ReceiptDialog } from '../components/ReceiptSheet'
+import { loadPaymentReceipt } from '../lib/paymentReceipt'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import './PaymentsPage.css'
@@ -1379,14 +1380,6 @@ function selectHomeowner(property) {
   }
 }
 
-    const advance = paymentAdvanceConfirmation({
-      purpose: form.paymentPurpose, paid: paid + manualDiscountAmount, previous, openOfType, annualAdvance,
-    })
-    if (advance && !advanceApproved) {
-      setAdvanceConfirm(advance)
-      return
-    }
-
     if (form.paymentMethod !== 'Cash' && !reference) {
       setFormError('A reference number is required for non-cash payments.')
       return
@@ -1404,6 +1397,17 @@ function selectHomeowner(property) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
       return
     }
+    const unapplied = Math.round(paid * 100) - Math.round(openOfType * 100)
+    const review = purposeType === 'Other' && unapplied > 0
+      ? { kind: 'unapplied', amount: unapplied / 100 }
+      : paymentAdvanceConfirmation({
+          purpose: form.paymentPurpose, paid: paid + manualDiscountAmount, previous, openOfType, annualAdvance,
+        })
+    if (review && !advanceApproved) {
+      setAdvanceConfirm(review)
+      return
+    }
+
     paymentSubmitRef.current = true
     setSaving(true)
     setFormError('')
@@ -1508,25 +1512,16 @@ function selectHomeowner(property) {
       }
 
     if (manualDiscount.enabled) {
-      const { data: audit, error: auditError } = await supabase
-        .from('manual_payment_discounts').select('*')
-        .eq('payment_id', data.id).single()
-
-      if (auditError || !audit ||
+      data = await loadPaymentReceipt(supabase, data)
+      const audit = data.manual_discount
+      if (!audit ||
           Number(audit.gross_amount) !== Math.round((gross - changeAmount) * 100) / 100 ||
           Number(audit.discount_amount) !== manualDiscountAmount ||
           Number(audit.cash_received) !== paid) {
         throw new Error('Discount journal could not be verified. Review payment history before retrying.')
       }
-
-      data = {
-        ...data,
-        manual_discount: audit,
-        remaining_balance: Math.round(
-          (Number(data.remaining_balance) - Number(audit.discount_amount)) * 100
-        ) / 100,
-      }
     }
+
     goToPage(0)
     // Jump to today so the new receipt is visible even if another day was open.
     setSelectedDateKey(todayDateKey())
@@ -1782,22 +1777,12 @@ function selectHomeowner(property) {
                   <td data-label="Receipt" className="payments-action-cell">
                     <div className="payments-row-actions">
                       <button className="payments-link" type="button" onClick={async () => {
-  const { data: discount, error } = await supabase
-    .from('manual_payment_discounts').select('*')
-    .eq('payment_id', payment.id).maybeSingle()
-  if (error) {
-    setPopupNotice('Could not verify the receipt discount. Please retry.')
-    return
-  }
-  setReceipt({
-    ...payment,
-    manual_discount: discount || null,
-    remaining_balance: discount
-      ? Math.round((Number(payment.remaining_balance) -
-          Number(discount.discount_amount)) * 100) / 100
-      : payment.remaining_balance,
-  })
-}}>
+                        try {
+                          setReceipt(await loadPaymentReceipt(supabase, payment))
+                        } catch {
+                          setPopupNotice('Could not verify the receipt discount. Please retry.')
+                        }
+                      }}>
                         View <span aria-hidden="true">→</span>
                       </button>
                       {canVoidPayments && payment.status !== 'Voided' && (
@@ -2244,7 +2229,16 @@ function selectHomeowner(property) {
         </div>
       )}
 
-      {advanceConfirm && (() => {
+      <ActionDialog
+        open={advanceConfirm?.kind === 'unapplied'}
+        title="Confirm money that will not reduce the lot balance"
+        message={`Based on the open Other charges, ${peso.format(advanceConfirm?.amount ?? 0)} of this receipt will be recorded as collections without reducing the lot balance. Choose Balance Payment instead if the money is meant to pay an existing balance.`}
+        confirmLabel="Record as Other"
+        cancelLabel="Go back"
+        onConfirm={confirmAdvancePayment}
+        onCancel={() => setAdvanceConfirm(null)}
+      />
+      {advanceConfirm && advanceConfirm.kind !== 'unapplied' && (() => {
         const isFee = advanceConfirm.kind === 'fee'
         const d = isFee ? { credit: advanceConfirm.credit } : advanceCreditDetails(advanceConfirm.credit, duesSettingsFor(form.propertyId))
         return (
