@@ -20,7 +20,7 @@ const actionLabels = {
  'Balance Added':'Balance entered','Balance Voided':'Entered balance cancelled','Expense Recorded':'Expense recorded','Expense Voided':'Expense cancelled',
  'Settings Updated':'System settings changed','Expense Budget Approved':'Expense budget approved','Homeowner Moved':'Homeowner marked as moved out',
  'Homeowner Transferred':'Property ownership transferred','Homeowner Updated':'Homeowner details changed','Contact Updated':'Contact details changed',
- 'Homeowner Added':'Homeowner added','Homeowner Removed':'Homeowner removed','Block Added':'Block added','Block Removed':'Block removed',
+ 'Homeowner Added':'Homeowner added','Lot Added':'Lot added','Homeowner Removed':'Homeowner removed','Block Added':'Block added','Block Removed':'Block removed',
  'Service Payment Recorded':'Amenity or service payment received','Service Balance Collected':'Remaining service payment received','Service Receipt Voided':'Service receipt cancelled',
  'Manual Payment Discount':'Payment discount approved','Returned Payment Change':'Payment change returned','Paper Invoice Number Assigned':'Paper invoice number assigned',
  'Printer Alignment Updated':'Receipt print position changed','Receipt Viewed':'Receipt opened','Receipt Print Requested':'Receipt print requested','Receipt Printed':'Receipt printed','Receipt Downloaded':'Receipt downloaded',
@@ -124,6 +124,8 @@ export function staffActivityCopy(log, legacy = {}, context = {}) {
   text=action==='Homeowner Moved'
    ? `Marked ${parts[0]} as moved out from ${where}.${updates ? ` ${updates}` : ''}`
    : `Updated ${action==='Contact Updated'?'contact information':'homeowner details'} for ${parts[0]}, ${where}.${updates ? ` ${updates}` : ''}`
+ } else if (action==='Lot Added' && parts.length>=2) {
+  subject=parts[0];text=`Added ${parts[1]} to ${parts[0]}'s property accounts.`
  } else if (action==='Homeowner Added' && parts.length>=2) {
   subject=parts[0];text=`Added ${parts[0]} as a homeowner for ${parts[1]}.`
  } else if (action==='Homeowner Transferred' && (match=/^(.+?)\s*->\s*(.+?) — (.+?); Balance:\s*(-?[\d.]+); Effective:\s*(\d{4}-\d{2}-\d{2})/.exec(source))) {

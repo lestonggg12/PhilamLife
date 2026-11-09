@@ -432,16 +432,16 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         ) : (
           <table className="overdue-table">
             <colgroup>
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '11%' }} />
+              <col style={{ width: '19.5%' }} />
+              <col style={{ width: '7%' }} />
               <col style={{ width: '9%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '56px' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '11.5%' }} />
             </colgroup>
             <thead>
               <tr>
@@ -454,7 +454,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                 <th>Last pmt</th>
                 <th>Last action</th>
                 <th>Status</th>
-                <th></th>
+                <th className="overdue-actions-heading">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -463,7 +463,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                   <td className="overdue-name-cell">
                     <button type="button" className="overdue-name-link" onClick={() => navigate(`/homeowners/${account.id}`)}>
                       <span className="overdue-avatar"><Users size={15} /></span>
-                      {account.name}
+                      <span className="overdue-account-name">{account.name}</span>
                     </button>
                   </td>
                   <td>
@@ -502,9 +502,14 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                     <span className={`overdue-status-pill status-${account.status.toLowerCase()}`}>{account.status}</span>
                   </td>
                   <td>
-                    <button type="button" className="overdue-log-button" onClick={() => openLogForm(account)} title="Log a collection action" aria-label="Log a collection action">
-                      <Plus size={14} />
-                    </button>
+                    <div className="overdue-row-actions">
+                      <button type="button" className="overdue-view-button" onClick={() => navigate(`/homeowners/${account.id}`)} aria-label={`View ${account.name}`}>
+                        View
+                      </button>
+                      <button type="button" className="overdue-log-button" onClick={() => openLogForm(account)} title="Log a collection action" aria-label="Log a collection action">
+                        <Plus size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

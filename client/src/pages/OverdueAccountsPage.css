@@ -251,7 +251,7 @@
   border-radius: 16px;
   border: 1px solid rgba(20, 100, 160, 0.14);
   background: rgba(255, 255, 255, 0.9);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .overdue-moved-review {
@@ -276,6 +276,7 @@
 
 .overdue-table {
   width: 100%;
+  min-width: 920px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 12.5px;
@@ -312,7 +313,10 @@
 .overdue-table th:last-child,
 .overdue-table td:last-child {
   padding-right: 14px;
-  width: 56px;
+}
+
+.overdue-table .overdue-actions-heading {
+  text-align: right;
 }
 
 .overdue-table td.overdue-status-cell {
@@ -324,11 +328,8 @@
   background: rgba(179, 38, 30, 0.04);
 }
 
-.overdue-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
+.overdue-table .overdue-name-cell {
+  white-space: normal;
 }
 
 .overdue-avatar {
@@ -454,6 +455,13 @@
   font-style: italic;
 }
 
+.overdue-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.overdue-view-button,
 .overdue-log-button {
   display: inline-flex;
   align-items: center;
@@ -466,6 +474,14 @@
   background: #fff;
   color: #1464a0;
   cursor: pointer;
+}
+
+.overdue-view-button {
+  width: auto;
+  min-width: 42px;
+  padding-inline: 6px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
 }
 
 .overdue-log-button span {
@@ -635,7 +651,8 @@
 .overdue-name-link {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  width: 100%;
   border: none;
   background: none;
   padding: 0;
@@ -643,6 +660,13 @@
   color: #071e30;
   cursor: pointer;
   text-align: left;
+}
+
+.overdue-account-name {
+  min-width: 0;
+  line-height: 1.35;
+  letter-spacing: 0.015em;
+  overflow-wrap: break-word;
 }
 
 .overdue-name-link:hover {
@@ -677,10 +701,6 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
-  }
-
-  .overdue-table {
-    min-width: 1120px;
   }
 }
 

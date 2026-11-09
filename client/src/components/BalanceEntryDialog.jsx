@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { parsePositiveAmount } from '../lib/lotDues'
+import { balanceEntryRequest, submitBalanceEntry } from '../lib/balanceEntrySubmission'
 import DateField from './DateField'
 import Select from './Select'
 
@@ -25,7 +26,7 @@ function todayInManila() {
 /**
  * Adds a carried-forward balance to a homeowner (for example an old unpaid
  * amount, including penalties already calculated in the verified HOA records).
- * The database adds this final amount without another automatic penalty.
+ * The server applies its current annual penalty and overdue rules.
  */
 export default function BalanceEntryDialog({ property, currentUser, onClose, onSaved }) {
   const today = todayInManila()
@@ -35,10 +36,13 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const submitting = useRef(false)
+  const pending = useRef(new Map())
+  const [acknowledged, setAcknowledged] = useState(false)
 
   async function handleSubmit(event) {
     event.preventDefault()
-    if (saving) return
+    if (submitting.current) return
 
     const parsed = parsePositiveAmount(amount, 'Balance amount', { maxInt: 10 })
     if (parsed.error) return setError(parsed.error)
@@ -46,31 +50,30 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
     if (asOf > today) return setError('The “as of” date cannot be in the future.')
     if (asOf < '1990-01-01') return setError('The “as of” date is too far in the past.')
 
+    if (!acknowledged) return setError('Confirm that you checked the date and balance amount.')
+    if (!currentUser?.id) return setError('Your staff session is unavailable. Sign in and try again.')
+
+    submitting.current = true
     setSaving(true)
     setError('')
-
-    const note = description.trim()
-    const { error: insertError } = await supabase
-      .from('balance_entries')
-      .insert({
+    try {
+      const payload = {
         property_id: property.id,
         category,
         amount: parsed.value,
         as_of_date: asOf,
-        description: note || null,
-      })
-      .select('id')
-      .single()
-
-    if (insertError) {
-      setError(insertError.message)
+        description: description.trim() || null,
+      }
+      const request = await balanceEntryRequest(payload, currentUser.id, pending.current)
+      await submitBalanceEntry(supabase, payload, currentUser.id, request.id)
+      request.clear()
+      onSaved(`Balance entry of ${peso.format(Number(parsed.value))} saved for ${property.homeowner_name}. Check Balance Breakdown for the updated amount due.`)
+    } catch (failure) {
+      setError(`${failure.message} To retry this submission, keep the same form values.`)
+    } finally {
+      submitting.current = false
       setSaving(false)
-      return
     }
-
-    // The database records this action in the same transaction as the balance.
-    setSaving(false)
-    onSaved(`Balance of ${peso.format(Number(parsed.value))} added to ${property.homeowner_name}.`)
   }
 
   return (
@@ -85,7 +88,7 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
         </div>
 
         <label htmlFor="be-category">Category</label>
-        <Select ariaLabel="Category" value={category} onChange={(value) => { setCategory(value); setError('') }} options={CATEGORIES.map((name) => ({ value: name, label: name }))} />
+        <Select ariaLabel="Category" value={category} onChange={(value) => { setCategory(value); setError(''); setAcknowledged(false) }} options={CATEGORIES.map((name) => ({ value: name, label: name }))} />
 
         <div className="hod-row">
           <div>
@@ -97,15 +100,15 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
               min="0.01"
               step="0.01"
               value={amount}
-              onChange={(event) => { setAmount(event.target.value); setError('') }}
+              onChange={(event) => { setAmount(event.target.value); setError(''); setAcknowledged(false) }}
               placeholder="e.g., 80000"
               required
               autoFocus
             />
           </div>
           <div>
-            <label htmlFor="be-asof">As of</label>
-            <DateField ariaLabel="As of" name="as_of_date" value={asOf} min="1990-01-01" max={today} onChange={(value) => { setAsOf(value); setError('') }} required />
+            <label htmlFor="be-asof">Balance as of</label>
+            <DateField ariaLabel="As of" name="as_of_date" value={asOf} min="1990-01-01" max={today} onChange={(value) => { setAsOf(value); setError(''); setAcknowledged(false) }} required />
           </div>
         </div>
 
@@ -120,9 +123,13 @@ export default function BalanceEntryDialog({ property, currentUser, onClose, onS
         />
 
         <p className="hod-note">
-          Enter the final verified balance, including any penalties already in the HOA records.
-          No additional automatic penalty is added. The “as of” date is for reference.
+          Enter the verified outstanding balance. This date affects overdue aging and can set the
+          penalty anniversary for eligible dues. Saving checks for penalties already due and may add them immediately.
         </p>
+        <label className="hod-note">
+          <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} required />
+          I verified the amount and the date, including the period covered by any penalties already recorded.
+        </label>
 
         {error && <p className="hod-error">{error}</p>}
 

@@ -14,7 +14,13 @@ export async function loadPaymentReceipt(client, payment) {
     .select('payment_id, discount_amount, gross_amount, cash_received, charge_id, approval_reference')
     .eq('payment_id', payment.id).maybeSingle()
   if (error) throw error
-  if (!discount) return payment
+  return discount
+    ? { ...payment, manual_discount: discount, remaining_balance: balanceAtReceiptIssuance(payment, discount) }
+    : payment
+}
+
+export function balanceAtReceiptIssuance(payment, discount) {
+  if (!discount) return cents(payment.remaining_balance) / 100
   const reduction = cents(discount.discount_amount)
   const balance = cents(payment.remaining_balance) - reduction
   if (String(discount.payment_id) !== String(payment.id) || reduction <= 0 ||
@@ -23,5 +29,5 @@ export async function loadPaymentReceipt(client, payment) {
       !Number.isSafeInteger(balance)) {
     throw new Error('The receipt does not match its recorded discount.')
   }
-  return { ...payment, manual_discount: discount, remaining_balance: balance / 100 }
+  return balance / 100
 }
