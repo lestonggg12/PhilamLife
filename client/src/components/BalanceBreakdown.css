@@ -1,4 +1,4 @@
-.bb { border: 1px solid #d3e0f0; border-radius: 14px; background: #f7fafe; padding: 14px 16px; margin: 14px 0; display: grid; gap: 10px; }
+.bb { border: 1px solid #d3e0f0; border-radius: 14px; background: #f7fafe; padding: 14px 16px; margin: 14px 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .bb-compact { margin: 4px 0 8px; }
 .bb-head { display: flex; align-items: baseline; justify-content: space-between; }
 .bb-head h3 { margin: 0; font-size: 1rem; }
@@ -10,9 +10,81 @@
 .bb-main small,
 .bb-amounts small { color: #5b6b82; }
 .bb-amounts { display: grid; justify-items: end; gap: 2px; white-space: nowrap; }
-.bb-lines { list-style: none; margin: 0; padding: 0 0 0 10px; display: grid; gap: 4px; border-left: 3px solid #cfe0f5; font-size: 0.88rem; }
-.bb-lines li { display: flex; justify-content: space-between; gap: 12px; }
-.bb-total { border-top: 1px solid #cfdcec; padding-top: 10px; font-size: 1.05rem; }
+.bb-note { margin: 0; color: #52677a; font-size: 0.85rem; line-height: 1.5; }
+.bb-table-frame {
+  position: relative;
+  min-width: 0;
+  container-type: inline-size;
+  border: 1px solid #d3e0f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.bb-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 0.875rem; line-height: 1.4; }
+.bb-table th, .bb-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0e9f3;
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.bb-table th { background: transparent; color: inherit; font-size: inherit; text-transform: none; letter-spacing: normal; }
+.bb-table th:first-child { text-align: left; }
+.bb-table th:not(:first-child), .bb-table td { text-align: right; }
+.bb-table td { font-variant-numeric: tabular-nums; }
+.bb-table thead th { background: #edf4fc; color: #264462; font-size: 0.79rem; }
+.bb-table thead th:first-child { width: 40%; border-top-left-radius: 9px; }
+.bb-table thead th:last-child { border-top-right-radius: 9px; }
+.bb-table tbody th { font-weight: normal; }
+.bb-table tbody th small { display: block; margin-top: 2px; color: #52677a; }
+.bb-table tbody tr:last-child > * { border-bottom: 0; }
+.bb-table tbody tr:nth-child(even) { background: #f8fbfe; }
+.bb-table tfoot > tr > * { border-top: 1px solid #cfdcec; border-bottom: 0; background: #eaf3fd; }
+.bb-table tfoot th { border-bottom-left-radius: 9px; }
+.bb-table tfoot td:last-child { border-bottom-right-radius: 9px; }
+.bb-table .bb-table-empty { text-align: left; color: #52677a; white-space: normal; }
+.bb-table .bb-link { display: block; margin-top: 5px; font-size: 0.8rem; }
+.bb-cell-label { display: none; }
+.bb-history { border: 1px solid #d3e0f0; border-radius: 10px; background: #fff; padding: 10px 12px; }
+.bb-history summary { color: #1565a8; font-weight: 600; cursor: pointer; }
+.bb-history .bb-note, .bb-history .bb-error, .bb-history .bb-table-frame { margin-top: 8px; }
+.bb-history-table thead th:first-child { width: 54%; }
+.bb-history-table th:nth-child(2), .bb-history-table td:nth-child(2) { text-align: left; }
+@media (max-width: 600px) {
+  .bb { padding: 12px; }
+}
+
+@container (max-width: 540px) {
+  .bb-table, .bb-table tbody, .bb-table tfoot { display: block; }
+  .bb-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .bb-table tbody tr, .bb-table tfoot tr {
+    display: block;
+    padding: 10px 12px;
+    border-top: 1px solid #e0e9f3;
+  }
+  .bb-table tbody tr:first-child { border-top: 0; }
+  .bb-table tfoot tr { background: #eaf3fd; border-radius: 0 0 9px 9px; }
+  .bb-table tbody th, .bb-table tfoot th, .bb-table .bb-table-empty {
+    display: block;
+    padding: 0 0 4px;
+    border: 0;
+  }
+  .bb-table .bb-labeled-cell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+    padding: 3px 0;
+    border: 0;
+    text-align: right;
+  }
+  .bb-table .bb-cell-label { display: block; text-align: left; color: #52677a; }
+}
 .bb-link { background: none; border: 0; padding: 0; color: #1565a8; font-weight: 600; cursor: pointer; font-size: inherit; }
 .bb-error { margin: 0; color: #b3261e; font-size: 0.88rem; }
 .bb-void { border: 1px solid #f0c9c6; background: #fff6f5; border-radius: 12px; padding: 12px; display: grid; gap: 8px; }

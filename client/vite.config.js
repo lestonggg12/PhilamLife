@@ -51,7 +51,20 @@ export default defineConfig(({ mode }) => ({
         // Cache only the app shell (JS/CSS/icons). Supabase data and auth calls
         // are never cached, so records and balances are always live.
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
-        navigateFallback: '/index.html',
+        // Give the offline shell its own precache URL so online navigations
+        // (including / and /index.html) cannot hit cached HTML before the network.
+        navigateFallback: null,
+        skipWaiting: true,
+        clientsClaim: true,
+        modifyURLPrefix: { 'index.html': 'index.html?offline-shell=1' },
+        runtimeCaching: [{
+          urlPattern: ({ request, url, sameOrigin }) =>
+            sameOrigin && request.mode === 'navigate' &&
+            (url.pathname === '/index.html' ||
+              (!/^\/(?:assets|api|icons)(?:\/|$)/.test(url.pathname) && !/\.[^/]+$/.test(url.pathname))),
+          handler: 'NetworkOnly',
+          options: { precacheFallback: { fallbackURL: '/index.html?offline-shell=1' } },
+        }],
         cleanupOutdatedCaches: true,
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },

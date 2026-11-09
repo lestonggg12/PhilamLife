@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { formatPercent, penaltyLabel } from '../lib/latepenalty'
+import { fetchAll } from '../lib/fetchAll'
+import { formatPercent } from '../lib/latepenalty'
 import './BalanceBreakdown.css'
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
@@ -13,11 +14,139 @@ function formatDay(value) {
 }
 
 const cents = (value) => Math.round((Number(value) || 0) * 100)
+const money = (value) => peso.format(cents(value) / 100)
+const reduction = (value) => value > 0 ? `−${peso.format(value / 100)}` : '—'
+
+const itemTypes = {
+  entry: 'Entered balance',
+  opening: 'Opening balance',
+  dues: 'Monthly dues',
+  penalty: 'Late penalty',
+  charge: 'Other charge',
+  adjustment: 'Account adjustment',
+}
+
+function BreakdownCell({ label, children }) {
+  return (
+    <td role="cell" className="bb-labeled-cell">
+      <span className="bb-cell-label" aria-hidden="true">{label}</span>
+      <span>{children}</span>
+    </td>
+  )
+}
+
+export function BalanceItemsTable({ items, totalDue, onVoid }) {
+  const amounts = items.filter((item) => cents(item.original) > 0)
+  const originalTotal = amounts.reduce((sum, item) => sum + cents(item.original), 0)
+  const unpaidTotal = amounts.reduce((sum, item) => sum + cents(item.unpaid), 0)
+  const reconciles = unpaidTotal === cents(totalDue)
+
+  return (
+    <>
+      <p className="bb-note">Payments, discounts, and other adjustments are deducted from the original amount to show what is still due.</p>
+      <div className="bb-table-frame">
+        <table className="bb-table" role="table" aria-label="Balance items">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">Balance item</th>
+              <th scope="col" role="columnheader">Original amount</th>
+              <th scope="col" role="columnheader">Payments &amp; adjustments</th>
+              <th scope="col" role="columnheader">Remaining due</th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            {amounts.map((item) => (
+              <tr role="row" key={`${item.kind}-${item.ref_id}`}>
+                <th scope="row" role="rowheader">
+                  <strong>{item.penalty_no ? `Year ${item.penalty_no} late penalty` : item.label || itemTypes[item.kind]}</strong>
+                  <small>{itemTypes[item.kind]} · {formatDay(item.item_date)}</small>
+                  {item.kind !== 'dues' && item.kind !== 'adjustment' && item.category && <small>{item.category}</small>}
+                  {item.kind === 'penalty' && item.rate != null && item.base_amount != null && (
+                    <small>{formatPercent(item.rate)} of {money(item.base_amount)}</small>
+                  )}
+                  {onVoid && item.kind === 'entry' && (
+                    <button type="button" className="bb-link" aria-label={`Void ${item.label || 'entered balance'}`} onClick={() => onVoid(item)}>Void balance</button>
+                  )}
+                </th>
+                <BreakdownCell label="Original amount">{money(item.original)}</BreakdownCell>
+                <BreakdownCell label="Payments &amp; adjustments">{reduction(cents(item.original) - cents(item.unpaid))}</BreakdownCell>
+                <BreakdownCell label="Remaining due"><strong>{money(item.unpaid)}</strong></BreakdownCell>
+              </tr>
+            ))}
+            {amounts.length === 0 && <tr role="row"><td role="cell" colSpan={4} className="bb-table-empty">No positive balance items recorded.</td></tr>}
+          </tbody>
+          <tfoot role="rowgroup">
+            <tr role="row">
+              <th scope="row" role="rowheader">Total due</th>
+              <BreakdownCell label="Original total">{reconciles ? peso.format(originalTotal / 100) : '—'}</BreakdownCell>
+              <BreakdownCell label="Total payments &amp; adjustments">{reconciles ? reduction(originalTotal - unpaidTotal) : '—'}</BreakdownCell>
+              <BreakdownCell label="Remaining due"><strong>{money(totalDue)}</strong></BreakdownCell>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {!reconciles && <p className="bb-error" role="status">The items and account total differ. Refresh this breakdown before relying on the individual amounts.</p>}
+    </>
+  )
+}
+
+export function BalanceReductionHistory({ payments, adjustments, error }) {
+  const paymentRows = payments
+    .filter((payment) => payment.status !== 'Voided')
+    .map((payment) => ({
+      id: `payment-${payment.id}`,
+      label: payment.receipt_number || 'Payment (no receipt number recorded)',
+      type: `Payment · ${payment.charge_type || 'Unspecified category'}`,
+      date: payment.payment_date,
+      amount: cents(payment.balance_effect) - cents(payment.effect_released),
+    }))
+    .filter((payment) => payment.amount > 0)
+  const records = [
+    ...paymentRows,
+    ...adjustments.map((item) => ({
+      id: `${item.kind}-${item.ref_id}`,
+      label: item.label || 'Account adjustment',
+      type: 'Recorded adjustment',
+      date: item.item_date,
+      amount: -cents(item.original),
+    })),
+  ].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+
+  return (
+    <details className="bb-history">
+      <summary>Trace payments and adjustments</summary>
+      <p className="bb-note">These records already affect the account balance. Use the receipt numbers to trace the payments. The breakdown shows reductions per item without assigning individual receipts to them.</p>
+      {error && <p className="bb-error" role="status">Payment receipts could not be loaded. Recorded adjustments are shown below.</p>}
+      <div className="bb-table-frame">
+        <table className="bb-table bb-history-table" role="table" aria-label="Payments and adjustments that reduced the balance">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">Record</th>
+              <th scope="col" role="columnheader">Date</th>
+              <th scope="col" role="columnheader">Balance reduction</th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            {records.map((record) => (
+              <tr role="row" key={record.id}>
+                <th scope="row" role="rowheader"><strong>{record.label}</strong><small>{record.type}</small></th>
+                <BreakdownCell label="Date">{formatDay(record.date)}</BreakdownCell>
+                <BreakdownCell label="Balance reduction">{reduction(record.amount)}</BreakdownCell>
+              </tr>
+            ))}
+            {!error && records.length === 0 && (
+              <tr role="row"><td role="cell" colSpan={3} className="bb-table-empty">No payment or adjustment reductions recorded.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )
+}
 
 /**
- * What a homeowner owes, split into entered balances, yearly late penalties and
- * unpaid monthly dues, other charges and adjustments. All amounts come from the database views; nothing is
- * calculated here.
+ * Explain the database's balance items and account total. Displayed reductions
+ * compare the original and unpaid amounts, without allocating payments in the UI.
  *
  *  postDue   - first ask the database to post any penalty that has fallen due
  *  compact   - read-only version for the Record Payment screen (hidden when the
@@ -34,11 +163,12 @@ export default function BalanceBreakdown({
   onPosted,
 }) {
   const [items, setItems] = useState([])
+  const [payments, setPayments] = useState([])
+  const [paymentError, setPaymentError] = useState(false)
   const [summary, setSummary] = useState(null)
   const [transferCreditDetails, setTransferCreditDetails] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showPenalties, setShowPenalties] = useState(false)
   const [reloadTick, setReloadTick] = useState(0)
   const [voidTarget, setVoidTarget] = useState(null)
   const [voidReason, setVoidReason] = useState('')
@@ -51,6 +181,8 @@ export default function BalanceBreakdown({
   useEffect(() => {
     if (!propertyId) {
       setItems([])
+      setPayments([])
+      setPaymentError(false)
       setSummary(null)
       setTransferCreditDetails([])
       return undefined
@@ -71,12 +203,13 @@ export default function BalanceBreakdown({
         else if (Number(posted) > 0 && onPostedRef.current) onPostedRef.current(Number(posted))
       }
 
-      const [itemsResult, summaryResult, transfersResult] = await Promise.all([
-        supabase
+      const [itemsResult, summaryResult, transfersResult, paymentsResult] = await Promise.all([
+        fetchAll(() => supabase
           .from('property_balance_items')
           .select('kind, ref_id, category, item_date, label, original, unpaid, penalty_no, rate, base_amount')
           .eq('property_id', Number(propertyId))
-          .order('item_date'),
+          .order('item_date', { nullsFirst: true })
+          .order('kind'), { tiebreaker: 'ref_id' }),
         supabase
           .from('homeowner_balance_breakdown')
           .select('*')
@@ -85,13 +218,20 @@ export default function BalanceBreakdown({
         supabase.from('homeowner_balance_transfers')
           .select('id,previous_property_id,transferred_balance,effective_date,note')
           .eq('new_property_id', Number(propertyId)),
+        fetchAll(() => supabase.from('payments')
+          .select('id,receipt_number,payment_date,charge_type,status,balance_effect,effect_released')
+          .eq('property_id', Number(propertyId))
+          .gt('balance_effect', 0)
+          .order('payment_date')),
       ])
       if (cancelled) return
 
       const failure = itemsResult.error || summaryResult.error || transfersResult.error
       if (failure) setError(`Could not load the balance breakdown: ${failure.message}`)
       setItems(itemsResult.data || [])
-      setSummary(summaryResult.data || null)
+      setSummary(itemsResult.error || summaryResult.error ? null : summaryResult.data || null)
+      setPayments(paymentsResult.data || [])
+      setPaymentError(Boolean(paymentsResult.error))
       if (transfersResult.error) {
         setTransferCreditDetails([])
       } else {
@@ -142,128 +282,39 @@ export default function BalanceBreakdown({
 
   if (!propertyId) return null
 
-  const entries = items.filter((item) => item.kind === 'entry')
-  const penalties = items.filter((item) => item.kind === 'penalty')
-  const duesTotal = Number(summary?.unpaid_dues_total) || 0
-  const transferAdjustments = new Set(transferCreditDetails.map((transfer) => String(transfer.id).toLowerCase()))
+  const transferIds = transferCreditDetails.map((transfer) => String(transfer.id).toLowerCase())
   const isIncomingTransfer = (item) => item.kind === 'adjustment' &&
-    [...transferAdjustments].some((id) => String(item.label || '').toLowerCase().includes(id))
-  const otherItems = items.filter((item) => ['opening', 'charge', 'adjustment'].includes(item.kind) && !isIncomingTransfer(item))
-  const hasContent = entries.length > 0 || penalties.length > 0 || duesTotal > 0 || otherItems.length > 0 || transferCreditDetails.length > 0
+    transferIds.some((id) => String(item.label || '').toLowerCase().includes(id))
+  const balanceItems = items.map((item) => isIncomingTransfer(item) && cents(item.original) > 0
+    ? { ...item, label: 'Outstanding balance carried over' }
+    : item)
+  const reductions = items.filter((item) => cents(item.original) < 0 && !isIncomingTransfer(item))
 
-  if (!hasContent) {
-    if (loading || !error) return null
-    return <p className="bb-error">{error}</p>
+  if (compact && !loading && !error && !items.length && !transferCreditDetails.length && !cents(summary?.current_balance)) return null
+
+  function startVoid(entry) {
+    setVoidTarget(entry)
+    setVoidReason('')
+    setVoidError('')
   }
 
-  const penaltyTitle = summary ? penaltyLabel({
-    penalties_count: summary.penalties_posted_count,
-    penalties_rated_count: summary.penalties_rated_count,
-    penalties_outstanding: summary.penalties_outstanding,
-    penalties_posted_total: summary.penalties_posted_total,
-    rate_min: summary.penalty_rate_min,
-    rate_max: summary.penalty_rate_max,
-  }) : ''
-
   return (
-    <section className={`bb${compact ? ' bb-compact' : ''}`} aria-label="Balance breakdown">
+    <section className={`bb${compact ? ' bb-compact' : ''}`} aria-label="Balance breakdown" aria-busy={loading}>
       <header className="bb-head">
-        <h3>Balance breakdown</h3>
-        {loading && <small>Updating…</small>}
+        <h3>How the balance adds up</h3>
+        {loading && <small>Loading…</small>}
       </header>
 
-      {error && <p className="bb-error">{error}</p>}
-
-      {entries.length > 0 && (
-        <div className="bb-block">
-          <h4>Entered balance</h4>
-          {entries.map((entry) => (
-            <div className="bb-row" key={entry.ref_id}>
-              <div className="bb-main">
-                <strong>{entry.label}</strong>
-                <small>{entry.category} · as of {formatDay(entry.item_date)}</small>
-              </div>
-              <div className="bb-amounts">
-                <strong>{peso.format(Number(entry.unpaid) || 0)}</strong>
-                {cents(entry.unpaid) !== cents(entry.original) && (
-                  <small>of {peso.format(Number(entry.original) || 0)}</small>
-                )}
-              </div>
-              {canManage && !compact && (
-                <button type="button" className="bb-link" onClick={() => { setVoidTarget(entry); setVoidReason(''); setVoidError('') }}>
-                  Void
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+      {error && <p className="bb-error" role="status">{error}</p>}
+      {!loading && summary && (
+        <>
+          <BalanceItemsTable items={balanceItems} totalDue={summary.grand_total_due} onVoid={canManage && !compact ? startVoid : undefined} />
+          <BalanceReductionHistory payments={payments} adjustments={reductions} error={paymentError} />
+        </>
       )}
+      {!loading && !summary && !error && <p className="bb-note">Balance details are unavailable for this property.</p>}
 
-      {penalties.length > 0 && (
-        <div className="bb-block">
-          <div className="bb-row">
-            <div className="bb-main">
-              <strong>{penaltyTitle || 'Late penalties'}</strong>
-              <small>
-                <button type="button" className="bb-link" onClick={() => setShowPenalties((open) => !open)}>
-                  {showPenalties ? 'Hide each year' : 'Show each year'}
-                </button>
-              </small>
-            </div>
-            <div className="bb-amounts">
-              <strong>{peso.format(Number(summary?.penalties_outstanding) || 0)}</strong>
-            </div>
-          </div>
-          {showPenalties && (
-            <ul className="bb-lines">
-              {penalties.map((penalty) => (
-                <li key={penalty.ref_id}>
-                  <span>
-                    {penalty.penalty_no ? `Year ${penalty.penalty_no} · ` : ''}{formatDay(penalty.item_date)}
-                    {penalty.rate != null && penalty.base_amount != null
-                      ? ` · ${formatPercent(penalty.rate)} of ${peso.format(Number(penalty.base_amount) || 0)}`
-                      : ''}
-                  </span>
-                  <strong>{peso.format(Number(penalty.original) || 0)}</strong>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {duesTotal > 0 && (
-        <div className="bb-row">
-          <div className="bb-main">
-            <strong>Unpaid monthly dues</strong>
-            <small>{summary?.unpaid_dues_months} month{Number(summary?.unpaid_dues_months) === 1 ? '' : 's'}</small>
-          </div>
-          <div className="bb-amounts"><strong>{peso.format(duesTotal)}</strong></div>
-        </div>
-      )}
-
-      {otherItems.length > 0 && (
-        <div className="bb-block">
-          <h4>Other recorded amounts</h4>
-          {otherItems.map((item) => (
-            <div className="bb-row" key={`${item.kind}-${item.ref_id}`}>
-              <div className="bb-main">
-                <strong>{item.label}</strong>
-                <small>{item.category} · {formatDay(item.item_date)}</small>
-                {Number(item.original) < 0 && <small>This credit is already included in the account balance.</small>}
-              </div>
-              <div className="bb-amounts">
-                <strong>{peso.format(Number(item.original) < 0 ? Number(item.original) : Number(item.unpaid) || 0)}</strong>
-                {Number(item.original) > 0 && cents(item.unpaid) !== cents(item.original) && (
-                  <small>of {peso.format(Number(item.original) || 0)}</small>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {transferCreditDetails.length > 0 && (
+      {!loading && transferCreditDetails.length > 0 && (
         <div className="bb-block bb-transfer-block">
           <h4>Balance or credit received at ownership transfer</h4>
           {transferCreditDetails.map((transfer) => {
@@ -293,11 +344,7 @@ export default function BalanceBreakdown({
         </div>
       )}
 
-      <div className="bb-row bb-total">
-        <div className="bb-main"><strong>Total due</strong></div>
-        <div className="bb-amounts"><strong>{peso.format(Number(summary?.grand_total_due) || 0)}</strong></div>
-      </div>
-      {Number(summary?.current_balance) < 0 && (
+      {!loading && Number(summary?.current_balance) < 0 && (
         <div className="bb-row bb-credit-total">
           <div className="bb-main"><strong>Available advance credit on this account</strong><small>Current net account credit, including any transfer and subsequent activity</small></div>
           <div className="bb-amounts"><strong>{peso.format(-Number(summary.current_balance))}</strong></div>

@@ -57,6 +57,7 @@ export default function TreasurerDashboard() {
     credits: null,
     adjustments: [],
     deposits: [],
+    allocationEvidenceGaps: null,
     periods: [],
   })
   const [loading, setLoading] = useState(true)
@@ -215,7 +216,7 @@ export default function TreasurerDashboard() {
         <Link to="/payments"><CreditCard size={18} /><span><strong>Record payment</strong><small>Save a payment and issue a receipt</small></span></Link>
         <Link to="/ledger"><FileText size={18} /><span><strong>Open ledger</strong><small>Balances and statements</small></span></Link>
         <Link to="/treasurer/expenses"><DollarSign size={18} /><span><strong>Record expense</strong><small>Maintain audit details</small></span></Link>
-        <Link to="/reports"><Bank size={18} /><span><strong>Financial reports</strong><small>Collections and cash review</small></span></Link>
+        <Link to="/treasurer/reports"><Bank size={18} /><span><strong>Financial reports</strong><small>Collections and cash review</small></span></Link>
       </section>
 
       <section className="treasurer-stat-grid">
@@ -254,9 +255,14 @@ export default function TreasurerDashboard() {
           <div className="treasurer-panel-heading"><div><span className="treasurer-kicker">Attention</span><h2>Finance checks</h2></div></div>
           <div className="treasurer-check-list">
             <div><span className="check-icon warning"><AlertCircle size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${summary.overdueAccounts} overdue accounts`}</strong><small>{loading ? 'Checking collections…' : dashboardUnavailable ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`}</small></p></div>
-            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${exceptions.unreconciledDeposits} unreconciled deposits`}</strong><small>Match deposits with bank records</small></p></div>
+            <div><span className="check-icon blue"><Bank size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : finance.deposits.length === 0 ? 'No bank deposits recorded' : `${exceptions.unreconciledDeposits} unreconciled deposits`}</strong><small>Match deposits with bank records</small></p></div>
+            <div><span className="check-icon warning"><AlertCircle size={16} /></span><p>
+              <strong>{loading ? 'Checking…' : dashboardUnavailable || finance.allocationEvidenceGaps == null
+                ? 'Allocation check unavailable' : `${finance.allocationEvidenceGaps} receipts flagged for allocation review`}</strong>
+              <small>Verify which bills were paid using the receipt and supporting records.</small>
+            </p></div>
             <div><span className="check-icon navy"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${exceptions.unreferencedAdjustments} adjustments without approval references`}</strong><small>Review documentation for any unreferenced adjustments</small></p></div>
-            <div><span className="check-icon blue"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : exceptions.currentPeriod ? 'Accounting period open' : finance.periods.length === 0 ? 'Accounting periods not configured' : 'No open accounting period'}</strong><small>Accounting period status is informational</small></p></div>
+            <div><span className="check-icon blue"><FileText size={16} /></span><p><strong>{loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : exceptions.currentPeriod ? 'Accounting period open' : finance.periods.length === 0 ? 'Accounting periods not configured' : 'No open accounting period'}</strong><small>Expense posting honors closed periods. Cash reconciliation requires source statements.</small></p></div>
           </div>
         </article>
 

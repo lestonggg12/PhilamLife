@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { confirmedTransfer, contactSearchTokens, loadContactCounts, loadContactPage, moveContact, requireEffectiveDate, saveContactDetails } from './contactManager'
+import { confirmedTransfer, contactSearchFilters, loadContactCounts, loadContactPage, moveContact, requireEffectiveDate, saveContactDetails } from './contactManager'
 
 const contact = { id: 4, homeowner_id: 'person-id', homeowner_status: 'active', contact_phone: '111', contact_email: null, contact_updated_at: '2026-11-01T00:00:00.123456+00:00', status_updated_at: null }
 function client(result) {
@@ -13,14 +13,21 @@ function client(result) {
 }
 
 describe('Contact directory reads', () => {
-  it('recognizes field labels without consuming the search-word limit', () => {
-    expect(contactSearchTokens('Block C Lot 12')).toEqual(['C', '12'])
-    expect(contactSearchTokens('BLOCK C LOT 12 Sofia Santos')).toEqual(['C', '12', 'Sofia', 'Santos'])
-    expect(contactSearchTokens('Block Lot')).toEqual([])
-    expect(contactSearchTokens('Blocker Lottie')).toEqual(['Blocker', 'Lottie'])
+  it('keeps explicit block and lot filters separate from the name search', () => {
+    const [lot, block, firstName, lastName] = contactSearchFilters('Block 3, Lot 04 Sofia Santos')
+    expect(lot).toBe('lot_number.eq.4')
+    expect(block).toContain('block.ilike."Block 3"')
+    expect(block).toContain('block.ilike."% Block 03"')
+    expect(block).not.toContain('lot_number')
+    expect(firstName).toContain('homeowner_name.ilike."%Sofia%"')
+    expect(lastName).toContain('homeowner_name.ilike."%Santos%"')
+  })
+  it('searches a single digit by lot and keeps ordinary name tokens', () => {
+    expect(contactSearchFilters('4')[0]).toContain('lot_number.eq.4')
+    expect(contactSearchFilters('Blocker Lottie')).toHaveLength(2)
   })
   it('preserves the shared escaping rules', () => {
-    expect(contactSearchTokens('C,%"() * 12').join(' ')).not.toMatch(/[,"()%*]/)
+    expect(contactSearchFilters('C,%"() * 12')).toEqual(contactSearchFilters('C 12'))
   })
   it('returns verified zero totals instead of treating failed reads as zero', async () => {
     expect(await loadContactCounts(client({ count: 0, error: null }))).toEqual({ active: 0, moved: 0, transferred: 0 })
@@ -30,12 +37,17 @@ describe('Contact directory reads', () => {
   })
   it('combines tokens, status, exact total and stable pagination', async () => {
     const c = client({ data: [contact], count: 55, error: null })
-    expect(await loadContactPage(c, 'active', contactSearchTokens('Block C Lot 12'), 1)).toEqual({ rows: [contact], total: 55 })
+    expect(await loadContactPage(c, 'active', contactSearchFilters('Block C Lot 12'), 1)).toEqual({ rows: [contact], total: 55 })
     expect(c.chain.eq).toHaveBeenCalledWith('homeowner_status', 'active')
     expect(c.chain.or).toHaveBeenCalledTimes(2)
-    expect(c.chain.or.mock.calls[1][0]).toContain('lot_number.eq.12')
+    expect(c.chain.or.mock.calls[0][0]).toBe('lot_number.eq.12')
     expect(c.chain.range).toHaveBeenCalledWith(50, 99)
     expect(c.chain.order.mock.calls).toEqual([['homeowner_name', { ascending: true }], ['id', { ascending: true }]])
+  })
+  it('signals that a previously valid page disappeared after the results shrank', async () => {
+    const error = { code: 'PGRST103', message: 'Requested range not satisfiable' }
+    await expect(loadContactPage(client({ error }), 'active', [], 1)).resolves.toEqual({ pageOutOfRange: true })
+    await expect(loadContactPage(client({ error }), 'active', [], 0)).rejects.toEqual(error)
   })
   it('does not add a status restriction to All statuses', async () => {
     const c = client({ data: [], count: 0, error: null })

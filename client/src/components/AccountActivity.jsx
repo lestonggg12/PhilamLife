@@ -3,6 +3,7 @@ import { Bell, Coins, TriangleAlert, UserRound, Settings, Ban } from 'lucide-rea
 import { supabase } from '../lib/supabaseClient'
 import { activityTimestamp, fetchAccountActivity } from '../lib/accountActivity'
 import { watchStaffInserts } from '../lib/notificationRealtime'
+import { staffNotificationCopy } from '../lib/staffActivityText'
 import './AccountActivity.css'
 
 const icons = { transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert }
@@ -59,11 +60,12 @@ export default function AccountActivity({ propertyId, month, year, refreshKey })
       : !items.length ? <p className="account-activity-empty">{error ? 'Activity is unavailable.' : 'No account activity recorded for this period.'}</p>
         : <ol>{items.map((item) => {
           const Icon = icons[item.kind] || Bell
+          const copy = staffNotificationCopy(item)
           return <li key={item.id}><span className={`account-activity-icon is-${item.kind}`}><Icon size={17} aria-hidden="true" /></span>
-            <div className="account-activity-content"><strong>{item.title}</strong><p>{item.body}</p>
+            <div className="account-activity-content"><strong>{copy.title}</strong><p>{copy.body}</p>
               <small><time dateTime={item.occurred_at}>{activityTimestamp(item.occurred_at)}</time> · {item.payload?.actor_name || 'Actor not recorded'}</small>
-              {!!item.payload?.related_reversals?.length && <details><summary>Related reversals ({item.payload.related_reversals.length})</summary>
-                <ul>{item.payload.related_reversals.map((row) => <li key={`${row.kind}:${row.reference}`}>{row.kind}: {row.amount_formatted} <small>Reference: {row.reference}</small></li>)}</ul>
+              {!!item.payload?.related_reversals?.length && <details><summary>Changes included with this cancellation</summary>
+                <ul>{copy.related.map((description, index) => <li key={index}>{description}</li>)}</ul>
               </details>}
             </div>
           </li>

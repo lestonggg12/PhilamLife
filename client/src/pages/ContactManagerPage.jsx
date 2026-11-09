@@ -9,8 +9,9 @@ import { Edit, FileArchive, Mail, Phone, RefreshCw, Search, Users } from '../com
 import { supabase } from '../lib/supabaseClient'
 import { Pager } from '../components/PagerControls'
 import useDebouncedValue from '../hooks/useDebouncedValue'
-import { pageWindow } from '../lib/pagedQuery'
-import { CONTACT_COLUMNS, contactSearchTokens, loadContactCounts, loadContactPage, saveContactDetails, moveContact, requireEffectiveDate, confirmedTransfer } from '../lib/contactManager'
+import { pageCount, pageWindow } from '../lib/pagedQuery'
+import { calendarToday } from '../lib/eventCalendar'
+import { CONTACT_COLUMNS, contactSearchFilters, loadContactCounts, loadContactPage, saveContactDetails, moveContact, requireEffectiveDate, confirmedTransfer } from '../lib/contactManager'
 import useContactDialog from './useContactDialog'
 import './ContactManagerPage.css'
 import Skeleton from '../components/skeleton/Skeleton'
@@ -19,14 +20,6 @@ const EMPTY_FORM = {
   phone: '',
   email: '',
 }
-
-const manilaDate = () =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
 
 const EMPTY_TRANSFER_FORM = {
   status: 'moved',
@@ -37,19 +30,14 @@ const EMPTY_TRANSFER_FORM = {
   targetProperty: null,
 }
 
-const MIN_SEARCH_LENGTH = 2
-
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
-  const [rows, setRows] = useState([])
-  const [total, setTotal] = useState(0)
+  const [directory, setDirectory] = useState(null)
   const [counts, setCounts] = useState(null)
   const [countsLoading, setCountsLoading] = useState(true)
-  const [listLoading, setListLoading] = useState(false)
   const [countError, setCountError] = useState('')
-  const [listError, setListError] = useState('')
   const [identityError, setIdentityError] = useState('')
   const [linkError, setLinkError] = useState('')
   const submitting = useRef(false)
@@ -57,7 +45,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [pageState, setPageState] = useState({ key: '', page: 0 })
-  const [notice, setNotice] = useSuccessNotice()
+  const [, setNotice] = useSuccessNotice()
   const [selectedContact, setSelectedContact] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
@@ -67,7 +55,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [transferringContactId, setTransferringContactId] = useState(null)
   const [transferError, setTransferError] = useState('')
 
-  const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
+  const role = currentUser?.is_active === true ? currentUser.role?.trim().toLowerCase() : ''
   const canManageContacts = role === 'admin' || role === 'secretary' || role === 'treasurer'
   const canTransferContacts = role === 'admin' || role === 'secretary'
   const contactDialogRef = useContactDialog(Boolean(selectedContact), saving, closeContactForm)
@@ -75,14 +63,21 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
 
   // The homeowner list is never loaded up front. It is read from the database only for a
-  // search of 2+ characters (or the small Moved / Transferred lists), one page at a time.
-  const debouncedSearch = useDebouncedValue(search, 350)
-  const tokens = contactSearchTokens(debouncedSearch)
-  const hasSearch = debouncedSearch.trim().length >= MIN_SEARCH_LENGTH && tokens.length > 0
+  // search (or the small Moved / Transferred lists), one page at a time.
+  const debouncedSearch = useDebouncedValue(search.trim(), 350)
+  const filters = contactSearchFilters(debouncedSearch)
+  const hasSearch = filters.length > 0 && (debouncedSearch.length >= 2 || /^\d$/.test(debouncedSearch))
+  const searchPending = search.trim() !== debouncedSearch
   const listsByStatus = statusFilter === 'moved' || statusFilter === 'transferred'
   const shouldList = hasSearch || listsByStatus
-  const scopeKey = `${statusFilter}|${debouncedSearch.trim()}`
+  const scopeKey = `${statusFilter}|${hasSearch ? debouncedSearch : ''}`
   const page = pageState.key === scopeKey ? pageState.page : 0
+  const resultKey = JSON.stringify([scopeKey, page, reloadTick])
+  const result = !searchPending && directory?.key === resultKey ? directory : null
+  const rows = result?.rows ?? []
+  const total = result?.total ?? 0
+  const listError = result?.error ?? ''
+  const listLoading = searchPending || (shouldList && !result)
 
   function goToPage(nextPage) {
     setPageState({ key: scopeKey, page: Math.max(0, nextPage) })
@@ -100,7 +95,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     async function openFromLink() {
       try {
         setLinkError('')
-        if (canManageContacts && /^\d+$/.test(editId)) {
+        if (canManageContacts) {
+          if (!/^\d+$/.test(editId)) throw new Error('The link does not contain a valid lot account.')
           const { data, error } = await supabase.from('properties').select(CONTACT_COLUMNS)
             .eq('id', editId).maybeSingle()
           if (error) throw error
@@ -162,37 +158,26 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
   // One page of results, read straight from the database.
   useEffect(() => {
-    if (!shouldList) {
-      setRows([])
-      setTotal(0)
-      setListError('')
-      setListLoading(false)
-      return undefined
-    }
+    if (!shouldList || searchPending) return undefined
 
     let cancelled = false
-
     async function loadRows() {
-      setListLoading(true)
-      setListError('')
-      setRows([])
       try {
-        const result = await loadContactPage(supabase, statusFilter, tokens, page)
+        const result = await loadContactPage(supabase, statusFilter, hasSearch ? filters : [], page)
         if (cancelled) return
-        if (!result.rows.length && page > 0 && result.total > 0) { goToPage(page - 1); return }
-        setRows(result.rows)
-        setTotal(result.total)
+        if (result.pageOutOfRange) { goToPage(0); return }
+        const lastPage = pageCount(result.total) - 1
+        if (page > lastPage) { goToPage(lastPage); return }
+        setDirectory({ key: resultKey, ...result })
       } catch (error) {
-        if (!cancelled) { setRows([]); setTotal(0); setListError(`Contact directory could not be loaded: ${error.message || 'Please retry.'}`) }
-      } finally {
-        if (!cancelled) setListLoading(false)
+        if (!cancelled) setDirectory({ key: resultKey, error: `Contact directory could not be loaded: ${error.message || 'Please retry.'}` })
       }
     }
 
     loadRows()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey, page, reloadTick, shouldList])
+  }, [resultKey, shouldList, searchPending])
 
   function openContactForm(contact) {
     if (!canManageContacts || submitting.current) return
@@ -247,7 +232,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setTransferForm({
       ...EMPTY_TRANSFER_FORM,
       status: 'moved',
-      effectiveDate: manilaDate(),
+      effectiveDate: calendarToday(),
       reason: '',
       newHomeownerName: '',
     })
@@ -304,7 +289,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
   const { from: pageFrom } = pageWindow(page)
   const rangeStart = total === 0 ? 0 : pageFrom + 1
-  const rangeEnd = pageFrom + rows.length
+  const rangeEnd = total === 0 ? 0 : pageFrom + rows.length
   const pageError = [identityError, linkError, countError, listError].filter(Boolean).join(' ')
 
   return (
@@ -331,7 +316,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
       <div className="contact-summary" aria-label="Contact summaries" aria-busy={countsLoading}>
         <div className="contact-summary-item is-active">
-          <div className="contact-summary-top"><span>Total Contacts</span><span className="contact-summary-icon"><Users size={18} /></span></div>
+          <div className="contact-summary-top"><span>Total Lot Accounts</span><span className="contact-summary-icon"><Users size={18} /></span></div>
           <strong>{countsLoading || !counts ? '—' : (counts.active + counts.moved + counts.transferred).toLocaleString('en-PH')}</strong>
           <small>All property accounts</small>
         </div>
@@ -341,14 +326,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           <small>Active property accounts</small>
         </div>
         <div className="contact-summary-item is-transferred">
-          <div className="contact-summary-top"><span>Inactive</span><span className="contact-summary-icon contact-summary-icon-warning"><Users size={18} /></span></div>
-          <strong>{countsLoading || !counts ? '—' : (counts.moved + counts.transferred).toLocaleString('en-PH')}</strong>
-          <small>Moved and transferred accounts</small>
+          <div className="contact-summary-top"><span>Moved</span><span className="contact-summary-icon contact-summary-icon-warning"><Users size={18} /></span></div>
+          <strong>{countsLoading || !counts ? '—' : counts.moved.toLocaleString('en-PH')}</strong>
+          <small>Lot accounts marked as moved</small>
         </div>
         <div className="contact-summary-item is-categories">
-          <div className="contact-summary-top"><span>Categories</span><span className="contact-summary-icon contact-summary-icon-muted"><FileArchive size={18} /></span></div>
-          <strong>{countsLoading || !counts ? '—' : Object.keys(counts).length.toLocaleString('en-PH')}</strong>
-          <small>Active, moved, transferred</small>
+          <div className="contact-summary-top"><span>Transferred</span><span className="contact-summary-icon contact-summary-icon-muted"><FileArchive size={18} /></span></div>
+          <strong>{countsLoading || !counts ? '—' : counts.transferred.toLocaleString('en-PH')}</strong>
+          <small>Former accounts after a transfer</small>
         </div>
       </div>
 
@@ -383,7 +368,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         </p>
       )}
 
-      {!shouldList ? (
+      {!shouldList && !listLoading ? (
         <div className="contact-empty glass-card">
           <span style={{ display: 'inline-flex', opacity: 0.6 }}>
             <Search size={30} aria-hidden="true" />
@@ -392,9 +377,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             Search for a homeowner
           </h3>
           <p style={{ margin: '0 auto', maxWidth: 460, fontSize: '0.88rem', lineHeight: 1.5 }}>
-            Type at least {MIN_SEARCH_LENGTH} characters of a name, block, lot, phone, or email — or
-            choose Moved or Transferred — to see homeowners. They aren't listed by default so the
-            page stays fast as the roster grows.
+            Search by name, phone, email, or address (for example, Block 3 Lot 4).
+            Choose Moved or Transferred to browse those records without a search.
           </p>
         </div>
       ) : listLoading ? (
@@ -423,7 +407,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
 
             return (
               <article key={contact.id} className={`contact-card glass-card is-${homeownerStatus}`}>
-                <div className="contact-plaque" aria-hidden="true">
+                <div className="contact-plaque">
                   <span className="contact-plaque-block">{contact.block}</span>
                   <span className="contact-plaque-lot">Lot {contact.lot_number}</span>
                 </div>
@@ -543,7 +527,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               <div>
                 <h2 id="transfer-homeowner-title">Move or transfer this lot</h2>
                 <p>
-                  Only this lot changes owner. Previous records are kept.
+                  Choose an action for this lot. Its previous records are kept.
                 </p>
               </div>
               <button
@@ -572,7 +556,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               </div>
               <div>
                 <label htmlFor="homeowner-status-date">Effective date</label>
-                <DateField ariaLabel="Effective date" name="effective_date" value={transferForm.effectiveDate} max={manilaDate()} onChange={(value) => setTransferForm((current) => ({ ...current, effectiveDate: value }))} required />
+                <DateField ariaLabel="Effective date" name="effective_date" value={transferForm.effectiveDate} max={calendarToday()} onChange={(value) => setTransferForm((current) => ({ ...current, effectiveDate: value }))} required />
               </div>
             </div>
 
@@ -620,7 +604,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             />
 
             {transferForm.status === 'transferred' && (() => {
-              const preview = transferAmountDescription(pendingTransferContact.current_balance)
+              const balance = pendingTransferContact.current_balance
+              const preview = balance == null || balance === '' ? { label: 'Account amount unavailable' } : transferAmountDescription(balance)
               return (
                 <div className="contact-transfer-balance-preview" aria-label="Balance and credit transfer preview">
                   <strong>Balance or credit to carry over</strong>
@@ -630,7 +615,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               )
             })()}
             <p className="contact-transfer-note">
-              {transferForm.status === 'transferred' ? 'Only this lot’s current signed account balance moves to the new lot account: an amount owed stays an amount owed, and an advance credit stays a credit. Payment receipts and prior history remain with the former owner. The actual amount is determined at confirmation.' : 'This frees the lot while keeping the homeowner’s records.'}
+              {transferForm.status === 'transferred' ? 'Only this lot’s current signed account balance moves to the new lot account: an amount owed stays an amount owed, and an advance credit stays a credit. Payment receipts and prior history remain with the former owner. The actual amount is determined at confirmation.' : 'This marks the selected lot account as moved. Any outstanding balance or advance credit and payment history stay on that account.'}
             </p>
 
             </fieldset>

@@ -4,9 +4,26 @@ import { ilikeAny, pageWindow, searchTokens } from './pagedQuery'
 export const CONTACT_COLUMNS = 'id, homeowner_id, block, lot_number, homeowner_name, contact_phone, contact_email, contact_updated_at, homeowner_status, status_effective_date, status_reason, status_updated_at, current_balance'
 const SEARCH_COLUMNS = ['homeowner_name', 'block', 'contact_phone', 'contact_email', 'homeowner_status', 'status_reason']
 
-export function contactSearchTokens(search) {
-  // Remove field labels before applying the shared five-word limit.
-  return searchTokens(String(search || '').replace(/\b(?:block|lot)\b/gi, ' '))
+export function contactSearchFilters(search, columns = SEARCH_COLUMNS) {
+  const filters = []
+  const term = String(search || '').trim()
+  const remaining = term
+    .replace(/(?:^|\s)lot\s+(\d{1,6})(?=\s|,|$)/gi, (_, lot) => {
+      filters.push(`lot_number.eq.${Number(lot)}`)
+      return ' '
+    })
+    .replace(/(?:^|\s)block\s+([a-z0-9-]+)(?=\s|,|$)/gi, (_, block) => {
+      const labels = /^\d{1,6}$/.test(block) ? [...new Set([block, String(Number(block)), String(Number(block)).padStart(2, '0')])] : [block]
+      filters.push(labels.flatMap((label) => [
+        `block.ilike."${label}"`, `block.ilike."Block ${label}"`, `block.ilike."% Block ${label}"`,
+      ]).join(','))
+      return ' '
+    })
+  for (const token of searchTokens(remaining)) {
+    const general = ilikeAny(columns, token)
+    filters.push(/^\d{1,6}$/.test(token) ? `${general},lot_number.eq.${Number(token)}` : general)
+  }
+  return filters
 }
 
 export function requireEffectiveDate(value, today = calendarToday()) {
@@ -24,16 +41,13 @@ export async function loadContactCounts(client) {
   return Object.fromEntries(statuses.map((status, index) => [status, results[index].count]))
 }
 
-export async function loadContactPage(client, status, tokens, page) {
+export async function loadContactPage(client, status, filters, page) {
   const { from, to } = pageWindow(page)
   let query = client.from('properties').select(CONTACT_COLUMNS, { count: 'exact' })
   if (status !== 'all') query = query.eq('homeowner_status', status)
-  for (const token of tokens) {
-    const filters = [ilikeAny(SEARCH_COLUMNS, token)]
-    if (/^\d{1,6}$/.test(token)) filters.push(`lot_number.eq.${token}`)
-    query = query.or(filters.join(','))
-  }
+  for (const filter of filters) query = query.or(filter)
   const result = await query.order('homeowner_name', { ascending: true }).order('id', { ascending: true }).range(from, to)
+  if (page > 0 && result.error?.code === 'PGRST103') return { pageOutOfRange: true }
   if (result.error) throw result.error
   if (!Array.isArray(result.data) || !Number.isInteger(result.count) || result.count < 0) throw new Error('The contact directory response could not be verified.')
   return { rows: result.data, total: result.count }

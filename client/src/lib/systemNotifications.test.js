@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fetchSystemNotifications, markAllNotificationsRead, markNotificationsRead,
-  notificationLink, popoverPosition, relativeManilaTime, unreadBadge } from './systemNotifications'
+  isCurrentNotification, notificationLink, popoverPosition, relativeManilaTime, unreadBadge } from './systemNotifications'
 function database(responses) {
   const calls=[]
   return {calls,from:vi.fn((table)=>{
@@ -44,10 +44,10 @@ describe('system notification presentation',()=>{
   })
 })
 describe('system notification data access',()=>{
-  it('loads twenty rows and counts unread across all history',async()=>{
+  it('loads three rows and counts all unexpired unread notices',async()=>{
     const db=database([{data:[{id:'1',notification_reads:[]},{id:'2',notification_reads:[{notification_id:'2'}]}]},{count:35}])
     expect(await fetchSystemNotifications(db)).toMatchObject({unread:35,items:[{id:'1',read:false},{id:'2',read:true}]})
-    expect(db.calls).toContainEqual(['notifications','limit',20])
+    expect(db.calls).toContainEqual(['notifications','limit',3])
     expect(db.calls).toContainEqual(['notifications','is','notification_reads',null])
   })
   it('propagates failure instead of presenting unavailable data as empty',async()=>{
@@ -58,7 +58,7 @@ describe('system notification data access',()=>{
     const db=database([{}]);await markNotificationsRead(db,'staff',['n1'])
     expect(db.calls).toContainEqual(['notification_reads','upsert',[{notification_id:'n1',user_id:'staff'}],{onConflict:'notification_id,user_id',ignoreDuplicates:true}])
   })
-  it('marks all pages beyond the visible twenty using one cutoff',async()=>{
+  it('marks all pages beyond the visible three using one cutoff',async()=>{
     const ids=Array.from({length:200},(_,i)=>({id:String(i)}))
     const db=database([{data:ids},{},{data:[{id:'last'}]},{},{data:[]}])
     await markAllNotificationsRead(db,'staff')
@@ -70,4 +70,21 @@ describe('system notification data access',()=>{
     await expect(markAllNotificationsRead(db,'staff')).rejects.toThrow('denied')
     expect(db.from).toHaveBeenCalledTimes(2)
   })
+})
+
+describe('notification expiry and compact height',()=>{
+ it('hides an expired notice at the exact boundary and rejects invalid expiry dates',()=>{
+  const now=Date.parse('2026-12-08T10:00:00Z')
+  expect(isCurrentNotification({expires_at:'2026-12-08T10:00:00Z'},now)).toBe(false)
+  expect(isCurrentNotification({expires_at:'2026-12-08T10:00:01Z'},now)).toBe(true)
+  expect(isCurrentNotification({expires_at:'invalid'},now)).toBe(false)
+  expect(isCurrentNotification({},now)).toBe(true)
+ })
+ it('caps expanded content at 480 pixels on a tall desktop',()=>{
+  expect(popoverPosition({top:100,bottom:140,right:1300},{width:1366,height:1080}).maxHeight).toBe(480)
+ })
+ it('does not display stale expired data returned during an expiry race',async()=>{
+  const db=database([{data:[{id:'old',expires_at:'2000-01-01T00:00:00Z'},{id:'new',expires_at:'2099-01-01T00:00:00Z'}]},{count:1}])
+  expect((await fetchSystemNotifications(db)).items.map(x=>x.id)).toEqual(['new'])
+ })
 })

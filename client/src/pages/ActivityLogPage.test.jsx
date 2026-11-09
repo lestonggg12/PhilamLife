@@ -1,8 +1,9 @@
+import { ConfirmProvider } from '../components/ConfirmDialog'
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 vi.mock('../lib/supabaseClient', () => ({ supabase: {} }))
-import ActivityLogPage, { activityDisplay, matchesActivitySearch } from './ActivityLogPage'
+import ActivityLogPage, { activityDisplay, matchesActivitySearch, summarizeActivity } from './ActivityLogPage'
 
 const actor = { user: 'Philam Admin' }
 describe('Activity Log presentation', () => {
@@ -37,7 +38,7 @@ describe('Activity Log presentation', () => {
       .toBe('Price per square meter: 7.00 → 4.00')
   })
   it('renders six loading rows, labeled controls, and no status column', () => {
-    const html = renderToStaticMarkup(<ActivityLogPage />)
+    const html = renderToStaticMarkup(<ConfirmProvider><ActivityLogPage /></ConfirmProvider>)
     expect(html.match(/class="al-skeleton"/g)).toHaveLength(6)
     expect(html).toContain('Search activity')
     expect(html).toContain('Action type')
@@ -97,6 +98,21 @@ describe('Treasurer service receipt activity', () => {
 })
 
 describe('Activity Log audit regressions', () => {
+  it('counts only recorded payments and keeps staff members with the same name separate', () => {
+    const logs = [
+      { user_id: 'first', user: 'Staff', action: 'Payment Recorded' },
+      { user_id: 'first', user: 'Staff', action: 'Service Balance Collected' },
+      { user_id: 'second', user: 'Staff', action: 'Service Payment Recorded' },
+      { user_id: 'second', user: 'Staff', action: 'Payment Voided' },
+      { user_id: 'second', user: 'Staff', action: 'Manual Payment Discount' },
+      { user_id: 'second', user: 'Staff', action: 'Returned Payment Change' },
+    ]
+    expect(summarizeActivity(logs)).toMatchObject({ total: 6, payments: 3, mostActive: 'Staff (4)' })
+  })
+  it('does not present a peso value in a settings change or a note as a transaction amount', () => {
+    expect(activityDisplay({ action: 'Settings Updated', target: 'price_per_sqm: ₱4.00 → ₱5.00' }).amount).toBeNull()
+    expect(activityDisplay({ action: 'Expense Voided', target: 'Supplies — See approval note for ₱100.00' }).amount).toBeNull()
+  })
   it('preserves document identifiers and exact source text', () => {
     const raw = 'board_minutes_2026 — board_minutes_2026.pdf (by Philam Admin)'
     expect(activityDisplay({ ...actor, action: 'Document Uploaded', target: raw })).toMatchObject({ raw, subject: 'board_minutes_2026', text: 'board_minutes_2026 — board_minutes_2026.pdf' })

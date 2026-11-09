@@ -9,5 +9,13 @@ export async function updateHomeowner(client, id, payload) {
 }
 
 export async function removeHomeowner(client, id) {
-  return confirmedRow(await client.from('properties').delete().eq('id', id).select('id').single(), 'removed')
+  const { data, error } = await client.rpc('delete_empty_property_guarded', {
+    p_property_id: id,
+  })
+  if (error) throw error
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row || Number(row.deleted_property_id) !== Number(id)) {
+    throw new Error('No homeowner was removed. Refresh and try again; the record or its history may have changed.')
+  }
+  return { id: row.deleted_property_id }
 }

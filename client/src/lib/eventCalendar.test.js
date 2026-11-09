@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { calendarToday, isCalendarDate, calendarMonthDays, shiftCalendarMonth, calendarFormValues, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent } from './eventCalendar'
+import { calendarToday, isCalendarDate, calendarMonthDays, shiftCalendarMonth, calendarFormValues, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent, summarizeCalendarEvents, preserveCalendarTimePrecision } from './eventCalendar'
 const actor = { id: 'secretary-fixture', full_name: 'Fixture Secretary' }
 const id = 'calendar-fixture'
 const existing = { id, updated_at: '2026-11-02T01:00:00.123456Z' }
@@ -13,6 +13,17 @@ function client(results) {
   return { from: vi.fn(() => chain), chain }
 }
 describe('Calendar dates and round-trip values', () => {
+  it('counts the full calendar and keeps today separate from the next seven Philippine dates', () => {
+    const events = ['2026-12-01', '2026-12-31', '2027-01-01', '2027-01-07', '2027-01-08']
+      .map((event_date) => ({ event_date }))
+    expect(summarizeCalendarEvents(events, '2026-12-31')).toEqual({
+      thisMonth: 2, today: 1, nextSevenDays: 2, past: 1,
+    })
+  })
+  it('keeps a stored midnight end on the following day when its displayed time is selected again', () => {
+    expect(preserveCalendarTimePrecision('24:00:00', '00:00')).toBe('24:00:00')
+    expect(preserveCalendarTimePrecision('00:00:00', '00:00')).toBe('00:00:00')
+  })
   it('uses Manila midnight independently of host timezone', () => {
     expect(calendarToday(new Date('2026-11-01T15:59:59Z'))).toBe('2026-11-01')
     expect(calendarToday(new Date('2026-11-01T16:00:00Z'))).toBe('2026-11-02')

@@ -19,12 +19,19 @@ import {
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { monthlyCollection } from '../lib/dashboardCollections'
+import { summarizeAdminAccounts } from '../lib/adminDashboardAccounts'
+import { staffActivityCopy } from '../lib/staffActivityText'
 import { fetchAll } from '../lib/fetchAll'
 import Chart from 'chart.js/auto'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate } from '../config/organization'
 
 const MANILA_TIME_ZONE = 'Asia/Manila'
+const ACCOUNT_STATUS_ITEMS = [
+  { key: 'balanceDue', label: 'Balance due', color: 'rgba(192,57,43,0.82)' },
+  { key: 'advanceCredit', label: 'Advance credit', color: 'rgba(26,138,96,0.82)' },
+  { key: 'clear', label: 'Zero balance', color: 'rgba(20,100,160,0.65)' },
+]
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -105,15 +112,9 @@ export default function AdminDashboard() {
   const [profiles, setProfiles] = useState([])
   const [properties, setProperties] = useState([])
   const [monthlyRows, setMonthlyRows] = useState([])
-  const [paidPropertyIds, setPaidPropertyIds] = useState(new Set())
   const [overdueSummaries, setOverdueSummaries] = useState([])
   const [activities, setActivities] = useState([])
-  const [duesByProperty, setDuesByProperty] = useState(new Map())
-  const [penaltySettings, setPenaltySettings] = useState({
-    dueDay: 5,
-    gracePeriodDays: 0,
-    latePenalty: 0,
-  })
+  const [duesRows, setDuesRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -138,42 +139,32 @@ export default function AdminDashboard() {
       profileResult,
       propertyResult,
       paymentResult,
-      serviceResult,
       activityResult,
-      settingsResult,
       overdueResult,
       duesResult,
     ] = await Promise.all([
-      supabase
+      fetchAll(() => supabase
         .from('profiles')
-        .select('id, full_name, email, role, is_active'),
+        .select('id, full_name, email, role, is_active')),
       fetchAll(() => supabase
         .from('properties')
-        .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance')),
-      // Monthly totals (last 6 months) and which homeowners have paid, both
-      // computed by the database - a few dozen rows instead of every payment.
+        .select('id, homeowner_id, homeowner_status, current_balance')),
+      // The database computes monthly totals in Manila time.
       fetchAll(() => supabase
         .from('monthly_collections')
         .select('month_start, dues_collected, dues_receipts, dues_only_collected, service_collected')
         .gte('month_start', `${sixMonthsAgoKey}-01`)
+        .lte('month_start', `${period}-01`)
         .order('month_start'), { tiebreaker: null }),
-      fetchAll(() => supabase
-        .from('property_payment_summary')
-        .select('property_id')
-        .order('property_id'), { tiebreaker: null }),
       supabase
         .from('activity_log')
         .select('id, user_id, action, target, created_at')
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(5),
-      supabase
-        .from('system_settings')
-        .select('due_day, grace_period_days, late_penalty')
-        .eq('id', 1)
-        .maybeSingle(),
       fetchAll(() => supabase
         .from('property_overdue_summary')
-        .select('property_id, overdue_amount, is_overdue, days_overdue, penalty_amount, total_due')
+        .select('property_id, balance, overdue_amount, days_overdue, aging_complete')
         .order('property_id'), { tiebreaker: null }),
       // Each homeowner's monthly dues = lot size x price per sqm, computed by the database.
       fetchAll(() => supabase
@@ -183,15 +174,9 @@ export default function AdminDashboard() {
     ])
 
     if (request !== requestRef.current) return
-    const errors = [
-      profileResult.error, propertyResult.error, paymentResult.error,
-      serviceResult.error, activityResult.error, settingsResult.error,
-      overdueResult.error, duesResult.error,
-    ].filter(Boolean)
-    const arrays = [profileResult, propertyResult, paymentResult,
-      serviceResult, activityResult, overdueResult, duesResult]
-    if (errors.length || !arrays.every((item) => Array.isArray(item.data)) ||
-        !settingsResult.data || typeof settingsResult.data !== 'object') {
+    const results = [profileResult, propertyResult, paymentResult, activityResult, overdueResult, duesResult]
+    const errors = results.map((result) => result.error).filter(Boolean)
+    if (errors.length || !results.every((result) => Array.isArray(result.data))) {
       setPageError('Dashboard data could not be verified for ' + period + '. ' +
         (errors.map((error) => error.message).join(' ') || 'A required record source is incomplete.') +
         ' Refresh the page to retry.')
@@ -202,15 +187,9 @@ export default function AdminDashboard() {
     setProfiles(profileResult.data)
     setProperties(propertyResult.data)
     setMonthlyRows(paymentResult.data)
-    setPaidPropertyIds(new Set(serviceResult.data.map((row) => Number(row.property_id))))
     setOverdueSummaries(overdueResult.data)
     setActivities(activityResult.data)
-    setDuesByProperty(new Map(duesResult.data.map((row) => [Number(row.property_id), row.monthly_dues])))
-    setPenaltySettings({
-      dueDay: Number(settingsResult.data.due_day) || 5,
-      gracePeriodDays: Number(settingsResult.data.grace_period_days) || 0,
-      latePenalty: Number(settingsResult.data.late_penalty) || 0,
-    })
+    setDuesRows(duesResult.data)
     setVerifiedPeriod(period)
     setLoading(false)
     } catch (error) {
@@ -225,9 +204,9 @@ export default function AdminDashboard() {
     period: dashboardPeriod, verifiedPeriod, loading, error: pageError,
   })
 
-  const activeProperties = useMemo(
-    () => properties.filter((property) => (property.homeowner_status || 'active') === 'active'),
-    [properties],
+  const { balances: accountStatus, owners: activeOwners, overdue: overdueSummary, monthlyDuesTarget } = useMemo(
+    () => summarizeAdminAccounts(properties, overdueSummaries, duesRows),
+    [properties, overdueSummaries, duesRows],
   )
 
   const sixMonths = useMemo(() => getLastSixMonths(dashboardPeriod), [dashboardPeriod])
@@ -267,59 +246,6 @@ export default function AdminDashboard() {
     ? ((collectedThisMonth - collectedLastMonth) / collectedLastMonth) * 100
     : null
 
-  // Sum in whole centavos so peso amounts never pick up floating-point drift.
-  const monthlyDuesTarget = activeProperties.reduce(
-    (sum, property) => sum + Math.round((Number(duesByProperty.get(Number(property.id))) || 0) * 100),
-    0,
-  ) / 100
-  const overdueByProperty = useMemo(
-    () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
-    [overdueSummaries],
-  )
-
-  const overdueSummary = useMemo(() => {
-    let count = 0
-    let outstanding = 0
-
-    activeProperties.forEach((property) => {
-      const status = overdueByProperty.get(Number(property.id))
-      const balance = Math.max(Number(property.current_balance) || 0, 0)
-
-      if (status?.is_overdue && balance > 0) {
-        count += 1
-        outstanding += Math.min(Number(status.overdue_amount) || 0, balance)
-      }
-    })
-
-    return { count, outstanding }
-  }, [activeProperties, overdueByProperty])
-
-  const accountStatus = useMemo(() => {
-    let paid = 0
-    let balanceDue = 0
-    let noRecord = 0
-
-    activeProperties.forEach((property) => {
-      const owed = (Number(property.current_balance) || 0) > 0
-      const hasPayment = paidPropertyIds.has(Number(property.id))
-
-      if (owed) {
-        balanceDue += 1
-      } else if (hasPayment) {
-        paid += 1
-      } else {
-        noRecord += 1
-      }
-    })
-
-    return {
-      paid,
-      balanceDue,
-      noRecord,
-      total: activeProperties.length,
-    }
-  }, [paidPropertyIds, activeProperties])
-
   const recentActivities = useMemo(() => {
     const profilesById = new Map(
       profiles.map((profile) => [profile.id, profile]),
@@ -328,18 +254,20 @@ export default function AdminDashboard() {
     return activities.map((activity) => {
       const profile = profilesById.get(activity.user_id)
       const name =
-        profile?.full_name || profile?.email || 'System User'
+        profile?.full_name || profile?.email || 'Staff name unavailable'
+
+      const copy = staffActivityCopy({ ...activity, user: name })
 
       return {
         id: activity.id,
         initials: getInitials(name),
         name,
-        action: activity.action || 'Performed an action',
-        target: activity.target || 'No additional details',
+        action: copy.action,
+        target: copy.detail,
         time: formatActivityTime(activity.created_at, organization.dateFormat),
       }
     })
-  }, [activities, profiles])
+  }, [activities, profiles, organization.dateFormat])
 
   useEffect(() => {
     chartInstancesRef.current.forEach((chart) => chart.destroy())
@@ -353,7 +281,7 @@ export default function AdminDashboard() {
           datasets: [
             {
               type: 'bar',
-              label: 'Collected',
+              label: 'Association dues collected',
               data: collectionsByMonth.values,
               backgroundColor: 'rgba(20,100,160,0.65)',
               borderColor: 'rgba(20,100,160,0.90)',
@@ -362,9 +290,9 @@ export default function AdminDashboard() {
               borderSkipped: false,
               order: 2,
             },
-            {
+            ...(monthlyDuesTarget == null ? [] : [{
               type: 'line',
-              label: 'Target',
+              label: 'Current monthly dues target',
               data: collectionsByMonth.labels.map(() => monthlyDuesTarget),
               borderColor: 'rgba(7,30,48,0.55)',
               borderDash: [6, 5],
@@ -374,7 +302,7 @@ export default function AdminDashboard() {
               fill: false,
               tension: 0,
               order: 1,
-            },
+            }]),
           ],
         },
         options: {
@@ -426,19 +354,11 @@ export default function AdminDashboard() {
       const donutChart = new Chart(donutChartRef.current, {
         type: 'doughnut',
         data: {
-          labels: ['Paid', 'Balance Due', 'No Payment Record'],
+          labels: ACCOUNT_STATUS_ITEMS.map((item) => item.label),
           datasets: [
             {
-              data: [
-                accountStatus.paid,
-                accountStatus.balanceDue,
-                accountStatus.noRecord,
-              ],
-              backgroundColor: [
-                'rgba(26,138,96,0.82)',
-                'rgba(212,146,10,0.82)',
-                'rgba(192,57,43,0.82)',
-              ],
+              data: ACCOUNT_STATUS_ITEMS.map((item) => accountStatus[item.key]),
+              backgroundColor: ACCOUNT_STATUS_ITEMS.map((item) => item.color),
               borderColor: 'rgba(255,255,255,0.90)',
               borderWidth: 3,
               hoverOffset: 8,
@@ -499,28 +419,30 @@ export default function AdminDashboard() {
 
   const systemStats = [
     {
-      label: 'TOTAL HOMEOWNERS',
-      value: dashboardUnavailable ? '—' : activeProperties.length.toLocaleString('en-PH'),
-      footer: 'Active registered',
+      label: 'ACTIVE PROPERTY ACCOUNTS',
+      value: dashboardUnavailable ? '—' : accountStatus.total.toLocaleString('en-PH'),
+      footer: dashboardUnavailable ? 'Data not verified' : `${activeOwners.toLocaleString('en-PH')} registered owners`,
       trend: null,
       icon: Users,
       tone: 'blue',
     },
     {
-      label: `TOTAL COLLECTIONS ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
+      label: `HOMEOWNER COLLECTIONS ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
       value: dashboardUnavailable ? '—' : peso.format(collectedThisMonth),
       fitAmount: true,
       footer: dashboardUnavailable ? 'Data not verified' : `${currentMonthCollection.receipts} homeowner receipt${currentMonthCollection.receipts === 1 ? '' : 's'}${servicesThisMonth > 0 ? ` · Services separately: ${peso.format(servicesThisMonth)}` : ''}`,
       trend: dashboardUnavailable || collectedTrendPercent === null
         ? null
-        : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs last month`,
+        : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs full ${sixMonths.at(-2)?.label || 'prior month'}`,
       icon: DollarSign,
       tone: 'green',
     },
     {
       label: 'OVERDUE ACCOUNTS',
-      value: dashboardUnavailable ? '—' : overdueSummary.count.toLocaleString('en-PH'),
-      footer: dashboardUnavailable ? '—' : `${peso.format(overdueSummary.outstanding)} outstanding`,
+      value: dashboardUnavailable || overdueSummary.reviewCount ? '—' : overdueSummary.overdueCount.toLocaleString('en-PH'),
+      footer: dashboardUnavailable ? 'Data not verified'
+        : overdueSummary.reviewCount ? `${overdueSummary.reviewCount} account(s) need aging review`
+          : `${peso.format(overdueSummary.overdueBalance)} past due`,
       trend: null,
       icon: AlertCircle,
       tone: 'red',
@@ -538,8 +460,8 @@ export default function AdminDashboard() {
   const quickActions = [
     {
       icon: HardDrive,
-      label: 'View All Data',
-      description: 'System records and archives',
+      label: 'View Ledger',
+      description: 'Property balances and account statements',
       path: '/ledger',
     },
     {
@@ -587,24 +509,6 @@ export default function AdminDashboard() {
     sixMonths[sixMonths.length - 1]?.label || ''
   }`
 
-  const statusItems = [
-    {
-      label: 'Paid',
-      value: accountStatus.paid,
-      color: 'rgba(26,138,96,0.82)',
-    },
-    {
-      label: 'Balance Due',
-      value: accountStatus.balanceDue,
-      color: 'rgba(212,146,10,0.82)',
-    },
-    {
-      label: 'No Payment Record',
-      value: accountStatus.noRecord,
-      color: 'rgba(192,57,43,0.82)',
-    },
-  ]
-
   return (
     <div className="dash-admin-dashboard">
       <div className="dash-page-header">
@@ -651,18 +555,21 @@ export default function AdminDashboard() {
 
       <div className="dash-charts-grid">
         <div className="dash-chart-card">
-          <h3 className="dash-chart-title">Monthly Collections</h3>
+          <h3 className="dash-chart-title">Association Dues Collected</h3>
           <p className="dash-chart-subtitle">{dashboardUnavailable ? 'Reporting data unavailable' : monthRangeLabel}</p>
           {!dashboardUnavailable && monthlyDuesTarget > 0 && (
             <div className="dash-date-badge dash-target-badge">
-              Target {peso.format(monthlyDuesTarget)} / mo
+              Current target {peso.format(monthlyDuesTarget)} / mo
             </div>
+          )}
+          {!dashboardUnavailable && monthlyDuesTarget == null && (
+            <p className="dash-chart-subtitle">Monthly target unavailable. Check lot dues settings.</p>
           )}
           <canvas ref={barChartRef} height="130" style={{ visibility: dashboardUnavailable ? 'hidden' : 'visible' }} />
         </div>
 
         <div className="dash-chart-card">
-          <h3 className="dash-chart-title">Payment Status</h3>
+          <h3 className="dash-chart-title">Account Balance Status</h3>
           <p className="dash-chart-subtitle">
             {dashboardUnavailable ? <Skeleton variant="rect" width="120px" height="1em" /> : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
           </p>
@@ -677,10 +584,11 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="dash-donut-legend">
-              {statusItems.map((item) => {
+              {ACCOUNT_STATUS_ITEMS.map((item) => {
+                const value = accountStatus[item.key]
                 const percent = accountStatus.total
                   ? Math.round(
-                      (item.value / accountStatus.total) * 100,
+                      (value / accountStatus.total) * 100,
                     )
                   : 0
 
@@ -693,7 +601,7 @@ export default function AdminDashboard() {
                     <div className="dash-legend-text">
                       <div className="dash-legend-status">{item.label}</div>
                       <div className="dash-legend-count">
-                        {dashboardUnavailable ? '—' : item.value}{' '}
+                        {dashboardUnavailable ? '—' : value}{' '}
                         <span>{dashboardUnavailable ? '—' : `${percent}%`}</span>
                       </div>
                     </div>
@@ -756,7 +664,7 @@ export default function AdminDashboard() {
       <div className="dash-bottom-grid">
         <div className="dash-activities-panel">
           <div className="dash-panel-head">
-            <h3>Latest Activity</h3>
+            <h3>Recent Activity</h3>
             <span className="dash-panel-date">
               {dashboardDateFormatter.format(new Date())}
             </span>
@@ -768,7 +676,7 @@ export default function AdminDashboard() {
               <p className="dash-empty-state">Latest activity unavailable. Refresh to verify this reporting period.</p>
             ) : recentActivities.length === 0 ? (
               <p className="dash-empty-state">
-                No activity has been recorded yet.
+                No recent entries in the live activity log.
               </p>
             ) : (
               recentActivities.map((activity) => (

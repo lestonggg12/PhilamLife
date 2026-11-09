@@ -15,6 +15,35 @@ export function isCalendarDate(value) {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
+export function summarizeCalendarEvents(events, today) {
+  const lastDay = new Date(`${today}T00:00:00Z`)
+  lastDay.setUTCDate(lastDay.getUTCDate() + 7)
+  const nextWeekEnd = lastDay.toISOString().slice(0, 10)
+  const month = today.slice(0, 7)
+  const stats = { thisMonth: 0, nextSevenDays: 0, today: 0, past: 0 }
+  for (const event of events) {
+    const date = event.event_date
+    if (date.startsWith(month)) stats.thisMonth += 1
+    if (date === today) stats.today += 1
+    else if (date < today) stats.past += 1
+    else if (date <= nextWeekEnd) stats.nextSevenDays += 1
+  }
+  return stats
+}
+
+export function compareCalendarEvents(left, right) {
+  return left.event_date.localeCompare(right.event_date)
+    || (left.start_time || '').localeCompare(right.start_time || '')
+    || String(left.id).localeCompare(String(right.id))
+}
+
+export function matchesCalendarSearch(event, search) {
+  const term = search.trim().toLowerCase()
+  return !term || [event.title, event.location, event.description].some(
+    (value) => String(value ?? '').toLowerCase().includes(term),
+  )
+}
+
 export function calendarMonthDays(cursor) {
   const first = new Date(`${cursor}-01T00:00:00Z`)
   return Array.from({ length: 42 }, (_, index) => {
@@ -41,6 +70,8 @@ export function calendarFormValues(event) {
 // changing the stored time whenever one picker segment is adjusted.
 export function preserveCalendarTimePrecision(previous, nextHourMinute) {
   if (!/^\d{2}:\d{2}$/.test(nextHourMinute)) throw new Error('Choose a valid hour and minute.')
+  // The displayed 12:00 AM for a stored 24:00 still denotes the next day.
+  if (/^24:00(?::00(?:\.0{1,6})?)?$/.test(previous || '') && nextHourMinute === '00:00') return previous
   const suffix = /^\d{2}:\d{2}(:\d{2}(?:\.\d{1,6})?)?$/.exec(String(previous || ''))?.[1] || ''
   return `${nextHourMinute}${suffix}`
 }

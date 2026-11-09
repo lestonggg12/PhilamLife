@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Calendar, Mail, Phone, RefreshCw, Search, Users } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { describeOverdueAccount, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
+import { describeOverdueAccount, movedAccountsWithBalance, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
@@ -445,6 +445,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       })
   }, [properties, summaryByProperty, overdueByProperty, actionsByProperty])
 
+  const movedWithBalance = dataAvailable ? movedAccountsWithBalance(properties) : []
+
   const blocks = useMemo(
     () => ['All', ...new Set(properties.map((property) => property.block).filter(Boolean))].sort(),
     [properties],
@@ -484,7 +486,10 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
   const accountPage = useListPage(filtered, [search, blockFilter, statusFilter, agingFilter])
 
-  const visibleIds = JSON.stringify(accountPage.rows.map((account) => account.id))
+  const visibleIds = JSON.stringify([
+    ...accountPage.rows.map(account => account.id),
+    ...movedWithBalance.map(property => property.id),
+  ])
   useEffect(() => {
     if (loading) return undefined
     let cancelled = false
@@ -673,8 +678,8 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       </section>
 
       {!loading && summary.overdueCount > 0 && (
-        <section className="od-tiers" aria-label="Filter by how late">
-          {AGING_TIERS.map((tier, index) => (
+        <div className="overdue-aging-row" role="group" aria-label="Overdue accounts by aging tier">
+          {AGING_TIERS.map((tier) => (
             <button
               key={tier}
               type="button"
@@ -682,115 +687,52 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               aria-pressed={agingFilter === tier}
               onClick={() => setAgingFilter(agingFilter === tier ? 'All' : tier)}
             >
-              <div className="od-tier-top">
-                <span className="od-tier-name">{tier}</span>
-                <span className="od-tier-tag">{agingFilter === tier ? 'Filtering' : 'Click to filter'}</span>
-              </div>
-              <strong>{summary.byTier[tier].count}</strong>
-              <small>{organization.formatMoney(summary.byTier[tier].balance)} past due</small>
-              <div className="od-bar">
-                <i style={{ width: `${Math.round((summary.byTier[tier].balance / maxTierBalance) * 100)}%` }} />
-              </div>
+              <span className="overdue-aging-tier">{tier}</span>
+              <span className="overdue-aging-count">{summary.byTier[tier].count}</span>
+              <span className="overdue-aging-balance">{organization.formatMoney(summary.byTier[tier].balance)}</span>
             </button>
           ))}
         </section>
       )}
 
-      {pageError && (
-        <p className="od-banner od-error">
-          <AlertCircle size={16} />
-          {pageError}
-        </p>
-      )}
-      {actionsError && (
-        <p className="od-banner od-error" role="alert">
-          {actionsError}
-        </p>
-      )}
+      {pageError && <p className="overdue-message overdue-error"><AlertCircle size={16} />{pageError}</p>}
 
-      <section className="od-card" aria-label="Accounts" aria-live="polite">
-        <div className="od-filters">
-          <div className="od-f-row">
-            <div className="od-search">
-              <Search size={18} />
-              <input
-                type="search"
-                placeholder="Search by name, block or lot"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Search homeowners"
-                autoComplete="off"
-              />
-              {search && (
-                <button type="button" className="od-clear" onClick={() => setSearch('')} aria-label="Clear search">
-                  ×
-                </button>
-              )}
-            </div>
-            <select
-              className="od-select"
-              aria-label="Filter by block"
-              value={blockFilter}
-              onChange={(e) => setBlockFilter(e.target.value)}
-            >
-              {blocks.map((b) => (
-                <option key={b} value={b}>
-                  {b === 'All' ? 'All blocks' : b}
-                </option>
-              ))}
-            </select>
-            <select
-              className="od-select"
-              aria-label="Sort accounts"
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value)}
-            >
-              {SORTS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="od-f-row od-f-tabs">
-            <div className="od-tabs" role="group" aria-label="Filter by status">
-              {STATUS_FILTERS.map((s) => (
-                <button key={s} type="button" aria-pressed={statusFilter === s} onClick={() => setStatusFilter(s)}>
-                  {s}
-                  <span className="n">{statusCounts[s] || 0}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="od-f-meta">
-            <span>
-              {filtered.length} matching lot{filtered.length === 1 ? '' : 's'} of {accounts.length}
-            </span>
-            <span className="od-chips">
-              {agingFilter !== 'All' && (
-                <span className="od-chip">
-                  {agingFilter}
-                  <button type="button" onClick={() => setAgingFilter('All')} aria-label="Remove aging filter">
-                    ×
-                  </button>
-                </span>
-              )}
-              {blockFilter !== 'All' && (
-                <span className="od-chip">
-                  {blockFilter}
-                  <button type="button" onClick={() => setBlockFilter('All')} aria-label="Remove block filter">
-                    ×
-                  </button>
-                </span>
-              )}
-              {hasFilters && (
-                <button type="button" className="od-linkbtn" onClick={clearFilters}>
-                  Clear all filters
-                </button>
-              )}
-            </span>
-          </div>
+      <div className="overdue-toolbar">
+        <div className="overdue-search-wrap">
+          <Search size={16} />
+          <input
+            type="search"
+            placeholder="Search by name, block, or lot..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search homeowners"
+          />
         </div>
+
+        <div className="overdue-filter-pair">
+          <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} options={blocks.map((b) => ({ value: b, label: b === 'All' ? 'All Blocks' : b }))} />
+          <Select ariaLabel="Filter by aging tier" value={agingFilter} onChange={setAgingFilter} options={[{ value: 'All', label: 'All Aging Tiers' }, ...AGING_TIERS.map((t) => ({ value: t, label: t }))]} />
+        </div>
+
+        <div className="overdue-status-tabs" role="tablist" aria-label="Filter by status">
+          {STATUS_FILTERS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === s}
+              className={statusFilter === s ? 'active' : ''}
+              onClick={() => setStatusFilter(s)}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overdue-result-row">
+        <span>{filtered.length} matching lots of {accounts.length}</span>
+      </div>
 
         {loading ? (
           <div className="od-empty" aria-busy="true">

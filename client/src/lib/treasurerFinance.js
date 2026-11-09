@@ -80,12 +80,23 @@ export function summarizeTreasurerMonth(monthly, expenses, monthStart) {
   }
 }
 
+async function countAllocationEvidenceGaps(client) {
+  try {
+    const { count, error } = await client.from('payment_allocation_gaps')
+      .select('payment_id', { count: 'exact', head: true })
+      .eq('allocation_status', 'allocation_evidence_missing')
+    return !error && Number.isSafeInteger(count) && count >= 0 ? count : null
+  } catch {
+    return null
+  }
+}
+
 export async function loadTreasurerDashboard(client, monthStart) {
   const all = (table, order, options = {}) => read(table, () => fetchAll(() => {
     const query = client.from(table).select('*')
     return order ? query.order(order, { ascending: false }) : query
   }, options))
-  const [payments, expenses, services, monthly, properties, overdue, credits, adjustments, deposits, periods] = await Promise.all([
+  const [payments, expenses, services, monthly, properties, overdue, credits, adjustments, deposits, periods, allocationEvidenceGaps] = await Promise.all([
     read('Recent payments', () => client.from('payments').select('*').neq('status', 'Voided').order('paid_at', { ascending: false }).limit(8)),
     all('expenses', 'expense_date'),
     read('Recent services', () => client.from('service_transactions').select('*').not('payment_status', 'ilike', 'voided').order('paid_at', { ascending: false }).limit(8)),
@@ -93,12 +104,13 @@ export async function loadTreasurerDashboard(client, monthStart) {
     all('properties', 'homeowner_name'), all('property_overdue_summary', 'property_id', { tiebreaker: null }),
     read('Advance credits', () => client.from('credit_liability_summary').select('*').maybeSingle()),
     all('account_adjustments', 'created_at'), all('bank_deposits', 'recorded_at'), all('accounting_periods', 'starts_on'),
+    countAllocationEvidenceGaps(client),
   ])
   if (monthly) { cents(monthly.dues_collected, 'Monthly collections'); cents(monthly.service_collected, 'Monthly services') }
   for (const expense of expenses || []) cents(expense.amount, 'Expense amount')
   if (!credits) throw fail('Advance credits', 'summary is unavailable')
   cents(credits.active_credit_total, 'Advance credits')
-  return { payments: payments || [], expenses: expenses || [], services: services || [], monthly, properties: properties || [], overdue: overdue || [], credits, adjustments: adjustments || [], deposits: deposits || [], periods: periods || [], agingSummary: summarizeAging(properties || [], overdue || []) }
+  return { payments: payments || [], expenses: expenses || [], services: services || [], monthly, properties: properties || [], overdue: overdue || [], credits, adjustments: adjustments || [], deposits: deposits || [], periods: periods || [], allocationEvidenceGaps, agingSummary: summarizeAging(properties || [], overdue || []) }
 }
 
 export async function loadServiceRevenue(client, { fromDate = '', toDate = '' } = {}) {

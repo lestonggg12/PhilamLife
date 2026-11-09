@@ -6,7 +6,7 @@ function client(overrides = {}, thrown = null) {
   function result(table, range) {
     if (table === thrown) throw new Error('Offline')
     const value = Object.hasOwn(overrides, table) ? overrides[table] : Object.hasOwn(defaults, table) ? defaults[table] : []
-    if (value?.error) return value
+    if (value?.error || value?.count != null) return value
     return { data: range && Array.isArray(value) ? value.slice(range[0], range[1] + 1) : value, error: null }
   }
   const c = { calls, from(table) {
@@ -32,6 +32,13 @@ describe('Treasurer financial reads', () => {
       '2026-11-01'
     )
     expect(result.monthly).toBeNull()
+  })
+
+  it('distinguishes flagged receipt allocations from an unavailable check', async () => {
+    const known = await loadTreasurerDashboard(client({ payment_allocation_gaps: { count: 17 } }), '2026-11-01')
+    const unavailable = await loadTreasurerDashboard(client({ payment_allocation_gaps: error }), '2026-11-01')
+    expect(known.allocationEvidenceGaps).toBe(17)
+    expect(unavailable.allocationEvidenceGaps).toBeNull()
   })
 
   it('filters voided service activity case-insensitively', async () => {

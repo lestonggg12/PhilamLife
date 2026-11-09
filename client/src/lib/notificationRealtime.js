@@ -1,13 +1,14 @@
 // Subscribe only to the append-only staff event tables. Personal read receipts
 // remain private; they are not published to Realtime.
+import { NOTIFICATION_LIMIT, isCurrentNotification } from './systemNotifications'
 let channelSequence = 0
 
 export function mergeLiveNotification(current, row) {
   if (!row || !['id', 'title', 'body', 'kind', 'created_at'].every((key) => typeof row[key] === 'string') ||
-      !Number.isFinite(Date.parse(row.created_at)) || current.items.some((item) => item.id === row.id)) return current
+      !Number.isFinite(Date.parse(row.created_at)) || !isCurrentNotification(row) || current.items.some((item) => item.id === row.id)) return current
   const items = [{ ...row, read: false }, ...current.items]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id))
-    .slice(0, 20)
+    .slice(0, NOTIFICATION_LIMIT)
   return { items, unread: current.unread + 1 }
 }
 
