@@ -46,16 +46,13 @@ import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 import '../components/HomeownerDirectoryPaging.css'
 import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 import AccountActivity from '../components/AccountActivity'
+import useManilaMonthRollover, { manilaMonth } from '../hooks/useManilaMonthRollover'
+import { monthLabel } from '../lib/pagedQuery'
+import { getManilaYearMonth, homeownerPaymentTotals } from '../lib/homeownerPaymentPeriods'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
-})
-
-const manilaYearMonth = new Intl.DateTimeFormat('en-CA', {
-  year: 'numeric',
-  month: '2-digit',
-  timeZone: 'Asia/Manila',
 })
 
 const monthNames = Array.from({ length: 12 }, (_, month) =>
@@ -123,23 +120,6 @@ function formatDate(value, dateFormat) {
   if (!value) return '—'
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? '—' : formatDateValue(parsed, { dateFormat, withTime: true })
-}
-
-function getManilaYearMonth(value) {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-
-  const parts = Object.fromEntries(
-    manilaYearMonth
-      .formatToParts(parsed)
-      .filter(({ type }) => type === 'year' || type === 'month')
-      .map(({ type, value: partValue }) => [type, Number(partValue)]),
-  )
-
-  return parts.year && parts.month
-    ? { year: parts.year, month: parts.month - 1 }
-    : null
 }
 
 function trackerStatus(records) {
@@ -235,6 +215,8 @@ export default function HomeownersPage() {
   const [paymentCounts, setPaymentCounts] = useState(() => homeownerDirectoryCache.paymentCounts || new Map())
   const [duesByProperty, setDuesByProperty] = useState(() => homeownerDirectoryCache.duesByProperty || new Map())
   const [detailLoading, setDetailLoading] = useState(false)
+  const [summaryMonth, setSummaryMonth] = useState(manilaMonth)
+  useManilaMonthRollover(setSummaryMonth)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [currentUser, setCurrentUser] = useState(null)
   const [voidTarget, setVoidTarget] = useState(null)
@@ -637,8 +619,10 @@ useEffect(() => {
         propertyId: selectedPropertyId,
         payments: paymentResult.data || [],
         serviceTransactions: serviceResult.data || [],
+        loadFailed: errors.length > 0,
       }
-      detailCacheRef.current.set(Number(selectedPropertyId), nextDetail)
+      if (nextDetail.loadFailed) detailCacheRef.current.delete(Number(selectedPropertyId))
+      else detailCacheRef.current.set(Number(selectedPropertyId), nextDetail)
       setDetailData(nextDetail)
       setDetailLoading(false)
 
@@ -663,7 +647,10 @@ useEffect(() => {
   const selectedPayments = detailData.payments
   const selectedServices = detailData.serviceTransactions
 
-  const showDetailSkeleton = useDelayedLoading(detailLoading, {
+  const detailMatchesLot = detailData.propertyId === selectedPropertyId
+  const paymentSummaryLoading = detailLoading || !detailMatchesLot
+  const paymentSummaryReady = !paymentSummaryLoading && !detailData.loadFailed
+  const showDetailSkeleton = useDelayedLoading(paymentSummaryLoading, {
     showDelay: 150,
   })
 
@@ -744,18 +731,11 @@ useEffect(() => {
     )
   }, [selectedPayments, selectedServices])
 
+  const paidTotals = useMemo(() => homeownerPaymentTotals(history, summaryMonth), [history, summaryMonth])
+  const paymentAmount = (amount) => paymentSummaryReady ? peso.format(amount) : '—'
+  const paymentSummaryNote = paymentSummaryLoading ? 'Loading payments…' : 'Payment history unavailable'
+
   const summary = useMemo(() => {
-    const regularTotal = activePayments.reduce(
-      (sum, payment) =>
-        sum + (Number(payment.amount_paid ?? payment.amount) || 0),
-      0,
-    )
-    const serviceTotal = selectedServices
-      .filter((transaction) => normalize(transaction.payment_status) !== 'voided')
-      .reduce(
-      (sum, transaction) => sum + (Number(transaction.amount_paid) || 0),
-      0,
-      )
     const latestRegularPayment = activePayments[0]
     // Stored balance: positive = owed, negative = advance credit.
     const storedBalance = selectedProperty && selectedProperty.current_balance != null
@@ -766,13 +746,12 @@ useEffect(() => {
     const latestRecord = history[0]
 
     return {
-      totalPaid: regularTotal + serviceTotal,
       outstanding,
       credit,
       lastPayment: latestRecord ? formatDate(latestRecord.paidAt, organization.dateFormat) : 'No payments yet',
       receipts: history.length,
     }
-  }, [activePayments, history, selectedServices, selectedProperty])
+  }, [activePayments, history, selectedProperty, organization.dateFormat])
 
   const visibleHistory = useMemo(() => {
     if (activeTab === 'dues') return history.filter((item) => item.kind === 'dues')
@@ -1182,7 +1161,7 @@ useEffect(() => {
               onSelect={handleSelectHomeowner}
             />
 
-            <section className="homeowner-summary-grid" aria-label="Financial summary">
+            <section className="homeowner-summary-grid" aria-label="Financial summary for the selected lot">
               {showDetailSkeleton
                 ? Array.from({ length: 6 }, (_, index) => (
                   <article className="homeowner-summary-skeleton-card" key={index}>
@@ -1193,10 +1172,22 @@ useEffect(() => {
                 ))
                 : <>
                   <article>
+                    <span className="homeowner-summary-icon"><Calendar size={18} /></span>
+                    <span>Paid this month</span>
+                    <strong>{paymentAmount(paidTotals.thisMonth)}</strong>
+                    <small>{paymentSummaryReady ? monthLabel(summaryMonth) : paymentSummaryNote}</small>
+                  </article>
+                  <article>
+                    <span className="homeowner-summary-icon"><Calendar size={18} /></span>
+                    <span>Paid this year</span>
+                    <strong>{paymentAmount(paidTotals.thisYear)}</strong>
+                    <small>{paymentSummaryReady ? `${summaryMonth.slice(0, 4)} year to date` : paymentSummaryNote}</small>
+                  </article>
+                  <article>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>Total Paid</span>
-                    <strong>{peso.format(summary.totalPaid)}</strong>
-                    <small>All non-voided collections</small>
+                    <span>Total paid · all time</span>
+                    <strong>{paymentAmount(paidTotals.allTime)}</strong>
+                    <small>{paymentSummaryReady ? 'All non-voided collections for this lot' : paymentSummaryNote}</small>
                   </article>
                   <article className={summary.outstanding > 0 ? 'has-balance' : ''}>
                     <span className="homeowner-summary-icon"><AlertCircle size={18} /></span>
@@ -1213,8 +1204,8 @@ useEffect(() => {
                   <article>
                     <span className="homeowner-summary-icon"><FileText size={18} /></span>
                     <span>Receipts</span>
-                    <strong>{summary.receipts}</strong>
-                    <small>Across all categories</small>
+                    <strong>{paymentSummaryReady ? summary.receipts : '—'}</strong>
+                    <small>{paymentSummaryReady ? 'Across all categories · includes voided' : paymentSummaryNote}</small>
                   </article>
                 </>}
             </section>
