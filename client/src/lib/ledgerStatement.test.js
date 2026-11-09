@@ -281,3 +281,27 @@ describe('Ledger charge due-date query regression', () => {
     )
   })
 })
+
+it('posts an entered balance on its recorded date without adding it again to the starting balance', () => {
+  const result = buildLedgerStatement({
+    storedBalance: 900, openingBalance: 1000,
+    payments: [{ id: 'p', amount_paid: 100, balance_effect: 100, paid_at: '2026-11-01T00:00:00Z' }],
+    balanceEntries: [
+      { id: 'b', amount: 1000, as_of_date: '2026-01-01', created_at: '2026-11-02T00:00:00Z' },
+      { id: 'v', amount: 50, created_at: '2026-11-03T00:00:00Z', voided_at: '2026-11-04T00:00:00Z' },
+    ],
+  })
+  expect(result.lines.map(line => [line.kind, line.running_balance])).toEqual([
+    ['payment', -100], ['entered-balance', 900], ['entered-balance', 900],
+  ])
+  expect(result.lines[1].details).toContain('Balance as of 2026-01-01')
+  expect(result.lines[2].voided).toBe(true)
+  expect(result.totals).toMatchObject({ openingBalance: 0, enteredBalances: 1000, canExport: true })
+})
+
+it('blocks PDF export when an unexplained starting balance is inferred', () => {
+  expect(buildLedgerStatement({ storedBalance: 100 }).totals).toMatchObject({
+    openingBalance: 100, openingBalanceWasInferred: true, canExport: false,
+  })
+  expect(buildLedgerStatement({ storedBalance: 0 }).totals.canExport).toBe(true)
+})

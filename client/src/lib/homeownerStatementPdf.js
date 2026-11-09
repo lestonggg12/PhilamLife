@@ -19,7 +19,7 @@ const balance = (value) => Number(value) < 0 ? `${money(-Number(value))} for fut
 
 export function buildHomeownerStatementPdf({
   hoaName, hoaAddress, homeownerName, blockLotLabel,
-  totalCharges = 0, openingBalance = 0, paymentsAllocated = 0,
+  totalCharges = 0, enteredBalances = 0, openingBalance = 0, paymentsAllocated = 0,
   paymentsLabel = 'Payments received', annualDiscountCredit = 0,
   otherAdjustments = 0, outstandingBalance = 0, availableCredit = 0,
   totalDebits = 0, totalCredits = 0, closingBalance = 0,
@@ -68,6 +68,7 @@ export function buildHomeownerStatementPdf({
   const cards = [
     ['Starting balance', balance(openingBalance), NAVY],
     ['New charges', money(totalCharges), NAVY],
+    ...(enteredBalances > 0 ? [['Entered balances', money(enteredBalances), NAVY]] : []),
     [paymentsLabel, money(paymentsAllocated), GREEN],
     ['Discount: 1 month free', money(annualDiscountCredit), GREEN],
     ['Amount still owed', money(outstandingBalance), Number(outstandingBalance) > 0 ? RED : NAVY],

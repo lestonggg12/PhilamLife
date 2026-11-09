@@ -1,6 +1,6 @@
 // Database money arrives as NUMERIC decimal strings. All arithmetic here is in
 // integer centavos; convert to pesos only at the presentation boundary.
-const cents = (value, optional = false) => {
+export const ledgerCentavos = (value, optional = false) => {
   if (value === null || value === undefined) {
     if (optional) return 0
     throw new Error('Missing required ledger monetary value.')
@@ -22,6 +22,7 @@ const cents = (value, optional = false) => {
   return match[1] === '-' ? -absolute : absolute
 }
 
+const cents = ledgerCentavos
 const toAmount = (value) => value / 100
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase()
 const money = (value) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(toAmount(value))
@@ -50,6 +51,26 @@ function chargeEntries(charge) {
     paymentEffect: 0,
     cashEffect: 0,
     explicitAllocated: 0,
+  }]
+}
+
+function enteredBalanceEntries(entry) {
+  const amount = cents(entry.amount)
+  if (amount <= 0) throw new Error('The entered balance is invalid.')
+  const voided = Boolean(entry.voided_at)
+  const id = `entered-balance-${entry.id}`
+  return [{
+    id, groupId: id, order: 0, kind: 'entered-balance',
+    date: entry.voided_at || entry.created_at,
+    description: `${entry.description || entry.category || 'Entered balance'}${voided ? ' (Cancelled)' : ''}`,
+    reference_number: '',
+    details: [
+      ...(entry.as_of_date ? [`Balance as of ${entry.as_of_date}`] : []),
+      ...(voided ? [`Original entered balance ${money(amount)}. Excluded from the current balance.`] : []),
+      ...(voided && entry.void_reason ? [`Reason for cancellation: ${entry.void_reason}`] : []),
+    ],
+    debit: voided ? 0 : amount, credit: 0, delta: voided ? 0 : amount, voided,
+    paymentAmount: 0, paymentEffect: 0, cashEffect: 0, explicitAllocated: 0,
   }]
 }
 
@@ -176,13 +197,15 @@ function compareEntries(a, b) {
   return a.groupId.localeCompare(b.groupId) || a.order - b.order
 }
 
-export function buildLedgerStatement({ payments = [], charges = [], adjustments = [], storedBalance = 0, openingBalance = null, openingBalanceNote = '', openingBalanceAsOf = null }) {
-  const entries = [...charges.flatMap(chargeEntries), ...payments.flatMap(paymentEntries), ...adjustments.flatMap(adjustmentEntries)].sort(compareEntries)
+export function buildLedgerStatement({ payments = [], charges = [], adjustments = [], balanceEntries = [], storedBalance = 0, openingBalance = null, openingBalanceNote = '', openingBalanceAsOf = null }) {
+  const entered = balanceEntries.flatMap(enteredBalanceEntries)
+  const enteredTotal = entered.reduce((sum, entry) => sum + entry.debit, 0)
+  const entries = [...entered, ...charges.flatMap(chargeEntries), ...payments.flatMap(paymentEntries), ...adjustments.flatMap(adjustmentEntries)].sort(compareEntries)
   const historyDelta = entries.reduce((sum, entry) => sum + entry.delta, 0)
   const storedBalanceCents = cents(storedBalance)
   const inferredOpening = storedBalanceCents - historyDelta
   const hasExplicitOpening = openingBalance != null
-  const opening = hasExplicitOpening ? cents(openingBalance) : inferredOpening
+  const opening = hasExplicitOpening ? cents(openingBalance) - enteredTotal : inferredOpening
   const sums = entries.reduce((totals, entry) => ({
     received: totals.received + entry.paymentAmount,
     appliedEffect: totals.appliedEffect + entry.paymentEffect,
@@ -201,9 +224,9 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
   if (opening !== 0) lines.push({
     id: 'opening',
     kind: 'opening',
-    transaction_date: openingBalanceAsOf || null,
+    transaction_date: entered.length ? null : openingBalanceAsOf || null,
     description: hasExplicitOpening ? 'Starting balance' : 'Starting balance (some older records are missing)',
-    details: openingBalanceNote ? [openingBalanceNote] : [],
+    details: openingBalanceNote && !entered.length ? [openingBalanceNote] : [],
     reference_number: '',
     debit: toAmount(Math.max(opening, 0)),
     credit: toAmount(Math.max(-opening, 0)),
@@ -231,7 +254,8 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
     finalBalance: toAmount(running),
     outstandingBalance: toAmount(Math.max(running, 0)),
     availableCredit: toAmount(Math.max(-running, 0)),
-    charges: toAmount(Math.max(opening, 0) + sums.addedCharges),
+    charges: toAmount(Math.max(opening, 0) + sums.addedCharges + enteredTotal),
+    enteredBalances: toAmount(enteredTotal),
     addedCharges: toAmount(sums.addedCharges),
     totalDebits: toAmount(Math.max(opening, 0) + entries.reduce((sum, entry) => sum + entry.debit, 0)),
     totalCredits: toAmount(Math.max(-opening, 0) + entries.reduce((sum, entry) => sum + entry.credit, 0)),
@@ -255,6 +279,7 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
     storedBalance: toAmount(storedBalanceCents),
     reconciliationDifference: toAmount(difference),
     reconcilesWithStoredBalance: difference === 0,
+    canExport: difference === 0 && (hasExplicitOpening || opening === 0),
   } }
 }
 
@@ -262,7 +287,7 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
 export function ledgerStatementNotes(totals, formatMoney) {
   if (!totals) return []
   const notes = []
-  if (totals.openingBalanceWasInferred && totals.openingBalance !== 0) notes.push('Some older records are missing. The starting balance was worked out using the saved balance and the records available.')
+  if (totals.openingBalanceWasInferred && totals.openingBalance !== 0) notes.push('The starting balance is inferred from the saved balance and the available entries. This statement is for review and PDF export is unavailable.')
   if (totals.annualDiscountCredit > 0) notes.push(`${formatMoney(totals.annualDiscountCredit)} is the discount for one free month when paying 12 months ahead. It lowers your balance but is not part of the money received.`)
   if (totals.additionalRecordedCredit > 0) notes.push(`${formatMoney(totals.additionalRecordedCredit)} was deducted from your balance in addition to your payment. The saved receipt does not explain this deduction. Please ask the office to check it.`)
   if (totals.documentedAccountAdjustments) notes.push('Balance corrections are listed with their reasons and approval numbers. They are not payments.')
