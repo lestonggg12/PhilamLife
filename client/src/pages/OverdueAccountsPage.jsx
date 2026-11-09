@@ -925,15 +925,15 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                       </td>
                       <td className="r" onClick={(event) => event.stopPropagation()}>
                         <div className="od-row-actions">
+                          <button type="button" className="od-row-btn od-view-btn" onClick={() => openAccount(account)}>
+                            View
+                          </button>
                           <button
                             type="button"
                             className="od-row-btn primary"
                             onClick={() => openAccount(account, true)}
                           >
                             + Log action
-                          </button>
-                          <button type="button" className="od-row-btn" onClick={() => openAccount(account)}>
-                            View
                           </button>
                         </div>
                       </td>
