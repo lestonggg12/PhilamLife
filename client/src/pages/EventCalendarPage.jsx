@@ -788,6 +788,12 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                   )}
                 </div>
 
+                </article>
+              )
+            })
+        )}
+
+        {view === 'month' && (
           <div className="cal-month-grid">
             {monthDays.map((day) => {
               const dayEvents = eventsByDay.get(day.key) || []
@@ -822,8 +828,8 @@ export default function EventCalendarPage({ user: suppliedUser }) {
               )
             })}
           </div>
+        )}
         </section>
-      )}
 
       <section className="cal-list glass-card" aria-live="polite" hidden={view === 'month' && !loading && !loadError}>
         {loading ? (

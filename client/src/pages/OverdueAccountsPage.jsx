@@ -679,7 +679,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
       {!loading && summary.overdueCount > 0 && (
         <div className="overdue-aging-row" role="group" aria-label="Overdue accounts by aging tier">
-          {AGING_TIERS.map((tier) => (
+          {AGING_TIERS.map((tier, index) => (
             <button
               key={tier}
               type="button"
@@ -692,7 +692,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               <span className="overdue-aging-balance">{organization.formatMoney(summary.byTier[tier].balance)}</span>
             </button>
           ))}
-        </section>
+        </div>
       )}
 
       {pageError && <p className="overdue-message overdue-error"><AlertCircle size={16} />{pageError}</p>}
@@ -734,6 +734,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         <span>{filtered.length} matching lots of {accounts.length}</span>
       </div>
 
+      <section className="od-card" aria-label="Accounts" aria-live="polite">
         {loading ? (
           <div className="od-empty" aria-busy="true">
             <Skeleton variant="rect" width="100%" height="64px" />
