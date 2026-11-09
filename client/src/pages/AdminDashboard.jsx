@@ -20,6 +20,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { monthlyCollection } from '../lib/dashboardCollections'
 import { summarizeAdminAccounts } from '../lib/adminDashboardAccounts'
+import { OVERDUE_COLUMNS } from '../lib/overdueAccounts'
 import { staffActivityCopy } from '../lib/staffActivityText'
 import { fetchAll } from '../lib/fetchAll'
 import Chart from 'chart.js/auto'
@@ -164,7 +165,7 @@ export default function AdminDashboard() {
         .limit(5),
       fetchAll(() => supabase
         .from('property_overdue_summary')
-        .select('property_id, balance, overdue_amount, days_overdue, aging_complete')
+        .select(OVERDUE_COLUMNS)
         .order('property_id'), { tiebreaker: null }),
       // Each homeowner's monthly dues = lot size x price per sqm, computed by the database.
       fetchAll(() => supabase

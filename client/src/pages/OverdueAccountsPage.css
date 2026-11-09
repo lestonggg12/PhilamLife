@@ -578,6 +578,14 @@
   background: #e3f4ec;
   color: #17704f;
 }
+.od-table .od-pill.paid,
+.od-table .od-hoa-payment-heading {
+  white-space: normal;
+}
+.od-pill.moved {
+  background: #eef0f3;
+  color: #475467;
+}
 .od-pill.review {
   background: #efe6fb;
   color: #6a3fa8;
