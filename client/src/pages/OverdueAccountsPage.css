@@ -412,15 +412,18 @@
   color: var(--ink);
   line-height: 1;
 }
-
-.overdue-empty {
-  padding: 40px 20px;
-  text-align: center;
-  color: #648096;
-  font-size: 14px;
+.od-linkbtn {
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: underline;
 }
-
-.overdue-table {
+.od-table-wrap {
+  overflow-x: auto;
+}
+.od-table {
   width: 100%;
   min-width: 980px;
   border-collapse: collapse;
