@@ -12,12 +12,7 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import {
-  calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues,
-  isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent,
-  deleteCalendarEvent, preserveCalendarTimePrecision, summarizeCalendarEvents,
-  compareCalendarEvents, matchesCalendarSearch,
-} from '../lib/eventCalendar'
+import { calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues, isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent, preserveCalendarTimePrecision } from '../lib/eventCalendar'
 import ActionDialog from '../components/ActionDialog'
 import Skeleton from '../components/skeleton/Skeleton'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
@@ -47,6 +42,9 @@ const fullMonthFormatter = new Intl.DateTimeFormat('en-PH', {
   year: 'numeric',
   timeZone: 'UTC',
 })
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MAX_CHIPS = 2
 
 const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
@@ -153,6 +151,14 @@ function formatTimeRange(event) {
   if (!event.end_time) return formatTime(event.start_time)
 
   return `${formatTime(event.start_time)} – ${formatTime(event.end_time)}`
+}
+
+function eventSortValue(event) {
+  return `${event.event_date}T${event.start_time || '00:00:00'}`
+}
+
+function normalize(value) {
+  return String(value ?? '').trim().toLowerCase()
 }
 
 const TIME_HOURS = Array.from({ length: 12 }, (_, index) =>
@@ -316,16 +322,91 @@ function TimePicker({ label, name, value, onChange, disabled }) {
   )
 }
 
+// Day pop-up: all events on one date, centered over a blurred backdrop (focus trap, Esc, focus return).
+function DayModal({ day, count, canManage, busy, onClose, onAdd, children }) {
+  const dialogRef = useRef(null)
+
+  useEffect(() => {
+    const previous = document.activeElement
+    document.documentElement.style.overflow = 'hidden'
+    dialogRef.current?.focus({ preventScroll: true })
+    return () => {
+      document.documentElement.style.overflow = ''
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
+  }, [])
+
+  function handleKeys(keyEvent) {
+    if (keyEvent.key === 'Escape') {
+      keyEvent.preventDefault()
+      onClose()
+    } else if (keyEvent.key === 'Tab') {
+      const nodes = [...dialogRef.current.querySelectorAll('button:not(:disabled)')]
+      if (!nodes.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const active = document.activeElement
+      if (keyEvent.shiftKey && (active === first || active === dialogRef.current)) {
+        keyEvent.preventDefault()
+        last.focus()
+      } else if (!keyEvent.shiftKey && active === last) {
+        keyEvent.preventDefault()
+        first.focus()
+      }
+    }
+  }
+
+  return (
+    <div className="cal-day-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        ref={dialogRef}
+        className="cal-day-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cal-day-title"
+        tabIndex={-1}
+        onKeyDown={handleKeys}
+      >
+        <div className="cal-day-modal-head">
+          <div>
+            <p className="cal-eyebrow">{count === 1 ? '1 event' : `${count} events`}</p>
+            <h2 id="cal-day-title">{eventDateFormatter.format(calendarDate(day))}</h2>
+          </div>
+          <button type="button" className="cal-day-close" onClick={onClose} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="cal-day-modal-body">
+          {count === 0 ? <p className="cal-empty">No events on this day.</p> : children}
+        </div>
+
+        <div className="cal-day-modal-foot">
+          <button type="button" className="cal-refresh-button" onClick={onClose}>Close</button>
+          {canManage && (
+            <button type="button" className="cal-primary-button" onClick={onAdd} disabled={busy}>
+              <Plus size={18} />
+              Add event
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function EventCalendarPage({ user: suppliedUser }) {
-  const [resolvedUser, setResolvedUser] = useState(null)
-  const currentUser = suppliedUser || resolvedUser
+  const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [events, setEvents] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('upcoming')
+  const [view, setView] = useState('list')
+  const [cursor, setCursor] = useState(() => manilaToday().slice(0, 7))
+  const [dayOpen, setDayOpen] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(() => manilaToday())
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
-  const [accountError, setAccountError] = useState('')
   const [loadError, setLoadError] = useState(false)
   const [today, setToday] = useState(manilaToday)
   const request = useRef(0)
@@ -344,42 +425,34 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [highlightedEventId, setHighlightedEventId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageEvents = role === 'secretary' && currentUser?.is_active === true
+  const canManageEvents = role === 'secretary' && currentUser?.is_active !== false
   useEffect(() => {
     mounted.current = true
     loadEvents()
     const tick = () => setToday(manilaToday())
-    const refreshOnFocus = () => {
-      tick()
-      void loadEvents(true)
-    }
     const timer = window.setInterval(tick, 60000)
     document.addEventListener('visibilitychange', tick)
-    window.addEventListener('focus', refreshOnFocus)
     return () => {
       mounted.current = false
       request.current += 1
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', tick)
-      window.removeEventListener('focus', refreshOnFocus)
     }
   }, [])
 
   useEffect(() => {
     let cancelled = false
-    setResolvedUser(null)
-    setAccountError('')
     async function resolve() {
-      if (suppliedUser) return
+      if (suppliedUser) { setCurrentUser(suppliedUser); return }
       try {
         const { data, error } = await supabase.auth.getUser()
         if (error) throw error
         if (!data.user) throw new Error('Sign in again to verify your calendar access.')
         const result = await supabase.from('profiles').select('id, full_name, email, role, is_active').eq('id', data.user.id).single()
         if (result.error) throw result.error
-        if (!cancelled && mounted.current) setResolvedUser(result.data)
+        if (!cancelled && mounted.current) setCurrentUser(result.data)
       } catch (error) {
-        if (!cancelled && mounted.current) setAccountError(`Calendar account could not be verified: ${error.message}`)
+        if (!cancelled && mounted.current) setPageError(`Calendar account could not be verified: ${error.message}`)
       }
     }
     resolve()
@@ -389,13 +462,8 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   useEffect(() => {
     if (!showForm) return undefined
     const previous = document.activeElement
-    const overflow = document.documentElement.style.overflow
-    document.documentElement.style.overflow = 'hidden'
     modalRef.current?.querySelector('input')?.focus()
-    return () => {
-      document.documentElement.style.overflow = overflow
-      if (previous?.isConnected) previous.focus()
-    }
+    return () => { if (previous?.isConnected) previous.focus() }
   }, [showForm])
 
   useEffect(() => {
@@ -408,6 +476,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setPageError('')
+    setNotice('')
     try {
       const data = await loadCalendarEvents(supabase)
       if (!mounted.current || sequence !== request.current) return
@@ -439,7 +508,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     setFormError('')
   }
 
-  function openCreateForm() {
+  function openCreateForm(date = manilaToday()) {
     if (!canManageEvents || busy.current) return
     const id = globalThis.crypto?.randomUUID?.()
     if (!id) { setPageError('Open the app over HTTPS or localhost before scheduling an event.'); return }
@@ -447,7 +516,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     setEditingEvent(null)
     setForm({
       ...EMPTY_FORM,
-      eventDate: manilaToday(),
+      eventDate: date,
     })
     setFormError('')
     setNotice('')
@@ -455,6 +524,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   }
 
   function openEditForm(event) {
+    setDayOpen(false)
     if (!canManageEvents || busy.current) return
     setEditingEvent(event)
     setForm(calendarFormValues(event))
@@ -483,14 +553,11 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     try {
       const savedEvent = await saveCalendarEvent(supabase, validation.payload, editingEvent, currentUser, creationId)
       if (!mounted.current) return
-      // A retry can return an event already loaded by a refresh.
-      setEvents((current) => [...current.filter((item) => item.id !== savedEvent.id), savedEvent].sort(compareCalendarEvents))
-      const savedToday = manilaToday()
-      setToday(savedToday)
-      const savedFilter = savedEvent.event_date < savedToday ? 'past' : 'upcoming'
-      if (statusFilter !== 'all' && statusFilter !== savedFilter) setStatusFilter(savedFilter)
-      if (!matchesCalendarSearch(savedEvent, search)) setSearch('')
-      setHighlightedEventId(savedEvent.id)
+      setEvents((current) => {
+        const next = editingEvent ? current.map((item) => item.id === savedEvent.id ? savedEvent : item) : [...current, savedEvent]
+        return next.sort((left, right) => eventSortValue(left).localeCompare(eventSortValue(right)))
+      })
+      if (!editingEvent) setHighlightedEventId(savedEvent.id)
       setShowForm(false)
       setEditingEvent(null)
       setForm(EMPTY_FORM)
@@ -504,6 +571,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   }
 
   function requestDeleteEvent(event) {
+    setDayOpen(false)
     if (!canManageEvents || !currentUser?.id || busy.current) return
     setPendingDelete(event)
   }
@@ -528,7 +596,15 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     }
   }
 
+  const upcomingCount = events.filter((event) => event.event_date >= today).length
+  const thisMonth = today.slice(0, 7)
+  const thisMonthCount = events.filter((event) =>
+    event.event_date.startsWith(thisMonth),
+  ).length
+
   const filteredEvents = useMemo(() => {
+    const term = normalize(search)
+
     return events
       .filter((event) => {
         const isUpcoming = event.event_date >= today
@@ -536,15 +612,126 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           statusFilter === 'all' ||
           (statusFilter === 'upcoming' && isUpcoming) ||
           (statusFilter === 'past' && !isUpcoming)
-        return matchesStatus && matchesCalendarSearch(event, search)
+        const matchesSearch =
+          !term ||
+          [event.title, event.location, event.description].some((value) =>
+            normalize(value).includes(term),
+          )
+
+        return matchesStatus && matchesSearch
       })
       .sort((left, right) => {
-        const comparison = compareCalendarEvents(left, right)
+        const comparison = eventSortValue(left).localeCompare(
+          eventSortValue(right),
+        )
+
         return statusFilter === 'past' ? -comparison : comparison
       })
   }, [events, search, statusFilter, today])
 
-  const calendarStats = useMemo(() => summarizeCalendarEvents(events, today), [events, today])
+  // The month view ignores the status filter (it shows past and upcoming) but still respects search.
+  const eventsByDay = useMemo(() => {
+    const term = normalize(search)
+    const grouped = new Map()
+    events
+      .filter((event) => !term || [event.title, event.location, event.description].some((value) => normalize(value).includes(term)))
+      .sort((left, right) => eventSortValue(left).localeCompare(eventSortValue(right)))
+      .forEach((event) => grouped.set(event.event_date, [...(grouped.get(event.event_date) || []), event]))
+    return grouped
+  }, [events, search])
+  const monthDays = useMemo(() => calendarMonthDays(cursor), [cursor])
+  const selectedEvents = eventsByDay.get(selectedDay) || []
+  const actionsLocked = Boolean(deletingId) || saving || refreshing
+
+  function goToToday() {
+    setCursor(today.slice(0, 7))
+    setSelectedDay(today)
+  }
+
+  const calendarStats = useMemo(() => {
+    const nextDate = new Date(`${today}T00:00:00Z`)
+    nextDate.setUTCDate(nextDate.getUTCDate() + 7)
+    const nextSevenDays = nextDate.toISOString().slice(0, 10)
+    const thisMonth = today.slice(0, 7)
+    return {
+      thisMonth: filteredEvents.filter((event) => event.event_date.startsWith(thisMonth)).length,
+      upcoming: filteredEvents.filter((event) => event.event_date >= today && event.event_date < nextSevenDays).length,
+      today: filteredEvents.filter((event) => event.event_date === today).length,
+      completed: filteredEvents.filter((event) => event.event_date < today).length,
+    }
+  }, [filteredEvents, today])
+
+  function renderEvent(event) {
+    const eventDate = calendarDate(event.event_date)
+    const isPast = event.event_date < today
+
+    return (
+      <article
+        key={event.id}
+        className={`cal-row ${isPast ? 'cal-row-past' : ''}${event.id === highlightedEventId ? ' motion-record-highlight' : ''}`}
+      >
+        <div className="cal-date-badge" aria-hidden="true">
+          <span className="cal-month">
+            {monthFormatter.format(eventDate)}
+          </span>
+          <span className="cal-day">
+            {Number(event.event_date.slice(8, 10))}
+          </span>
+          <span className="cal-year">
+            {event.event_date.slice(0, 4)}
+          </span>
+        </div>
+
+        <div className="cal-info">
+          <div className="cal-title-row">
+            <h2>{event.title}</h2>
+            <span className={`cal-status ${isPast ? 'past' : 'upcoming'}`}>
+              {isPast ? 'Past' : 'Upcoming'}
+            </span>
+          </div>
+          <p className="cal-full-date">
+            {eventDateFormatter.format(eventDate)}
+          </p>
+          <div className="cal-meta">
+            <span>
+              <Clock size={16} />
+              {formatTimeRange(event)}
+            </span>
+            <span>
+              <MapPin size={16} />
+              {event.location || 'Location to be announced'}
+            </span>
+          </div>
+          {event.description && (
+            <p className="cal-description">{event.description}</p>
+          )}
+        </div>
+
+        {canManageEvents && (
+          <div className="cal-row-actions">
+            <button
+              type="button"
+              className="cal-icon-button"
+              onClick={() => openEditForm(event)}
+              disabled={Boolean(deletingId) || saving || refreshing}
+              aria-label={`Edit ${event.title}`}
+            >
+              <Edit size={17} />
+            </button>
+            <button
+              type="button"
+              className="cal-icon-button cal-delete-button"
+              onClick={() => requestDeleteEvent(event)}
+              disabled={Boolean(deletingId) || saving || refreshing}
+              aria-label={`Delete ${event.title}`}
+            >
+              <Trash2 size={17} />
+            </button>
+          </div>
+        )}
+      </article>
+    )
+  }
 
   return (
     <div className="cal-page">
@@ -569,7 +756,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
             <button
               type="button"
               className="cal-primary-button"
-              onClick={openCreateForm}
+              onClick={() => openCreateForm()}
               disabled={loading || refreshing || loadError || saving || Boolean(deletingId)}
             >
               <Plus size={18} />
@@ -581,10 +768,10 @@ export default function EventCalendarPage({ user: suppliedUser }) {
 
       <section className="cal-summary" aria-label="Event summaries" aria-busy={loading || refreshing}>
         {[
-          ['Events This Month', calendarStats.thisMonth, 'All events this calendar month', 'cal-stat-blue'],
-          ['Next 7 Days', calendarStats.nextSevenDays, 'Tomorrow through the next 7 days', 'cal-stat-green'],
-          ["Today's Events", calendarStats.today, 'Philippine time', 'cal-stat-warning'],
-          ['Past Events', calendarStats.past, 'Scheduled dates before today', 'cal-stat-muted'],
+          ['Events This Month', calendarStats.thisMonth, 'Month view', 'cal-stat-blue'],
+          ['Upcoming Next 7 Days', calendarStats.upcoming, 'Scheduled events', 'cal-stat-green'],
+          ["Today's Events", calendarStats.today, 'Events on the current date', 'cal-stat-warning'],
+          ['Completed', calendarStats.completed, 'Past events', 'cal-stat-muted'],
         ].map(([label, value, footer, tone]) => (
           <article className="cal-stat-card" key={label}>
             <div className="cal-stat-top"><span>{label}</span><span className={`cal-stat-icon ${tone}`}><Clock size={18} /></span></div>
@@ -594,7 +781,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         ))}
       </section>
 
-      <div className="cal-toolbar">
+      <div className={`cal-toolbar ${view === 'month' ? 'cal-toolbar-month' : ''}`}>
         <label className="cal-search">
           <Search size={18} />
           <input
@@ -606,12 +793,70 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           />
         </label>
 
-        <Select ariaLabel="Filter events by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'upcoming', label: 'Upcoming Events' }, { value: 'past', label: 'Past Events' }, { value: 'all', label: 'All Events' }]} />
+        <div className="cal-view-toggle" role="group" aria-label="Event view">
+          <button type="button" className={view === 'list' ? 'is-active' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}>List</button>
+          <button type="button" className={view === 'month' ? 'is-active' : ''} aria-pressed={view === 'month'} onClick={() => setView('month')}>Calendar</button>
+        </div>
+
+        {view === 'list' && (
+          <Select ariaLabel="Filter events by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'upcoming', label: 'Upcoming Events' }, { value: 'past', label: 'Past Events' }, { value: 'all', label: 'All Events' }]} />
+        )}
       </div>
 
-      {accountError && <p className="cal-message cal-error" role="alert">{accountError}</p>}
       {pageError && <p className="cal-message cal-error" role="alert">{pageError}</p>}
-      <section className="cal-list glass-card" aria-live="polite">
+      {view === 'month' && !loading && !loadError && (
+        <section className="cal-month-view glass-card" aria-label="Month calendar">
+          <div className="cal-month-header">
+            <div className="cal-month-nav">
+              <button type="button" className="cal-icon-button" onClick={() => setCursor(shiftCalendarMonth(cursor, -1))} aria-label="Previous month">‹</button>
+              <h2 aria-live="polite">{fullMonthFormatter.format(calendarDate(`${cursor}-01`))}</h2>
+              <button type="button" className="cal-icon-button" onClick={() => setCursor(shiftCalendarMonth(cursor, 1))} aria-label="Next month">›</button>
+            </div>
+            <button type="button" className="cal-refresh-button" onClick={goToToday}>Today</button>
+          </div>
+
+          <div className="cal-month-weekdays" aria-hidden="true">
+            {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
+          </div>
+
+          <div className="cal-month-grid">
+            {monthDays.map((day) => {
+              const dayEvents = eventsByDay.get(day.key) || []
+              const classes = ['cal-day-cell']
+              if (day.outside) classes.push('is-outside')
+              if (day.key === today) classes.push('is-today')
+              if (day.key === selectedDay) classes.push('is-selected')
+              return (
+                <div key={day.key} className={classes.join(' ')} onClick={() => { setSelectedDay(day.key); setDayOpen(true) }}>
+                  <button
+                    type="button"
+                    className="cal-day-number"
+                    aria-haspopup="dialog"
+                    aria-label={`${eventDateFormatter.format(calendarDate(day.key))}, ${dayEvents.length} ${dayEvents.length === 1 ? 'event' : 'events'}`}
+                  >
+                    {day.day}
+                  </button>
+                  {dayEvents.slice(0, MAX_CHIPS).map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      className={`cal-chip ${event.event_date < today ? 'is-past' : ''}`}
+                      title={event.title}
+                      aria-haspopup="dialog"
+                    >
+                      {event.start_time && <b>{formatTime(event.start_time)}</b>}
+                      {event.title}
+                    </button>
+                  ))}
+                  {dayEvents.length > MAX_CHIPS && <span className="cal-more">+{dayEvents.length - MAX_CHIPS} more</span>}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="cal-list glass-card" aria-live="polite" hidden={view === 'month' && !loading && !loadError}>
         {loading ? (
           <div className="cal-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : loadError ? (
@@ -623,80 +868,22 @@ export default function EventCalendarPage({ user: suppliedUser }) {
               : 'No events match your search or filter.'}
           </p>
         ) : (
-          filteredEvents.map((event) => {
-            const eventDate = calendarDate(event.event_date)
-            const isPast = event.event_date < today
-            const isToday = event.event_date === today
-
-            return (
-              <article
-                key={event.id}
-                className={`cal-row ${isPast ? 'cal-row-past' : ''}${event.id === highlightedEventId ? ' motion-record-highlight' : ''}`}
-              >
-                <div className="cal-date-badge" aria-hidden="true">
-                  <span className="cal-month">
-                    {monthFormatter.format(eventDate)}
-                  </span>
-                  <span className="cal-day">
-                    {Number(event.event_date.slice(8, 10))}
-                  </span>
-                  <span className="cal-year">
-                    {event.event_date.slice(0, 4)}
-                  </span>
-                </div>
-
-                <div className="cal-info">
-                  <div className="cal-title-row">
-                    <h2>{event.title}</h2>
-                    <span className={`cal-status ${isPast ? 'past' : 'upcoming'}`}>
-                      {isPast ? 'Past' : isToday ? 'Today' : 'Upcoming'}
-                    </span>
-                  </div>
-                  <p className="cal-full-date">
-                    {eventDateFormatter.format(eventDate)}
-                  </p>
-                  <div className="cal-meta">
-                    <span>
-                      <Clock size={16} />
-                      {formatTimeRange(event)}
-                    </span>
-                    <span>
-                      <MapPin size={16} />
-                      {event.location || 'Location to be announced'}
-                    </span>
-                  </div>
-                  {event.description && (
-                    <p className="cal-description">{event.description}</p>
-                  )}
-                </div>
-
-                {canManageEvents && (
-                  <div className="cal-row-actions">
-                    <button
-                      type="button"
-                      className="cal-icon-button"
-                      onClick={() => openEditForm(event)}
-                      disabled={Boolean(deletingId) || saving || refreshing}
-                      aria-label={`Edit ${event.title}`}
-                    >
-                      <Edit size={17} />
-                    </button>
-                    <button
-                      type="button"
-                      className="cal-icon-button cal-delete-button"
-                      onClick={() => requestDeleteEvent(event)}
-                      disabled={Boolean(deletingId) || saving || refreshing}
-                      aria-label={`Delete ${event.title}`}
-                    >
-                      <Trash2 size={17} />
-                    </button>
-                  </div>
-                )}
-              </article>
-            )
-          })
+          filteredEvents.map(renderEvent)
         )}
       </section>
+
+      {dayOpen && (
+        <DayModal
+          day={selectedDay}
+          count={selectedEvents.length}
+          canManage={canManageEvents}
+          busy={actionsLocked}
+          onClose={() => setDayOpen(false)}
+          onAdd={() => { setDayOpen(false); openCreateForm(selectedDay) }}
+        >
+          {selectedEvents.map(renderEvent)}
+        </DayModal>
+      )}
 
       {showForm && canManageEvents && (
         <div
