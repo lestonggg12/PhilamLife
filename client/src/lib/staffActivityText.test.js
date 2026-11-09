@@ -16,6 +16,7 @@ describe('staff activity descriptions',()=>{
   ['Manual Payment Discount',`Payment OR-2026-000001 / property 15 / gross PHP 99627.56 / cash PHP 99527.56 / discount PHP 100 / staff ${id}`,'Approved a ₱100.00 discount'],
   ['Returned Payment Change','Payment OR-2026-000001 / property 15 / tendered PHP 99900 / returned PHP 372.44 / retained PHP 99527.56','returned ₱372.44 as change'],
   ['Receipt Viewed',`Regular receipt OR-2026-000001 — Record ID ${id}`,'Opened payment receipt OR-2026-000001.'],
+ ['Receipt Print Requested',`Regular receipt OR-2026-000001 — Record ID ${id}`,'Requested printing for payment receipt OR-2026-000001.'],
   ['Service Balance Collected','SR-2026-000002 — ₱51.00 for SR-2026-000001 — Test Owner','toward the remaining amount on service receipt SR-2026-000001'],
   ['Service Receipt Voided','SR-2026-000001 — Function Hall for Test Owner — ₱300.00 — Cancelled booking','Cancelled service receipt'],
   ['Printer Alignment Updated','Shared receipt calibration: horizontal 0.57 mm; vertical 0.90 mm; revision 4','0.57 mm horizontally'],

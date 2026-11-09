@@ -23,7 +23,7 @@ const actionLabels = {
  'Homeowner Added':'Homeowner added','Homeowner Removed':'Homeowner removed','Block Added':'Block added','Block Removed':'Block removed',
  'Service Payment Recorded':'Amenity or service payment received','Service Balance Collected':'Remaining service payment received','Service Receipt Voided':'Service receipt cancelled',
  'Manual Payment Discount':'Payment discount approved','Returned Payment Change':'Payment change returned','Paper Invoice Number Assigned':'Paper invoice number assigned',
- 'Printer Alignment Updated':'Receipt print position changed','Receipt Viewed':'Receipt opened','Receipt Printed':'Receipt printed','Receipt Downloaded':'Receipt downloaded',
+ 'Printer Alignment Updated':'Receipt print position changed','Receipt Viewed':'Receipt opened','Receipt Print Requested':'Receipt print requested','Receipt Printed':'Receipt printed','Receipt Downloaded':'Receipt downloaded',
  'Annual Penalty Posted':'Annual late-payment penalty added','Same-Day Annual Penalty Rate Override':'Annual penalty rate changed for today',
  'Penalty Rate Rule Created':'Annual penalty rate scheduled','Penalty Rate Override Created':'Annual penalty rate changed',
  'Document Uploaded':'Document uploaded','Document Deleted':'Document deleted','Grievance Recorded':'Complaint recorded','Grievance Updated':'Complaint updated',
@@ -146,8 +146,9 @@ export function staffActivityCopy(log, legacy = {}, context = {}) {
   text=payment?.receipt_number ? `Assigned paper invoice ${match[1]} to receipt ${payment.receipt_number}${accountLabel(payment) ? ` for ${accountLabel(payment)}`:''}.` : `Assigned paper invoice ${match[1]} to a recorded payment.`
  } else if(action==='Printer Alignment Updated' && (match=/horizontal ([\d.-]+) mm; vertical ([\d.-]+) mm/.exec(source))) {
   subject='Receipt print position';text=`Adjusted the receipt printer position: ${match[1]} mm horizontally and ${match[2]} mm vertically.`
- } else if(/^Receipt (Viewed|Printed|Downloaded)$/.test(action) && (match=/^(Service|Regular) receipt (\S+)/.exec(source))) {
-  subject=match[2];text=`${action==='Receipt Viewed'?'Opened':action==='Receipt Printed'?'Printed':'Downloaded'} ${match[1].toLowerCase()==='regular'?'payment':'service'} receipt ${match[2]}.`
+ } else if(/^Receipt (Viewed|Print Requested|Printed|Downloaded)$/.test(action) && (match=/^(Service|Regular) receipt (\S+)/.exec(source))) {
+  const verb = { 'Receipt Viewed': 'Opened', 'Receipt Print Requested': 'Requested printing for', 'Receipt Printed': 'Printed', 'Receipt Downloaded': 'Downloaded' }[action]
+  subject=match[2];text=`${verb} ${match[1].toLowerCase()==='regular'?'payment':'service'} receipt ${match[2]}.`
  } else if(action==='Service Payment Recorded' && (match=/^(SR-[\w-]+) — (.+) for (.+)$/.exec(source))) {
   subject=match[1];text=`Recorded a payment from ${match[3]} for ${match[2]}. Receipt: ${match[1]}.`
  } else if(action==='Service Balance Collected' && (match=/^(SR-[\w-]+) — (₱[\d,.]+) for (SR-[\w-]+) — (.+)$/.exec(source))) {

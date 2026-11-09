@@ -1,7 +1,7 @@
 import{describe,it,expect,vi}from'vitest'
 import{sha256,encodeArchive,decodeArchive,readBounded,ARCHIVE_BUCKET}from'../../../supabase/functions/_shared/activityArchiveCodec.mjs'
 import{createArchiveWorker}from'../../../supabase/functions/archive-activity-logs/core.mjs'
-import{loadActivityMonth,activityMonthBounds}from'./activityArchive'
+import{loadActivityMonth,activityMonthBounds,compareActivityNewest}from'./activityArchive'
 const archiveId='00000000-0000-0000-0000-000000000001'
 const event={id:'9007199254740993',user_id:'00000000-0000-0000-0000-000000000002',action:'Settings Updated',target:'Complete ₱ description; line one\n日本語 '+ 'audit text '.repeat(80)+'KEEP-END',created_at:'2026-08-31T16:00:00.123456Z',archived_actor:{name:'Test Staff',role:'secretary'},custom_metadata:{kept:true}}
 async function batch(rows=[event]){
@@ -124,9 +124,16 @@ describe('staff historical reader',()=>{
   const b=await batch(),db=readerFixture([{data:[]},{data:[]},{data:[b.manifest]}],b)
   const result=await loadActivityMonth(db,'2026-09');expect(result.error).toBeNull();expect(result.data).toEqual([{...event,from_archive:true}])
  })
- it('merges a cutover overlap exactly once',async()=>{
-  const b=await batch(),db=readerFixture([{data:[]},{data:[event]},{data:[b.manifest]}],b)
-  const result=await loadActivityMonth(db,'2026-09');expect(result.error).toBeNull();expect(result.data).toHaveLength(1)
+ it('merges a cutover overlap exactly once and preserves the archived staff snapshot',async()=>{
+  const {archived_actor,...live}=event
+  const b=await batch(),db=readerFixture([{data:[]},{data:[live]},{data:[b.manifest]}],b)
+  const result=await loadActivityMonth(db,'2026-09');expect(result.error).toBeNull()
+  expect(result.data).toEqual([{...live,archived_actor,from_archive:true}])
+ })
+ it('orders records by microseconds then numeric ID without losing bigint precision',()=>{
+  const older='2026-09-01T00:00:00.123450Z', newer='2026-09-01T00:00:00.123451+00:00'
+  const rows=[{id:'9',created_at:older},{id:'10',created_at:older},{id:'1',created_at:newer}]
+  expect(rows.sort(compareActivityNewest).map(row=>row.id)).toEqual(['1','10','9'])
  })
  it('reports a missing archive as unavailable instead of showing incomplete or empty history',async()=>{
   const b=await batch(),db=readerFixture([{data:[b.manifest]},{data:[{...event,id:'2'}]},{data:[b.manifest]}],b,{missing:true})

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Skeleton from '../components/skeleton/Skeleton'
 import { supabase } from '../lib/supabaseClient'
-import { loadActivityMonth } from '../lib/activityArchive'
+import { compareActivityNewest, loadActivityMonth } from '../lib/activityArchive'
 import ActivityArchiveStatus from '../components/ActivityArchiveStatus'
 import Select from '../components/Select'
 import DateField from '../components/DateField'
@@ -59,6 +59,7 @@ const RANGE_LABELS = {
   custom: 'Custom',
 }
 const DEFAULT_RANGE = 'today'
+const PAYMENT_RECORD_ACTIONS = new Set(['Payment Recorded', 'Service Payment Recorded', 'Service Balance Collected'])
 function middleTruncate(value, limit) {
   const text = String(value)
   if (text.length <= limit) return text
@@ -127,10 +128,6 @@ function shiftMonth(key, amount) {
   const [year, month] = key.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1 + amount, 1)).toISOString().slice(0, 7)
 }
-function boundary(month) {
-  return new Date(`${month}-01T00:00:00+08:00`).toISOString()
-}
-
 // Display-only parsing. Unknown action formats retain the complete original string.
 const ACTIVITY_FIELD_LABELS = {
   price_per_sqm: 'Price per square meter',
@@ -168,9 +165,7 @@ export function activityDisplay(log) {
     parts.length === expected[log.action] &&
     parts.every((part) => part.trim()) &&
     (!moneyAction || /^₱\s*-?[\d,]+(?:\.\d{1,2})?$/.test(parts[2]))
-  const money = text.match(/₱\s*(-?\d[\d,]*(?:\.\d{1,2})?)(?![\d.])/)
   const structuredAmount = typeof log.amount === 'number' && Number.isFinite(log.amount) ? log.amount : null
-  const amount = structuredAmount ?? (money ? Number(money[1].replaceAll(',', '')) : null)
   const action = String(log.action || '')
   const expenseParts = /^(Expense Recorded|Expense Voided)$/.test(action) ? parts : null
   const grievanceMatch = /^Grievance (Recorded|Updated)$/.test(action)
@@ -236,6 +231,14 @@ export function activityDisplay(log) {
       ? /^(SR-[\w-]+) — (.+) for (.+) — (₱\s*[\d,]+(?:\.\d{1,2})?) — (.+)$/.exec(text)
       : null
 
+  // Only read an amount from the known amount field. Notes and setting changes
+  // can mention peso values without representing a transaction.
+  const balanceAmount = /^Balance (Added|Voided)$/.test(action) ? /^(.+?) as of \d{4}-\d{2}-\d{2}/.exec(parts[2] || '')?.[1] : null
+  const amountField = serviceBalance?.[2] || serviceVoid?.[4] || expenseParts?.[1] || balanceAmount
+    || (parsed && moneyAction ? parts[2] : null)
+  const money = /^₱\s*(-?\d[\d,]*(?:\.\d{1,2})?)(?:\s+\([^)]*\))?(?:\s+\[Expense: [^\]]+\])?$/.exec(amountField || '')
+  const amount = structuredAmount ?? (money ? Number(money[1].replaceAll(',', '')) : null)
+
   const serviceSubject = servicePayment?.[1] || serviceBalance?.[1] || serviceVoid?.[1]
 
   const serviceDetail = servicePayment
@@ -264,14 +267,37 @@ export function matchesActivitySearch(log, search) {
   const term = String(search || '')
     .trim()
     .toLowerCase()
+  if (!term) return true
   const original = activityDisplay(log)
   const display = { ...original, ...staffActivityCopy(log, original, log.staffContext) }
   return (
-    !term ||
-    `${original.text} ${display.text} ${display.action} ${log.user || ''} ${log.action || ''} ${display.raw} ${display.text} ${display.subject} ${display.detail}`
+    `${original.raw} ${original.text} ${display.action} ${log.user || ''} ${log.role || ''} ${log.action || ''} ${display.subject} ${display.detail}`
       .toLowerCase()
       .includes(term)
   )
+}
+
+export function summarizeActivity(logs) {
+  const actors = new Map()
+  const actions = new Map()
+  let payments = 0
+  for (const log of logs) {
+    const actorId = log.user_id || 'system'
+    const actor = actors.get(actorId) || { label: log.user || 'System', count: 0 }
+    actor.count += 1
+    actors.set(actorId, actor)
+    const action = log.action || 'Other activity'
+    actions.set(action, (actions.get(action) || 0) + 1)
+    if (PAYMENT_RECORD_ACTIONS.has(action)) payments += 1
+  }
+  const mostActive = [...actors.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))[0]
+  const topAction = [...actions].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]
+  return {
+    total: logs.length,
+    mostActive: mostActive ? `${mostActive.label} (${mostActive.count})` : '—',
+    topAction: topAction ? `${staffActionLabel(topAction[0])} (${topAction[1]})` : '—',
+    payments,
+  }
 }
 
 function HeaderClock() {
@@ -386,6 +412,12 @@ function ActivityModal({ logs, id, onChange, onClose }) {
   useEffect(() => {
     if (!log) onClose()
   }, [log, onClose])
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    dialog.parentElement.scrollTop = 0
+    if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true })
+  }, [id])
   if (!log) return null
   const go = (direction) => {
     const next = logs[index + direction]
@@ -394,6 +426,7 @@ function ActivityModal({ logs, id, onChange, onClose }) {
   function keys(event) {
     if (event.key === 'Escape') {
       event.preventDefault()
+      event.stopPropagation()
       onClose()
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault()
@@ -438,7 +471,7 @@ function ActivityModal({ logs, id, onChange, onClose }) {
         tabIndex={-1}
         onKeyDown={keys}
       >
-        <div className="al-m-inner" key={log.id}>
+        <div className="al-m-inner">
           <div className="al-m-head">
             <span className="al-m-badge">
               {actionIcon(log.action)}
@@ -474,7 +507,6 @@ function ActivityModal({ logs, id, onChange, onClose }) {
               <h2 id="al-modal-title" className="al-m-subject">
                 {display.subject}
               </h2>
-              {display.detail && <p className="al-m-detail">{display.detail}</p>}
             </div>
             {display.amount !== null && <div className="al-m-amount">{peso.format(display.amount)}</div>}
           </div>
@@ -495,6 +527,7 @@ function ActivityModal({ logs, id, onChange, onClose }) {
               <span className="al-m-label">When</span>
               <strong>{timeFormat.format(time)}</strong>
               <small>{dateFull.format(time)}</small>
+              {log.from_archive && <small>Archived record</small>}
             </div>
 
           </div>
@@ -565,7 +598,7 @@ export default function ActivityLogPage() {
   const [role, setRole] = useState('')
   const [action, setAction] = useState('')
   const [logs, setLogs] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loadedScope, setLoadedScope] = useState(null)
   const [error, setError] = useState('')
   const [profileWarning, setProfileWarning] = useState(false)
   const [limit, setLimit] = useState(25)
@@ -576,7 +609,6 @@ export default function ActivityLogPage() {
   const filterButton = useRef(null)
   const toolbarRef = useRef(null)
   const [toolbarHeight, setToolbarHeight] = useState(0)
-  const invalidDates = range === 'custom' && (!start || !end || start > end)
   const first =
     range === 'all'
       ? `${archiveMonth || today.slice(0, 7)}-01`
@@ -593,14 +625,30 @@ export default function ActivityLogPage() {
   // Each requested month is read separately; filters and 25-row disclosure are local.
   const firstMonth = first?.slice(0, 7)
   const lastMonth = last?.slice(0, 7)
+  let dateError = ''
+  if (range === 'custom') {
+    if (!start || !end || start > end || end > today) {
+      dateError = 'Choose a start and end date in order, through today.'
+    } else if (lastMonth >= shiftMonth(firstMonth, 12)) {
+      dateError = 'Choose up to 12 calendar months at a time.'
+    }
+  }
+  const requestScope = dateError ? null : `${firstMonth}:${lastMonth}:${revision}`
+  const loading = requestScope !== null && loadedScope !== requestScope
+  const summariesAvailable = !loading && !error && !dateError
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300)
     return () => window.clearTimeout(timer)
   }, [search])
   useEffect(() => {
-    const timer = window.setInterval(() => setToday(dateKey()), 60000)
-    return () => window.clearInterval(timer)
+    const updateDay = () => setToday(dateKey())
+    const timer = window.setInterval(updateDay, 60000)
+    window.addEventListener('focus', updateDay)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', updateDay)
+    }
   }, [])
   useEffect(() => {
     const observer = new ResizeObserver(() =>
@@ -625,13 +673,13 @@ export default function ActivityLogPage() {
   useEffect(() => {
     let cancelled = false
     async function loadActivityLogs() {
-      if (invalidDates) {
+      if (requestScope === null) {
         setLogs([])
-        setLoading(false)
+        setLoadedScope(null)
         setError('')
+        setProfileWarning(false)
         return
       }
-      setLoading(true)
       setError('')
       setProfileWarning(false)
       try {
@@ -646,16 +694,23 @@ export default function ActivityLogPage() {
           if (activityError) throw activityError
           activityData.push(...(fetchedLogs || []))
         }
-        const userIds = [...new Set(activityData.map((log) => log.user_id).filter(Boolean))]
-        let profileMap = new Map()
-        if (userIds.length > 0) {
-          const { data: profiles, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, full_name, email, role')
-            .in('id', userIds)
+        const userIds = [...new Set(activityData
+          .filter((log) => !log.archived_actor?.name || log.archived_actor?.role == null)
+          .map((log) => log.user_id).filter(Boolean))]
+        const profileMap = new Map()
+        for (let offset = 0; offset < userIds.length; offset += 100) {
+          try {
+            const { data: profiles, error: profileError } = await supabase
+              .from('profiles')
+              .select('id, full_name, email, role')
+              .in('id', userIds.slice(offset, offset + 100))
+            if (!profileError) {
+              for (const profile of profiles || []) profileMap.set(profile.id, profile)
+            }
+          } catch {
+            // Keep audit entries even when their staff profiles cannot be read.
+          }
           if (cancelled) return
-          if (!profileError) profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]))
-          else setProfileWarning(true)
         }
         const staffContext = await loadStaffActivityContext(supabase, activityData)
         if (cancelled) return
@@ -670,62 +725,48 @@ export default function ActivityLogPage() {
             description: log.target || log.description || '',
           }
         })
-        prepared.sort(
-          (a, b) =>
-            new Date(b.created_at) - new Date(a.created_at) || String(a.id).localeCompare(String(b.id)),
-        )
-        if (!cancelled) setLogs(prepared)
+        prepared.sort(compareActivityNewest)
+        setProfileWarning(userIds.some((id) => !profileMap.has(id)))
+        setLogs(prepared)
       } catch (failure) {
         if (!cancelled) {
           setLogs([])
           setError(`Activity logs could not be loaded: ${failure.message || 'Please try again.'}`)
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadedScope(requestScope)
       }
     }
     loadActivityLogs()
     return () => {
       cancelled = true
     }
-  }, [firstMonth, lastMonth, invalidDates, revision])
+  }, [firstMonth, lastMonth, requestScope])
 
+  const dateRows = useMemo(
+    () => summariesAvailable ? logs.filter((log) => log.dateKey >= first && log.dateKey <= last) : [],
+    [logs, first, last, summariesAvailable],
+  )
   const filtered = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase()
-    return logs.filter(
+    return dateRows.filter(
       (log) =>
-        log.dateKey >= first &&
-        log.dateKey <= last &&
         (!user || String(log.user_id || 'system') === user) &&
         (!role || log.role.toLowerCase() === role) &&
         (!action || log.action === action) &&
         matchesActivitySearch(log, term),
     )
-  }, [logs, first, last, user, role, action, debouncedSearch])
-  const activityStats = useMemo(() => {
-    const countBy = (items) => {
-      const counts = new Map()
-      items.forEach((item) => counts.set(item, (counts.get(item) || 0) + 1))
-      return [...counts.entries()].sort(
-        (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
-      )[0]
-    }
-    const mostActive = countBy(filtered.map((log) => log.user || 'System'))
-    const topAction = countBy(filtered.map((log) => log.action || 'Other activity'))
-    return {
-      total: filtered.length,
-      mostActive: mostActive ? `${mostActive[0]} (${mostActive[1]})` : '—',
-      topAction: topAction ? `${staffActionLabel(topAction[0])} (${topAction[1]})` : '—',
-      payments: filtered.filter((log) => /payment/i.test(log.action || '')).length,
-    }
-  }, [filtered])
+  }, [dateRows, user, role, action, debouncedSearch])
+  const activityStats = useMemo(() => summarizeActivity(filtered), [filtered])
   useEffect(() => {
     setLimit(25)
   }, [first, last, user, role, action, debouncedSearch, revision])
-  const users = [...new Map(logs.map((log) => [String(log.user_id || 'system'), log.user])).entries()].sort(
+  const users = [...new Map(dateRows.map((log) => [String(log.user_id || 'system'), log.user])).entries()].sort(
     (a, b) => a[1].localeCompare(b[1]),
   )
-  const actions = [...new Set(logs.map((log) => log.action).filter(Boolean))].sort()
+  const actions = [...new Set(dateRows.map((log) => log.action).filter(Boolean))].sort()
+  if (user && !users.some(([id]) => id === user)) users.unshift([user, 'Selected user · no events in range'])
+  if (action && !actions.includes(action)) actions.unshift(action)
   const chips = [
     search && {
       key: 'search',
@@ -807,7 +848,7 @@ export default function ActivityLogPage() {
               <Activity size={18} />
             </span>
           </div>
-          <strong>{loading ? '—' : activityStats.total.toLocaleString('en-PH')}</strong>
+          <strong>{summariesAvailable ? activityStats.total.toLocaleString('en-PH') : '—'}</strong>
           <small>Matching the current filters</small>
         </article>
         <article className="al-stat-card">
@@ -817,7 +858,7 @@ export default function ActivityLogPage() {
               <Users size={18} />
             </span>
           </div>
-          <strong className="al-stat-value-text">{loading ? '—' : activityStats.mostActive}</strong>
+          <strong className="al-stat-value-text">{summariesAvailable ? activityStats.mostActive : '—'}</strong>
           <small>Events in the selected range</small>
         </article>
         <article className="al-stat-card">
@@ -827,7 +868,7 @@ export default function ActivityLogPage() {
               <Zap size={18} />
             </span>
           </div>
-          <strong className="al-stat-value-text">{loading ? '—' : activityStats.topAction}</strong>
+          <strong className="al-stat-value-text">{summariesAvailable ? activityStats.topAction : '—'}</strong>
           <small>Most common recorded action</small>
         </article>
         <article className="al-stat-card">
@@ -837,8 +878,8 @@ export default function ActivityLogPage() {
               <CreditCard size={18} />
             </span>
           </div>
-          <strong>{loading ? '—' : activityStats.payments.toLocaleString('en-PH')}</strong>
-          <small>Payment events in this view</small>
+          <strong>{summariesAvailable ? activityStats.payments.toLocaleString('en-PH') : '—'}</strong>
+          <small>Regular and service payments recorded</small>
         </article>
       </section>
       <section className="al-toolbar" ref={toolbarRef} aria-label="Activity controls">
@@ -905,12 +946,12 @@ export default function ActivityLogPage() {
             {select('Date range', range, setRange, Object.entries(RANGE_LABELS))}
             {range === 'all' && (
               <label>
-                Archive month
+                Activity month
                 <DateField
                   value={archiveMonth}
                   onChange={(value) => setArchiveMonth(value || today.slice(0, 7))}
                   max={today.slice(0, 7)}
-                  ariaLabel="Archive month"
+                  ariaLabel="Activity month"
                   monthOnly
                 />
               </label>
@@ -957,12 +998,14 @@ export default function ActivityLogPage() {
             </button>
           </div>
         )}
-        {invalidDates && <p role="alert">Choose a valid start and end date.</p>}
+        {dateError && <p role="alert">{dateError}</p>}
       </section>
       <section className="al-list" aria-label="Activity entries" aria-busy={loading}>
         <p className="al-result-count" role="status">
           {loading ? (
             <Skeleton variant="rect" width="120px" height="1em" />
+          ) : dateError ? (
+            'Date range needs attention'
           ) : error ? (
             'Activity unavailable'
           ) : (
@@ -977,7 +1020,7 @@ export default function ActivityLogPage() {
           <span>Time</span>
           <span />
         </div>
-        {profileWarning && !loading && (
+        {profileWarning && summariesAvailable && (
           <p className="al-notice" role="status">
             Some staff details could not be found. Their activity is still shown; unavailable names and roles are labelled clearly.
           </p>
@@ -995,7 +1038,7 @@ export default function ActivityLogPage() {
               </div>
             ))}
           </div>
-        ) : error ? (
+        ) : dateError ? null : error ? (
           <div className="al-state" role="alert">
             <h2>Unable to load activity</h2>
             <p>{error}</p>
@@ -1040,7 +1083,7 @@ export default function ActivityLogPage() {
         {openId !== null && (
           <ActivityModal logs={filtered} id={openId} onChange={setOpenId} onClose={closeModal} />
         )}
-        {!loading && !error && (
+        {summariesAvailable && (
           <footer className="al-footer">
             <span role="status">
               Showing {Math.min(limit, filtered.length)} of {filtered.length.toLocaleString('en-PH')}

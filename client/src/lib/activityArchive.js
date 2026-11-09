@@ -10,7 +10,19 @@ async function manifests(db,month){
  if(result.error)throw result.error
  return result.data
 }
-const sameEvent=(a,b)=>['user_id','action','target'].every(k=>a[k]===b[k])&&Date.parse(a.created_at)===Date.parse(b.created_at)
+// Postgres timestamps retain microseconds that JavaScript Date truncates.
+function compareEventTime(left, right) {
+ const milliseconds = Date.parse(right) - Date.parse(left)
+ if (milliseconds) return milliseconds
+ const subMilliseconds = (value) => Number((/\.(\d+)/.exec(value)?.[1] || '').padEnd(6, '0').slice(3, 6))
+ return subMilliseconds(right) - subMilliseconds(left)
+}
+export function compareActivityNewest(a, b) {
+ const left = String(a.id)
+ const right = String(b.id)
+ return compareEventTime(a.created_at, b.created_at) || right.length - left.length || right.localeCompare(left)
+}
+const sameEvent=(a,b)=>['user_id','action','target'].every(k=>a[k]===b[k])&&compareEventTime(a.created_at,b.created_at)===0
 export async function loadActivityMonth(db,month){
  try{
   const bounds=activityMonthBounds(month)
@@ -39,9 +51,9 @@ export async function loadActivityMonth(db,month){
   for(const row of live.data){
    const previous=rows.get(String(row.id))
    if(previous&&!sameEvent(previous,row))throw Error('Activity changed during archive loading. Refresh to verify history.')
-   rows.set(String(row.id),{...row,id:String(row.id)})
+   if(!previous)rows.set(String(row.id),{...row,id:String(row.id)})
   }
-  return{data:[...rows.values()].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)||b.id.localeCompare(a.id)),error:null}
+  return{data:[...rows.values()].sort(compareActivityNewest),error:null}
  }catch(error){return{data:null,error}}
 }
 export async function archiveStatus(db){const{data,error}=await db.rpc('activity_archive_status');if(error)throw error;return data}
