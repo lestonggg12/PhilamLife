@@ -538,6 +538,12 @@ useEffect(() => {
 
   const selectedPropertyId = selectedProperty?.id ?? null
   const formerAccount = selectedProperty != null && !isActiveHomeowner(selectedProperty)
+  const selectedLotDues = duesByProperty.get(Number(selectedPropertyId))
+  const hasMonthlyDues = !formerAccount && selectedLotDues?.monthly_dues != null
+    && Number(selectedLotDues.lot_size_sqm) > 0 && Number(selectedLotDues.price_per_sqm) > 0
+  const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
+    : hasMonthlyDues ? `${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
+    : 'Monthly dues are unavailable until the lot size and rate are set.'
 
   useEffect(() => {
     setHistoryReceipt(null)
@@ -1106,9 +1112,9 @@ useEffect(() => {
                   </article>
                   <article>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>Total paid · all time</span>
-                    <strong>{paymentAmount(paidTotals.allTime)}</strong>
-                    <small>{paymentSummaryReady ? 'All non-voided collections for this lot' : paymentSummaryNote}</small>
+                    <span>Monthly association dues</span>
+                    <strong>{hasMonthlyDues ? formatDues(selectedLotDues.monthly_dues) : '—'}</strong>
+                    <small>{monthlyDuesNote}</small>
                   </article>
                   <article className={summary.outstanding > 0 ? 'has-balance' : ''}>
                     <span className="homeowner-summary-icon"><AlertCircle size={18} /></span>
