@@ -9,34 +9,45 @@ export default function useContactDialog(open, busy, onClose) {
     if (!open) return undefined
     const previous = document.activeElement
     const dialog = ref.current
-    const focusable = () => [...dialog.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focusable = (root) => [...root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
       .filter((element) => !element.matches(':disabled') && element.tabIndex >= 0 && element.getClientRects().length > 0)
-    const focusFirst = () => (focusable()[0] || dialog).focus()
+    const openControl = () => dialog.querySelector('button[aria-expanded="true"][aria-controls]')
+    const popupFor = (control) => control && document.getElementById(control.getAttribute('aria-controls'))
+    const focusFirst = () => (focusable(dialog)[0] || dialog).focus()
     focusFirst()
     function keepFocus(event) {
-      if (!dialog.contains(event.target)) focusFirst()
+      if (!dialog.contains(event.target) && !popupFor(openControl())?.contains(event.target)) focusFirst()
     }
     function onKeyDown(event) {
-      if (event.defaultPrevented) return // Let an open date/select popover consume Escape first.
+      if (event.defaultPrevented) return
+      const control = openControl()
+      const popup = popupFor(control)
       if (event.key === 'Escape') {
+        if (popup) {
+          control.focus()
+          return
+        }
         event.preventDefault()
         event.stopPropagation()
         if (!state.current.busy) state.current.onClose()
       }
-      if (event.key === 'Tab') {
-        const items = focusable()
-        const first = items[0]
-        const last = items[items.length - 1]
-        if (!first) { event.preventDefault(); dialog.focus() }
-        else if (event.shiftKey && (event.target === first || event.target === dialog)) { event.preventDefault(); last.focus() }
-        else if (!event.shiftKey && (event.target === last || event.target === dialog)) { event.preventDefault(); first.focus() }
-      }
+      if (event.key !== 'Tab') return
+      const items = focusable(dialog)
+      if (popup) items.splice(items.indexOf(control) + 1, 0, ...focusable(popup))
+      const index = items.indexOf(event.target)
+      const next = event.shiftKey ? (index <= 0 ? items.length - 1 : index - 1) : (index + 1) % items.length
+      event.preventDefault()
+      const target = items[next] || dialog
+      target.focus()
     }
-    dialog.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown)
     document.addEventListener('focusin', keepFocus)
     return () => {
-      dialog.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('focusin', keepFocus)
+      document.body.style.overflow = overflow
       if (previous?.isConnected) previous.focus()
     }
   }, [open])

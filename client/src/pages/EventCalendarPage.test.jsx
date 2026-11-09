@@ -29,4 +29,7 @@ describe('Calendar role presentation', () => {
   it('does not offer scheduling to an inactive Secretary', () => {
     expect(renderToStaticMarkup(<EventCalendarPage user={{ id: 'fixture', role: 'secretary', is_active: false }} />)).not.toContain('Schedule Event')
   })
+  it('requires a verified active Secretary before showing management controls', () => {
+    expect(renderToStaticMarkup(<EventCalendarPage user={{ id: 'fixture', role: 'secretary' }} />)).not.toContain('Schedule Event')
+  })
 })

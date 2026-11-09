@@ -12,7 +12,12 @@ import {
   X,
 } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues, isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent, deleteCalendarEvent, preserveCalendarTimePrecision } from '../lib/eventCalendar'
+import {
+  calendarToday, calendarMonthDays, shiftCalendarMonth, calendarFormValues,
+  isCalendarDate, validateCalendarForm, loadCalendarEvents, saveCalendarEvent,
+  deleteCalendarEvent, preserveCalendarTimePrecision, summarizeCalendarEvents,
+  compareCalendarEvents, matchesCalendarSearch,
+} from '../lib/eventCalendar'
 import ActionDialog from '../components/ActionDialog'
 import Skeleton from '../components/skeleton/Skeleton'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
@@ -148,14 +153,6 @@ function formatTimeRange(event) {
   if (!event.end_time) return formatTime(event.start_time)
 
   return `${formatTime(event.start_time)} – ${formatTime(event.end_time)}`
-}
-
-function eventSortValue(event) {
-  return `${event.event_date}T${event.start_time || '00:00:00'}`
-}
-
-function normalize(value) {
-  return String(value ?? '').trim().toLowerCase()
 }
 
 const TIME_HOURS = Array.from({ length: 12 }, (_, index) =>
@@ -320,13 +317,15 @@ function TimePicker({ label, name, value, onChange, disabled }) {
 }
 
 export default function EventCalendarPage({ user: suppliedUser }) {
-  const [currentUser, setCurrentUser] = useState(suppliedUser || null)
+  const [resolvedUser, setResolvedUser] = useState(null)
+  const currentUser = suppliedUser || resolvedUser
   const [events, setEvents] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('upcoming')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
+  const [accountError, setAccountError] = useState('')
   const [loadError, setLoadError] = useState(false)
   const [today, setToday] = useState(manilaToday)
   const request = useRef(0)
@@ -345,34 +344,42 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [highlightedEventId, setHighlightedEventId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageEvents = role === 'secretary' && currentUser?.is_active !== false
+  const canManageEvents = role === 'secretary' && currentUser?.is_active === true
   useEffect(() => {
     mounted.current = true
     loadEvents()
     const tick = () => setToday(manilaToday())
+    const refreshOnFocus = () => {
+      tick()
+      void loadEvents(true)
+    }
     const timer = window.setInterval(tick, 60000)
     document.addEventListener('visibilitychange', tick)
+    window.addEventListener('focus', refreshOnFocus)
     return () => {
       mounted.current = false
       request.current += 1
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', tick)
+      window.removeEventListener('focus', refreshOnFocus)
     }
   }, [])
 
   useEffect(() => {
     let cancelled = false
+    setResolvedUser(null)
+    setAccountError('')
     async function resolve() {
-      if (suppliedUser) { setCurrentUser(suppliedUser); return }
+      if (suppliedUser) return
       try {
         const { data, error } = await supabase.auth.getUser()
         if (error) throw error
         if (!data.user) throw new Error('Sign in again to verify your calendar access.')
         const result = await supabase.from('profiles').select('id, full_name, email, role, is_active').eq('id', data.user.id).single()
         if (result.error) throw result.error
-        if (!cancelled && mounted.current) setCurrentUser(result.data)
+        if (!cancelled && mounted.current) setResolvedUser(result.data)
       } catch (error) {
-        if (!cancelled && mounted.current) setPageError(`Calendar account could not be verified: ${error.message}`)
+        if (!cancelled && mounted.current) setAccountError(`Calendar account could not be verified: ${error.message}`)
       }
     }
     resolve()
@@ -382,8 +389,13 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   useEffect(() => {
     if (!showForm) return undefined
     const previous = document.activeElement
+    const overflow = document.documentElement.style.overflow
+    document.documentElement.style.overflow = 'hidden'
     modalRef.current?.querySelector('input')?.focus()
-    return () => { if (previous?.isConnected) previous.focus() }
+    return () => {
+      document.documentElement.style.overflow = overflow
+      if (previous?.isConnected) previous.focus()
+    }
   }, [showForm])
 
   useEffect(() => {
@@ -396,7 +408,6 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setPageError('')
-    setNotice('')
     try {
       const data = await loadCalendarEvents(supabase)
       if (!mounted.current || sequence !== request.current) return
@@ -472,11 +483,14 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     try {
       const savedEvent = await saveCalendarEvent(supabase, validation.payload, editingEvent, currentUser, creationId)
       if (!mounted.current) return
-      setEvents((current) => {
-        const next = editingEvent ? current.map((item) => item.id === savedEvent.id ? savedEvent : item) : [...current, savedEvent]
-        return next.sort((left, right) => eventSortValue(left).localeCompare(eventSortValue(right)))
-      })
-      if (!editingEvent) setHighlightedEventId(savedEvent.id)
+      // A retry can return an event already loaded by a refresh.
+      setEvents((current) => [...current.filter((item) => item.id !== savedEvent.id), savedEvent].sort(compareCalendarEvents))
+      const savedToday = manilaToday()
+      setToday(savedToday)
+      const savedFilter = savedEvent.event_date < savedToday ? 'past' : 'upcoming'
+      if (statusFilter !== 'all' && statusFilter !== savedFilter) setStatusFilter(savedFilter)
+      if (!matchesCalendarSearch(savedEvent, search)) setSearch('')
+      setHighlightedEventId(savedEvent.id)
       setShowForm(false)
       setEditingEvent(null)
       setForm(EMPTY_FORM)
@@ -514,15 +528,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
     }
   }
 
-  const upcomingCount = events.filter((event) => event.event_date >= today).length
-  const thisMonth = today.slice(0, 7)
-  const thisMonthCount = events.filter((event) =>
-    event.event_date.startsWith(thisMonth),
-  ).length
-
   const filteredEvents = useMemo(() => {
-    const term = normalize(search)
-
     return events
       .filter((event) => {
         const isUpcoming = event.event_date >= today
@@ -530,35 +536,15 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           statusFilter === 'all' ||
           (statusFilter === 'upcoming' && isUpcoming) ||
           (statusFilter === 'past' && !isUpcoming)
-        const matchesSearch =
-          !term ||
-          [event.title, event.location, event.description].some((value) =>
-            normalize(value).includes(term),
-          )
-
-        return matchesStatus && matchesSearch
+        return matchesStatus && matchesCalendarSearch(event, search)
       })
       .sort((left, right) => {
-        const comparison = eventSortValue(left).localeCompare(
-          eventSortValue(right),
-        )
-
+        const comparison = compareCalendarEvents(left, right)
         return statusFilter === 'past' ? -comparison : comparison
       })
   }, [events, search, statusFilter, today])
 
-  const calendarStats = useMemo(() => {
-    const nextDate = new Date(`${today}T00:00:00Z`)
-    nextDate.setUTCDate(nextDate.getUTCDate() + 7)
-    const nextSevenDays = nextDate.toISOString().slice(0, 10)
-    const thisMonth = today.slice(0, 7)
-    return {
-      thisMonth: filteredEvents.filter((event) => event.event_date.startsWith(thisMonth)).length,
-      upcoming: filteredEvents.filter((event) => event.event_date >= today && event.event_date < nextSevenDays).length,
-      today: filteredEvents.filter((event) => event.event_date === today).length,
-      completed: filteredEvents.filter((event) => event.event_date < today).length,
-    }
-  }, [filteredEvents, today])
+  const calendarStats = useMemo(() => summarizeCalendarEvents(events, today), [events, today])
 
   return (
     <div className="cal-page">
@@ -595,10 +581,10 @@ export default function EventCalendarPage({ user: suppliedUser }) {
 
       <section className="cal-summary" aria-label="Event summaries" aria-busy={loading || refreshing}>
         {[
-          ['Events This Month', calendarStats.thisMonth, 'Month view', 'cal-stat-blue'],
-          ['Upcoming Next 7 Days', calendarStats.upcoming, 'Scheduled events', 'cal-stat-green'],
-          ["Today's Events", calendarStats.today, 'Events on the current date', 'cal-stat-warning'],
-          ['Completed', calendarStats.completed, 'Past events', 'cal-stat-muted'],
+          ['Events This Month', calendarStats.thisMonth, 'All events this calendar month', 'cal-stat-blue'],
+          ['Next 7 Days', calendarStats.nextSevenDays, 'Tomorrow through the next 7 days', 'cal-stat-green'],
+          ["Today's Events", calendarStats.today, 'Philippine time', 'cal-stat-warning'],
+          ['Past Events', calendarStats.past, 'Scheduled dates before today', 'cal-stat-muted'],
         ].map(([label, value, footer, tone]) => (
           <article className="cal-stat-card" key={label}>
             <div className="cal-stat-top"><span>{label}</span><span className={`cal-stat-icon ${tone}`}><Clock size={18} /></span></div>
@@ -623,6 +609,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
         <Select ariaLabel="Filter events by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'upcoming', label: 'Upcoming Events' }, { value: 'past', label: 'Past Events' }, { value: 'all', label: 'All Events' }]} />
       </div>
 
+      {accountError && <p className="cal-message cal-error" role="alert">{accountError}</p>}
       {pageError && <p className="cal-message cal-error" role="alert">{pageError}</p>}
       <section className="cal-list glass-card" aria-live="polite">
         {loading ? (
@@ -639,6 +626,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
           filteredEvents.map((event) => {
             const eventDate = calendarDate(event.event_date)
             const isPast = event.event_date < today
+            const isToday = event.event_date === today
 
             return (
               <article
@@ -661,7 +649,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
                   <div className="cal-title-row">
                     <h2>{event.title}</h2>
                     <span className={`cal-status ${isPast ? 'past' : 'upcoming'}`}>
-                      {isPast ? 'Past' : 'Upcoming'}
+                      {isPast ? 'Past' : isToday ? 'Today' : 'Upcoming'}
                     </span>
                   </div>
                   <p className="cal-full-date">

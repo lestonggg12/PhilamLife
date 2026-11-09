@@ -421,29 +421,9 @@ useEffect(() => {
     setPageError('')
     setNotice('')
 
-    // Never delete a homeowner who has money history - it must stay on record.
-    const [paymentCount, chargeCount] = await Promise.all([
-  supabase.from('payments').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
-  supabase.from('property_charges').select('id', { count: 'exact', head: true }).eq('property_id', entry.id),
-])
-    const records = (paymentCount.count || 0) + (chargeCount.count || 0)
-
-    if (paymentCount.error || chargeCount.error) {
-      setPageError("Could not check this homeowner's records. Please try again.")
-      return
-    }
-
-    if (records > 0) {
-      setPageError(
-        `${entry.homeowner_name} can't be removed because they have ${records} receipt/charge record${records > 1 ? 's' : ''} on file. ` +
-        'Use Move / Transfer in Contact Manager instead, so their payment history is kept.',
-      )
-      return
-    }
-
     const confirmed = await confirm({
       title: `Delete ${entry.homeowner_name}?`,
-      message: `${entry.block}, Lot ${entry.lot_number} has no payments or charges on record. This can't be undone.`,
+      message: `${entry.block}, Lot ${entry.lot_number} will be deleted only if the server confirms that it has no financial or operational history. This can't be undone.`,
       confirmLabel: 'Delete homeowner',
       cancelLabel: 'Keep homeowner',
       tone: 'danger',
@@ -453,7 +433,7 @@ useEffect(() => {
     try {
       await removeHomeowner(supabase, entry.id)
     } catch (error) {
-      setPageError(`Could not remove homeowner: ${error.message}`)
+      setPageError(`Could not remove homeowner: ${error.message} Use Move / Transfer in Contact Manager to preserve an account with history.`)
       return
     }
 

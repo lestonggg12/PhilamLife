@@ -102,6 +102,7 @@ export default function SystemSettingsPage({ user }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [loadedRevision, setLoadedRevision] = useState(null)
   const saveInFlight = useRef(false)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState('')
@@ -137,6 +138,10 @@ export default function SystemSettingsPage({ user }) {
           grace_period_days: String(data.grace_period_days),
           session_timeout: String(data.session_timeout),
         })
+        if (!Number.isSafeInteger(Number(data.settings_revision))) {
+          throw new Error('Settings revision is missing. Apply the required database migration before saving.')
+        }
+        setLoadedRevision(Number(data.settings_revision))
         setSettingsLoaded(true)
       } catch (error) {
         if (active) setMessage({ type: 'error', text: `Unable to load settings: ${error.message}. Reload before saving.` })
@@ -155,7 +160,7 @@ export default function SystemSettingsPage({ user }) {
 
   async function saveSettings() {
     if (saveInFlight.current) return
-    if (!settingsLoaded || loading) {
+    if (!settingsLoaded || loading || loadedRevision == null) {
       setMessage({ type: 'error', text: 'Settings are not loaded. Reload the page before saving.' })
       return
     }
@@ -174,7 +179,7 @@ export default function SystemSettingsPage({ user }) {
     setSaving(true)
     setMessage(null)
     try {
-      const { settings: saved, refreshError, cacheError } = await persistSystemSettings(supabase, payload, refreshOrganization)
+      const { settings: saved, refreshError, cacheError } = await persistSystemSettings(supabase, payload, loadedRevision, refreshOrganization)
       // Use the committed server row, not the pre-save draft.
       setSettings((current) => ({
         ...current,
@@ -184,6 +189,7 @@ export default function SystemSettingsPage({ user }) {
         grace_period_days: String(saved.grace_period_days),
         session_timeout: String(saved.session_timeout),
       }))
+      setLoadedRevision(Number(saved.settings_revision))
       if (refreshError) {
         setMessage({ type: 'error', text: `Settings were saved, but the shared display could not refresh: ${refreshError.message}. Reload the page before continuing.` })
       } else if (cacheError) {
@@ -192,7 +198,13 @@ export default function SystemSettingsPage({ user }) {
         setMessage({ type: 'success', text: 'System settings saved and applied to this session.' })
       }
     } catch (error) {
-      setMessage({ type: 'error', text: `Unable to save settings: ${error.message}` })
+      const stale = error?.code === '40001' || /settings changed|refresh system settings/i.test(error?.message || '')
+      setMessage({
+        type: 'error',
+        text: stale
+          ? 'Settings changed in another session. Your draft was not saved; reload and review the latest settings before saving again.'
+          : `Unable to save settings: ${error.message}`,
+      })
     } finally {
       saveInFlight.current = false
       setSaving(false)
