@@ -764,17 +764,17 @@ const canOfferAnnualDiscount =
     !annualAdvance && /^\d+(\.\d{1,2})?$/.test(manualDiscount.value)
       ? Number(manualDiscount.value)
       : 0
-  // Payment Amount is the face value before optional discount. If the staff
-  // returns change, only the amount actually retained is posted as payment.
+  // The entered payment is money actually received, never a face amount
+  // reduced by a debt discount. Returned change is deducted separately.
   const paymentFaceAmount = Math.round((Number(form.amountPaid) || 0) * 100) / 100
-  const cashTendered = Math.round((paymentFaceAmount - manualDiscountAmount) * 100) / 100
+  const cashTendered = paymentFaceAmount
   const balanceDue = Math.round((Number(form.previousBalance) || 0) * 100) / 100
   const canChooseChange = Boolean(form.propertyId) && !annualAdvance &&
     form.paymentMethod === 'Cash' && isBalanceReducingPayment &&
     balanceDue > 0 && manualDiscountAmount < balanceDue &&
-    paymentFaceAmount > balanceDue && cashTendered > 0
+    paymentFaceAmount > balanceDue - manualDiscountAmount && cashTendered > 0
   const excessAmount = canChooseChange
-    ? Math.round((paymentFaceAmount - balanceDue) * 100) / 100
+    ? Math.round((paymentFaceAmount - (balanceDue - manualDiscountAmount)) * 100) / 100
     : 0
   const changeAmount = canChooseChange && changeHandling === 'change' ? excessAmount : 0
 
@@ -782,7 +782,7 @@ const canOfferAnnualDiscount =
   const previous = Number(form.previousBalance) || 0
   const paid = annualAdvance
     ? annualDiscountedPayment
-    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - manualDiscountAmount - changeAmount
+    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - changeAmount
 
   const effect =
     annualAdvance || isBalanceReducingPayment || purposeType !== 'Other'
@@ -1394,7 +1394,7 @@ function selectHomeowner(property) {
     const gross = Number(form.amountPaid)
     const paid = annualAdvance
       ? gross
-      : Math.round((gross - manualDiscountAmount - changeAmount) * 100) / 100
+      : Math.round((gross - changeAmount) * 100) / 100
     if (changeHandling === 'change' && !canChooseChange) {
       setFormError('The balance or payment details changed. Recheck the change or choose advance credit.')
       return
@@ -1533,10 +1533,12 @@ function selectHomeowner(property) {
       if (!data) {
         paymentAttemptRef.current = paymentIntent
         let result
-        if (changeAmount > 0) {
-          const response = await supabase.rpc('record_payment_with_returned_change', {
+        if (manualDiscount.enabled) {
+          // Atomic debt discount + entire retained cash (including advance credit).
+          // The old RPC treats its gross argument as debt, not physical cash.
+          const response = await supabase.rpc('record_cash_payment_with_debt_discount', {
             p_property_id: Number(form.propertyId),
-            p_original_amount: gross,
+            p_cash_tendered: gross,
             p_discount_amount: manualDiscountAmount,
             p_change_amount: changeAmount,
             p_charge_type: payload.charge_type,
@@ -1547,11 +1549,12 @@ function selectHomeowner(property) {
             p_submission_key: paymentSubmissionKey,
           })
           result = { data: response.data?.payment || null, error: response.error }
-        } else if (manualDiscount.enabled) {
-          const response = await supabase.rpc('record_payment_with_optional_discount', {
+        } else if (changeAmount > 0) {
+          const response = await supabase.rpc('record_payment_with_returned_change', {
             p_property_id: Number(form.propertyId),
-            p_gross_amount: gross,
+            p_original_amount: gross,
             p_discount_amount: manualDiscountAmount,
+            p_change_amount: changeAmount,
             p_charge_type: payload.charge_type,
             p_coverage_period: payload.coverage_period,
             p_payment_method: form.paymentMethod,
@@ -1566,7 +1569,10 @@ function selectHomeowner(property) {
         if (result.error) {
           if (manualDiscount.enabled && result.error.code === '22023' && (
             result.error.message === 'There is no outstanding debt eligible for this discount.' ||
-            result.error.message === 'The original amount exceeds the unpaid charges for this payment purpose.'
+            result.error.message === 'The original amount exceeds the unpaid charges for this payment purpose.' ||
+            result.error.message === 'The discount must be smaller than the eligible outstanding debt.' ||
+            result.error.message === 'The discount exceeds the eligible debt payment.' ||
+            result.error.message === 'The amount of change no longer matches the outstanding balance.'
           )) {
             // The RPC rejected this save before recording a payment.
             paymentAttemptRef.current = null
@@ -1590,7 +1596,7 @@ function selectHomeowner(property) {
         .eq('payment_id', data.id).single()
 
       if (auditError || !audit ||
-          Number(audit.gross_amount) !== Math.round((gross - changeAmount) * 100) / 100 ||
+          Number(audit.gross_amount) !== Math.round((paid + manualDiscountAmount) * 100) / 100 ||
           Number(audit.discount_amount) !== manualDiscountAmount ||
           Number(audit.cash_received) !== paid) {
         throw new Error('Discount journal could not be verified. Review payment history before retrying.')
@@ -2007,7 +2013,7 @@ function selectHomeowner(property) {
               <section className="payment-record-payment" aria-labelledby="payment-payment-title">
                 <h3 className="payment-record-section-label" id="payment-payment-title">Payment</h3>
                 <div className="payment-record-fields">
-                  <label htmlFor="payment-amount">{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount'}
+                  <label htmlFor="payment-amount">{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount (actual amount received)'}
                     <input id="payment-amount" name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} readOnly={annualAdvance} required />
                   </label>
                   <label htmlFor="payment-simple-discount">Discount (₱) — optional

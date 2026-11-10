@@ -259,9 +259,14 @@ const annualDiscountAmount = isAnnualDiscount
 
   if (manualDiscountAmount > 0 && !isAnnualDiscount) {
     summary.splice(Math.max(0, summary.length - 2), 0,
-      { label: 'Payment before discount', value: money(manualGross) },
+      { label: row.receipt_breakdown?.manual_cash_discount
+          ? 'Cash plus debt discount (before discount)'
+          : 'Payment before discount', value: money(manualGross) },
       { label: 'Less: Discount', value: `− ${money(manualDiscountAmount)}` },
     )
+    if (row.receipt_breakdown?.manual_cash_discount) {
+      notes.push({ label: 'Discount scope', text: 'Applied to eligible outstanding debt only; advance credit is not discounted.' })
+    }
     if (manualDiscount?.charge_id && manualDiscount?.approval_reference) {
       notes.push({ label: 'Discount authorization', text: manualDiscount.approval_reference })
     }
