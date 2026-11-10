@@ -1589,11 +1589,9 @@ useEffect(() => {
             </nav>
 
             {activeTab === 'overview' && userRole === 'admin' && !formerAccount && selectedPropertyId != null && (
-              <section className="homeowner-info-card" aria-label="CCTV electricity compensation" style={{ marginBottom: 16 }}>
-                <h3>CCTV electricity compensation</h3>
-                <p>Approved monthly electricity credits for this homeowner's lot, including eligible past months.</p>
+              <div className="homeowner-cctv-section" style={{ marginBottom: 16 }}>
                 <CctvElectricityCompensation key={selectedPropertyId} fixedPropertyId={selectedPropertyId} canEdit onChanged={() => { setDetailReloadKey((key) => key + 1); void loadHomeowners(true) }} />
-              </section>
+              </div>
             )}
 
             {activeTab === 'overview' && (

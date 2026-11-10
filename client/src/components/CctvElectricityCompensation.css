@@ -1,0 +1,51 @@
+/* Scoped CCTV credit styles; independent of System Settings .ss-field rules. */
+.cctv-card{width:100%;min-width:0;border:1px solid #d6e3ef;border-radius:15px;background:#fff;color:#173750;overflow:hidden;box-shadow:0 6px 18px rgba(23,64,106,.05)}
+.cctv-card *{box-sizing:border-box}
+.cctv-card-heading{display:flex;align-items:flex-start;gap:14px;padding:22px 24px;background:linear-gradient(115deg,#f1f7fd,#fff);border-bottom:1px solid #e2ebf4}
+.cctv-icon{width:42px;height:42px;flex:none;display:grid;place-items:center;background:#e3f0fb;color:#155d94;border:1px solid #d1e4f5;border-radius:11px;font-size:19px}
+.cctv-heading-copy{flex:1;min-width:0}
+.cctv-eyebrow{display:block;font-size:10px;font-weight:800;letter-spacing:.13em;color:#6382a0;margin-bottom:5px}
+.cctv-heading-copy h3{margin:0 0 5px;font-size:19px;line-height:1.3;font-weight:750;color:#143b59}
+.cctv-heading-copy p{margin:0;font-size:13px;line-height:1.5;color:#647b91}
+.cctv-chip{flex:none;border:1px solid #cfe3f4;background:#eaf5fe;color:#1c659a;border-radius:20px;padding:6px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.cctv-card-body{padding:22px 24px}
+.cctv-hint{margin:0 0 24px;padding:12px 14px;background:#f2f8fe;border:1px solid #dceaf7;border-radius:9px;color:#57738b;font-size:12px;line-height:1.6}
+.cctv-hint strong{color:#2b5b7c}
+.cctv-subheading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.cctv-subheading h4{margin:0 0 4px;font-size:15px;font-weight:750;color:#173b58}
+.cctv-subheading p{margin:0;font-size:12px;color:#788da0}
+.cctv-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 18px}
+.cctv-field{min-width:0;display:flex;flex-direction:column;gap:7px}
+.cctv-full{grid-column:1/-1}
+.cctv-field>span{font-size:12px;font-weight:700;color:#395970}
+.cctv-field b{color:#b44143}
+.cctv-field em{font-size:11px;font-style:normal;color:#8b9cac;font-weight:500}
+.cctv-field input,.cctv-field select,.cctv-field textarea{width:100%;max-width:100%;display:block;min-height:42px;border:1px solid #cad9e7;border-radius:9px;padding:10px 12px;background:#fff;color:#183a55;font:inherit;font-size:13px;line-height:1.4;box-shadow:none;outline:0}
+.cctv-field textarea{min-height:72px;resize:vertical}
+.cctv-field input:focus,.cctv-field select:focus,.cctv-field textarea:focus{border-color:#2671ac;box-shadow:0 0 0 3px rgba(38,113,172,.13)}
+.cctv-field input:disabled,.cctv-field select:disabled,.cctv-field textarea:disabled{background:#f3f6f9;opacity:.65}
+.cctv-field small{font-size:11px;line-height:1.4;color:#8396a7}
+.cctv-selected{padding:8px 10px;background:#f7fafd;border-radius:8px;font-size:12px;color:#688199}
+.cctv-selected strong{color:#285575}
+.cctv-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:17px;border-top:1px solid #e5edf5}
+.cctv-summary{display:flex;flex-direction:column;gap:3px;color:#788da0;font-size:12px}
+.cctv-summary strong{font-size:16px;color:#184868;font-variant-numeric:tabular-nums}
+.cctv-approve{min-height:42px;padding:10px 18px;border:1px solid #1464a0;border-radius:9px;background:#1464a0;color:#fff;font:inherit;font-weight:750;font-size:12px;cursor:pointer;white-space:nowrap}
+.cctv-approve:hover:not(:disabled){background:#0e4e7e}
+.cctv-approve:disabled{cursor:not-allowed;background:#aebfce;border-color:#aebfce}
+.cctv-approve:focus-visible{outline:3px solid rgba(20,100,160,.25);outline-offset:3px}
+.cctv-message{margin:0;padding:10px 13px;border-radius:8px;font-size:12px;line-height:1.5}
+.cctv-success{background:#e9f7ef;color:#176b45;border:1px solid #cde8d8}
+.cctv-error{background:#fff2f0;color:#a2322b;border:1px solid #f2d2cc}
+.cctv-schedule-heading{margin:28px 0 12px;padding-top:21px;border-top:1px solid #e5edf5}
+.cctv-counter{padding:5px 9px;background:#eaf2f9;border-radius:8px;color:#426c8b;font-size:12px;font-weight:750}
+.cctv-empty{text-align:center;padding:23px 16px;border:1px dashed #cad9e7;border-radius:9px;background:#fafcff;color:#7c90a3;font-size:12px}
+.cctv-schedules{display:grid;gap:10px}
+.cctv-schedule{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:15px;border:1px solid #dfeaf4;border-radius:10px;background:#fcfdff}
+.cctv-schedule strong{font-size:18px;color:#155e92;font-variant-numeric:tabular-nums}
+.cctv-schedule strong span{font-weight:500;font-size:12px;color:#7f93a6}
+.cctv-schedule p{margin:5px 0;font-size:12px;font-weight:650;color:#3b607d}
+.cctv-schedule small{display:block;font-size:11px;line-height:1.5;color:#8193a5;overflow-wrap:anywhere}
+.cctv-approved{font-size:11px;font-weight:700;white-space:nowrap;border-radius:20px;padding:5px 10px;color:#1f724b;background:#e9f8ef;border:1px solid #cae8d7}
+.cctv-audit{font-size:11px;line-height:1.5;color:#8999aa;margin:14px 0 0}
+@media(max-width:700px){.cctv-card-heading{padding:17px;flex-wrap:wrap}.cctv-chip{margin-left:56px}.cctv-card-body{padding:17px}.cctv-form{grid-template-columns:minmax(0,1fr)}.cctv-footer{flex-direction:column;align-items:stretch}.cctv-approve{width:100%}.cctv-heading-copy h3{font-size:17px}}

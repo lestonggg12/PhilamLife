@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import './CctvElectricityCompensation.css'
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 const monthLabel = (date) => new Intl.DateTimeFormat('en-PH', {
@@ -96,43 +97,63 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
 
   const selected = properties.find((p) => String(p.id) === String(fixedPropertyId ?? propertyId))
   const visibleSchedules = fixedPropertyId == null ? schedules : schedules.filter((s) => String(s.property_id) === String(fixedPropertyId))
-  return <div style={{ display: 'grid', gap: 14, width: '100%' }}>
-    <p className="ss-info">This is a non-cash credit applied against each eligible month's association dues, even when the homeowner pays partially or not at all. Backdated months apply to existing bills. Receipts are not modified.</p>
-    <form onSubmit={save} style={{ display: 'grid', gap: 12 }}>
-      {fixedPropertyId == null && <label className="ss-field"><span>Homeowner / lot</span>
-        <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} disabled={!canEdit || busy} required>
-          <option value="">Select an active homeowner</option>
-          {properties.map((p) => <option key={p.id} value={p.id}>{p.block}, Lot {p.lot_number} — {p.homeowner_name || 'No name'}</option>)}
-        </select>
-      </label>}
-      {selected && <small>{selected.block}, Lot {selected.lot_number}</small>}
-      <label className="ss-field"><span>Monthly electricity credit (₱)</span>
-        <input type="number" min="0.01" max="100000" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={!canEdit || busy} required placeholder="150.00" />
-      </label>
-      <label className="ss-field"><span>Effective starting month (past months allowed)</span>
-        <input type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} disabled={!canEdit || busy} required />
-      </label>
-      <label className="ss-field"><span>Last eligible month (optional)</span>
-        <input type="month" value={endMonth} min={startMonth || undefined} onChange={(e) => setEndMonth(e.target.value)} disabled={!canEdit || busy} />
-      </label>
-      <label className="ss-field"><span>Approval / CCTV electricity explanation</span>
-        <input value={reason} onChange={(e) => setReason(e.target.value)} disabled={!canEdit || busy} minLength={5} maxLength={250} required />
-      </label>
-      {message && <p role="status" className="ss-info">{message}</p>}
-      <button type="submit" className="ss-primary" disabled={!canEdit || busy}>{busy ? 'Applying credits…' : 'Approve monthly CCTV credit'}</button>
-    </form>
-    <h3>Approved schedules</h3>
-    {visibleSchedules.length === 0 ? <p className="ss-info">No CCTV compensation schedules yet.</p> :
-      <div style={{ display: 'grid', gap: 9 }}>
-        {visibleSchedules.map((s) => {
+  const validDraft = Boolean((fixedPropertyId ?? propertyId) && Number(amount) > 0 && startMonth && reason.trim().length >= 5 && (!endMonth || endMonth >= startMonth))
+  const errorMessage = /unable|not confirmed|valid monthly/i.test(message)
+
+  return <section className="cctv-card" aria-labelledby="cctv-title">
+    <header className="cctv-card-heading">
+      <div className="cctv-icon" aria-hidden="true">⚡</div>
+      <div className="cctv-heading-copy">
+        <span className="cctv-eyebrow">PROPERTY BILLING BENEFIT</span>
+        <h3 id="cctv-title">CCTV electricity compensation</h3>
+        <p>Monthly dues credit for electricity supplied to village CCTV cameras.</p>
+      </div>
+      <span className="cctv-chip">Non-cash credit</span>
+    </header>
+    <div className="cctv-card-body">
+      <p className="cctv-hint"><strong>How it works:</strong> Credits apply to eligible monthly dues even when a homeowner pays partially or has not paid. Backdated months apply to existing bills. Receipts are not changed.</p>
+      <div className="cctv-subheading"><h4>Approve monthly credit</h4><p>Set the approved amount and the months it covers.</p></div>
+      <form className="cctv-form" onSubmit={save}>
+        {fixedPropertyId == null && <label className="cctv-field cctv-full"><span>Homeowner / property</span>
+          <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} disabled={!canEdit || busy} required>
+            <option value="">Select an active homeowner</option>
+            {properties.map((p) => <option key={p.id} value={p.id}>{p.block}, Lot {p.lot_number} — {p.homeowner_name || 'No name'}</option>)}
+          </select>
+        </label>}
+        {selected && <div className="cctv-selected cctv-full">For <strong>{selected.block}, Lot {selected.lot_number}</strong></div>}
+        <label className="cctv-field"><span>Monthly credit (₱) <b>*</b></span>
+          <input type="number" min="0.01" max="100000" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={!canEdit || busy} required placeholder="150.00" />
+          <small>Deducted from eligible monthly dues</small>
+        </label>
+        <label className="cctv-field"><span>Starting month <b>*</b></span>
+          <input type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} disabled={!canEdit || busy} required />
+          <small>Previous months are allowed</small>
+        </label>
+        <label className="cctv-field"><span>Ending month <em>Optional</em></span>
+          <input type="month" value={endMonth} min={startMonth || undefined} onChange={(e) => setEndMonth(e.target.value)} disabled={!canEdit || busy} />
+          <small>Leave empty for an ongoing credit</small>
+        </label>
+        <label className="cctv-field cctv-full"><span>Approval / electricity arrangement <b>*</b></span>
+          <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} disabled={!canEdit || busy} minLength={5} maxLength={250} required />
+        </label>
+        <div className="cctv-footer cctv-full">
+          <div className="cctv-summary">{validDraft ? <><strong>{money.format(Number(amount))} / month</strong><span>{monthLabel(`${startMonth}-01`)} – {endMonth ? monthLabel(`${endMonth}-01`) : 'Ongoing'}</span></> : <span>Complete the fields to approve a credit.</span>}</div>
+          <button type="submit" className="cctv-approve" disabled={!canEdit || busy || !validDraft}>{busy ? 'Applying credits…' : 'Approve CCTV credit'}</button>
+        </div>
+        {message && <p role="status" className={`cctv-message cctv-full ${errorMessage ? 'cctv-error' : 'cctv-success'}`}>{message}</p>}
+      </form>
+      <div className="cctv-subheading cctv-schedule-heading"><div><h4>Approved schedules</h4><p>Recorded arrangements for this property</p></div><span className="cctv-counter">{visibleSchedules.length}</span></div>
+      {visibleSchedules.length === 0 ? <div className="cctv-empty">No approved compensation schedules yet.</div> :
+        <div className="cctv-schedules">{visibleSchedules.map((s) => {
           const p = properties.find((x) => x.id === s.property_id)
-          return <div key={s.id} style={{ border: '1px solid var(--border-color, #ccc)', padding: 12, borderRadius: 8 }}>
-            <strong>{p ? `${p.block}, Lot ${p.lot_number} — ${p.homeowner_name || ''}` : `Property ${s.property_id}`}</strong>
-            <div>{money.format(Number(s.monthly_credit))} monthly · {monthLabel(s.starts_on)} – {s.ends_before ? monthLabel(new Date(Date.parse(`${s.ends_before}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)) : 'ongoing'}</div>
-            <small>{s.reason}</small>
-          </div>
-        })}
-      </div>}
-    <p className="ss-info">Existing schedules are immutable for audit safety. To change a rate, create a new non-overlapping period; overlapping periods are rejected.</p>
-  </div>
+          const finalMonth = s.ends_before ? monthLabel(new Date(Date.parse(`${s.ends_before}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)) : 'Ongoing'
+          return <article className="cctv-schedule" key={s.id}>
+            <div><strong>{money.format(Number(s.monthly_credit))} <span>/ month</span></strong><p>{monthLabel(s.starts_on)} – {finalMonth}</p>
+              {fixedPropertyId == null && <small>{p ? `${p.block}, Lot ${p.lot_number} — ${p.homeowner_name || ''}` : `Property ${s.property_id}`}</small>}
+              <small>{s.reason}</small></div><span className="cctv-approved">Approved</span>
+          </article>
+        })}</div>}
+      <p className="cctv-audit">Schedules are immutable for audit safety. New rates require non-overlapping periods.</p>
+    </div>
+  </section>
 }
