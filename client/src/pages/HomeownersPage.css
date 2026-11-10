@@ -29,10 +29,6 @@
   color: var(--text-dark);
 }
 
-.homeowners-finder {
-  min-height: 158px;
-}
-
 .homeowners-finder-count {
   display: inline-flex;
   min-height: 14px;
@@ -229,30 +225,34 @@
 }
 
 .homeowners-finder-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(145px, 180px) minmax(160px, 190px);
+  align-items: end;
+  gap: 12px;
   padding: 12px 18px 18px;
 }
 
 .homeowners-finder-controls > .sel-root {
-  flex: 0 1 190px;
-  width: 190px;
-  min-width: 170px;
+  min-width: 0;
+  width: 100%;
 }
 
-.homeowners-search-wrap {
+.homeowners-finder-controls > .sel-root .sel-trigger {
+  min-height: 46px;
+}
+
+.homeowners-search-wrap,
+.homeowners-search-field {
   position: relative;
-  flex: 1 1 300px;
   min-width: 0;
 }
 
 .homeowners-search-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ho-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
 .homeowners-search-icon {
@@ -279,7 +279,16 @@
 
 .homeowners-search {
   width: 100%;
+  min-height: 46px;
   padding-left: 38px;
+  border-color: #607f99;
+  color: var(--ho-ink);
+  font-size: 1rem;
+}
+
+.homeowners-search::placeholder {
+  color: #52677a;
+  opacity: 1;
 }
 
 .homeowners-filter {
@@ -290,7 +299,8 @@
 .homeowners-search:focus,
 .homeowners-filter:focus {
   border-color: var(--ho-blue);
-  outline: 3px solid rgba(20, 100, 160, 0.11);
+  outline: 2px solid var(--ho-blue);
+  outline-offset: 2px;
 }
 
 .homeowners-search-results {
@@ -1201,17 +1211,14 @@
   text-align: center !important;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
   .homeowners-finder-controls {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
 
+@media (max-width: 720px) {
   .homeowners-filter {
-    width: 100%;
-  }
-
-  .homeowners-finder-controls > .sel-root {
-    flex-basis: auto;
     width: 100%;
   }
 

@@ -34,7 +34,7 @@ import { printReceipt } from '../lib/printReceipt'
 import { recordReceiptActivity } from '../lib/receiptActivityAudit'
 import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import ActionDialog from '../components/ActionDialog'
-import { formatDues, formatLotSize, formatRate, parsePositiveAmount } from '../lib/lotDues'
+import { formatDues, formatLotSize, formatRate, hasRecurringDues, loadPostedMonthlyDues, parsePositiveAmount } from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
 import HomeownerLotChips from '../components/HomeownerLotChips'
@@ -43,7 +43,7 @@ import { duplicateLotMessage, isDuplicateLotError } from '../lib/homeownerLots'
 import HomeownerActionsMenu from '../components/HomeownerActionsMenu'
 import '../components/HomeownerProfileRefresh.css'
 import { Pager } from '../components/PagerControls'
-import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
+import { useListPage, matchesHomeownerSearch, summarizeActiveLots } from '../lib/homeownerDirectory'
 import '../components/HomeownerDirectoryPaging.css'
 import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 import AccountActivity from '../components/AccountActivity'
@@ -130,9 +130,9 @@ function homeownerStatus(activePaymentCount, property) {
     return { key: 'balance', label: 'With balance' }
   }
 
-  if (!activePaymentCount) return { key: 'no-history', label: 'No payment history' }
+  if (!activePaymentCount) return { key: 'no-history', label: 'No regular payment history' }
 
-  return { key: 'current', label: 'Current' }
+  return { key: 'current', label: 'No balance due' }
 }
 
 function HomeownerProfileSkeleton() {
@@ -161,7 +161,7 @@ function HomeownerProfileSkeleton() {
         <Skeleton width="108px" height="38px" radius="7px" />
       </div>
       <div className="homeowner-summary-grid homeowner-profile-skeleton-grid">
-        {Array.from({ length: 6 }, (_, index) => (
+        {Array.from({ length: 7 }, (_, index) => (
           <div className="homeowner-profile-skeleton-card" key={index}>
             <Skeleton width="92px" height="14px" />
             <Skeleton width="132px" height="25px" />
@@ -194,7 +194,8 @@ export default function HomeownersPage() {
   const [detailData, setDetailData] = useState({ propertyId: null, payments: [], serviceTransactions: [] })
   const [paymentCounts, setPaymentCounts] = useState(() => homeownerDirectoryCache.paymentCounts || new Map())
   const [duesByProperty, setDuesByProperty] = useState(() => homeownerDirectoryCache.duesByProperty || new Map())
-  const [includeFormer, setIncludeFormer] = useState(false)
+  const [postedDues, setPostedDues] = useState(null)
+  const [hasDirectorySnapshot, setHasDirectorySnapshot] = useState(() => homeownerDirectoryCache.properties !== null)
   const [summaryMonth, setSummaryMonth] = useState(manilaMonth)
   useManilaMonthRollover(setSummaryMonth)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
@@ -229,6 +230,7 @@ export default function HomeownersPage() {
   const [pageError, setPageError] = useState('')
   const classificationDialogRef = useRef(null)
   const searchWrapRef = useRef(null)
+  const directoryRequest = useRef(0)
   const trackerRef = useRef(null)
 
   useEffect(() => {
@@ -241,6 +243,7 @@ export default function HomeownersPage() {
   }, [classificationPropertyId, homeownerId])
   useEffect(() => {
     loadHomeowners()
+    return () => { directoryRequest.current += 1 }
   }, [])
 
   useEffect(() => {
@@ -425,6 +428,7 @@ useEffect(() => {
   }
 
   async function loadHomeowners(isRefresh = false) {
+    const request = ++directoryRequest.current
     if (isRefresh) {
       setRefreshing(true)
       setDetailReloadKey((key) => key + 1)
@@ -449,6 +453,7 @@ useEffect(() => {
           .select('property_id, active_payment_count')
           .order('property_id'), { tiebreaker: null }),
       ])
+      if (request !== directoryRequest.current) return
       const verified = requireHomeownerSnapshot(duesResult, propertyResult, paymentResult)
       // Commit an all-or-nothing snapshot. Never replace reliable cached
       // financial figures with zeros after a failed or partial request.
@@ -461,20 +466,27 @@ useEffect(() => {
       setProperties(nextProperties)
       setPaymentCounts(nextPaymentCounts)
       setDuesByProperty(nextDuesByProperty)
+      setHasDirectorySnapshot(true)
       if (!isRefresh) setDetailReloadKey((key) => key + 1)
     } catch (error) {
-      setPageError(`Homeowner information could not be refreshed: ${error?.message || 'Connection failed.'} Previously loaded information is retained; retry before making decisions.`)
+      if (request !== directoryRequest.current) return
+      const message = homeownerDirectoryCache.properties
+        ? 'Showing the last loaded directory. Refresh before making decisions.'
+        : 'Refresh to load the directory.'
+      setPageError(`Homeowner information is unavailable: ${error?.message || 'Connection failed.'} ${message}`)
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (request === directoryRequest.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }
 
   const directoryEntries = useMemo(
     () =>
-      properties.map((property) => ({
+      properties.filter(isActiveHomeowner).map((property) => ({
         property,
-        status: !isActiveHomeowner(property) ? { key: 'former', label: 'Former account' } : homeownerStatus(
+        status: homeownerStatus(
           paymentCounts.get(Number(property.id)) || 0,
           property,
         ),
@@ -482,32 +494,27 @@ useEffect(() => {
     [paymentCounts, properties],
   )
 
+  const activeLotCount = directoryEntries.length
+  const activeLotLabel = `${activeLotCount} active ${activeLotCount === 1 ? 'lot' : 'lots'}`
   const hasQuery = debouncedSearch.trim().length > 0
-  const hasFilter = statusFilter !== 'all' || classificationFilter !== 'all' || includeFormer
+  const hasFilter = statusFilter !== 'all' || classificationFilter !== 'all'
 
   const filteredDirectory = useMemo(() => {
     if (!hasQuery && !hasFilter) return []
     return directoryEntries.filter(({ property, status }) => {
-      if (!includeFormer && !isActiveHomeowner(property)) return false
       const matchesSearch = matchesHomeownerSearch(property, debouncedSearch)
       const matchesStatus = statusFilter === 'all' || status.key === statusFilter
+        || (statusFilter === 'current' && status.key === 'no-history')
       const classification = String(property.property_classification || 'unclassified').trim().toLowerCase() || 'unclassified'
       const matchesClassification = classificationFilter === 'all' || classification === classificationFilter
       return matchesSearch && matchesStatus && matchesClassification
     })
-  }, [classificationFilter, debouncedSearch, directoryEntries, hasFilter, hasQuery, includeFormer, statusFilter])
+  }, [classificationFilter, debouncedSearch, directoryEntries, hasFilter, hasQuery, statusFilter])
 
-  const directoryPage = useListPage(filteredDirectory, [search, statusFilter, classificationFilter, includeFormer], 25)
+  const directoryPage = useListPage(filteredDirectory, [search, statusFilter, classificationFilter], 25)
   const showResults = resultsOpen && (hasQuery || hasFilter)
-  const homeownerStats = useMemo(() => {
-    const active = directoryEntries.filter(({ property }) => isActiveHomeowner(property))
-    return {
-      total: active.length,
-      lotOwners: new Set(active.map(({ property }) => property.homeowner_id || `property-${property.id}`)).size,
-      withBalance: active.filter(({ status }) => status.key === 'balance').length,
-      fullyPaid: active.filter(({ status }) => status.key === 'current').length,
-    }
-  }, [directoryEntries])
+  const homeownerStats = useMemo(() => summarizeActiveLots(directoryEntries), [directoryEntries])
+  const directoryCount = (value) => hasDirectorySnapshot ? value.toLocaleString('en-PH') : '—'
 
   function handleSelectHomeowner(id) {
     navigate(`/homeowners/${id}`, { replace: true, preventScrollReset: true })
@@ -515,9 +522,9 @@ useEffect(() => {
   }
 
   function handleSearchKeyDown(event) {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && showResults) {
+      event.preventDefault()
       setResultsOpen(false)
-      event.target.blur()
     }
   }
 
@@ -539,11 +546,35 @@ useEffect(() => {
   const selectedPropertyId = selectedProperty?.id ?? null
   const formerAccount = selectedProperty != null && !isActiveHomeowner(selectedProperty)
   const selectedLotDues = duesByProperty.get(Number(selectedPropertyId))
-  const hasMonthlyDues = !formerAccount && selectedLotDues?.monthly_dues != null
-    && Number(selectedLotDues.lot_size_sqm) > 0 && Number(selectedLotDues.price_per_sqm) > 0
+  const hasMonthlyDues = !formerAccount && hasRecurringDues(selectedLotDues)
   const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
     : hasMonthlyDues ? `${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
     : 'Monthly dues are unavailable until the lot size and rate are set.'
+  const postedDuesReady = postedDues?.propertyId === selectedPropertyId
+    && postedDues?.month === summaryMonth && postedDues?.revision === detailReloadKey
+  const postedAmount = postedDuesReady ? postedDues.amount : null
+  const postedDuesNote = !postedDuesReady ? 'Loading posted dues…'
+    : postedDues.failed ? 'Posted dues unavailable. Refresh to retry.'
+    : postedAmount == null ? 'No active dues charge posted' : 'Original charge for the month'
+
+  useEffect(() => {
+    if (selectedPropertyId == null) return undefined
+    const scope = { propertyId: selectedPropertyId, month: summaryMonth, revision: detailReloadKey }
+    let cancelled = false
+    setPostedDues(null)
+
+    async function load() {
+      try {
+        const amount = await loadPostedMonthlyDues(supabase, scope.propertyId, scope.month)
+        if (!cancelled) setPostedDues({ ...scope, amount })
+      } catch {
+        if (!cancelled) setPostedDues({ ...scope, failed: true })
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [detailReloadKey, selectedPropertyId, summaryMonth])
 
   useEffect(() => {
     setHistoryReceipt(null)
@@ -871,29 +902,29 @@ useEffect(() => {
 
       <section className="homeowners-stat-grid" aria-label="Homeowner summaries">
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Total Homeowners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
-          <strong>{loading ? '—' : homeownerStats.total.toLocaleString('en-PH')}</strong>
-          <small>Active directory records</small>
+          <div className="homeowners-stat-top"><span>Active lots</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
+          <strong>{directoryCount(activeLotCount)}</strong>
+          <small>Current property accounts</small>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Active</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><Home size={18} /></span></div>
-          <strong>{loading ? '—' : homeownerStats.total.toLocaleString('en-PH')}</strong>
-          <small>Active directory records</small>
+          <div className="homeowners-stat-top"><span>Unique owners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
+          <strong>{directoryCount(homeownerStats.uniqueOwners)}</strong>
+          <small>Linked owners across active lots</small>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Lot Owners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
-          <strong>{loading ? '—' : homeownerStats.lotOwners.toLocaleString('en-PH')}</strong>
-          <small>Unique owners across all lots</small>
+          <div className="homeowners-stat-top"><span>Vacant lots</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><Home size={18} /></span></div>
+          <strong>{directoryCount(homeownerStats.vacantLots)}</strong>
+          <small>Active lots classified as Lot Owner</small>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>With Balance</span><span className="homeowners-stat-icon homeowners-stat-icon-warning"><CreditCard size={18} /></span></div>
-          <strong>{loading ? '—' : homeownerStats.withBalance.toLocaleString('en-PH')}</strong>
+          <div className="homeowners-stat-top"><span>Lots with balance</span><span className="homeowners-stat-icon homeowners-stat-icon-warning"><CreditCard size={18} /></span></div>
+          <strong>{directoryCount(homeownerStats.withBalance)}</strong>
           <small>Accounts with a balance due</small>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Fully Paid</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><FileText size={18} /></span></div>
-          <strong>{loading ? '—' : homeownerStats.fullyPaid.toLocaleString('en-PH')}</strong>
-          <small>Current accounts with payment history</small>
+          <div className="homeowners-stat-top"><span>Lots with no balance due</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><FileText size={18} /></span></div>
+          <strong>{directoryCount(homeownerStats.noBalanceDue)}</strong>
+          <small>Zero balance or advance credit</small>
         </article>
       </section>
 
@@ -901,14 +932,16 @@ useEffect(() => {
       <section className="homeowners-finder">
         <div className="homeowners-finder-heading">
           <div>
-            <h2>Find a homeowner</h2>
+            <h2>Find a homeowner or lot owner</h2>
             <span className="homeowners-finder-count">
               {loading ? (
                 <Skeleton width="110px" height="14px" radius="999px" />
+              ) : !hasDirectorySnapshot ? (
+                'Directory unavailable'
               ) : hasQuery || hasFilter ? (
-                `${filteredDirectory.length} of ${directoryEntries.length} registered lots`
+                `${filteredDirectory.length} of ${activeLotLabel}`
               ) : (
-                `${directoryEntries.length} registered lots`
+                activeLotLabel
               )}
             </span>
           </div>
@@ -918,60 +951,69 @@ useEffect(() => {
         <div className="homeowners-finder-controls">
           <div className="homeowners-search-wrap" ref={searchWrapRef}>
             <label className="homeowners-search-label" htmlFor="homeowner-search">
-              Search homeowners
+              Search homeowners and lot owners
             </label>
-            <span className="homeowners-search-icon">
-              <Search size={17} />
-            </span>
-            <input
-              id="homeowner-search"
-              type="search"
-              className="homeowners-search"
-              placeholder="Search by name, block, lot, phone, or email..."
-              value={search}
-              autoComplete="off"
-              onFocus={() => setResultsOpen(true)}
-              onChange={(event) => {
-                setSearch(event.target.value)
-                setResultsOpen(true)
-              }}
-              onKeyDown={handleSearchKeyDown}
-            />
+            <div className="homeowners-search-field">
+              <span className="homeowners-search-icon" aria-hidden="true">
+                <Search size={18} />
+              </span>
+              <input
+                id="homeowner-search"
+                type="search"
+                className="homeowners-search"
+                placeholder="Name, block, lot, phone, email"
+                value={search}
+                autoComplete="off"
+                onFocus={() => setResultsOpen(true)}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setResultsOpen(true)
+                }}
+                onKeyDown={handleSearchKeyDown}
+              />
+            </div>
 
             {showResults && (
               <div className="homeowners-search-results">
                 <div className="homeowners-directory-results" aria-label="Homeowner search results">
                 {loading ? (
                   <div className="homeowners-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="68px" /><Skeleton variant="rect" width="100%" height="68px" /><Skeleton variant="rect" width="100%" height="68px" /><span className="skeleton-region-status" role="status">Loading</span></div>
+                ) : !hasDirectorySnapshot ? (
+                  <p className="homeowners-empty">Directory unavailable. Use Refresh to try again.</p>
                 ) : filteredDirectory.length === 0 ? (
-                  <p className="homeowners-empty">No matching homeowner found.</p>
+                  <p className="homeowners-empty">No active lot matches your search.</p>
                 ) : (
-                  directoryPage.rows.map(({ property, status }) => (
-                    <button
-                      type="button"
-                      key={property.id}
-                      className={`homeowner-directory-card${
-                        String(property.id) === String(selectedProperty?.id)
-                          ? ' is-selected'
-                          : ''
-                      }`}
-                      onClick={() => handleSelectHomeowner(property.id)}
-                    >
-                      <span className="homeowner-directory-avatar">
-                        {initials(property.homeowner_name)}
-                      </span>
-                      <span className="homeowner-directory-copy">
-                        <strong>{property.homeowner_name}</strong>
-                        <small>{property.block} · Lot {property.lot_number}</small>
-                        <small>
-                          {formatLotSize(duesByProperty.get(Number(property.id))?.lot_size_sqm)} · {formatRate(duesByProperty.get(Number(property.id))?.price_per_sqm)} · {formatDues(duesByProperty.get(Number(property.id))?.monthly_dues)}/mo
-                        </small>
-                        <span className={`homeowner-account-badge badge-${status.key}`}>
-                          {status.label}
+                  directoryPage.rows.map(({ property, status }) => {
+                    const dues = duesByProperty.get(Number(property.id))
+                    return (
+                      <button
+                        type="button"
+                        key={property.id}
+                        className={`homeowner-directory-card${
+                          String(property.id) === String(selectedProperty?.id)
+                            ? ' is-selected'
+                            : ''
+                        }`}
+                        onClick={() => handleSelectHomeowner(property.id)}
+                      >
+                        <span className="homeowner-directory-avatar">
+                          {initials(property.homeowner_name)}
                         </span>
-                      </span>
-                    </button>
-                  ))
+                        <span className="homeowner-directory-copy">
+                          <strong>{property.homeowner_name}</strong>
+                          <small>{property.block} · Lot {property.lot_number}</small>
+                          <small>
+                            {hasRecurringDues(dues)
+                              ? `${formatLotSize(dues.lot_size_sqm)} · ${formatRate(dues.price_per_sqm)} · ${formatDues(dues.monthly_dues)}/mo`
+                              : 'Recurring dues unavailable'}
+                          </small>
+                          <span className={`homeowner-account-badge badge-${status.key}`}>
+                            {status.label}
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })
                 )}
                 </div>
                 {!loading && <Pager page={directoryPage.page} total={filteredDirectory.length} size={25} onPageChange={directoryPage.setPage} />}
@@ -981,8 +1023,7 @@ useEffect(() => {
 
           <Select ariaLabel="Filter homeowners by property classification" value={classificationFilter} onChange={(value) => { setClassificationFilter(value); setResultsOpen(true) }} options={[['all', 'All classifications'], ['lot_owner', 'Lot owners'], ['homeowner', 'Homeowners'], ['unclassified', 'Unclassified']].map(([value, label]) => ({ value, label }))} />
 
-          <label><input type="checkbox" checked={includeFormer} onChange={(event) => { setIncludeFormer(event.target.checked); setResultsOpen(true) }} /> Include former accounts</label>
-          <Select ariaLabel="Filter homeowners by account status" value={statusFilter} onChange={(value) => { setStatusFilter(value); setResultsOpen(true) }} options={[['all', 'All account statuses'], ['current', 'Current'], ['balance', 'With balance'], ['no-history', 'No payment history']].map(([value, label]) => ({ value, label }))} />
+          <Select ariaLabel="Filter homeowners by account status" value={statusFilter} onChange={(value) => { setStatusFilter(value); setResultsOpen(true) }} options={[['all', 'All account statuses'], ['current', 'No balance due'], ['balance', 'With balance'], ['no-history', 'No regular payment history']].map(([value, label]) => ({ value, label }))} />
         </div>
       </section>
 
@@ -992,9 +1033,9 @@ useEffect(() => {
         ) : !selectedProperty ? (
           <div className="homeowner-profile-empty">
             <Users size={34} />
-            <h2>{homeownerId ? 'Homeowner not found' : 'Search for a homeowner'}</h2>
+            <h2>{!hasDirectorySnapshot ? 'Directory unavailable' : homeownerId ? 'Homeowner not found' : 'Search for a homeowner'}</h2>
             <p>
-              {homeownerId
+              {!hasDirectorySnapshot ? 'Use Refresh to load homeowner profiles.' : homeownerId
                 ? 'This property account could not be found.'
                 : 'Use the search bar above to find someone by name, block, lot, phone, or email.'}
             </p>
@@ -1090,7 +1131,7 @@ useEffect(() => {
 
             <section className="homeowner-summary-grid" aria-label="Financial summary for the selected lot">
               {showDetailSkeleton
-                ? Array.from({ length: 6 }, (_, index) => (
+                ? Array.from({ length: 7 }, (_, index) => (
                   <article className="homeowner-summary-skeleton-card" key={index}>
                     <Skeleton width="92px" height="14px" />
                     <Skeleton width="132px" height="25px" />
@@ -1100,19 +1141,25 @@ useEffect(() => {
                 : <>
                   <article>
                     <span className="homeowner-summary-icon"><Calendar size={18} /></span>
-                    <span>Paid this month</span>
+                    <span>Payments received this month</span>
                     <strong>{paymentAmount(paidTotals.thisMonth)}</strong>
-                    <small>{paymentSummaryReady ? monthLabel(summaryMonth) : paymentSummaryNote}</small>
+                    <small>{paymentSummaryReady ? `All receipt categories · ${monthLabel(summaryMonth)}` : paymentSummaryNote}</small>
                   </article>
                   <article>
                     <span className="homeowner-summary-icon"><Calendar size={18} /></span>
-                    <span>Paid this year</span>
+                    <span>Payments received this year</span>
                     <strong>{paymentAmount(paidTotals.thisYear)}</strong>
-                    <small>{paymentSummaryReady ? `${summaryMonth.slice(0, 4)} year to date` : paymentSummaryNote}</small>
+                    <small>{paymentSummaryReady ? `All receipt categories · ${summaryMonth.slice(0, 4)} year to date` : paymentSummaryNote}</small>
                   </article>
                   <article>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>Monthly association dues</span>
+                    <span>Dues billed · {monthLabel(summaryMonth)}</span>
+                    <strong>{postedAmount != null ? formatDues(postedAmount) : '—'}</strong>
+                    <small>{postedDuesNote}</small>
+                  </article>
+                  <article>
+                    <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
+                    <span>Recurring association dues</span>
                     <strong>{hasMonthlyDues ? formatDues(selectedLotDues.monthly_dues) : '—'}</strong>
                     <small>{monthlyDuesNote}</small>
                   </article>

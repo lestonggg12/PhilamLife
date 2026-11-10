@@ -33,3 +33,20 @@ export function formatDues(value) {
   const n = Number(value)
   return pesoFormat.format(Number.isFinite(n) ? n : 0)
 }
+
+export function hasRecurringDues(dues) {
+  return dues?.monthly_dues != null && Number(dues.lot_size_sqm) > 0 && Number(dues.price_per_sqm) > 0
+}
+
+export async function loadPostedMonthlyDues(client, propertyId, month) {
+  const { data, error } = await client
+    .from('property_charges')
+    .select('amount')
+    .eq('property_id', propertyId)
+    .eq('billing_month', `${month}-01`)
+    .eq('charge_type', 'Association Dues')
+    .is('voided_at', null)
+    .maybeSingle()
+  if (error) throw error
+  return data?.amount ?? null
+}

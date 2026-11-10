@@ -577,6 +577,15 @@
   letter-spacing: 0.03em;
 }
 
+.contact-card-history-link {
+  align-self: flex-start;
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .contact-card-history-reason {
   color: var(--text-muted);
   font-size: 0.8rem;

@@ -4,7 +4,7 @@ import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useRef, useState } from 'react'
 import DateField from '../components/DateField'
 import Select from '../components/Select'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Edit, FileArchive, Mail, Phone, RefreshCw, Search, Users } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { Pager } from '../components/PagerControls'
@@ -491,6 +491,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                           {contact.status_reason}
                         </span>
                       )}
+                      <Link className="contact-card-history-link" to={`/homeowners/${contact.id}`}>
+                        View account history
+                      </Link>
                     </div>
                   )}
                 </div>
