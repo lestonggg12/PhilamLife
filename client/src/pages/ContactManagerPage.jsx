@@ -11,7 +11,16 @@ import { Pager } from '../components/PagerControls'
 import useDebouncedValue from '../hooks/useDebouncedValue'
 import { pageCount, pageWindow } from '../lib/pagedQuery'
 import { calendarToday } from '../lib/eventCalendar'
-import { CONTACT_COLUMNS, contactSearchFilters, loadContactCounts, loadContactPage, saveContactDetails, moveContact, requireEffectiveDate, confirmedTransfer } from '../lib/contactManager'
+import {
+  CONTACT_COLUMNS,
+  contactSearchFilters,
+  loadContactCounts,
+  loadContactPage,
+  saveContactDetails,
+  moveContact,
+  requireEffectiveDate,
+  confirmedTransfer,
+} from '../lib/contactManager'
 import useContactDialog from './useContactDialog'
 import './ContactManagerPage.css'
 import Skeleton from '../components/skeleton/Skeleton'
@@ -30,7 +39,187 @@ const EMPTY_TRANSFER_FORM = {
   targetProperty: null,
 }
 
-const normalize = (value) => String(value ?? '').trim().toLowerCase()
+// Accounts still lacking a phone number or an email address.
+const MISSING_DETAILS_FILTER = 'contact_phone.is.null,contact_email.is.null'
+
+const normalize = (value) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+
+function ContactRows({
+  rows,
+  viewMode,
+  canManageContacts,
+  canTransferContacts,
+  transferringContactId,
+  onEdit,
+  onTransfer,
+  initialsOf,
+}) {
+  const describe = (contact) => {
+    const status = normalize(contact.homeowner_status || 'active')
+    return {
+      status,
+      isActive: status === 'active',
+      label: status === 'transferred' ? 'Transferred' : status === 'moved' ? 'Moved' : 'Active',
+      hasDetails: Boolean(contact.contact_phone || contact.contact_email),
+    }
+  }
+
+  const actions = (contact, { isActive, hasDetails, label }) =>
+    isActive ? (
+      canManageContacts && (
+        <div className="contact-row-actions" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="contact-row-btn is-primary" onClick={() => onEdit(contact)}>
+            <Edit size={15} />
+            {hasDetails ? 'Edit' : '+ Add details'}
+          </button>
+          {canTransferContacts && (
+            <button
+              type="button"
+              className="contact-row-btn"
+              onClick={() => onTransfer(contact)}
+              disabled={transferringContactId === contact.id}
+              aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
+              title="Mark as moved or transferred"
+            >
+              <FileArchive size={15} />
+              Move / Transfer
+            </button>
+          )}
+        </div>
+      )
+    ) : (
+      <span className="contact-history-note">
+        {label}
+        {contact.status_effective_date ? ` since ${contact.status_effective_date}` : ''}
+        {contact.status_reason && <small>{contact.status_reason}</small>}
+      </span>
+    )
+
+  const phone = (contact) =>
+    contact.contact_phone ? (
+      <a href={`tel:${contact.contact_phone}`} onClick={(event) => event.stopPropagation()}>
+        {contact.contact_phone}
+      </a>
+    ) : (
+      <span className="contact-missing">Not provided</span>
+    )
+  const email = (contact) =>
+    contact.contact_email ? (
+      <a href={`mailto:${contact.contact_email}`} onClick={(event) => event.stopPropagation()}>
+        {contact.contact_email}
+      </a>
+    ) : (
+      <span className="contact-missing">Not provided</span>
+    )
+
+  const openRow = (contact, info) => {
+    if (info.isActive && canManageContacts) onEdit(contact)
+  }
+
+  if (viewMode === 'grid') {
+    return (
+      <div className="contact-grid">
+        {rows.map((contact) => {
+          const info = describe(contact)
+          return (
+            <article
+              key={contact.id}
+              className={`contact-tile is-${info.status}`}
+              onClick={() => openRow(contact, info)}
+            >
+              <div className="contact-tile-top">
+                <span className="contact-avatar" aria-hidden="true">
+                  {initialsOf(contact.homeowner_name)}
+                </span>
+                <div className="contact-tile-who">
+                  <h2 className="contact-name">{contact.homeowner_name || 'Unnamed homeowner'}</h2>
+                  <span className="contact-loc">
+                    {contact.block}, Lot {contact.lot_number}
+                  </span>
+                </div>
+                <span className={`contact-status-badge is-${info.status}`}>{info.label}</span>
+              </div>
+              <ul className="contact-tile-details">
+                <li>
+                  <Phone size={15} />{' '}
+                  {contact.contact_phone ? phone(contact) : <span className="contact-missing">Phone not provided</span>}
+                </li>
+                <li>
+                  <Mail size={15} />{' '}
+                  {contact.contact_email ? email(contact) : <span className="contact-missing">Email not provided</span>}
+                </li>
+              </ul>
+              {actions(contact, info)}
+            </article>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="contact-table-wrap">
+      <table className="contact-table">
+        <thead>
+          <tr>
+            <th>Homeowner</th>
+            <th>Block / Lot</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th className="is-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((contact) => {
+            const info = describe(contact)
+            const clickable = info.isActive && canManageContacts
+            return (
+              <tr
+                key={contact.id}
+                className={clickable ? 'is-clickable' : ''}
+                tabIndex={clickable ? 0 : undefined}
+                aria-label={clickable ? `Edit ${contact.homeowner_name}` : undefined}
+                onClick={() => openRow(contact, info)}
+                onKeyDown={(event) => {
+                  if (
+                    clickable &&
+                    event.target === event.currentTarget &&
+                    (event.key === 'Enter' || event.key === ' ')
+                  ) {
+                    event.preventDefault()
+                    onEdit(contact)
+                  }
+                }}
+              >
+                <td>
+                  <div className="contact-who">
+                    <span className="contact-avatar" aria-hidden="true">
+                      {initialsOf(contact.homeowner_name)}
+                    </span>
+                    <b>{contact.homeowner_name || 'Unnamed homeowner'}</b>
+                  </div>
+                </td>
+                <td>
+                  {contact.block}, Lot {contact.lot_number}
+                </td>
+                <td>{phone(contact)}</td>
+                <td>{email(contact)}</td>
+                <td>
+                  <span className={`contact-status-badge is-${info.status}`}>{info.label}</span>
+                </td>
+                <td className="is-right">{actions(contact, info)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 export default function ContactManagerPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
@@ -44,6 +233,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const [reloadTick, setReloadTick] = useState(0)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
+  const [missingOnly, setMissingOnly] = useState(false)
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('contact-view') === 'grid' ? 'grid' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
   const [pageState, setPageState] = useState({ key: '', page: 0 })
   const [, setNotice] = useSuccessNotice()
   const [selectedContact, setSelectedContact] = useState(null)
@@ -59,8 +256,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const canManageContacts = role === 'admin' || role === 'secretary' || role === 'treasurer'
   const canTransferContacts = role === 'admin' || role === 'secretary'
   const contactDialogRef = useContactDialog(Boolean(selectedContact), saving, closeContactForm)
-  const transferDialogRef = useContactDialog(Boolean(pendingTransferContact), Boolean(transferringContactId), closeTransferForm)
-
+  const transferDialogRef = useContactDialog(
+    Boolean(pendingTransferContact),
+    Boolean(transferringContactId),
+    closeTransferForm,
+  )
 
   // The homeowner list is never loaded up front. It is read from the database only for a
   // search (or the small Moved / Transferred lists), one page at a time.
@@ -69,8 +269,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const hasSearch = filters.length > 0 && (debouncedSearch.length >= 2 || /^\d$/.test(debouncedSearch))
   const searchPending = search.trim() !== debouncedSearch
   const listsByStatus = statusFilter === 'moved' || statusFilter === 'transferred'
-  const shouldList = hasSearch || listsByStatus
-  const scopeKey = `${statusFilter}|${hasSearch ? debouncedSearch : ''}`
+  const shouldList = hasSearch || listsByStatus || missingOnly
+  const scopeKey = `${statusFilter}|${hasSearch ? debouncedSearch : ''}|${missingOnly ? 'missing' : ''}`
   const page = pageState.key === scopeKey ? pageState.page : 0
   const resultKey = JSON.stringify([scopeKey, page, reloadTick])
   const result = !searchPending && directory?.key === resultKey ? directory : null
@@ -97,8 +297,11 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         setLinkError('')
         if (canManageContacts) {
           if (!/^\d+$/.test(editId)) throw new Error('The link does not contain a valid lot account.')
-          const { data, error } = await supabase.from('properties').select(CONTACT_COLUMNS)
-            .eq('id', editId).maybeSingle()
+          const { data, error } = await supabase
+            .from('properties')
+            .select(CONTACT_COLUMNS)
+            .eq('id', editId)
+            .maybeSingle()
           if (error) throw error
           if (!data) throw new Error('This contact was not found. Refresh the directory.')
           if (!cancelled) openContactForm(data)
@@ -106,12 +309,18 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       } catch (error) {
         if (!cancelled) setLinkError(`Could not open the contact: ${error.message || 'Please retry.'}`)
       } finally {
-        if (!cancelled) { const next = new URLSearchParams(searchParams); next.delete('edit'); setSearchParams(next, { replace: true }) }
+        if (!cancelled) {
+          const next = new URLSearchParams(searchParams)
+          next.delete('edit')
+          setSearchParams(next, { replace: true })
+        }
       }
     }
 
     openFromLink()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, role])
 
@@ -120,19 +329,31 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     async function resolveCurrentUser() {
       try {
         setIdentityError('')
-        if (suppliedUser) { setCurrentUser(suppliedUser); return }
+        if (suppliedUser) {
+          setCurrentUser(suppliedUser)
+          return
+        }
         const { data, error } = await supabase.auth.getUser()
         if (error) throw error
         if (!data?.user) throw new Error('Sign in again to load your account.')
-        const result = await supabase.from('profiles').select('id, full_name, email, role, is_active').eq('id', data.user.id).single()
+        const result = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role, is_active')
+          .eq('id', data.user.id)
+          .single()
         if (result.error) throw result.error
         if (!cancelled) setCurrentUser(result.data)
       } catch (error) {
-        if (!cancelled) { setCurrentUser(null); setIdentityError(`Account details could not be loaded: ${error.message || 'Please retry.'}`) }
+        if (!cancelled) {
+          setCurrentUser(null)
+          setIdentityError(`Account details could not be loaded: ${error.message || 'Please retry.'}`)
+        }
       }
     }
     resolveCurrentUser()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [suppliedUser, reloadTick])
 
   // Header counts: three tiny count queries, no homeowner rows are downloaded.
@@ -146,14 +367,19 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         const next = await loadContactCounts(supabase)
         if (!cancelled) setCounts(next)
       } catch (error) {
-        if (!cancelled) { setCounts(null); setCountError(`Property-account counts could not be loaded: ${error.message || 'Please retry.'}`) }
+        if (!cancelled) {
+          setCounts(null)
+          setCountError(`Property-account counts could not be loaded: ${error.message || 'Please retry.'}`)
+        }
       } finally {
         if (!cancelled) setCountsLoading(false)
       }
     }
 
     loadCounts()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [reloadTick])
 
   // One page of results, read straight from the database.
@@ -163,19 +389,36 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     let cancelled = false
     async function loadRows() {
       try {
-        const result = await loadContactPage(supabase, statusFilter, hasSearch ? filters : [], page)
+        const result = await loadContactPage(
+          supabase,
+          statusFilter,
+          [...(hasSearch ? filters : []), ...(missingOnly ? [MISSING_DETAILS_FILTER] : [])],
+          page,
+        )
         if (cancelled) return
-        if (result.pageOutOfRange) { goToPage(0); return }
+        if (result.pageOutOfRange) {
+          goToPage(0)
+          return
+        }
         const lastPage = pageCount(result.total) - 1
-        if (page > lastPage) { goToPage(lastPage); return }
+        if (page > lastPage) {
+          goToPage(lastPage)
+          return
+        }
         setDirectory({ key: resultKey, ...result })
       } catch (error) {
-        if (!cancelled) setDirectory({ key: resultKey, error: `Contact directory could not be loaded: ${error.message || 'Please retry.'}` })
+        if (!cancelled)
+          setDirectory({
+            key: resultKey,
+            error: `Contact directory could not be loaded: ${error.message || 'Please retry.'}`,
+          })
       }
     }
 
     loadRows()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultKey, shouldList, searchPending])
 
@@ -207,7 +450,10 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   async function saveContact(event) {
     event.preventDefault()
     if (submitting.current) return
-    if (!selectedContact || !canManageContacts) { setFormError('Only an Admin, Secretary, or Treasurer can update contact details.'); return }
+    if (!selectedContact || !canManageContacts) {
+      setFormError('Only an Admin, Secretary, or Treasurer can update contact details.')
+      return
+    }
     submitting.current = true
     setSaving(true)
     setFormError('')
@@ -218,7 +464,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       setForm(EMPTY_FORM)
       setNotice(`Contact details for ${data.homeowner_name} were saved across their linked lots.`)
     } catch (error) {
-      setFormError(`${error.message || 'Could not save this contact.'} If the connection was interrupted, reload before retrying.`)
+      setFormError(
+        `${error.message || 'Could not save this contact.'} If the connection was interrupted, reload before retrying.`,
+      )
     } finally {
       submitting.current = false
       setSaving(false)
@@ -255,7 +503,8 @@ export default function ContactManagerPage({ user: suppliedUser }) {
     setTransferringContactId(contact.id)
     setTransferError('')
     try {
-      if (!['moved', 'transferred'].includes(transferForm.status)) throw new Error('Choose whether the homeowner moved or transferred.')
+      if (!['moved', 'transferred'].includes(transferForm.status))
+        throw new Error('Choose whether the homeowner moved or transferred.')
       requireEffectiveDate(transferForm.effectiveDate)
       let message
       if (transferForm.status === 'transferred') {
@@ -263,13 +512,17 @@ export default function ContactManagerPage({ user: suppliedUser }) {
         const { data, error } = await supabase.rpc(request.name, request.args)
         if (error) throw error
         const result = confirmedTransfer(data)
-        const targetName = transferForm.transferTo === 'existing' ? transferForm.targetProperty.homeowner_name : transferForm.newHomeownerName.trim()
+        const targetName =
+          transferForm.transferTo === 'existing'
+            ? transferForm.targetProperty.homeowner_name
+            : transferForm.newHomeownerName.trim()
         const transferred = transferAmountDescription(result.transferred_balance)
-        const amountText = transferred.kind === 'debt'
-          ? `Outstanding balance transferred to the new lot account: ${transferred.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`
-          : transferred.kind === 'credit'
-            ? `Advance credit transferred to the new lot account: ${transferred.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`
-            : 'No balance or advance credit was transferred'
+        const amountText =
+          transferred.kind === 'debt'
+            ? `Outstanding balance transferred to the new lot account: ${transferred.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`
+            : transferred.kind === 'credit'
+              ? `Advance credit transferred to the new lot account: ${transferred.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`
+              : 'No balance or advance credit was transferred'
         message = `${contact.block}, Lot ${contact.lot_number} was transferred to ${targetName}. ${amountText}. Previous payment history remains with the former owner's archived account.`
       } else {
         await moveContact(supabase, contact, transferForm)
@@ -280,7 +533,9 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       setTransferForm(EMPTY_TRANSFER_FORM)
       setNotice(message)
     } catch (error) {
-      setTransferError(`${error.message || 'Could not save the account status.'} If the connection was interrupted, reload before retrying.`)
+      setTransferError(
+        `${error.message || 'Could not save the account status.'} If the connection was interrupted, reload before retrying.`,
+      )
     } finally {
       submitting.current = false
       setTransferringContactId(null)
@@ -290,6 +545,32 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   const { from: pageFrom } = pageWindow(page)
   const rangeStart = total === 0 ? 0 : pageFrom + 1
   const rangeEnd = total === 0 ? 0 : pageFrom + rows.length
+  const filtersActive = Boolean(search.trim()) || missingOnly
+  const statusLabelFor = (key) => ({ active: 'Active', moved: 'Moved', transferred: 'Transferred', all: 'All' })[key]
+  const statusCount = (key) => {
+    if (countsLoading || !counts) return '—'
+    const value = key === 'all' ? counts.active + counts.moved + counts.transferred : counts[key]
+    return value.toLocaleString('en-PH')
+  }
+  function clearFilters() {
+    setSearch('')
+    setMissingOnly(false)
+  }
+  function chooseView(mode) {
+    setViewMode(mode)
+    try {
+      localStorage.setItem('contact-view', mode)
+    } catch {
+      /* ignore */
+    }
+  }
+  const initialsOf = (name) =>
+    String(name || '?')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0].toUpperCase())
+      .join('') || '?'
   const pageError = [identityError, linkError, countError, listError].filter(Boolean).join(' ')
 
   return (
@@ -315,197 +596,210 @@ export default function ContactManagerPage({ user: suppliedUser }) {
       </div>
 
       <div className="contact-summary" aria-label="Contact summaries" aria-busy={countsLoading}>
-        <div className="contact-summary-item is-active">
-          <div className="contact-summary-top"><span>Total Lot Accounts</span><span className="contact-summary-icon"><Users size={18} /></span></div>
-          <strong>{countsLoading || !counts ? '—' : (counts.active + counts.moved + counts.transferred).toLocaleString('en-PH')}</strong>
+        <button
+          type="button"
+          className="contact-summary-item is-active"
+          aria-pressed={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        >
+          <div className="contact-summary-top">
+            <span>Total Lot Accounts</span>
+            <span className="contact-summary-icon">
+              <Users size={18} />
+            </span>
+          </div>
+          <strong>{statusCount('all')}</strong>
           <small>All property accounts</small>
-        </div>
-        <div className="contact-summary-item is-moved">
-          <div className="contact-summary-top"><span>Active</span><span className="contact-summary-icon contact-summary-icon-green"><Users size={18} /></span></div>
-          <strong>{countsLoading || !counts ? '—' : counts.active.toLocaleString('en-PH')}</strong>
+        </button>
+        <button
+          type="button"
+          className="contact-summary-item is-moved"
+          aria-pressed={statusFilter === 'active'}
+          onClick={() => setStatusFilter('active')}
+        >
+          <div className="contact-summary-top">
+            <span>Active</span>
+            <span className="contact-summary-icon contact-summary-icon-green">
+              <Users size={18} />
+            </span>
+          </div>
+          <strong>{statusCount('active')}</strong>
           <small>Active property accounts</small>
-        </div>
-        <div className="contact-summary-item is-transferred">
-          <div className="contact-summary-top"><span>Moved</span><span className="contact-summary-icon contact-summary-icon-warning"><Users size={18} /></span></div>
-          <strong>{countsLoading || !counts ? '—' : counts.moved.toLocaleString('en-PH')}</strong>
+        </button>
+        <button
+          type="button"
+          className="contact-summary-item is-transferred"
+          aria-pressed={statusFilter === 'moved'}
+          onClick={() => setStatusFilter('moved')}
+        >
+          <div className="contact-summary-top">
+            <span>Moved</span>
+            <span className="contact-summary-icon contact-summary-icon-warning">
+              <Users size={18} />
+            </span>
+          </div>
+          <strong>{statusCount('moved')}</strong>
           <small>Lot accounts marked as moved</small>
-        </div>
-        <div className="contact-summary-item is-categories">
-          <div className="contact-summary-top"><span>Transferred</span><span className="contact-summary-icon contact-summary-icon-muted"><FileArchive size={18} /></span></div>
-          <strong>{countsLoading || !counts ? '—' : counts.transferred.toLocaleString('en-PH')}</strong>
+        </button>
+        <button
+          type="button"
+          className="contact-summary-item is-categories"
+          aria-pressed={statusFilter === 'transferred'}
+          onClick={() => setStatusFilter('transferred')}
+        >
+          <div className="contact-summary-top">
+            <span>Transferred</span>
+            <span className="contact-summary-icon contact-summary-icon-muted">
+              <FileArchive size={18} />
+            </span>
+          </div>
+          <strong>{statusCount('transferred')}</strong>
           <small>Former accounts after a transfer</small>
-        </div>
+        </button>
       </div>
 
-      <div className="contact-toolbar">
-        <div className="contact-search-wrap">
-          <Search size={16} aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Search by name, block, lot, phone, or email..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="contact-search"
-            aria-label="Search homeowner contacts"
-          />
+      <section className="contact-directory" aria-label="Contacts">
+        <div className="contact-filters">
+          <div className="contact-filter-row">
+            <div className="contact-search-wrap">
+              <Search size={18} aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search by name, block, lot, phone, or email"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="contact-search"
+                aria-label="Search homeowner contacts"
+                autoComplete="off"
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="contact-search-clear"
+                  onClick={() => setSearch('')}
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <div className="contact-seg contact-view-toggle" role="group" aria-label="Layout">
+              <button type="button" aria-pressed={viewMode === 'list'} onClick={() => chooseView('list')}>
+                ☰ List
+              </button>
+              <button type="button" aria-pressed={viewMode === 'grid'} onClick={() => chooseView('grid')}>
+                ▦ Cards
+              </button>
+            </div>
+          </div>
+          <div className="contact-filter-row">
+            <div className="contact-seg" role="group" aria-label="Residency status">
+              {['active', 'moved', 'transferred', 'all'].map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={statusFilter === key}
+                  onClick={() => setStatusFilter(key)}
+                >
+                  {statusLabelFor(key)}
+                  <span className="contact-seg-count">{statusCount(key)}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="contact-missing-toggle"
+              aria-pressed={missingOnly}
+              onClick={() => setMissingOnly((value) => !value)}
+            >
+              ⚠ Missing details only
+            </button>
+          </div>
+          <div className="contact-filter-meta">
+            <span className="contact-result-count">
+              {shouldList && !listError && !listLoading
+                ? `Showing ${rangeStart}-${rangeEnd} of ${total}`
+                : 'Search to list homeowners, or pick Moved / Transferred'}
+            </span>
+            <span className="contact-chips">
+              {missingOnly && (
+                <span className="contact-chip">
+                  Missing details
+                  <button
+                    type="button"
+                    onClick={() => setMissingOnly(false)}
+                    aria-label="Remove missing details filter"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {filtersActive && (
+                <button type="button" className="contact-linkbtn" onClick={clearFilters}>
+                  Clear all filters
+                </button>
+              )}
+            </span>
+          </div>
         </div>
-        <Select ariaLabel="Filter homeowners by residency status" value={statusFilter} onChange={setStatusFilter} options={[['active', 'Active'], ['moved', 'Moved'], ['transferred', 'Transferred'], ['all', 'All statuses']].map(([value, label]) => ({ value, label }))} />
-        {shouldList && !listError && !listLoading && (
-          <span className="contact-result-count">
-            Showing {rangeStart}-{rangeEnd} of {total}
-          </span>
-        )}
-      </div>
-
-      {pageError && (
-        <p className="contact-message contact-error" role="alert">
-          {pageError}
-        </p>
-      )}
-      {transferError && !pendingTransferContact && (
-        <p className="contact-message contact-error" role="alert">
-          {transferError}
-        </p>
-      )}
-
-      {!shouldList && !listLoading ? (
-        <div className="contact-empty glass-card">
-          <span style={{ display: 'inline-flex', opacity: 0.6 }}>
-            <Search size={30} aria-hidden="true" />
-          </span>
-          <h3 style={{ margin: '10px 0 6px', color: 'var(--text-dark)', fontSize: '1.05rem', fontWeight: 600 }}>
-            Search for a homeowner
-          </h3>
-          <p style={{ margin: '0 auto', maxWidth: 460, fontSize: '0.88rem', lineHeight: 1.5 }}>
-            Search by name, phone, email, or address (for example, Block 3 Lot 4).
-            Choose Moved or Transferred to browse those records without a search.
+        {pageError && (
+          <p className="contact-message contact-error" role="alert">
+            {pageError}
           </p>
-        </div>
-      ) : listLoading ? (
-        <div className="contact-empty glass-card" aria-busy="true"><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><Skeleton variant="rect" width="100%" height="72px" /><span className="skeleton-region-status" role="status">Loading</span></div>
-      ) : listError ? (
-        <div className="contact-empty glass-card">Contacts could not be loaded. Use Refresh to try again.</div>
-      ) : rows.length === 0 ? (
-        <div className="contact-empty glass-card">
-          {hasSearch
-            ? 'No contacts match your search.'
-            : `No ${statusFilter} homeowners.`}
-        </div>
-      ) : (
-        <div className="contact-grid">
-          {rows.map((contact) => {
-            const hasContactDetails =
-              contact.contact_phone || contact.contact_email
-            const homeownerStatus = normalize(contact.homeowner_status || 'active')
-            const isActive = homeownerStatus === 'active'
-            const statusLabel =
-              homeownerStatus === 'transferred'
-                ? 'Transferred'
-                : homeownerStatus === 'moved'
-                  ? 'Moved'
-                  : 'Active'
+        )}
+        {transferError && !pendingTransferContact && (
+          <p className="contact-message contact-error" role="alert">
+            {transferError}
+          </p>
+        )}
 
-            return (
-              <article key={contact.id} className={`contact-card glass-card is-${homeownerStatus}`}>
-                <div className="contact-plaque">
-                  <span className="contact-plaque-block">{contact.block}</span>
-                  <span className="contact-plaque-lot">Lot {contact.lot_number}</span>
-                </div>
+        {!shouldList && !listLoading ? (
+          <div className="contact-empty">
+            <span style={{ display: 'inline-flex', opacity: 0.6 }}>
+              <Search size={30} aria-hidden="true" />
+            </span>
+            <h3>Search for a homeowner</h3>
+            <p>
+              Search by name, phone, email, or address (for example, Block 3 Lot 4). Choose Moved or Transferred to
+              browse those records without a search.
+            </p>
+          </div>
+        ) : listLoading ? (
+          <div className="contact-empty" aria-busy="true">
+            <Skeleton variant="rect" width="100%" height="56px" />
+            <Skeleton variant="rect" width="100%" height="56px" />
+            <Skeleton variant="rect" width="100%" height="56px" />
+            <span className="skeleton-region-status" role="status">
+              Loading
+            </span>
+          </div>
+        ) : listError ? (
+          <div className="contact-empty">Contacts could not be loaded. Use Refresh to try again.</div>
+        ) : rows.length === 0 ? (
+          <div className="contact-empty">
+            {hasSearch || missingOnly ? 'No contacts match your search.' : `No ${statusFilter} homeowners.`}
+          </div>
+        ) : (
+          <ContactRows
+            rows={rows}
+            viewMode={viewMode}
+            canManageContacts={canManageContacts}
+            canTransferContacts={canTransferContacts}
+            transferringContactId={transferringContactId}
+            onEdit={openContactForm}
+            onTransfer={requestTransferContact}
+            initialsOf={initialsOf}
+          />
+        )}
 
-                <div className="contact-card-body">
-                  <div className="contact-card-heading">
-                    <div className="contact-avatar">
-                      {(contact.homeowner_name || '?').charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h2 className="contact-name">
-                        {contact.homeowner_name || 'Unnamed homeowner'}
-                      </h2>
-                      <span className={`contact-status-badge is-${homeownerStatus}`}>
-                        {statusLabel}
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="contact-details">
-                    <div className="contact-detail">
-                      <Phone size={16} />
-                      {contact.contact_phone ? (
-                        <a href={`tel:${contact.contact_phone}`}>
-                          {contact.contact_phone}
-                        </a>
-                      ) : (
-                        <span className="contact-missing">Phone not provided</span>
-                      )}
-                    </div>
-                    <div className="contact-detail">
-                      <Mail size={16} />
-                      {contact.contact_email ? (
-                        <a href={`mailto:${contact.contact_email}`}>
-                          {contact.contact_email}
-                        </a>
-                      ) : (
-                        <span className="contact-missing">Email not provided</span>
-                      )}
-                    </div>
-                  </div>
+        {shouldList && !listError && !listLoading && total > 0 && (
+          <div className="contact-pager">
+            <Pager page={page} total={total} onPageChange={goToPage} disabled={listLoading} />
+          </div>
+        )}
+      </section>
 
-                  {isActive ? (
-                    canManageContacts && (
-                      <div className="contact-card-actions">
-                        <button
-                          type="button"
-                          className="contact-edit-button"
-                          onClick={() => openContactForm(contact)}
-                        >
-                          <Edit size={16} />
-                          {hasContactDetails
-                            ? 'Edit Contact Details'
-                            : 'Add Contact Details'}
-                        </button>
-                        {canTransferContacts && (
-                        <button
-                          type="button"
-                          className="contact-transfer-button"
-                          onClick={() => requestTransferContact(contact)}
-                          disabled={transferringContactId === contact.id}
-                          aria-label={`Mark ${contact.homeowner_name} as moved or transferred`}
-                          title="Mark as moved or transferred"
-                        >
-                          <FileArchive size={16} />
-                          Move / Transfer
-                        </button>
-                        )}
-                      </div>
-                    )
-                  ) : (
-                    <div className="contact-card-history-note">
-                      <span className="contact-card-history-label">
-                        {statusLabel}
-                        {contact.status_effective_date
-                          ? ` since ${contact.status_effective_date}`
-                          : ''}
-                      </span>
-                      {contact.status_reason && (
-                        <span className="contact-card-history-reason">
-                          {contact.status_reason}
-                        </span>
-                      )}
-                      <Link className="contact-card-history-link" to={`/homeowners/${contact.id}`}>
-                        View account history
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
-
-      {shouldList && !listError && !listLoading && total > 0 && (
-        <Pager page={page} total={total} onPageChange={goToPage} disabled={listLoading} />
-      )}
 
       {pendingTransferContact && (
         <div
@@ -529,9 +823,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             <div className="contact-modal-heading">
               <div>
                 <h2 id="transfer-homeowner-title">Move or transfer this lot</h2>
-                <p>
-                  Choose an action for this lot. Its previous records are kept.
-                </p>
+                <p>Choose an action for this lot. Its previous records are kept.</p>
               </div>
               <button
                 type="button"
@@ -552,77 +844,117 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             </div>
 
             <fieldset className="contact-transfer-fields" disabled={Boolean(transferringContactId)}>
-            <div className="contact-form-row">
-              <div>
-                <label htmlFor="homeowner-new-status">Action</label>
-                <Select ariaLabel="Action" value={transferForm.status === 'moved' ? 'moved' : transferForm.transferTo} onChange={(value) => setTransferForm((current) => ({ ...current, status: value === 'moved' ? 'moved' : 'transferred', transferTo: value === 'existing' ? 'existing' : 'new', targetProperty: null }))} options={[['moved', 'Mark as moved'], ['existing', 'Transfer to an Existing homeowner'], ['new', 'Transfer to a New homeowner']].map(([value, label]) => ({ value, label }))} />
-              </div>
-              <div>
-                <label htmlFor="homeowner-status-date">Effective date</label>
-                <DateField ariaLabel="Effective date" name="effective_date" value={transferForm.effectiveDate} max={calendarToday()} onChange={(value) => setTransferForm((current) => ({ ...current, effectiveDate: value }))} required />
-              </div>
-            </div>
-
-                  
-            {transferForm.status === 'transferred' && transferForm.transferTo === 'new' && (
-              <>
-                <label htmlFor="homeowner-new-owner-name">
-                  New homeowner name
-                </label>
-                <input
-                  id="homeowner-new-owner-name"
-                  type="text"
-                  value={transferForm.newHomeownerName}
-                  maxLength={120}
-                  placeholder="Enter the new owner's full name"
-                  onChange={(event) =>
-                    setTransferForm((current) => ({
-                      ...current,
-                      newHomeownerName: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </>
-            )}
-
-            {transferForm.status === 'transferred' && transferForm.transferTo === 'existing' && (
-              <TransferHomeownerPicker previousProperty={pendingTransferContact}
-                selected={transferForm.targetProperty} disabled={Boolean(transferringContactId)}
-                onSelect={(person) => setTransferForm((current) => ({ ...current, targetProperty: person }))} />
-            )}
-
-            <label htmlFor="homeowner-status-reason">Reason or note (optional)</label>
-            <textarea
-              id="homeowner-status-reason"
-              value={transferForm.reason}
-              maxLength={500}
-              placeholder="Add a short note about the move or property transfer."
-              onChange={(event) =>
-                setTransferForm((current) => ({
-                  ...current,
-                  reason: event.target.value,
-                }))
-              }
-            />
-
-            {transferForm.status === 'transferred' && (() => {
-              const balance = pendingTransferContact.current_balance
-              const preview = balance == null || balance === '' ? { label: 'Account amount unavailable' } : transferAmountDescription(balance)
-              return (
-                <div className="contact-transfer-balance-preview" aria-label="Balance and credit transfer preview">
-                  <strong>Balance or credit to carry over</strong>
-                  <span>{preview.label}: {preview.amount == null ? 'Unavailable' : preview.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}</span>
-                  <small>Preview from the last loaded account record. The server transfers the latest signed balance when you confirm. This is not a separate payment.</small>
+              <div className="contact-form-row">
+                <div>
+                  <label htmlFor="homeowner-new-status">Action</label>
+                  <Select
+                    ariaLabel="Action"
+                    value={transferForm.status === 'moved' ? 'moved' : transferForm.transferTo}
+                    onChange={(value) =>
+                      setTransferForm((current) => ({
+                        ...current,
+                        status: value === 'moved' ? 'moved' : 'transferred',
+                        transferTo: value === 'existing' ? 'existing' : 'new',
+                        targetProperty: null,
+                      }))
+                    }
+                    options={[
+                      ['moved', 'Mark as moved'],
+                      ['existing', 'Transfer to an Existing homeowner'],
+                      ['new', 'Transfer to a New homeowner'],
+                    ].map(([value, label]) => ({ value, label }))}
+                  />
                 </div>
-              )
-            })()}
-            <p className="contact-transfer-note">
-              {transferForm.status === 'transferred' ? 'Only this lot’s current signed account balance moves to the new lot account: an amount owed stays an amount owed, and an advance credit stays a credit. Payment receipts and prior history remain with the former owner. The actual amount is determined at confirmation.' : 'This marks the selected lot account as moved. Any outstanding balance or advance credit and payment history stay on that account.'}
-            </p>
+                <div>
+                  <label htmlFor="homeowner-status-date">Effective date</label>
+                  <DateField
+                    ariaLabel="Effective date"
+                    name="effective_date"
+                    value={transferForm.effectiveDate}
+                    max={calendarToday()}
+                    onChange={(value) => setTransferForm((current) => ({ ...current, effectiveDate: value }))}
+                    required
+                  />
+                </div>
+              </div>
 
+              {transferForm.status === 'transferred' && transferForm.transferTo === 'new' && (
+                <>
+                  <label htmlFor="homeowner-new-owner-name">New homeowner name</label>
+                  <input
+                    id="homeowner-new-owner-name"
+                    type="text"
+                    value={transferForm.newHomeownerName}
+                    maxLength={120}
+                    placeholder="Enter the new owner's full name"
+                    onChange={(event) =>
+                      setTransferForm((current) => ({
+                        ...current,
+                        newHomeownerName: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </>
+              )}
+
+              {transferForm.status === 'transferred' && transferForm.transferTo === 'existing' && (
+                <TransferHomeownerPicker
+                  previousProperty={pendingTransferContact}
+                  selected={transferForm.targetProperty}
+                  disabled={Boolean(transferringContactId)}
+                  onSelect={(person) => setTransferForm((current) => ({ ...current, targetProperty: person }))}
+                />
+              )}
+
+              <label htmlFor="homeowner-status-reason">Reason or note (optional)</label>
+              <textarea
+                id="homeowner-status-reason"
+                value={transferForm.reason}
+                maxLength={500}
+                placeholder="Add a short note about the move or property transfer."
+                onChange={(event) =>
+                  setTransferForm((current) => ({
+                    ...current,
+                    reason: event.target.value,
+                  }))
+                }
+              />
+
+              {transferForm.status === 'transferred' &&
+                (() => {
+                  const balance = pendingTransferContact.current_balance
+                  const preview =
+                    balance == null || balance === ''
+                      ? { label: 'Account amount unavailable' }
+                      : transferAmountDescription(balance)
+                  return (
+                    <div className="contact-transfer-balance-preview" aria-label="Balance and credit transfer preview">
+                      <strong>Balance or credit to carry over</strong>
+                      <span>
+                        {preview.label}:{' '}
+                        {preview.amount == null
+                          ? 'Unavailable'
+                          : preview.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}
+                      </span>
+                      <small>
+                        Preview from the last loaded account record. The server transfers the latest signed balance when
+                        you confirm. This is not a separate payment.
+                      </small>
+                    </div>
+                  )
+                })()}
+              <p className="contact-transfer-note">
+                {transferForm.status === 'transferred'
+                  ? 'Only this lot’s current signed account balance moves to the new lot account: an amount owed stays an amount owed, and an advance credit stays a credit. Payment receipts and prior history remain with the former owner. The actual amount is determined at confirmation.'
+                  : 'This marks the selected lot account as moved. Any outstanding balance or advance credit and payment history stay on that account.'}
+              </p>
             </fieldset>
-            {transferError && <p className="contact-form-error" role="alert">{transferError}</p>}
+            {transferError && (
+              <p className="contact-form-error" role="alert">
+                {transferError}
+              </p>
+            )}
 
             <div className="contact-modal-actions">
               <button
@@ -633,12 +965,12 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="contact-save-button"
-                disabled={Boolean(transferringContactId)}
-              >
-                {transferringContactId ? 'Saving...' : transferForm.status === 'transferred' ? 'Confirm transfer' : 'Confirm move'}
+              <button type="submit" className="contact-save-button" disabled={Boolean(transferringContactId)}>
+                {transferringContactId
+                  ? 'Saving...'
+                  : transferForm.status === 'transferred'
+                    ? 'Confirm transfer'
+                    : 'Confirm move'}
               </button>
             </div>
           </form>
@@ -668,8 +1000,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
               <div>
                 <h2 id="contact-modal-title">Contact Details</h2>
                 <p>
-                  {selectedContact.homeowner_name} — {selectedContact.block}, Lot{' '}
-                  {selectedContact.lot_number}
+                  {selectedContact.homeowner_name} — {selectedContact.block}, Lot {selectedContact.lot_number}
                 </p>
               </div>
               <button
@@ -684,48 +1015,43 @@ export default function ContactManagerPage({ user: suppliedUser }) {
             </div>
 
             <fieldset className="contact-edit-fields" disabled={saving}>
-            <label htmlFor="contact-phone">Phone Number</label>
-            <input
-              id="contact-phone"
-              name="phone"
-              type="tel"
-              value={form.phone}
-              onChange={updateField}
-              placeholder="e.g. 0917 123 4567"
-              maxLength={30}
-            />
+              <label htmlFor="contact-phone">Phone Number</label>
+              <input
+                id="contact-phone"
+                name="phone"
+                type="tel"
+                value={form.phone}
+                onChange={updateField}
+                placeholder="e.g. 0917 123 4567"
+                maxLength={30}
+              />
 
-            <label htmlFor="contact-email">Email Address</label>
-            <input
-              id="contact-email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={updateField}
-              placeholder="e.g. homeowner@email.com"
-            />
+              <label htmlFor="contact-email">Email Address</label>
+              <input
+                id="contact-email"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={updateField}
+                placeholder="e.g. homeowner\@email.com"
+              />
 
-            <p className="contact-form-note">
-              These contact details are shared across every lot linked to this homeowner. Leave a field blank if that contact method is unavailable.
-            </p>
-
+              <p className="contact-form-note">
+                These contact details are shared across every lot linked to this homeowner. Leave a field blank if that
+                contact method is unavailable.
+              </p>
             </fieldset>
-            {formError && <p className="contact-form-error" role="alert">{formError}</p>}
+            {formError && (
+              <p className="contact-form-error" role="alert">
+                {formError}
+              </p>
+            )}
 
             <div className="contact-modal-actions">
-              <button
-                type="button"
-                className="contact-cancel-button"
-                onClick={closeContactForm}
-                disabled={saving}
-              >
+              <button type="button" className="contact-cancel-button" onClick={closeContactForm} disabled={saving}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="contact-save-button"
-                disabled={saving}
-              >
+              <button type="submit" className="contact-save-button" disabled={saving}>
                 {saving ? 'Saving...' : 'Save Contact'}
               </button>
             </div>
