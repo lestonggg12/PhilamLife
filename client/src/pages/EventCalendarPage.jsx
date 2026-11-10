@@ -425,7 +425,7 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   const [highlightedEventId, setHighlightedEventId] = useState(null)
 
   const role = currentUser?.role?.trim().toLowerCase()
-  const canManageEvents = role === 'secretary' && currentUser?.is_active !== false
+  const canManageEvents = role === 'secretary' && currentUser?.is_active === true
   useEffect(() => {
     mounted.current = true
     loadEvents()

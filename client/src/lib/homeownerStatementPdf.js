@@ -19,7 +19,7 @@ const balance = (value) => Number(value) < 0 ? `${money(-Number(value))} for fut
 
 export function buildHomeownerStatementPdf({
   hoaName, hoaAddress, homeownerName, blockLotLabel,
-  totalCharges = 0, openingBalance = 0, paymentsAllocated = 0,
+  totalCharges = 0, enteredBalances = 0, openingBalance = 0, paymentsAllocated = 0,
   paymentsLabel = 'Payments received', annualDiscountCredit = 0,
   otherAdjustments = 0, outstandingBalance = 0, availableCredit = 0,
   totalDebits = 0, totalCredits = 0, closingBalance = 0,
@@ -61,19 +61,20 @@ export function buildHomeownerStatementPdf({
   y += 7
   doc.setTextColor(...GRAY)
   doc.setFontSize(8)
-  const contextLines = doc.splitTextToSize('Payment and charge history for this lot. All amounts are in Philippine pesos. Dates and times use Philippine time. "For future bills" means the amount can cover later bills.', WIDTH)
+  const contextLines = doc.splitTextToSize('This statement shows changes to this lot’s balance. Dates are in Philippine time. Credit for future bills can cover later charges.', WIDTH)
   doc.text(contextLines, MARGIN, y)
   y += contextLines.length * 4 + 7
 
   const cards = [
     ['Starting balance', balance(openingBalance), NAVY],
     ['New charges', money(totalCharges), NAVY],
+    ...(enteredBalances > 0 ? [['Entered balances', money(enteredBalances), NAVY]] : []),
     [paymentsLabel, money(paymentsAllocated), GREEN],
     ['Discount: 1 month free', money(annualDiscountCredit), GREEN],
     ['Amount still owed', money(outstandingBalance), Number(outstandingBalance) > 0 ? RED : NAVY],
     ['Amount available for future bills', money(availableCredit), GREEN],
   ]
-  if (otherAdjustments) cards.push(['Other balance changes', balance(otherAdjustments), NAVY])
+  if (otherAdjustments) cards.push(['Other balance changes', money(otherAdjustments), NAVY])
   const cardWidth = (WIDTH - 8) / 3
   const cardHeight = 22
   cards.forEach(([label, value, tone], index) => {
@@ -106,10 +107,10 @@ export function buildHomeownerStatementPdf({
   const rows = statementLines.length ? statementLines.map((line) => [
     text(line.date || '-'), text(line.entry), text(line.reference || '-'),
     money(line.debit), money(line.credit), balance(line.balance),
-  ]) : [['-', 'No statement entries found.', '-', money(0), money(0), balance(closingBalance)]]
+  ]) : [['-', 'No recorded entries changed this lot’s balance.', '-', money(0), money(0), balance(closingBalance)]]
   autoTable(doc, {
     startY: y,
-    head: [['Date / time', 'What happened', 'Receipt / reference', 'Amount added', 'Amount deducted', 'Balance after this entry']],
+    head: [['Date recorded', 'What happened', 'Receipt / reference', 'Amount added', 'Amount deducted', 'Balance after this entry']],
     body: rows,
     foot: [[{ content: 'Totals / final balance', colSpan: 3 }, money(totalDebits), money(totalCredits), balance(closingBalance)]],
     showFoot: 'lastPage',
@@ -144,7 +145,7 @@ export function buildHomeownerStatementPdf({
   doc.text('Reviewed / Approved by', PAGE_W - MARGIN - signatureWidth, y + 5)
   y += Math.max(preparedLines.length * 4, 4) + 12
   doc.setFontSize(7)
-  doc.text(doc.splitTextToSize('Based on records available in the PhilamLife system as of the printed date. Cancelled entries are shown for reference and do not count toward the totals.', WIDTH), MARGIN, y)
+  doc.text(doc.splitTextToSize('Based on records available in the PhilamLife system as of the printed date. Cancelled entries and entries with no effect are omitted.', WIDTH), MARGIN, y)
   const pages = doc.getNumberOfPages()
   for (let page = 1; page <= pages; page += 1) {
     doc.setPage(page)

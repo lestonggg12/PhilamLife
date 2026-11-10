@@ -34,3 +34,27 @@ export function homeownerPaymentTotals(records, monthKey) {
 
   return { allTime: allTime / 100, thisYear: thisYear / 100, thisMonth: thisMonth / 100 }
 }
+
+export function paymentTrackerStatus(records) {
+  if (records.length === 0) return { key: 'empty', label: 'No payments recorded' }
+  if (records.some(({ statusKey }) => statusKey === 'partial' || statusKey === 'pending')) {
+    return { key: 'partial', label: 'Includes partial or pending transactions' }
+  }
+  return { key: 'recorded', label: 'Payments recorded' }
+}
+
+export function serviceInvoiceBalances(transactions) {
+  const settlements = new Map()
+  for (const row of transactions) {
+    if (row.balance_of != null && String(row.payment_status).trim().toLowerCase() !== 'voided') {
+      const cents = Math.round(Number(row.amount_paid) * 100)
+      settlements.set(row.balance_of, (settlements.get(row.balance_of) || 0) + cents)
+    }
+  }
+
+  return new Map(transactions.map(row => {
+    const due = Math.round(Number(row.amount_due) * 100)
+    const paid = Math.round(Number(row.amount_paid) * 100)
+    return [row.id, Math.max(0, due - paid - (settlements.get(row.id) || 0)) / 100]
+  }))
+}

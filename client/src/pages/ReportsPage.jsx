@@ -106,7 +106,7 @@ async function fetchMonth(selectedMonth) {
       .lt('expense_date', monthEndDate)
       .order('expense_date', { ascending: false })),
     fetchAll(() => supabase
-      .from('documents')
+      .from('document_upload_report')
       .select('id, title, category, created_at')
       .gte('created_at', range.start)
       .lt('created_at', range.end)

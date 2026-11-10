@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { updateHomeowner, removeHomeowner } from './homeownerWrites'
 function client(result) {
-  const query = { eq: vi.fn(() => query), select: vi.fn(() => query), single: vi.fn().mockResolvedValue(result) }
+  const query = { is: vi.fn(() => query), eq: vi.fn(() => query), select: vi.fn(() => query), single: vi.fn().mockResolvedValue(result) }
   const table = { update: vi.fn(() => query), delete: vi.fn(() => query) }
   return { from: vi.fn(() => table), rpc: vi.fn().mockResolvedValue(result), table, query }
 }
@@ -14,6 +14,16 @@ describe('confirmed homeowner writes', () => {
     expect(c.query.eq).toHaveBeenCalledWith('id', 42)
     expect(c.query.select).toHaveBeenCalledWith('id')
     expect(c.query.single).toHaveBeenCalledOnce()
+  })
+  it('checks the original owner, account status and changed values on save', async () => {
+    const c = client({ data: { id: 42 } })
+    await updateHomeowner(c, 42, { lot_size_sqm: 128, homeowner_name: 'Corrected name' }, {
+      homeowner_id: 'owner-id', homeowner_status: 'active', lot_size_sqm: null, homeowner_name: 'Old name',
+    })
+    expect(c.query.eq.mock.calls).toEqual([
+      ['id', 42], ['homeowner_id', 'owner-id'], ['homeowner_status', 'active'], ['homeowner_name', 'Old name'],
+    ])
+    expect(c.query.is).toHaveBeenCalledWith('lot_size_sqm', null)
   })
   it('deletes only through the guarded history-aware RPC', async () => {
     const c = client({ data: [{ deleted_property_id: 42 }], error: null })

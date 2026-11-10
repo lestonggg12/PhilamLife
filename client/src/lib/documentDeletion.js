@@ -12,18 +12,23 @@ export async function deleteDocumentSafely(client, id, onPending) {
     }
     pending = true
     onPending?.(document)
-    const removed = await client.storage.from('hoa-documents').remove([document.storage_path])
-    if (removed.error) throw removed.error
+    let removalError
+    try {
+      const removed = await client.storage.from('hoa-documents').remove([document.storage_path])
+      removalError = removed.error
+    } catch (error) {
+      removalError = error
+    }
     // A successful Storage response may contain zero rows. The final RPC checks
     // storage.objects itself; never assume an empty response deleted the file.
     const finished = await client.rpc('finish_document_deletion', { p_document_id: id })
-    if (finished.error) throw finished.error
+    if (finished.error) throw removalError || finished.error
     if (finished.data !== true) throw new Error('Deletion completion could not be confirmed.')
     return { alreadyDeleted: false }
   } catch (error) {
     const message = error?.message || 'Connection failed.'
     throw new Error(pending
       ? `Deletion is pending. Use Retry deletion to finish. ${message}`
-      : `Could not start deletion. Refresh before trying again. ${message}`)
+      : `Could not confirm the deletion request. Refresh before trying again. ${message}`)
   }
 }

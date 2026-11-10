@@ -425,26 +425,35 @@
 }
 .od-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 920px;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 .od-table thead th {
   position: sticky;
   top: 0;
-  padding: 12px 14px;
+  padding: 12px 8px;
   background: var(--ink);
   color: #fff;
   text-align: left;
   font: 600 11.5px var(--font-body);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.025em;
   text-transform: uppercase;
   white-space: nowrap;
 }
+.od-table thead th:nth-child(1) { width: 21%; }
+.od-table thead th:nth-child(2) { width: 9%; }
+.od-table thead th:nth-child(3) { width: 10%; }
+.od-table thead th:nth-child(4) { width: 12%; }
+.od-table thead th:nth-child(5) { width: 9.5%; }
+.od-table thead th:nth-child(6) { width: 10%; }
+.od-table thead th:nth-child(7) { width: 9.5%; }
+.od-table thead th:nth-child(8) { width: 19%; }
 .od-table thead th:first-child {
-  padding-left: 22px;
+  padding-left: 16px;
 }
 .od-table thead th:last-child {
-  padding-right: 22px;
+  padding-right: 16px;
 }
 .od-table .r {
   text-align: right;
@@ -458,15 +467,16 @@
   background: #f3f9ff;
 }
 .od-table tbody td {
-  padding: 13px 14px;
+  padding: 13px 8px;
   vertical-align: middle;
   font-size: 13.5px;
+  overflow-wrap: anywhere;
 }
 .od-table tbody td:first-child {
-  padding-left: 22px;
+  padding-left: 16px;
 }
 .od-table tbody td:last-child {
-  padding-right: 22px;
+  padding-right: 16px;
 }
 .od-who {
   display: flex;
@@ -486,10 +496,15 @@
   font-size: 12px;
   font-weight: 700;
 }
+.od-who > div {
+  min-width: 0;
+}
 .od-who b {
   display: block;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  letter-spacing: 0.015em;
+  line-height: 1.35;
+  overflow-wrap: break-word;
 }
 .od-sub {
   display: block;
@@ -563,6 +578,14 @@
   background: #e3f4ec;
   color: #17704f;
 }
+.od-table .od-pill.paid,
+.od-table .od-hoa-payment-heading {
+  white-space: normal;
+}
+.od-pill.moved {
+  background: #eef0f3;
+  color: #475467;
+}
 .od-pill.review {
   background: #efe6fb;
   color: #6a3fa8;
@@ -588,6 +611,27 @@
   color: #145a87;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+}
+/* Keep the table actions inside their column at the desktop minimum width. */
+.od-table .od-row-actions {
+  gap: 8px;
+}
+.od-table .od-row-btn {
+  justify-content: center;
+  padding-inline: 9px;
+  letter-spacing: 0.01em;
+}
+.od-table .od-view-btn {
+  min-width: 52px;
+}
+.od-table .od-pill {
+  gap: 4px;
+  padding-inline: 6px;
+  white-space: nowrap;
+}
+.od-table .od-money,
+.od-table .od-days b {
   white-space: nowrap;
 }
 .od-row-btn:hover {

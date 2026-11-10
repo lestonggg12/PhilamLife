@@ -1,59 +1,70 @@
-// Upload the Storage object first, then write its metadata. On a metadata
-// failure, attempt Storage cleanup and clearly report if cleanup also fails.
-// A rejected network promise must not leave the page indefinitely loading.
-const DOCUMENT_COLUMNS = 'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at, deletion_requested_at, deletion_requested_by'
+export const DOCUMENT_COLUMNS = 'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at, deletion_requested_at, deletion_requested_by'
+
+const hex = (buffer) => Array.from(new Uint8Array(buffer), byte => byte.toString(16).padStart(2, '0')).join('')
+
+export async function documentUploadRequest(file, payload, safeName, pending) {
+  const digest = hex(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))
+  const key = 'philamlife:document-upload:' + hex(await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode(JSON.stringify([digest, payload]))))
+  let path
+  try { path = sessionStorage.getItem(key) } catch { /* in-memory fallback */ }
+  path = path || pending.get(key) || `documents/${crypto.randomUUID()}-${safeName}`
+  pending.set(key, path)
+  try { sessionStorage.setItem(key, path) } catch { /* optional storage */ }
+  return {
+    path,
+    clear() {
+      pending.delete(key)
+      try { sessionStorage.removeItem(key) } catch { /* optional storage */ }
+    },
+  }
+}
 
 export async function uploadDocumentSafely(client, bucket, objectPath, file, payload) {
   const storage = client.storage.from(bucket)
-  const uploaded = await storage.upload(objectPath, file, {
-    cacheControl: '3600',
-    contentType: file.type,
-    upsert: false,
-  })
-  if (uploaded.error) throw new Error(`Storage upload failed: ${uploaded.error.message}`)
+  const intent = { ...payload, storage_path: objectPath }
+  const matches = row => Boolean(row?.id && !row.deletion_requested_at &&
+    row.storage_path === objectPath && row.uploaded_by === intent.uploaded_by &&
+    row.title === intent.title && row.category === intent.category &&
+    row.original_file_name === intent.original_file_name && row.mime_type === intent.mime_type &&
+    Number(row.file_size) === Number(intent.file_size))
 
-  let inserted
+  let storageError
+  try {
+    const uploaded = await storage.upload(objectPath, file, {
+      cacheControl: '0', contentType: intent.mime_type, upsert: false,
+    })
+    storageError = uploaded.error
+  } catch (error) {
+    storageError = error
+  }
+
+  // The server verifies object existence and ownership, even after an ambiguous
+  // Storage response. A retry uses the same object path and cannot overwrite it.
   let metadataError
   try {
-    inserted = await client.from('documents').insert(payload)
-      .select(DOCUMENT_COLUMNS)
-      .single()
-    if (inserted.error) throw inserted.error
-    if (!inserted.data?.id) throw new Error('Database did not confirm the document record.')
-    return inserted.data
+    const saved = await client.rpc('register_document_upload', {
+      p_title: intent.title,
+      p_category: intent.category,
+      p_storage_path: objectPath,
+      p_original_file_name: intent.original_file_name,
+      p_mime_type: intent.mime_type,
+      p_file_size: intent.file_size,
+    }).single()
+    if (!saved.error && matches(saved.data)) return saved.data
+    metadataError = saved.error
   } catch (error) {
     metadataError = error
   }
-
-  // A timed-out INSERT may have committed. Verify first: deleting its bytes
-  // would otherwise leave a successful document record with a broken download.
-  // If verification is unavailable, retain the object for safe reconciliation.
   try {
     const found = await client.from('documents').select(DOCUMENT_COLUMNS)
       .eq('storage_path', objectPath).maybeSingle()
-    if (found.error) throw found.error
-    if (found.data) {
-      if (found.data.storage_path === objectPath && found.data.id) return found.data
-      throw new Error('The recovered document record did not match the upload.')
-    }
-  } catch (verificationError) {
-    throw new Error(
-      `The document upload result is uncertain (${metadataError?.message || 'unknown error'}). ` +
-      `The uploaded file was retained because its database status could not be verified ` +
-      `(${verificationError?.message || 'verification failed'}). Refresh the library before retrying; ` +
-      `an administrator may need to reconcile ${objectPath}.`,
-    )
-  }
+    if (!found.error && matches(found.data)) return found.data
+  } catch { /* the same request can be retried without copying or deleting bytes */ }
 
-  try {
-    const cleanup = await storage.remove([objectPath])
-    if (cleanup.error) throw cleanup.error
-  } catch (cleanupError) {
-    throw new Error(
-      `Document record could not be saved (${metadataError?.message || 'unknown error'}). ` +
-      `Storage cleanup also failed (${cleanupError?.message || 'unknown error'}). ` +
-      `A staff administrator should check the orphaned object at ${objectPath}.`,
-    )
+  if (metadataError?.code === 'PHD01') {
+    throw Object.assign(new Error(metadataError.message), { code: metadataError.code })
   }
-  throw new Error(`Document record could not be saved: ${metadataError?.message || 'Please retry.'}`)
+  const message = storageError?.message || metadataError?.message || 'The server did not confirm the document.'
+  throw new Error(`Upload could not be confirmed. ${message} Retry with the same file, title, and category.`)
 }

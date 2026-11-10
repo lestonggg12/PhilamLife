@@ -10,6 +10,24 @@ export function matchesHomeownerSearch(property, search) {
   return words.every((word) => fields.some((field) => field.includes(word)))
 }
 
+// Each entry represents an active lot. A linked owner may have multiple lots.
+export function summarizeActiveLots(entries) {
+  const ownerIds = new Set()
+  let vacantLots = 0
+  let withBalance = 0
+  for (const { property, status } of entries) {
+    if (property.homeowner_id) ownerIds.add(property.homeowner_id)
+    if (String(property.property_classification).trim().toLowerCase() === 'lot_owner') vacantLots += 1
+    if (status.key === 'balance') withBalance += 1
+  }
+  return {
+    uniqueOwners: ownerIds.size,
+    vacantLots,
+    withBalance,
+    noBalanceDue: entries.length - withBalance,
+  }
+}
+
 // Reset immediately when filters change; clamp after a refresh removes rows.
 export function useListPage(rows, filters, size = PAGE_ROWS) {
   const key = JSON.stringify(filters)

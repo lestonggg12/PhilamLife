@@ -22,7 +22,7 @@ export function buildPaymentMonthPrintHtml({ hoaName, preparedBy = '', preparedR
     <td>${esc(record.method || '—')}</td>
     <td>${esc(record.status || '—')}</td>
     <td class="money">${esc(money(record.amount))}</td>
-  </tr>`).join('\n') : `<tr><td colspan="6" class="empty">No payment transactions were recorded for this homeowner during ${esc(period)}.</td></tr>`;
+  </tr>`).join('\n') : `<tr><td colspan="6" class="empty">No payment transactions were recorded for this lot during ${esc(period)}.</td></tr>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(period)} — Homeowner Payment Activity</title>
@@ -119,7 +119,7 @@ export function buildPaymentMonthPrintHtml({ hoaName, preparedBy = '', preparedR
     <div class="totalrow"><span>Total recorded payments for ${esc(period)}</span><strong>${esc(money(total))}</strong></div>
   </section>
   <footer class="footnote">
-    <p><strong>Basis:</strong> This report lists non-voided payments by payment date in Manila time, not by the month covered by association dues. Values are sourced from the selected homeowner's recorded transactions.</p>
+    <p><strong>Basis:</strong> This report lists non-voided payments by payment date in Manila time, not by the month covered by association dues. Values are sourced from the selected lot's recorded transactions.</p>
     <p><strong>Important:</strong> This is a payment-activity summary, not an official receipt, billing statement, balance confirmation, or certification that association dues are fully paid. Unpaid dues and outstanding balances are not calculated here.</p>
   </footer>
   <section class="prepared-signature" aria-label="Report preparation and signature">

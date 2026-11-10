@@ -22,3 +22,9 @@ describe('Overdue snapshot integrity', () => {
     expect(() => verifyOverdueSnapshot([{ ...property, current_balance: null }], [], settings, [aging])).toThrow('do not match')
   })
 })
+
+it('rejects balances that changed between reads and accepts advance credit normalized by the view', () => {
+  expect(() => verifyOverdueSnapshot([property], [], settings, [{ ...aging, balance: 999.99 }])).toThrow('do not match')
+  expect(() => verifyOverdueSnapshot([{ ...property, current_balance: '-50.00' }], [], settings,
+    [{ ...aging, balance: 0, overdue_amount: 0 }])).not.toThrow()
+})

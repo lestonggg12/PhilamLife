@@ -15,7 +15,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { deleteDocumentSafely } from '../lib/documentDeletion'
-import { uploadDocumentSafely } from '../lib/documentUpload'
+import { DOCUMENT_COLUMNS, documentUploadRequest, uploadDocumentSafely } from '../lib/documentUpload'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import { Pager } from '../components/PagerControls'
@@ -33,26 +33,17 @@ const CATEGORIES = [
   'Forms',
   'Other',
 ]
-const ACCEPTED_EXTENSIONS = [
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.xls',
-  '.xlsx',
-  '.jpg',
-  '.jpeg',
-  '.png',
-]
-const ACCEPTED_MIME_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'image/jpeg',
-  'image/png',
-])
-
+const MIME_BY_EXTENSION = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+}
+const ACCEPTED_EXTENSIONS = Object.keys(MIME_BY_EXTENSION)
 
 const SORT_OPTIONS = [
   { value: 'new', label: 'Newest first' },
@@ -122,6 +113,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const { organization } = useOrganization()
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [documents, setDocuments] = useState([])
+  const [hasSnapshot, setHasSnapshot] = useState(false)
+  const hasSnapshotRef = useRef(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const [loading, setLoading] = useState(true)
@@ -147,21 +140,24 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     }
   })
   const loadSequence = useRef(0)
+  const mutationVersion = useRef(0)
+  const pendingUploads = useRef(new Map())
+  const deleteInProgress = useRef(false)
+  const downloadInProgress = useRef(false)
   const uploadInProgress = useRef(false)
 
   const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
   const canUploadDocuments = role === 'secretary'
   const canDeleteDocuments = ['admin', 'secretary'].includes(role)
-  const actorName =
-    currentUser?.full_name ||
-    currentUser?.name ||
-    currentUser?.email ||
-    'Secretary'
+  const canReadDocuments = ['admin', 'secretary', 'treasurer'].includes(role) && Boolean(currentUser?.id)
+
+  useEffect(() => { resolveCurrentUser() }, [])
 
   useEffect(() => {
+    if (!canReadDocuments) return undefined
     loadDocuments()
-    resolveCurrentUser()
-  }, [])
+    return () => { loadSequence.current += 1 }
+  }, [canReadDocuments, currentUser?.id])
 
   useEffect(() => {
     if (!detailDocument) return undefined
@@ -184,6 +180,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   async function resolveCurrentUser() {
     if (suppliedUser) {
       setCurrentUser(suppliedUser)
+      if (!canReadDocuments) setLoading(false)
       return
     }
 
@@ -198,33 +195,39 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         .single()
       if (profileError) throw profileError
       if (!profile?.id || profile.is_active === false) throw new Error('Your staff account is unavailable or inactive.')
+      if (!['admin', 'secretary', 'treasurer'].includes(profile.role?.trim().toLowerCase())) {
+        throw new Error('This account does not have Document Library access.')
+      }
       setCurrentUser(profile)
     } catch (error) {
       setCurrentUser(null)
+      setLoading(false)
       setPageError(`Document access could not be verified: ${error.message || 'Please sign in again.'}`)
     }
   }
 
   async function loadDocuments(isRefresh = false) {
     const requestId = ++loadSequence.current
+    const version = mutationVersion.current
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setPageError('')
-    setNotice('')
     try {
       const { data, error } = await fetchAll(() => supabase
         .from('documents')
-        .select(
-          'id, title, category, storage_path, original_file_name, mime_type, file_size, uploaded_by, uploaded_by_name, created_at, deletion_requested_at, deletion_requested_by',
-        )
+        .select(DOCUMENT_COLUMNS)
         .order('created_at', { ascending: false }))
-      if (requestId !== loadSequence.current) return
+      if (requestId !== loadSequence.current || version !== mutationVersion.current) return
       if (error) throw error
       if (!Array.isArray(data)) throw new Error('The document list response was incomplete.')
       setDocuments(data)
+      hasSnapshotRef.current = true
+      setHasSnapshot(true)
     } catch (error) {
       // Never replace an authoritative document list with a failed/partial response.
-      if (requestId === loadSequence.current) setPageError(`Documents could not be loaded: ${error.message || 'Connection failed.'}`)
+      if (requestId === loadSequence.current && version === mutationVersion.current) {
+        setPageError(`Documents could not be loaded: ${error.message || 'Connection failed.'}${hasSnapshotRef.current ? ' Showing the last loaded list.' : ''}`)
+      }
     } finally {
       if (requestId === loadSequence.current) {
         setLoading(false)
@@ -263,7 +266,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     if (file && !form.title.trim()) {
       setForm((current) => ({
         ...current,
-        title: titleFromFileName(file.name),
+        title: Array.from(titleFromFileName(file.name)).slice(0, 160).join(''),
       }))
     }
   }
@@ -275,10 +278,10 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
     const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
 
-    if (
-      !ACCEPTED_EXTENSIONS.includes(extension) ||
-      !ACCEPTED_MIME_TYPES.has(file.type)
-    ) {
+    const type = file.type.trim().toLowerCase()
+    if (Array.from(file.name).length > 255) return 'The file name must be 255 characters or fewer.'
+    if (!Object.hasOwn(MIME_BY_EXTENSION, extension) ||
+        (type && type !== 'application/octet-stream' && type !== MIME_BY_EXTENSION[extension])) {
       return 'Use a PDF, Word, Excel, JPG, or PNG file.'
     }
 
@@ -287,7 +290,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
   async function uploadDocument(event) {
     event.preventDefault()
-    if (uploadInProgress.current) return
+    if (uploadInProgress.current || deleteInProgress.current) return
 
     if (!canUploadDocuments || !currentUser?.id) {
       setFormError('Only a verified Secretary can upload documents.')
@@ -302,7 +305,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       return
     }
 
-    if (title.length > 160) {
+    if (Array.from(title).length > 160) {
       setFormError('Document title must be 160 characters or fewer.')
       return
     }
@@ -318,31 +321,37 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     }
 
     uploadInProgress.current = true
+    mutationVersion.current += 1
     setUploading(true)
     setFormError('')
+    let request
 
     try {
-      const randomId = globalThis.crypto?.randomUUID?.()
-      if (!randomId) throw new Error('Secure document uploads require HTTPS or localhost.')
-      const objectPath = `documents/${Date.now()}-${randomId}-${safeFileName(selectedFile.name)}`
+      if (!globalThis.crypto?.randomUUID || !globalThis.crypto?.subtle) {
+        throw new Error('Secure document uploads require HTTPS or localhost.')
+      }
+      const extension = selectedFile.name.slice(selectedFile.name.lastIndexOf('.')).toLowerCase()
       const payload = {
         title,
         category: form.category,
-        storage_path: objectPath,
         original_file_name: selectedFile.name,
-        mime_type: selectedFile.type,
+        mime_type: MIME_BY_EXTENSION[extension],
         file_size: selectedFile.size,
         uploaded_by: currentUser.id,
-        uploaded_by_name: actorName,
       }
-      const data = await uploadDocumentSafely(supabase, BUCKET, objectPath, selectedFile, payload)
-      setDocuments((current) => [data, ...current])
+      request = await documentUploadRequest(selectedFile, payload, safeFileName(selectedFile.name), pendingUploads.current)
+      const data = await uploadDocumentSafely(supabase, BUCKET, request.path, selectedFile, payload)
+      request.clear()
+      mutationVersion.current += 1
+      setDocuments(current => [data, ...current.filter(document => document.id !== data.id)])
       setHighlightedDocumentId(data.id)
       setShowUpload(false)
       setForm(EMPTY_FORM)
       setSelectedFile(null)
       setNotice(`“${data.title}” was uploaded successfully.`)
+      await loadDocuments(true)
     } catch (error) {
+      if (error.code === 'PHD01') request?.clear()
       setFormError(error.message || 'Document upload failed. Try again.')
     } finally {
       uploadInProgress.current = false
@@ -355,6 +364,8 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       setPageError('This document is pending deletion and cannot be downloaded.')
       return
     }
+    if (downloadInProgress.current) return
+    downloadInProgress.current = true
     setDownloadingId(document.id)
     setPageError('')
     setNotice('')
@@ -382,22 +393,26 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       setPageError(`Download failed: ${error.message || 'Please try again.'}`)
     } finally {
       if (downloadUrl) window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
+      downloadInProgress.current = false
       setDownloadingId(null)
     }
   }
 
   function requestDeleteDocument(document) {
-    if (!canDeleteDocuments) return
+    if (!canDeleteDocuments || deleteInProgress.current || uploadInProgress.current) return
     setPendingDelete(document)
   }
 
   async function deleteDocument(document) {
+    if (deleteInProgress.current || uploadInProgress.current) return
     if (!canDeleteDocuments || !document || !currentUser?.id) {
       setPendingDelete(null)
       setPageError('Only an Admin or Secretary can delete documents.')
       return
     }
 
+    deleteInProgress.current = true
+    mutationVersion.current += 1
     setPendingDelete(null)
     setDeletingId(document.id)
     setPageError('')
@@ -407,13 +422,17 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
       const result = await deleteDocumentSafely(supabase, document.id, (pending) => {
         setDocuments((current) => current.map((item) => item.id === pending.id ? pending : item))
       })
+      mutationVersion.current += 1
       setDocuments((current) => current.filter((doc) => doc.id !== document.id))
       setNotice(result.alreadyDeleted
         ? `“${document.title}” was already removed. The list has been updated.`
-        : `“${document.title}” was deleted and its storage space freed.`)
+        : `“${document.title}” was permanently deleted from the library.`)
+      await loadDocuments(true)
     } catch (error) {
+      await loadDocuments(true)
       setPageError(error.message)
     } finally {
+      deleteInProgress.current = false
       setDeletingId(null)
     }
   }
@@ -458,7 +477,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           type="button"
           className="doc-download-button"
           onClick={() => downloadDocument(document)}
-          disabled={downloadingId === document.id || Boolean(document.deletion_requested_at)}
+          disabled={Boolean(downloadingId || document.deletion_requested_at || deletingId)}
           aria-label={`Download ${document.title}`}
         >
           <Download size={16} />
@@ -470,7 +489,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
             type="button"
             className={`doc-delete-button${document.deletion_requested_at ? ' doc-delete-retry' : ''}`}
             onClick={() => requestDeleteDocument(document)}
-            disabled={deletingId === document.id}
+            disabled={Boolean(deletingId || uploading)}
             aria-label={`${document.deletion_requested_at ? 'Retry deletion of' : 'Delete'} ${document.title}`}
             title={document.deletion_requested_at ? 'Retry deletion' : 'Delete this document'}
           >
@@ -490,16 +509,9 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     }
   }
 
-  const totalSize = documents.reduce(
-    (sum, document) => sum + (Number(document.file_size) || 0),
-    0,
-  )
-  const categoryCount = new Set(documents.map((document) => document.category)).size
-  const filteredTotalSize = filteredDocuments.reduce(
-    (sum, document) => sum + (Number(document.file_size) || 0),
-    0,
-  )
-  const filteredCategoryCount = new Set(filteredDocuments.map((document) => document.category)).size
+  const availableDocuments = filteredDocuments.filter(document => !document.deletion_requested_at)
+  const filteredTotalSize = availableDocuments.reduce((sum, document) => sum + Number(document.file_size), 0)
+  const filteredCategoryCount = new Set(availableDocuments.map(document => document.category)).size
   const filteredPendingCount = filteredDocuments.filter((document) => document.deletion_requested_at).length
 
   return (
@@ -528,7 +540,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
             type="button"
             className="doc-refresh-button"
             onClick={() => loadDocuments(true)}
-            disabled={refreshing}
+            disabled={refreshing || uploading || Boolean(deletingId) || !canReadDocuments}
           >
             <RefreshCw size={17} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -536,28 +548,30 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </div>
       </header>
 
+
       <section className="doc-summary" aria-label="Document summaries" aria-busy={loading || refreshing}>
         <article className="doc-summary-item">
-          <span>Matching documents</span>
-          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredDocuments.length}</strong>
+          <span>Available documents</span>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : hasSnapshot ? availableDocuments.length : '—'}</strong>
           <small>of {documents.length} in the library</small>
         </article>
         <article className="doc-summary-item">
-          <span>Matching file size</span>
-          <strong>{loading ? '—' : formatFileSize(filteredTotalSize)}</strong>
+          <span>Available file size</span>
+          <strong>{hasSnapshot ? formatFileSize(filteredTotalSize) : '—'}</strong>
           <small>Total of the files shown</small>
         </article>
         <article className="doc-summary-item">
           <span>Categories in view</span>
-          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredCategoryCount}</strong>
-          <small>of {categoryCount} in use</small>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : hasSnapshot ? filteredCategoryCount : '—'}</strong>
+          <small>of {new Set(documents.map(document => document.category)).size} in use</small>
         </article>
         <article className={`doc-summary-item${filteredPendingCount > 0 ? ' doc-summary-warn' : ''}`}>
           <span>Deletion pending</span>
-          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredPendingCount}</strong>
+          <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : hasSnapshot ? filteredPendingCount : '—'}</strong>
           <small>Waiting for storage cleanup</small>
         </article>
       </section>
+
 
       {!loading && canUploadDocuments && (
         <p className="doc-storage-note">
@@ -565,6 +579,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           Storage quota is checked by Supabase during upload.
         </p>
       )}
+
 
       {pageError && <p className="doc-message doc-error">{pageError}</p>}
 
@@ -633,7 +648,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
         {loading ? (
           <div className="doc-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
-        ) : pageError && documents.length === 0 ? (
+        ) : !hasSnapshot ? (
           <p className="doc-empty" role="alert">Unable to display the document list. Use Refresh to retry.</p>
         ) : filteredDocuments.length === 0 ? (
           <div className="doc-empty">
@@ -715,13 +730,15 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                 <p className="doc-file-name">
                   {organization.formatDate(document.created_at, { withTime: true })} · {document.uploaded_by_name}
                 </p>
+
                 {actionButtons(document)}
               </article>
             ))}
           </div>
+
         )}
 
-        {!loading && <Pager page={documentPage.page} total={filteredDocuments.length} onPageChange={documentPage.setPage} />}
+        {!loading && hasSnapshot && <Pager page={documentPage.page} total={filteredDocuments.length} onPageChange={documentPage.setPage} />}
       </section>
 
       <ActionDialog
@@ -731,7 +748,7 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
           pendingDelete
             ? pendingDelete.deletion_requested_at
               ? `Finish deleting "${pendingDelete.title}"? The previous attempt is pending. This cannot be undone.`
-              : `Delete "${pendingDelete.title}" (${pendingDelete.original_file_name})? This cannot be undone and will free up ${formatFileSize(pendingDelete.file_size)} of storage.`
+              : `Delete "${pendingDelete.title}" (${pendingDelete.original_file_name})? The stored file will be permanently removed. You can upload it again as a new entry.`
             : ''
         }
         confirmLabel={pendingDelete?.deletion_requested_at ? 'Retry deletion' : 'Delete'}

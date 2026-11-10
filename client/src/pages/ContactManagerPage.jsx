@@ -792,12 +792,14 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           />
         )}
 
+
         {shouldList && !listError && !listLoading && total > 0 && (
           <div className="contact-pager">
             <Pager page={page} total={total} onPageChange={goToPage} disabled={listLoading} />
           </div>
         )}
       </section>
+
 
       {pendingTransferContact && (
         <div
@@ -1031,7 +1033,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
                 type="email"
                 value={form.email}
                 onChange={updateField}
-                placeholder="e.g. homeowner@email.com"
+                placeholder="e.g. homeowner\@email.com"
               />
 
               <p className="contact-form-note">

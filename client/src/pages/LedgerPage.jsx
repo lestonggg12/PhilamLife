@@ -5,7 +5,10 @@ import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
-import { buildLedgerStatement, ledgerStatementNotes } from '../lib/ledgerStatement'
+import { buildLedgerStatement, ledgerStatementNotes, readableLedgerText } from '../lib/ledgerStatement'
+import { summarizeLedgerEntries, verifiedLedgerAging, verifyLedgerSources } from '../lib/ledgerSummary'
+import { matchesHomeownerSearch, useListPage } from '../lib/homeownerDirectory'
+import { Pager } from '../components/PagerControls'
 import { accountLedgerStatus } from '../lib/manualChargeDueDate'
 import { useOrganization } from '../context/OrganizationContext'
 import Skeleton from '../components/skeleton/Skeleton'
@@ -22,12 +25,8 @@ const SORT_COLUMNS = [
 // Negative balances are advance credit — show them as credit, not as "-₱x".
 const formatMoney = (value) => (value < 0 ? `${peso.format(-value)} for future bills` : peso.format(value))
 
-// The table only renders once the user has narrowed things down — with a
-// search term or a non-default filter — so we never dump the full
-// homeowner list into the DOM at once. MAX_VISIBLE_ROWS is a second
-// safety net in case a broad search or filter still matches a lot of rows.
+// Avoid displaying the entire directory on an unfiltered page.
 const MIN_SEARCH_LENGTH = 2
-const MAX_VISIBLE_ROWS = 100
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -42,6 +41,7 @@ const timeOfDay = new Intl.DateTimeFormat('en-PH', {
 const normalize = (value) => String(value ?? '').trim().toLowerCase()
 
 function compareEntries(a, b, key, direction) {
+  if (a[key] == null || b[key] == null) return Number(a[key] == null) - Number(b[key] == null) || a.id - b.id
   let result = 0
 
   if (key === 'block') {
@@ -52,7 +52,7 @@ function compareEntries(a, b, key, direction) {
     result = String(a[key]).localeCompare(String(b[key]))
   }
 
-  return direction === 'desc' ? -result : result
+  return (direction === 'desc' ? -result : result) || a.id - b.id
 }
 
 export default function LedgerPage({ user: suppliedUser }) {
@@ -64,14 +64,8 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' })
   const [blocks, setBlocks] = useState([])
   const [properties, setProperties] = useState([])
-  const [paymentSummaries, setPaymentSummaries] = useState([])
-  const [overdueSummaries, setOverdueSummaries] = useState([])
-  const [paymentProgress, setPaymentProgress] = useState([])
-  const [penaltySettings, setPenaltySettings] = useState({
-    dueDay: 5,
-    gracePeriodDays: 0,
-    latePenalty: 0,
-  })
+  const [ledgerSources, setLedgerSources] = useState(null)
+  const ledgerRequestRef = useRef(0)
   const [loading, setLoading] = useState(true)
   const [ledgerVerified, setLedgerVerified] = useState(false)
   const [pageError, setPageError] = useState('')
@@ -103,6 +97,10 @@ const actorName =
   useEffect(() => {
     loadLedger()
     resolveCurrentUser()
+    return () => {
+      ledgerRequestRef.current += 1
+      statementRequestRef.current += 1
+    }
   }, [])
 
   async function resolveCurrentUser() {
@@ -124,67 +122,48 @@ const actorName =
   }
 
   async function loadLedger() {
+    const requestId = ++ledgerRequestRef.current
     closeStatement()
     setLedgerVerified(false)
     setLoading(true)
     setPageError('')
 
     try {
-    const [blockResult, propertyResult, paymentResult, settingsResult, overdueResult, progressResult] =
-      await Promise.all([
-        supabase.from('blocks').select('id, name').order('name'),
-        fetchAll(() => supabase
-          .from('properties')
-          .select('id, block, lot_number, homeowner_name, created_at, homeowner_status, current_balance, opening_balance, opening_balance_as_of, opening_balance_note')
+      const [blocks, lots, payments, settings, aging, progress, financial] = await Promise.all([
+        fetchAll(() => supabase.from('blocks').select('id, name').order('name')),
+        fetchAll(() => supabase.from('properties')
+          .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance, opening_balance')
           .order('homeowner_name')),
-        // One small row per homeowner (totals + latest payment) computed by the database,
-        // instead of downloading every payment ever recorded.
-        fetchAll(() => supabase.from('property_payment_summary').select('*').order('property_id'), { tiebreaker: null }),
-        supabase.from('system_settings').select('due_day, grace_period_days, late_penalty, hoa_name, address').eq('id', 1).maybeSingle(),
-        fetchAll(() => supabase
-          .from('property_overdue_summary')
-          .select('property_id, overdue_amount, current_amount, is_overdue, days_overdue, penalty_amount, total_due, aging_complete')
+        fetchAll(() => supabase.from('property_payment_summary')
+          .select('property_id, total_paid, latest_previous_balance, latest_amount_paid, latest_paid_at')
           .order('property_id'), { tiebreaker: null }),
-        fetchAll(() => supabase.from('property_payment_progress')
-          .select('property_id, has_partial_payment').order('property_id'), { tiebreaker: null }),
+        supabase.from('system_settings').select('hoa_name, address').eq('id', 1).maybeSingle(),
+        fetchAll(() => supabase.from('property_overdue_summary')
+          .select('property_id, overdue_amount, current_amount, is_overdue, total_due, aging_complete')
+          .order('property_id'), { tiebreaker: null }),
+        fetchAll(() => supabase.from('property_payment_progress').select('property_id, has_partial_payment')
+          .order('property_id'), { tiebreaker: null }),
+        fetchAll(() => supabase.from('financial_invariant_report')
+          .select('property_id, homeowner_status, stored_balance, opening_balance, active_charges')
+          .order('property_id'), { tiebreaker: null }),
       ])
+      if (requestId !== ledgerRequestRef.current) return
+      const error = [blocks, lots, payments, settings, aging, progress, financial].find(result => result.error)?.error
+      if (error) throw error
+      if (!Array.isArray(blocks.data) || !settings.data) throw new Error('Ledger settings or block list are unavailable.')
+      const sources = verifyLedgerSources(lots.data, financial.data, payments.data, aging.data, progress.data)
 
-    const errors = [blockResult.error, propertyResult.error, paymentResult.error, settingsResult.error, overdueResult.error, progressResult.error]
-      .filter(Boolean)
-      .map((error) => error.message)
-    if (!Array.isArray(blockResult.data) || !Array.isArray(propertyResult.data) ||
-        !Array.isArray(paymentResult.data) || !Array.isArray(overdueResult.data) || !Array.isArray(progressResult.data)) {
-      errors.push('One or more ledger queries returned an incomplete response.')
-    }
-    if (propertyResult.data?.some((property) =>
-      property.current_balance == null || !Number.isFinite(Number(property.current_balance)))) {
-      errors.push('Some property balances could not be verified.')
-    }
-
-    // A missing result must not turn an unverified account into Paid, and a
-    // failed refresh must not replace the previous complete snapshot.
-    if (errors.length > 0 || !settingsResult.data) {
-      setPageError(`Could not load the complete ledger: ${[...errors, ...(!settingsResult.data ? ['System settings are unavailable.'] : [])].join(' ')}`)
-      setLoading(false)
-      return
-    }
-
-    setBlocks(blockResult.data || [])
-    setProperties(propertyResult.data || [])
-    setPaymentSummaries(paymentResult.data || [])
-    setOverdueSummaries(overdueResult.data || [])
-    setPaymentProgress(progressResult.data || [])
-    setOrgSettings(settingsResult.data || null)
-    setLedgerVerified(true)
-    setPenaltySettings({
-      dueDay: Number(settingsResult.data?.due_day) || 5,
-      gracePeriodDays: Number(settingsResult.data?.grace_period_days) || 0,
-      latePenalty: Number(settingsResult.data?.late_penalty) || 0,
-    })
-    setLoading(false)
+      setBlocks(blocks.data)
+      setProperties(lots.data)
+      setLedgerSources(sources)
+      setOrgSettings(settings.data)
+      setLedgerVerified(true)
     } catch (failure) {
-      setPageError(`Could not load the complete ledger: ${failure?.message || 'Connection failed.'}`)
-      setLoading(false)
+      if (requestId === ledgerRequestRef.current) {
+        setPageError(`Could not load the complete ledger: ${failure?.message || 'Connection failed.'}`)
+      }
+    } finally {
+      if (requestId === ledgerRequestRef.current) setLoading(false)
     }
   }
 
@@ -197,114 +176,104 @@ const actorName =
     setStatementLoading(true)
 
     try {
-    const [paymentResult, chargeResult, lotResult, accountAdjustmentResult] = await Promise.all([
-      fetchAll(() => supabase
-        .from('payments')
-        .select('id, paid_at, created_at, status, coverage_period, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released, receipt_breakdown, payment_method, note, recorded_by_name, void_reason')
-        .eq('property_id', entry.id)
-        .order('paid_at', { ascending: true })),
-      fetchAll(() => supabase
-        .from('property_charges')
-        .select('id, created_at, charge_type, description, billing_month, due_date, amount, voided_at, void_reason')
-        .eq('property_id', entry.id)
-        .order('created_at', { ascending: true })),
-      supabase.from('properties')
+      const [paymentResult, chargeResult, accountAdjustmentResult, enteredResult] = await Promise.all([
+        fetchAll(() => supabase
+          .from('payments')
+          .select('id, paid_at, created_at, status, coverage_period, charge_type, reference_number, receipt_number, amount, amount_paid, balance_effect, effect_released, receipt_breakdown, payment_method, note, recorded_by_name')
+          .eq('property_id', entry.id)
+          .order('paid_at', { ascending: true })),
+        fetchAll(() => supabase
+          .from('property_charges')
+          .select('id, created_at, charge_type, description, billing_month, due_date, amount, voided_at')
+          .eq('property_id', entry.id)
+          .order('created_at', { ascending: true })),
+        fetchAll(() => supabase.from('account_adjustments')
+          .select('id, charge_id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at')
+          .eq('property_id', entry.id)
+          .order('created_at')),
+        fetchAll(() => supabase.from('balance_entries')
+          .select('id, category, amount, as_of_date, description, created_at, voided_at')
+          .eq('property_id', entry.id).order('created_at')),
+      ])
+      if (requestId !== statementRequestRef.current) return
+      const allocationResult = (paymentResult.data || []).length ? await fetchAll(() => supabase
+        .from('property_payment_allocations')
+        .select('payment_id, property_charge_id, allocated_amount, payments!inner(property_id)')
+        .eq('payments.property_id', entry.id))
+        : { data: [], error: null }
+      // Multiple historical reconciliations can exist for one property.
+      const adjustmentResult = await fetchAll(() => supabase
+        .from('moved_account_reconciliations')
+        .select('adjustment_amount, reason')
+        .eq('property_id', entry.id))
+      const lotResult = await supabase.from('properties')
         .select('id, current_balance, opening_balance, opening_balance_as_of, opening_balance_note')
-        .eq('id', entry.id)
-        .maybeSingle(),
-      fetchAll(() => supabase.from('account_adjustments')
-        .select('id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at, reversal_reason')
-        .eq('property_id', entry.id)
-        .order('created_at')),
-    ])
-    if (requestId !== statementRequestRef.current) return
-    const allocationResult = (paymentResult.data || []).length ? await fetchAll(() => supabase
-      .from('property_payment_allocations')
-      .select('payment_id, property_charge_id, allocated_amount, payments!inner(property_id)')
-      .eq('payments.property_id', entry.id))
-      : { data: [], error: null }
-    // Multiple historical reconciliations can exist for one property.
-    const adjustmentResult = await fetchAll(() => supabase
-      .from('moved_account_reconciliations')
-      .select('adjustment_amount, reason')
-      .eq('property_id', entry.id))
-    if (requestId !== statementRequestRef.current) return
-    const error = paymentResult.error
-      || lotResult.error
-      || accountAdjustmentResult.error
-      || (!lotResult.data ? { message: 'This lot is no longer available.' } : null)
-      || chargeResult.error
-      || allocationResult.error
-      || adjustmentResult.error
+        .eq('id', entry.id).maybeSingle()
+      if (requestId !== statementRequestRef.current) return
+      const error = paymentResult.error
+        || lotResult.error
+        || accountAdjustmentResult.error
+        || enteredResult.error
+        || (!lotResult.data ? { message: 'This lot is no longer available.' } : null)
+        || chargeResult.error
+        || allocationResult.error
+        || adjustmentResult.error
 
-    if (error) {
-      setStatementError(`Could not load history: ${error.message}`)
-      setStatementLoading(false)
-      return
-    }
+      if (error) {
+        setStatementError(`Could not load history: ${error.message}`)
+        setStatementLoading(false)
+        return
+      }
 
-    const allocationsByPayment = new Map()
-    for (const allocation of allocationResult.data || []) {
-      const list = allocationsByPayment.get(allocation.payment_id) || []
-      list.push(allocation)
-      allocationsByPayment.set(allocation.payment_id, list)
-    }
-    const payments = (paymentResult.data || []).map((payment) => ({
-      ...payment,
-      allocations: allocationsByPayment.get(payment.id) || [],
-    }))
-    const statement = buildLedgerStatement({
-      payments,
-      charges: chargeResult.data || [],
-      adjustments: accountAdjustmentResult.data || [],
-      storedBalance: lotResult.data.current_balance,
-      openingBalance: lotResult.data.opening_balance,
-      openingBalanceNote: lotResult.data.opening_balance_note,
-      openingBalanceAsOf: lotResult.data.opening_balance_as_of,
-    })
-    const latestPayment = payments
-      .filter((payment) => String(payment.status || '').toLowerCase() !== 'voided')
-      .sort((a, b) => new Date(b.paid_at || b.created_at || 0) - new Date(a.paid_at || a.created_at || 0))[0]
-    const closingCorrections = adjustmentResult.data || []
-
-    
-const finalBalance = Number(statement.totals.finalBalance) || 0
-
-setStatementAccount((current) =>
-  current
-    ? {
+      if (![paymentResult, chargeResult, accountAdjustmentResult, enteredResult, allocationResult, adjustmentResult]
+        .every(result => Array.isArray(result.data))) {
+        throw new Error('The statement sources returned incomplete results.')
+      }
+      const allocationsByPayment = new Map()
+      for (const allocation of allocationResult.data || []) {
+        const list = allocationsByPayment.get(allocation.payment_id) || []
+        list.push(allocation)
+        allocationsByPayment.set(allocation.payment_id, list)
+      }
+      const payments = (paymentResult.data || []).map((payment) => ({
+        ...payment,
+        allocations: allocationsByPayment.get(payment.id) || [],
+      }))
+      const statement = buildLedgerStatement({
+        payments,
+        charges: chargeResult.data || [],
+        adjustments: accountAdjustmentResult.data,
+        balanceEntries: enteredResult.data,
+        storedBalance: lotResult.data.current_balance,
+        openingBalance: lotResult.data.opening_balance,
+        openingBalanceNote: lotResult.data.opening_balance_note,
+        openingBalanceAsOf: lotResult.data.opening_balance_as_of,
+      })
+      const closingCorrections = adjustmentResult.data
+      const savedBalance = statement.totals.storedBalance
+      setStatementAccount(current => current ? {
         ...current,
         statementTotals: statement.totals,
-        opening_balance_as_of: lotResult.data.opening_balance_as_of,
-        balance: Math.max(finalBalance, 0),
-        unallocatedCredit: Math.max(-finalBalance, 0),
-        latestStatementPayment:
-          Number(
-            latestPayment?.amount_paid ??
-            latestPayment?.amount
-          ) || 0,
-        closingAdjustment: closingCorrections.reduce(
-          (sum, item) => sum + (Number(item.adjustment_amount) || 0), 0),
-        closingAdjustmentReason: closingCorrections.map((item) => item.reason).filter(Boolean).join('; '),
-      }
-    : current
-)
-
-setStatementLines(statement.lines)
-
-    setStatementLoading(false)
+        balance: Math.max(savedBalance, 0),
+        unallocatedCredit: Math.max(-savedBalance, 0),
+        closingAdjustment: closingCorrections.reduce((sum, item) => sum + Number(item.adjustment_amount), 0),
+        closingAdjustmentReason: closingCorrections.map(item => readableLedgerText(item.reason)).filter(Boolean).join(' '),
+      } : current)
+      setStatementLines(statement.lines)
+      setStatementLoading(false)
     } catch (failure) {
       if (requestId !== statementRequestRef.current) return
       setStatementError(`Could not load history: ${failure?.message || 'Connection failed.'}`)
       setStatementLoading(false)
     }
   }
-async function downloadStatementPdf() {
-      if (!statementAccount) return
-      if (!ledgerVerified || loading || pageError || !statementAccount.statementTotals?.reconcilesWithStoredBalance) {
-        setStatementError('This statement is not verified. Refresh the ledger and confirm that its closing balance reconciles before exporting a PDF.')
-        return
-      }
+  async function downloadStatementPdf() {
+    if (!statementAccount) return
+    if (!ledgerVerified || loading || pageError || !statementAccount.statementTotals?.canExport) {
+      setStatementError('PDF export requires a verified starting balance and a matching closing balance.')
+      return
+    }
+    const requestId = statementRequestRef.current
     setStatementPdfGenerating(true)
 
     try {
@@ -319,12 +288,14 @@ async function downloadStatementPdf() {
       }))
       
       const { buildHomeownerStatementPdf } = await import('../lib/homeownerStatementPdf')
+      if (requestId !== statementRequestRef.current) return
       const doc = buildHomeownerStatementPdf({
         hoaName: orgSettings?.hoa_name || 'Homeowners Association',
         hoaAddress: orgSettings?.address || '',
         homeownerName: statementAccount.name,
         blockLotLabel: `${statementAccount.block}, ${statementAccount.lot}`,
-        totalCharges: statementAccount.statementTotals?.addedCharges ?? 0,
+        totalCharges: statementAccount.statementTotals.addedCharges,
+        enteredBalances: statementAccount.statementTotals.enteredBalances,
         openingBalance: statementAccount.statementTotals?.openingBalance ?? 0,
         annualDiscountCredit: statementAccount.statementTotals?.annualDiscountCredit ?? 0,
         otherAdjustments: statementAccount.statementTotals?.netOtherAdjustments ?? 0,
@@ -350,126 +321,56 @@ async function downloadStatementPdf() {
       doc.save(`Statement-${statementAccount.name.replace(/\s+/g, '-')}-${organization.formatDate(now).replace(/[,\s\/]/g, '-')}.pdf`)
       notifySuccess(`Statement PDF download started for ${statementAccount.name}.`)
     } catch (error) {
+      if (requestId !== statementRequestRef.current) return
       setStatementError(`Could not generate statement PDF: ${error?.message || 'Unknown error.'}`)
     } finally {
       setStatementPdfGenerating(false)
     }
   }
 
-  const summaryByProperty = useMemo(
-    () => new Map(paymentSummaries.map((row) => [Number(row.property_id), row])),
-    [paymentSummaries],
-  )
-
-  const overdueByProperty = useMemo(
-    () => new Map(overdueSummaries.map((row) => [Number(row.property_id), row])),
-    [overdueSummaries],
-  )
-  const progressByProperty = useMemo(
-    () => new Map(paymentProgress.map((row) => [Number(row.property_id), row])),
-    [paymentProgress],
-  )
-
   const ledgerEntries = useMemo(() => {
-    return properties
-      .filter((property) => (property.homeowner_status || 'active') === 'active')
-      .map((property) => {
-      const summary = summaryByProperty.get(Number(property.id))
-      // Stored balance: positive = owed, negative = advance credit.
-      const stored = Number(property.current_balance) || 0
-      const balance = Math.max(stored, 0)
-      const credit = Math.max(-stored, 0)
-      const previousBalance = summary
-        ? Number(summary.latest_previous_balance) || 0
-        : stored
-      const paidAmount = summary ? Number(summary.latest_amount_paid) || 0 : 0
-      const totalPaid = summary ? Number(summary.total_paid) || 0 : 0
-      const lastPaidAt = summary?.latest_paid_at || null
-      const lateFee = overdueByProperty.get(Number(property.id))
-      const agingVerified = Boolean(lateFee && lateFee.aging_complete === true)
+    if (!ledgerSources) return []
+    const { financial, payment, aging, paymentProgress } = ledgerSources
+    return properties.filter(property => (property.homeowner_status || 'active') === 'active').map(property => {
+      const id = String(property.id)
+      const summary = payment.get(id)
+      const stored = Number(property.current_balance)
+      const late = aging.get(id)
+      const agingVerified = verifiedLedgerAging(stored, late)
       const status = accountLedgerStatus({
-        balance: stored,
-        agingComplete: agingVerified,
-        isOverdue: lateFee?.is_overdue,
-        hasPartialPayment: progressByProperty.get(Number(property.id))?.has_partial_payment === true && totalPaid > 0,
+        balance: stored, agingComplete: agingVerified, isOverdue: late.is_overdue,
+        hasPartialPayment: paymentProgress.get(id)?.has_partial_payment === true,
       })
-
       return {
-        id: property.id,
-        name: property.homeowner_name,
-        block: property.block,
-        lot: `Lot ${property.lot_number}`,
-        lotNumberRaw: property.lot_number,
-        dueAmount: previousBalance,
-        paidAmount,
-        totalPaid,
-        stored,
-        opening_balance: property.opening_balance,
-        opening_balance_as_of: property.opening_balance_as_of,
-        opening_balance_note: property.opening_balance_note,
-        balance,
-        unallocatedCredit: credit,
-        penaltyAmount: Number(lateFee?.penalty_amount) || 0,
-        totalDue: Number(lateFee?.total_due ?? balance),
-        daysOverdue: Number(lateFee?.days_overdue) || 0,
-        overdueAmount: Number(lateFee?.overdue_amount) || 0,
-        currentAmount: Number(lateFee?.current_amount) || 0,
-        lastPayment: lastPaidAt
-          ? organization.formatDate(lastPaidAt)
-          : '—',
-        lastPaymentSort: lastPaidAt ? new Date(lastPaidAt).getTime() : 0,
-        status,
+        id: property.id, name: property.homeowner_name, block: property.block,
+        lot: `Lot ${property.lot_number}`, lotNumberRaw: property.lot_number,
+        dueAmount: summary?.latest_previous_balance == null ? null : Number(summary.latest_previous_balance),
+        paidAmount: summary?.latest_amount_paid == null ? null : Number(summary.latest_amount_paid),
+        totalPaid: summary?.total_paid ?? 0,
+        recordedCharges: financial.get(id).active_charges,
+        opening_balance: financial.get(id).opening_balance,
+        balance: Math.max(stored, 0),
+        unallocatedCredit: Math.max(-stored, 0),
+        overdueAmount: agingVerified ? Number(late.overdue_amount) : null,
+        currentAmount: agingVerified ? Number(late.current_amount) : null,
+        lastPayment: summary?.latest_paid_at ? organization.formatDate(summary.latest_paid_at) : '—',
+        lastPaymentSort: summary?.latest_paid_at ? new Date(summary.latest_paid_at).getTime() : null,
+        status: status === 'Paid' ? 'No balance due' : status,
       }
     })
-  }, [properties, summaryByProperty, overdueByProperty, progressByProperty])
+  }, [properties, ledgerSources, organization])
 
-  const filtered = useMemo(() => {
-    const term = normalize(search)
-    return ledgerEntries.filter((entry) => {
-      const matchesSearch =
-        normalize(entry.name).includes(term) ||
-        normalize(entry.lot).includes(term) ||
-        normalize(entry.block).includes(term)
-      const matchesBlock = blockFilter === 'all' || entry.block === blockFilter
-      const matchesStatus = statusFilter === 'all' || entry.status === statusFilter
-      return matchesSearch && matchesBlock && matchesStatus
-    })
-  }, [ledgerEntries, search, blockFilter, statusFilter])
-
-  const sorted = useMemo(() => {
-    const list = [...filtered]
-    list.sort((a, b) => compareEntries(a, b, sortConfig.key, sortConfig.direction))
-    return list
-  }, [filtered, sortConfig])
-
-  const hasActiveQuery =
-    normalize(search).length >= MIN_SEARCH_LENGTH || blockFilter !== 'all' || statusFilter !== 'all'
-  const visibleRows = hasActiveQuery ? sorted.slice(0, MAX_VISIBLE_ROWS) : []
-  const isTruncated = hasActiveQuery && sorted.length > MAX_VISIBLE_ROWS
-
-  const totals = useMemo(() => {
-    return ledgerEntries.reduce(
-      (result, entry) => ({
-        // Billed to date excludes advance credit from the amount still owed.
-        totalDue: result.totalDue + entry.totalPaid + entry.balance,
-        totalPaid: result.totalPaid + entry.totalPaid,
-        totalBalance: result.totalBalance + entry.balance,
-        totalCredit: result.totalCredit + entry.unallocatedCredit,
-      }),
-      { totalDue: 0, totalPaid: 0, totalBalance: 0, totalCredit: 0 },
-    )
-  }, [ledgerEntries])
-
+  const term = normalize(search).length >= MIN_SEARCH_LENGTH ? search.trim() : ''
+  const hasActiveQuery = Boolean(term) || blockFilter !== 'all' || statusFilter !== 'all'
+  const filtered = useMemo(() => ledgerEntries.filter(entry =>
+    (blockFilter === 'all' || entry.block === blockFilter) &&
+    (statusFilter === 'all' || entry.status === statusFilter) &&
+    matchesHomeownerSearch({ homeowner_name: entry.name, block: entry.block, lot_number: entry.lotNumberRaw }, term)
+  ), [ledgerEntries, term, blockFilter, statusFilter])
+  const sorted = useMemo(() => [...filtered].sort((a, b) => compareEntries(a, b, sortConfig.key, sortConfig.direction)), [filtered, sortConfig])
+  const ledgerPage = useListPage(sorted, [term, blockFilter, statusFilter, sortConfig.key, sortConfig.direction])
   const filteredTotals = useMemo(() => {
-    return filtered.reduce(
-      (result, entry) => ({
-        totalDue: result.totalDue + entry.totalPaid + entry.balance,
-        totalPaid: result.totalPaid + entry.totalPaid,
-        totalBalance: result.totalBalance + entry.balance,
-        totalCredit: result.totalCredit + entry.unallocatedCredit,
-      }),
-      { totalDue: 0, totalPaid: 0, totalBalance: 0, totalCredit: 0 },
-    )
+    try { return summarizeLedgerEntries(filtered) } catch { return null }
   }, [filtered])
 
   function toggleSort(key) {
@@ -519,25 +420,26 @@ async function downloadStatementPdf() {
       <div className="ledger-summary-grid">
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-top"><p className="ledger-summary-label">Total Billed</p><div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={18} /></div></div>
-          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalDue)}</p>
-          <small>Recorded payments + outstanding</small>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError || !filteredTotals ? 'Unavailable' : peso.format(filteredTotals.totalDue)}</p>
+          <small>Adjusted posted charges and positive opening balances</small>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-top"><p className="ledger-summary-label">Total Collected</p><div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={18} /></div></div>
-          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalPaid)}</p>
-          <small>Payments in the filtered ledger</small>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError || !filteredTotals ? 'Unavailable' : peso.format(filteredTotals.totalPaid)}</p>
+          <small>Recorded HOA payments for matching lots</small>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-top"><p className="ledger-summary-label">Outstanding</p><div className="ledger-summary-icon ledger-summary-icon-balance"><AlertCircle size={18} /></div></div>
-          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalBalance)}</p>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError || !filteredTotals ? 'Unavailable' : peso.format(filteredTotals.totalBalance)}</p>
           <small>Balance due in the filtered ledger</small>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-top"><p className="ledger-summary-label">Available Credit</p><div className="ledger-summary-icon ledger-summary-icon-paid"><CreditCard size={18} /></div></div>
-          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError ? 'Unavailable' : peso.format(filteredTotals.totalCredit)}</p>
+          <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError || !filteredTotals ? 'Unavailable' : peso.format(filteredTotals.totalCredit)}</p>
           <small>Advance credit in the filtered ledger</small>
         </div>
       </div>
+      {ledgerVerified && !filteredTotals && <p className="ledger-load-error" role="alert">These ledger totals exceed the supported range.</p>}
 
       <div className="ledger-toolbar glass-card">
         <div className="ledger-search-wrap">
@@ -554,12 +456,10 @@ async function downloadStatementPdf() {
           />
         </div>
         <Select ariaLabel="Filter by block" value={blockFilter} onChange={setBlockFilter} disabled={loading} options={[{ value: 'all', label: loading ? 'Loading blocks...' : 'All Blocks' }, ...blocks.map((block) => ({ value: block.name, label: block.name }))]} />
-        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'Paid', 'Partially Paid', 'Pending', 'Overdue', 'Review'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
+        <Select ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={['all', 'No balance due', 'Partially Paid', 'Pending', 'Overdue', 'Review'].map((status) => ({ value: status, label: status === 'all' ? 'All Statuses' : status }))} />
         {hasActiveQuery && (
           <span className="ledger-result-count">
-            {sorted.length <= MAX_VISIBLE_ROWS
-              ? `${sorted.length} match${sorted.length === 1 ? '' : 'es'}`
-              : `${MAX_VISIBLE_ROWS} of ${sorted.length} matches`}
+            {ledgerVerified && !pageError ? `${sorted.length} match${sorted.length === 1 ? '' : 'es'}` : '—'}
           </span>
         )}
       </div>
@@ -595,11 +495,6 @@ async function downloadStatementPdf() {
         </div>
       ) : (
         <div className="ledger-table-wrap glass-card">
-          {isTruncated && (
-            <p className="ledger-truncated-note">
-              Showing the first {MAX_VISIBLE_ROWS} of {sorted.length} matches — refine your search to narrow this down.
-            </p>
-          )}
           <table className="ledger-table" aria-label="Homeowner accounts">
             <thead>
               <tr>
@@ -614,17 +509,17 @@ async function downloadStatementPdf() {
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((entry) => (
+              {ledgerPage.rows.map((entry) => (
                 <tr key={entry.id}>
                   <td data-label="Homeowner">
                     <span className="ledger-homeowner-name">
                       <strong>{entry.name}</strong>
-                      <span className={`ledger-badge ledger-badge-${entry.status.toLowerCase().replace(/\s+/g, '-')}`}>{entry.status}</span>
+                      <span className={`ledger-badge ledger-badge-${entry.status === 'No balance due' ? 'paid' : entry.status.toLowerCase().replace(/\s+/g, '-')}`}>{entry.status}</span>
                     </span>
                   </td>
                   <td data-label="Block / Lot">{entry.block}, {entry.lot}</td>
-                  <td data-label="Previous balance">{formatMoney(entry.dueAmount)}</td>
-                  <td data-label="Last payment amount">{peso.format(entry.paidAmount)}</td>
+                  <td data-label="Previous balance">{entry.dueAmount == null ? '—' : formatMoney(entry.dueAmount)}</td>
+                  <td data-label="Last payment amount">{entry.paidAmount == null ? '—' : peso.format(entry.paidAmount)}</td>
                   <td data-label="Outstanding balance" className={entry.balance > 0 ? 'ledger-balance-due' : ''}>{peso.format(entry.balance)}{entry.overdueAmount > 0 && entry.currentAmount > 0 && <small className="ledger-aging-note">Overdue {peso.format(entry.overdueAmount)} · Current {peso.format(entry.currentAmount)}</small>}</td>
                   <td data-label="Last payment date">{entry.lastPayment}</td>
                   <td data-label="Available credit" className={entry.unallocatedCredit > 0 ? 'ledger-credit' : ''}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
@@ -637,6 +532,7 @@ async function downloadStatementPdf() {
               ))}
             </tbody>
           </table>
+          <Pager page={ledgerPage.page} total={sorted.length} onPageChange={ledgerPage.setPage} />
         </div>
       )}
 
@@ -652,15 +548,16 @@ async function downloadStatementPdf() {
                 <div className="ledger-statement-summary">
                   <div><span>Starting balance</span><strong>{formatMoney(statementAccount.statementTotals.openingBalance)}</strong></div>
                   <div><span>New charges</span><strong>{peso.format(statementAccount.statementTotals.addedCharges)}</strong></div>
+                  {statementAccount.statementTotals.enteredBalances > 0 && <div><span>Entered balances</span><strong>{peso.format(statementAccount.statementTotals.enteredBalances)}</strong></div>}
                   <div><span>Payments received</span><strong>{peso.format(statementAccount.statementTotals.payments)}</strong></div>
                   <div><span>Discount: 1 month free</span><strong>{peso.format(statementAccount.statementTotals.annualDiscountCredit)}</strong></div>
                   <div><span>Amount still owed</span><strong>{peso.format(statementAccount.balance)}</strong></div>
                   <div><span>Amount available for future bills</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div>
                   {statementAccount.statementTotals.netOtherAdjustments !== 0 && (
-                    <div><span>Other balance changes</span><strong>{formatMoney(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
+                    <div><span>Other balance changes</span><strong>{peso.format(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>
                   )}
                 </div>
-                <p className="ledger-form-note">Payment and charge history for this lot. All amounts are in Philippine pesos. Dates and times use Philippine time. “For future bills” means you do not owe that amount; it can cover later bills.</p>
+                <p className="ledger-form-note">This statement shows changes to this lot’s balance. Cancelled entries and entries with no effect are omitted. Dates are in Philippine time. Credit for future bills can cover later charges.</p>
                 {ledgerStatementNotes(statementAccount.statementTotals, (value) => peso.format(value)).map((note) => (
                   <p className="ledger-form-note" key={note}>{note}</p>
                 ))}
@@ -683,13 +580,13 @@ async function downloadStatementPdf() {
                   <col className="statement-column-money" />
                   <col className="statement-column-money" />
                 </colgroup>
-                <thead><tr><th scope="col">Date</th><th scope="col">What happened</th><th scope="col">Reference</th><th scope="col">Amount added</th><th scope="col">Amount deducted</th><th scope="col">Balance after this entry</th></tr></thead>
+                <thead><tr><th scope="col">Date recorded</th><th scope="col">What happened</th><th scope="col">Receipt / reference</th><th scope="col">Amount added</th><th scope="col">Amount deducted</th><th scope="col">Balance after this entry</th></tr></thead>
                 <tbody>
-                  {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">No statement entries found.</td></tr> : statementLines.map((line, index) => (
-                    <tr role="row" key={line.id || `${line.transaction_date}-${index}`} className={line.voided ? 'ledger-statement-voided' : line.kind === 'annual-discount' ? 'ledger-statement-discount' : ''}>
-                      <td role="cell" data-label="Date">{line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—'}</td>
+                  {statementLoading ? <tr><td colSpan="6" className="ledger-empty">Loading statement…</td></tr> : statementLines.length === 0 ? <tr><td colSpan="6" className="ledger-empty">{statementError ? 'Statement history unavailable.' : 'No recorded entries changed this lot’s balance.'}</td></tr> : statementLines.map((line, index) => (
+                    <tr role="row" key={line.id || `${line.transaction_date}-${index}`} className={line.kind === 'annual-discount' ? 'ledger-statement-discount' : ''}>
+                      <td role="cell" data-label="Date recorded">{line.transaction_date ? organization.formatDate(line.transaction_date, { withTime: line.kind !== 'opening' }) : '—'}</td>
                       <td role="cell" data-label="What happened"><strong>{line.description}</strong>{(line.details || []).map((detail) => <small className="ledger-statement-detail" key={detail}>{detail}</small>)}</td>
-                      <td role="cell" data-label="Reference">{line.reference_number || '—'}</td>
+                      <td role="cell" data-label="Receipt / reference">{line.reference_number || '—'}</td>
                       <td role="cell" data-label="Amount added">{peso.format(Number(line.debit) || 0)}</td>
                       <td role="cell" data-label="Amount deducted">{peso.format(Number(line.credit) || 0)}</td>
                       <td role="cell" data-label="Balance after this entry">{line.running_balance == null ? '—' : formatMoney(line.running_balance)}</td>
@@ -706,7 +603,7 @@ async function downloadStatementPdf() {
                 )}
               </table>
             </div>
-            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={closeStatement}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating || !ledgerVerified || loading || Boolean(pageError) || !statementAccount.statementTotals?.reconcilesWithStoredBalance}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
+            <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={closeStatement}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating || !ledgerVerified || loading || Boolean(pageError) || !statementAccount.statementTotals?.canExport}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
           </article>
         </div>
       )}

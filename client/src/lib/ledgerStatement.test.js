@@ -9,11 +9,11 @@ describe('buildLedgerStatement', () => {
       charges: [{ id: 'manual', amount: 5000, charge_type: 'Special Assessment', due_date: '2026-11-15', created_at: '2026-11-03' }],
     })
     const item = result.lines.find((line) => line.kind === 'charge')
-    expect(item.details).toContain('Final due date: 2026-11-15 (overdue the following Manila calendar day if unpaid).')
+    expect(item.details).toContain('Final due date: November 15, 2026. Any unpaid amount becomes overdue the following day.')
     expect(result.totals.finalBalance).toBe(5000)
   })
 
-  it('includes charges, payments, and voided history while ending at stored balance', () => {
+  it('hides cancelled charges while ending at the saved balance', () => {
     const result = buildLedgerStatement({
       storedBalance: 500,
       charges: [
@@ -27,8 +27,7 @@ describe('buildLedgerStatement', () => {
 
     expect(result.lines.map((line) => line.description)).toEqual([
       'Association Dues',
-      'Payment',
-      'Special Assessment (Cancelled)',
+      'Payment received',
     ])
     expect(result.lines.at(-1).running_balance).toBe(500)
     expect(result.totals.openingBalance).toBe(0)
@@ -50,7 +49,7 @@ describe('buildLedgerStatement', () => {
     expect(result.totals.openingBalance).toBe(0)
     expect(result.totals.finalBalance).toBe(0)
     expect(result.totals.reconcilesWithStoredBalance).toBe(true)
-    expect(result.lines.at(-1).running_balance).toBe(0)
+    expect(result.lines).toEqual([])
   })
 
   it('reconciles an explicit opening balance when a payment was voided', () => {
@@ -197,12 +196,11 @@ describe('complete annual advance statement', () => {
     expect(result.totals.availableCredit).toBe(11000)
     expectRowsToReconcile(result)
   })
-  it('excludes voided annual cash and discount while preserving explanatory history', () => {
+  it('omits the voided annual payment and discount from the statement', () => {
     const result = buildLedgerStatement({ payments: [{ ...annualPayment, status: 'Voided', void_reason: 'Test void' }], storedBalance: 0 })
     expect(result.totals.payments).toBe(0)
     expect(result.totals.annualDiscountCredit).toBe(0)
-    expect(result.lines).toHaveLength(2)
-    expect(result.lines[0].details.join(' ')).toContain('Test void')
+    expect(result.lines).toEqual([])
     expectRowsToReconcile(result)
   })
   it('shows a released effect as a separate adjustment and keeps cash totals intact', () => {
@@ -210,6 +208,8 @@ describe('complete annual advance statement', () => {
     expect(result.lines.map((line) => line.running_balance)).toEqual([-11000, -12000, -11500])
     expect(result.totals.payments).toBe(11000)
     expect(result.totals.paymentEffectAdjustments).toBe(500)
+    expect(result.lines.at(-1).transaction_date).toBeNull()
+    expect(result.lines.at(-1).details[0]).toContain('The date of that change is unavailable')
     expectRowsToReconcile(result)
   })
   it('does not invent a one-month-free benefit when metadata is missing or inconsistent', () => {
@@ -229,17 +229,21 @@ describe('complete annual advance statement', () => {
     expect(result.totals.availableCredit).toBe(12000.12)
     expectRowsToReconcile(result)
   })
-  it('shows unapplied cash as an adjustment rather than silently breaking a row equation', () => {
+  it('includes cash received in totals without inserting offsetting statement rows', () => {
     const result = buildLedgerStatement({ payments: [{ id: 1, amount_paid: '500.00', balance_effect: '0.00', status: 'Completed' }], openingBalance: '1000.00', storedBalance: '1000.00' })
     expect(result.totals.unallocated).toBe(500)
     expect(result.totals.payments).toBe(500)
+    expect(result.lines.map(line => line.kind)).toEqual(['opening'])
+    expect(result.totals.totalDebits).toBe(1000)
+    expect(result.totals.totalCredits).toBe(0)
     expectRowsToReconcile(result)
   })
   it('keeps charges and opening balance distinct and reports a real mismatch', () => {
     const result = buildLedgerStatement({ openingBalance: '1000.00', openingBalanceAsOf: '2025-12-31', storedBalance: '1700.00', charges: [{ id: 1, amount: '500.00', created_at: '2026-01-01' }] })
     expect(result.totals.openingBalance).toBe(1000)
     expect(result.totals.addedCharges).toBe(500)
-    expect(result.lines[0].transaction_date).toBe('2025-12-31')
+    expect(result.lines[0].transaction_date).toBeNull()
+    expect(result.lines[0].details).toContain('The starting balance was reported as of December 31, 2025.')
     expect(result.totals.reconciliationDifference).toBe(-200)
     expect(ledgerStatementNotes(result.totals, String).join(' ')).toContain('differs from the saved lot balance')
     expectRowsToReconcile(result)
@@ -260,11 +264,10 @@ describe('documented account adjustments', () => {
     expect(result.totals.reconcilesWithStoredBalance).toBe(true)
     expect(result.lines.find(l=>l.kind==='account-adjustment')).toMatchObject({ credit: 3000, reference_number: 'TRANSFER-1' })
   })
-  it('retains reversed adjustments without applying them again', () => {
+  it('omits reversed adjustments', () => {
     const result = buildLedgerStatement({ storedBalance: 0, adjustments: [{ id: 'reversed', balance_effect: 3000, reversed_at: '2026-10-31', reversal_reason: 'Correction cancelled' }] })
-    expect(result.lines[0].voided).toBe(true)
+    expect(result.lines).toEqual([])
     expect(result.totals.documentedAccountAdjustments).toBe(0)
-    expect(result.lines[0].debit).toBe(0)
     expect(result.totals.payments).toBe(0)
   })
 })
@@ -280,4 +283,81 @@ describe('Ledger charge due-date query regression', () => {
       /\.from\('property_charges'\)[\s\S]{0,250}?\.select\('[^']*\bdue_date\b[^']*'\)/,
     )
   })
+})
+
+it('posts an entered balance on its recorded date without adding it again to the starting balance', () => {
+  const result = buildLedgerStatement({
+    storedBalance: 900, openingBalance: 1000,
+    payments: [{ id: 'p', amount_paid: 100, balance_effect: 100, paid_at: '2026-11-01T00:00:00Z' }],
+    balanceEntries: [
+      { id: 'b', amount: 1000, as_of_date: '2026-01-01', created_at: '2026-11-02T00:00:00Z' },
+      { id: 'v', amount: 50, created_at: '2026-11-03T00:00:00Z', voided_at: '2026-11-04T00:00:00Z' },
+    ],
+  })
+  expect(result.lines.map(line => [line.kind, line.running_balance])).toEqual([
+    ['payment', -100], ['entered-balance', 900],
+  ])
+  expect(result.lines[1].details).toContain('The earlier balance was reported as of January 1, 2026.')
+  expect(result.totals).toMatchObject({ openingBalance: 0, enteredBalances: 1000, canExport: true })
+})
+
+it('blocks PDF export when an unexplained starting balance is inferred', () => {
+  expect(buildLedgerStatement({ storedBalance: 100 }).totals).toMatchObject({
+    openingBalance: 100, openingBalanceWasInferred: true, canExport: false,
+  })
+  expect(buildLedgerStatement({ storedBalance: 0 }).totals.canExport).toBe(true)
+})
+
+
+it('explains a bill, an anniversary penalty, a payment allocation and a waiver without internal identifiers', () => {
+  const chargeId = '5e0c150f-0000-4000-a000-000000000001'
+  const result = buildLedgerStatement({
+    openingBalance: 0, storedBalance: 100,
+    charges: [
+      { id: chargeId, billing_month: '2026-11-01', charge_type: 'Association Dues', amount: 200, created_at: '2026-11-01T01:00:00Z' },
+      { id: 'penalty', charge_type: 'Penalty / Late Fee', amount: 15, created_at: '2026-11-02T01:00:00Z',
+        description: `Annual compound penalty 2: 1.5% of PHP 1000.00 unpaid; anniversary 2026-11-01; source balance_entry ${chargeId}` },
+      { id: 'zero', charge_type: 'Special Assessment', amount: 0, created_at: '2026-11-02T02:00:00Z' },
+    ],
+    payments: [{ id: 77, amount_paid: 150, balance_effect: 100, paid_at: '2026-10-31T01:00:00Z',
+      created_at: '2026-11-03T01:00:00Z', receipt_number: 'OR-2026-000077',
+      allocations: [{ property_charge_id: chargeId, allocated_amount: 100 }] }],
+    adjustments: [{ id: 5, adjustment_type: 'waiver', balance_effect: -15,
+      reason: 'Board approved the waiver', approval_reference: 'BOARD-12', created_at: '2026-11-04T01:00:00Z' }],
+  })
+  const [bill, penalty, payment, waiver] = result.lines
+  expect(result.lines).toHaveLength(4)
+  expect(bill.description).toBe('Association dues for November 2026')
+  expect(penalty.description).toBe('Annual late-payment penalty')
+  expect(penalty.details.join(' ')).toContain('1.5% of the unpaid balance')
+  expect(penalty.details).toContain('Balance anniversary: November 1, 2026.')
+  expect(payment.reference_number).toBe('OR-2026-000077')
+  expect(payment.details.join(' ')).toContain('toward Association dues for November 2026')
+  expect(payment.details).toContain('Payment received on October 31, 2026.')
+  expect(payment.transaction_date).toBe('2026-11-03T01:00:00Z')
+  expect(waiver.description).toBe('Amount owed waived')
+  expect(waiver.details).toContain('Reason: Board approved the waiver')
+  expect(result.lines.flatMap(line => [line.description, line.reference_number, ...line.details]).join(' ')).not.toContain(chargeId)
+  expect(result.totals).toMatchObject({ payments: 150, totalDebits: 215, totalCredits: 115, finalBalance: 100, canExport: true })
+})
+
+it('shows the original monthly bill and its rate adjustment as separate entries', () => {
+  const charge = { id: 'bill', charge_type: 'Association Dues', amount: 627.56,
+    billing_month: '2026-11-01', created_at: '2026-11-03T00:00:00Z' }
+  const adjustment = { id: 'change', charge_id: 'bill', adjustment_type: 'monthly_dues_reprice',
+    balance_effect: 156.89, created_at: '2026-11-10T00:00:00Z', reason: 'New November rate' }
+  const result = buildLedgerStatement({
+    charges: [charge], adjustments: [adjustment], openingBalance: 0, storedBalance: 784.45,
+  })
+  expect(result.lines.map(line => [line.kind, line.debit, line.running_balance])).toEqual([
+    ['charge', 627.56, 627.56], ['account-adjustment', 156.89, 784.45],
+  ])
+  expect(result.lines[1].description).toBe('Monthly dues rate adjustment')
+
+  const voided = buildLedgerStatement({
+    charges: [{ ...charge, voided_at: '2026-11-12T00:00:00Z' }],
+    adjustments: [adjustment], openingBalance: 0, storedBalance: 0,
+  })
+  expect(voided.lines).toEqual([])
+  expect(voided.totals.finalBalance).toBe(0)
 })

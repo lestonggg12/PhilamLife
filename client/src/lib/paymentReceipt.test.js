@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadPaymentReceipt } from './paymentReceipt'
+import { balanceAtReceiptIssuance, loadPaymentReceipt } from './paymentReceipt'
 import { buildReceiptModel } from './receiptModel'
 
 const payment = { id: 17, amount_paid: '1000.00', previous_balance: '1500.00', remaining_balance: '500.00' }
@@ -20,6 +20,12 @@ describe('shared regular receipt lookup', () => {
     expect(summary).toContainEqual({ label: 'Less: Discount', value: '− 500.00' })
     expect(summary).toContainEqual({ label: 'Remaining balance', value: '0.00' })
     expect(payment.remaining_balance).toBe('500.00')
+  })
+
+  it('uses the same balance for recent activity and the receipt detail', async () => {
+    expect(balanceAtReceiptIssuance(payment, discount)).toBe(0)
+    expect(balanceAtReceiptIssuance(payment, null)).toBe(500)
+    expect(() => balanceAtReceiptIssuance(payment, { ...discount, discount_amount: '499.99' })).toThrow(/does not match/)
   })
 
   it('preserves a regular receipt and rejects failed or inconsistent journal reads', async () => {

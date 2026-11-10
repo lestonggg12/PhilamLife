@@ -4,8 +4,13 @@ function confirmedRow(result, action) {
   return result.data
 }
 
-export async function updateHomeowner(client, id, payload) {
-  return confirmedRow(await client.from('properties').update(payload).eq('id', id).select('id').single(), 'updated')
+export async function updateHomeowner(client, id, payload, original = {}) {
+  let query = client.from('properties').update(payload).eq('id', id)
+  for (const field of ['homeowner_id', 'homeowner_status', ...Object.keys(payload)]) {
+    if (!Object.hasOwn(original, field)) continue
+    query = original[field] == null ? query.is(field, null) : query.eq(field, original[field])
+  }
+  return confirmedRow(await query.select('id').single(), 'updated')
 }
 
 export async function removeHomeowner(client, id) {

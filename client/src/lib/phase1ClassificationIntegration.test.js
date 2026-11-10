@@ -6,11 +6,12 @@ import { dirname, resolve } from 'node:path'
 const here = dirname(fileURLToPath(import.meta.url))
 const homeowners = readFileSync(resolve(here, '../pages/HomeownersPage.jsx'), 'utf8')
 
-describe('Phase 1B classification integration safety gate', () => {
-  it('mounts the panel only behind an explicit development-only flag', () => {
+describe('Production classification integration', () => {
+  it('offers verified classification for active lots to Admin and Secretary', () => {
     expect(homeowners).toContain("import PropertyClassificationPanel from '../components/PropertyClassificationPanel'")
-    expect(homeowners).toContain('import.meta.env.DEV &&')
-    expect(homeowners).toContain("import.meta.env.VITE_ENABLE_PROPERTY_CLASSIFICATION === 'true'")
+    expect(homeowners).toContain("const canManageBlocks = userRole === 'admin' || userRole === 'secretary'")
+    expect(homeowners).toContain('{!formerAccount && canManageBlocks && (')
+    expect(homeowners).not.toContain('VITE_ENABLE_PROPERTY_CLASSIFICATION')
     expect(homeowners).toContain('<PropertyClassificationPanel')
   })
 

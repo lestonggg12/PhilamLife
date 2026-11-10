@@ -1,6 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
@@ -12,6 +12,7 @@ import { paymentSetupErrors } from '../lib/paymentSetup'
 import { isValidManualChargeDueDate } from '../lib/manualChargeDueDate'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { PAYMENT_PURPOSES, CHARGE_TYPES, isBalanceReducingPurpose, paymentAdvanceConfirmation } from '../lib/paymentPurposes'
+import { manualDiscountSettlesFullBalance } from '../lib/manualDiscountEligibility'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import BalanceBreakdown from '../components/BalanceBreakdown'
@@ -394,7 +395,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const navigate = useNavigate()
   const handledPaymentRequestRef = useRef(null)
   const paymentSubmitRef = useRef(false)
-  const [paymentSubmissionKey, setPaymentSubmissionKey] = useState(null)
+  const paymentSubmissionKeyRef = useRef(null)
   const paymentAttemptRef = useRef(null)
   const chargeSubmitRef = useRef(false)
   const voidSubmitRef = useRef(false)
@@ -420,6 +421,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const balancePopoverRef = useRef({ trigger: null, panel: null, position: null })
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
+  const [paymentSaveNotice, setPaymentSaveNotice] = useState(null)
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
   const [popupNotice, setPopupNotice] = useState('')
@@ -631,22 +633,35 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
   }
 
+  const openPaymentDraft = useCallback((property) => {
+    if (!canManagePayments || paymentSubmitRef.current) return
+    paymentSubmissionKeyRef.current = null
+    paymentAttemptRef.current = null
+    discountAttemptRef.current = null
+    advanceApprovedRef.current = false
+    setAdvanceConfirm(null)
+    setChangeHandling('advance')
+    setManualDiscount({ enabled: false, chargeId: '', type: 'fixed', value: '', reason: '', approval: '' })
+    setForm(property ? { ...EMPTY_FORM, ...paymentLotFields(property) } : EMPTY_FORM)
+    setFormError('')
+    setHomeownerMenuOpen(false)
+    setAnnualAdvancePrompt(false)
+    setAnnualAdvance(false)
+    setShowForm(true)
+  }, [canManagePayments])
+
   // A profile's Record Payment button carries only its lot ID. Wait for the
   // current ledger and role, then consume the request so closing/refreshing the
   // form does not reopen it. Name, lot and balance come from the fresh ledger.
   useEffect(() => {
     const propertyId = location.state?.recordPaymentPropertyId
-    if (propertyId == null || loading || !canManagePayments || pageError) return
+    if (propertyId == null || loading || saving || !canManagePayments || pageError) return
     if (handledPaymentRequestRef.current === location.key) return
     handledPaymentRequestRef.current = location.key
 
     const property = findActivePaymentLot(properties, propertyId)
     if (property) {
-      setForm({ ...EMPTY_FORM, ...paymentLotFields(property) })
-      setFormError('')
-      setHomeownerMenuOpen(false)
-      setAnnualAdvance(false)
-      setShowForm(true)
+      openPaymentDraft(property)
     } else {
       setPageError('This lot is no longer active or available. Select an active homeowner to record a payment.')
     }
@@ -657,7 +672,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       { pathname: location.pathname, search: location.search, hash: location.hash },
       { replace: true, state: Object.keys(remainingState).length ? remainingState : null },
     )
-  }, [location, loading, canManagePayments, pageError, properties, navigate])
+  }, [location, loading, saving, canManagePayments, pageError, properties, navigate, openPaymentDraft])
 
   // Dues payments come off the balance in full (extra becomes advance credit).
   // Fees/penalties only pay off an open charge of the same type; otherwise they are a one-time fee.
@@ -750,17 +765,17 @@ const canOfferAnnualDiscount =
     !annualAdvance && /^\d+(\.\d{1,2})?$/.test(manualDiscount.value)
       ? Number(manualDiscount.value)
       : 0
-  // Payment Amount is the face value before optional discount. If the staff
-  // returns change, only the amount actually retained is posted as payment.
+  // The entered payment is money actually received, never a face amount
+  // reduced by a debt discount. Returned change is deducted separately.
   const paymentFaceAmount = Math.round((Number(form.amountPaid) || 0) * 100) / 100
-  const cashTendered = Math.round((paymentFaceAmount - manualDiscountAmount) * 100) / 100
+  const cashTendered = paymentFaceAmount
   const balanceDue = Math.round((Number(form.previousBalance) || 0) * 100) / 100
   const canChooseChange = Boolean(form.propertyId) && !annualAdvance &&
     form.paymentMethod === 'Cash' && isBalanceReducingPayment &&
     balanceDue > 0 && manualDiscountAmount < balanceDue &&
-    paymentFaceAmount > balanceDue && cashTendered > 0
+    paymentFaceAmount > balanceDue - manualDiscountAmount && cashTendered > 0
   const excessAmount = canChooseChange
-    ? Math.round((paymentFaceAmount - balanceDue) * 100) / 100
+    ? Math.round((paymentFaceAmount - (balanceDue - manualDiscountAmount)) * 100) / 100
     : 0
   const changeAmount = canChooseChange && changeHandling === 'change' ? excessAmount : 0
 
@@ -768,7 +783,7 @@ const canOfferAnnualDiscount =
   const previous = Number(form.previousBalance) || 0
   const paid = annualAdvance
     ? annualDiscountedPayment
-    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - manualDiscountAmount - changeAmount
+    : Math.round((Number(form.amountPaid) || 0) * 100) / 100 - changeAmount
 
   const effect =
     annualAdvance || isBalanceReducingPayment || purposeType !== 'Other'
@@ -1084,18 +1099,7 @@ function selectHomeowner(property) {
 
 
   function openForm() {
-    if (!canManagePayments) return
-    setChangeHandling('advance')
-    setManualDiscount({ enabled: false, chargeId: '', type: 'fixed', value: '', reason: '', approval: '' })
-    discountAttemptRef.current = null
-    paymentAttemptRef.current = null
-    setPaymentSubmissionKey(crypto.randomUUID())
-    setForm(EMPTY_FORM)
-    setFormError('')
-    setHomeownerMenuOpen(false)
-    setAnnualAdvancePrompt(false)
-    setAnnualAdvance(false)
-    setShowForm(true)
+    openPaymentDraft()
   }
 
   function closeForm() {
@@ -1374,10 +1378,6 @@ function selectHomeowner(property) {
   async function recordPayment(event) {
     event.preventDefault()
     if (paymentSubmitRef.current) return
-    if (!paymentSubmissionKey) {
-      setFormError('Payment session expired. Close and reopen Record Payment.')
-      return
-    }
     const advanceApproved = advanceApprovedRef.current
     advanceApprovedRef.current = false
 
@@ -1395,7 +1395,7 @@ function selectHomeowner(property) {
     const gross = Number(form.amountPaid)
     const paid = annualAdvance
       ? gross
-      : Math.round((gross - manualDiscountAmount - changeAmount) * 100) / 100
+      : Math.round((gross - changeAmount) * 100) / 100
     if (changeHandling === 'change' && !canChooseChange) {
       setFormError('The balance or payment details changed. Recheck the change or choose advance credit.')
       return
@@ -1444,8 +1444,8 @@ function selectHomeowner(property) {
   }
 }
 
-    const advance = paymentAdvanceConfirmation({
-      purpose: form.paymentPurpose, paid: paid + manualDiscountAmount, previous, openOfType, annualAdvance,
+    const advance = manualDiscount.enabled ? null : paymentAdvanceConfirmation({
+      purpose: form.paymentPurpose, paid, previous, openOfType, annualAdvance,
     })
     if (advance && !advanceApproved) {
       setAdvanceConfirm(advance)
@@ -1469,10 +1469,21 @@ function selectHomeowner(property) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
       return
     }
+    if (manualDiscount.enabled && !manualDiscountSettlesFullBalance({
+      outstandingBalance: previous,
+      cashRetained: paid,
+      discountAmount: manualDiscountAmount,
+      isBalanceReducingPayment,
+    })) {
+      setFormError('Manual discounts require full settlement of the outstanding debt. Partial payments and retained advance credits are not eligible. Return any excess as change or remove the discount.')
+      return
+    }
+    // A draft has no timer. Generate a key for its first valid submission,
+    // and retain it while the same submission is being retried.
+    const paymentSubmissionKey = paymentSubmissionKeyRef.current ??= crypto.randomUUID()
     paymentSubmitRef.current = true
     setSaving(true)
     setFormError('')
-
 
     const payload = {
   property_id: Number(form.propertyId),
@@ -1532,7 +1543,23 @@ function selectHomeowner(property) {
       if (!data) {
         paymentAttemptRef.current = paymentIntent
         let result
-        if (changeAmount > 0) {
+        if (manualDiscount.enabled) {
+          // Atomic debt discount + entire retained cash (including advance credit).
+          // The old RPC treats its gross argument as debt, not physical cash.
+          const response = await supabase.rpc('record_cash_payment_with_debt_discount', {
+            p_property_id: Number(form.propertyId),
+            p_cash_tendered: gross,
+            p_discount_amount: manualDiscountAmount,
+            p_change_amount: changeAmount,
+            p_charge_type: payload.charge_type,
+            p_coverage_period: payload.coverage_period,
+            p_payment_method: form.paymentMethod,
+            p_reference_number: reference || null,
+            p_note: payload.note,
+            p_submission_key: paymentSubmissionKey,
+          })
+          result = { data: response.data?.payment || null, error: response.error }
+        } else if (changeAmount > 0) {
           const response = await supabase.rpc('record_payment_with_returned_change', {
             p_property_id: Number(form.propertyId),
             p_original_amount: gross,
@@ -1546,23 +1573,24 @@ function selectHomeowner(property) {
             p_submission_key: paymentSubmissionKey,
           })
           result = { data: response.data?.payment || null, error: response.error }
-        } else if (manualDiscount.enabled) {
-          const response = await supabase.rpc('record_payment_with_optional_discount', {
-            p_property_id: Number(form.propertyId),
-            p_gross_amount: gross,
-            p_discount_amount: manualDiscountAmount,
-            p_charge_type: payload.charge_type,
-            p_coverage_period: payload.coverage_period,
-            p_payment_method: form.paymentMethod,
-            p_reference_number: reference || null,
-            p_note: payload.note,
-            p_submission_key: paymentSubmissionKey,
-          })
-          result = { data: response.data?.payment || null, error: response.error }
         } else {
           result = await supabase.from('payments').insert(payload).select('*').single()
         }
         if (result.error) {
+          if (manualDiscount.enabled && result.error.code === '22023' && (
+            result.error.message === 'There is no outstanding debt eligible for this discount.' ||
+            result.error.message === 'The original amount exceeds the unpaid charges for this payment purpose.' ||
+            result.error.message === 'The discount must be smaller than the eligible outstanding debt.' ||
+            result.error.message === 'The discount exceeds the eligible debt payment.' ||
+            result.error.message === 'The amount of change no longer matches the outstanding balance.'
+          )) {
+            // The RPC rejected this save before recording a payment.
+            paymentAttemptRef.current = null
+            discountAttemptRef.current = null
+            paymentSubmissionKeyRef.current = null
+            setPaymentSaveNotice({ title: 'Payment not saved', message: result.error.message })
+            return
+          }
           const previous = await supabase.from('payments').select('*')
             .eq('submission_key', paymentSubmissionKey).maybeSingle()
           if (previous.error) throw new Error('Receipt recovery is unavailable. Do not submit again until history has been checked.')
@@ -1578,7 +1606,7 @@ function selectHomeowner(property) {
         .eq('payment_id', data.id).single()
 
       if (auditError || !audit ||
-          Number(audit.gross_amount) !== Math.round((gross - changeAmount) * 100) / 100 ||
+          Number(audit.gross_amount) !== Math.round((paid + manualDiscountAmount) * 100) / 100 ||
           Number(audit.discount_amount) !== manualDiscountAmount ||
           Number(audit.cash_received) !== paid) {
         throw new Error('Discount journal could not be verified. Review payment history before retrying.')
@@ -1607,10 +1635,13 @@ function selectHomeowner(property) {
     setChangeHandling('advance')
     setReceipt(data)
     paymentAttemptRef.current = null
-    setPaymentSubmissionKey(null)
+    paymentSubmissionKeyRef.current = null
     notifySuccess(`Payment ${data.receipt_number} recorded for ${data.homeowner_name}, ${data.block_name || ""}, Lot ${data.lot_number || ""}.`)
     } catch (error) {
-      setFormError(`The payment could not be confirmed. Refresh payment history before retrying to avoid a duplicate. ${error.message}`)
+      setPaymentSaveNotice({
+        title: 'Payment could not be confirmed',
+        message: `Refresh payment history before retrying to avoid a duplicate. ${error.message}`,
+      })
     } finally {
       paymentSubmitRef.current = false
       setSaving(false)
@@ -1655,7 +1686,7 @@ function selectHomeowner(property) {
           )}
 
           {canManagePayments && (
-            <button className="payments-primary" type="button" onClick={openForm}>
+            <button className="payments-primary" type="button" onClick={openForm} disabled={saving}>
               <span aria-hidden="true">+</span>
               Record Payment
             </button>
@@ -1992,12 +2023,13 @@ function selectHomeowner(property) {
               <section className="payment-record-payment" aria-labelledby="payment-payment-title">
                 <h3 className="payment-record-section-label" id="payment-payment-title">Payment</h3>
                 <div className="payment-record-fields">
-                  <label htmlFor="payment-amount">{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount'}
+                  <label htmlFor="payment-amount">{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount (actual amount received)'}
                     <input id="payment-amount" name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} readOnly={annualAdvance} required />
                   </label>
-                  <label htmlFor="payment-simple-discount">Discount (₱) — optional
-                    <input id="payment-simple-discount" type="number" min="0" step="0.01" placeholder="0.00" value={manualDiscount.value} disabled={saving || annualAdvance}
+                  <label htmlFor="payment-simple-discount">Discount (₱) — full balance settlement only
+                    <input id="payment-simple-discount" type="number" min="0" step="0.01" placeholder="0.00" value={manualDiscount.value} disabled={saving || annualAdvance || !isBalanceReducingPayment || balanceDue <= 0}
                       onChange={(event) => setManualDiscount((d) => ({ ...d, value: event.target.value, enabled: Number(event.target.value) > 0, type: 'fixed' }))} />
+                    <small>Not available for partial payments or advance credit. The separate 12-month promotion remains available.</small>
                   </label>
                   <div className="payment-record-field">
                     <label id="payment-method-label">Payment Method</label>
@@ -2067,6 +2099,12 @@ function selectHomeowner(property) {
                     </div>
                   )}
                   {annualAdvance && <p className="payment-record-hint">12-month advance payment includes one month free.</p>}
+                  {manualDiscountAmount > 0 && !annualAdvance && !manualDiscountSettlesFullBalance({
+                    outstandingBalance: balanceDue,
+                    cashRetained: cashTendered - changeAmount,
+                    discountAmount: manualDiscountAmount,
+                    isBalanceReducingPayment,
+                  }) && <p className="payment-record-hint" role="status">Manual discounts require full debt settlement with no retained advance credit. Return any excess as change, or remove the discount.</p>}
                   {form.propertyId && createPortal(
                     <div
                       id="payment-balance-popover"
@@ -2493,6 +2531,14 @@ function selectHomeowner(property) {
           </ReceiptDialog>
         )
       })()}
+
+      <ActionDialog
+        open={!!paymentSaveNotice}
+        title={paymentSaveNotice?.title}
+        message={paymentSaveNotice?.message}
+        tone="danger"
+        onConfirm={() => setPaymentSaveNotice(null)}
+      />
 
       <ActionDialog
         open={!!popupNotice}

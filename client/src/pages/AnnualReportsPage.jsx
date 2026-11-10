@@ -61,7 +61,7 @@ async function fetchAnnual(year, preparedDate) {
     supabase.from('system_settings').select('hoa_name,address').eq('id',1).maybeSingle(),
     fetchAll(() => supabase.from('events')
       .select('id,title,event_date,location').gte('event_date',start).lt('event_date',end).order('event_date')),
-    fetchAll(() => supabase.from('documents')
+    fetchAll(() => supabase.from('document_upload_report')
       .select('id,title,category,created_at').gte('created_at',first).lt('created_at',after).order('created_at')),
     Promise.all(grievanceMonths.map(({ from, to }) =>
       supabase.rpc('monthly_report_grievances', {

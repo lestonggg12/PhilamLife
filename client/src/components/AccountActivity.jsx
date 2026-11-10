@@ -6,7 +6,7 @@ import { watchStaffInserts } from '../lib/notificationRealtime'
 import { staffNotificationCopy } from '../lib/staffActivityText'
 import './AccountActivity.css'
 
-const icons = { transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert }
+const icons = { transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert, balance_added: Coins }
 
 export default function AccountActivity({ propertyId, month, year, refreshKey }) {
   const heading = useId()
@@ -54,7 +54,7 @@ export default function AccountActivity({ propertyId, month, year, refreshKey })
       <h3 id={heading}>Account Activity</h3>
       <p>{month ? `Events recorded in ${month}` : year ? `Events recorded in ${year}` : 'Permanent activity for this property account'} · Philippine time</p>
     </div><button type="button" onClick={() => load(0)} disabled={loading}>Refresh</button></header>
-    <p className="account-activity-note">Credit deductions, penalties, voids, moves, and ownership changes. These entries are not additional payments.</p>
+    <p className="account-activity-note">Entered balances, credit deductions, penalties, voids, moves, and ownership changes. These entries are not additional payments.</p>
     {error && <p className="account-activity-error" role="alert">{error} <button type="button" onClick={() => load(0)}>Retry</button></p>}
     {loading && items.length === 0 ? <div className="account-activity-skeleton" role="status">Loading account activity…</div>
       : !items.length ? <p className="account-activity-empty">{error ? 'Activity is unavailable.' : 'No account activity recorded for this period.'}</p>

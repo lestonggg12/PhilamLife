@@ -72,6 +72,13 @@ describe('Ledger financial safety', () => {
     expect(notes).toContain('not verification')
   })
 
+  it('lets full summary amounts wrap instead of clipping them', () => {
+    const css = readFileSync(new URL('../pages/LedgerPage.css', import.meta.url), 'utf8')
+    const valueStyle = css.match(/\.ledger-summary-value\s*\{([^}]+)\}/)?.[1]
+    expect(valueStyle).toContain('overflow-wrap: anywhere')
+    expect(valueStyle).not.toMatch(/ellipsis|white-space:\s*nowrap|overflow:\s*hidden/)
+  })
+
   it('guards stale ledger views and unverified PDFs', () => {
     const page = readFileSync(
       new URL('../pages/LedgerPage.jsx', import.meta.url),
@@ -81,7 +88,7 @@ describe('Ledger financial safety', () => {
     expect(page).toContain('setLedgerVerified(false)')
     expect(page).toContain('setLedgerVerified(true)')
     expect(page).toContain('!ledgerVerified || pageError')
-    expect(page).toContain('reconcilesWithStoredBalance')
+    expect(page).toContain('statementAccount.statementTotals?.canExport')
     expect(page).toContain('Could not generate statement PDF')
     expect(page).toContain("{ key: 'paidAmount', label: 'Last Payment Amount' }")
   })

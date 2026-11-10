@@ -27,6 +27,13 @@ export default function PreprintedReceipt({ model, paperNumber = '', alignment, 
       <div className="paper-lot">{f.lot}</div>
       <div className="paper-description">{wrapReceiptText(f.description).map((line, i) => <div key={i}>{line}</div>)}</div>
       <div className="paper-quantity">{f.quantity}</div><div className="paper-unit">{f.unitPrice}</div><div className={`paper-line-amount${String(f.lineAmount || "").length > 14 ? " paper-long-amount" : ""}`}>{f.lineAmount}</div>
+      {f.advanceLine && <>
+        <div className="paper-advance-description">{f.advanceLine.description}</div>
+        <div className="paper-advance-quantity">{f.advanceLine.quantity}</div>
+        <div className="paper-advance-unit">{f.advanceLine.unitPrice}</div>
+        <div className={`paper-advance-amount${String(f.advanceLine.lineAmount || "").length > 14 ? " paper-long-amount" : ""}`}>{f.advanceLine.lineAmount}</div>
+      </>}
+      {f.discountNote && <div className="paper-discount-note">{f.discountNote}</div>}
       <div className="paper-total-sales">{f.totalSales}</div><div className="paper-discount">{f.discount}</div><div className="paper-total-paid">{f.totalPaid}</div>
       <div className="paper-issued-by">{wrapReceiptText(f.issuedBy, 26).map((line, i) => <div key={i}>{line}</div>)}</div>
       {model.voided && <div className="paper-cancelled">CANCELLED — NOT VALID</div>}

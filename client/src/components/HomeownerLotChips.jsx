@@ -15,7 +15,7 @@ export default function HomeownerLotChips({ lots, selectedId, onSelect }) {
         >
                     {lot.block}, Lot {lot.lot_number}
           <small className={`lot-classification lot-classification--${lot.property_classification || 'unknown'}`}>
-            {classificationLabel(lot.property_classification)}
+            {['moved', 'transferred'].includes(lot.homeowner_status) ? 'Former account' : classificationLabel(lot.property_classification)}
           </small>
         </button>
       ))}

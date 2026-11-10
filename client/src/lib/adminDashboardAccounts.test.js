@@ -9,9 +9,12 @@ const properties = [
 ]
 const aging = [
   { property_id: 1, balance: '200.00', overdue_amount: '150.00', days_overdue: 15, aging_complete: true },
-  { property_id: 2, balance: '0.00', overdue_amount: '0.00', aging_complete: true },
-  { property_id: 3, balance: '0.00', overdue_amount: '0.00', aging_complete: true },
-]
+  { property_id: 2, balance: '0.00', overdue_amount: '0.00', days_overdue: 0, aging_complete: true },
+  { property_id: 3, balance: '0.00', overdue_amount: '0.00', days_overdue: 0, aging_complete: true },
+].map(row => ({
+  days_1_30_amount: row.overdue_amount, days_31_60_amount: 0, days_61_90_amount: 0, days_90_plus_amount: 0,
+  current_amount: Number(row.balance) - Number(row.overdue_amount), ...row,
+}))
 const dues = [
   { property_id: 1, monthly_dues: '100.01' },
   { property_id: 2, monthly_dues: '200.02' },

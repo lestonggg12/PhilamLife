@@ -4,7 +4,8 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Calendar, Mail, Phone, RefreshCw, Search, Users } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
-import { describeOverdueAccount, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
+import { AGING_TIERS, describeOverdueAccount, matchesAgingTier, movedAccountsWithBalance, OVERDUE_COLUMNS, summarizeOverdueAccounts, verifyOverdueSnapshot } from '../lib/overdueAccounts'
+import { countCollectionFollowups, FOLLOWUP_COLUMNS, followupRequest, saveCollectionFollowup } from '../lib/collectionFollowups'
 import { fetchAll } from '../lib/fetchAll'
 import { useOrganization } from '../context/OrganizationContext'
 import './OverdueAccountsPage.css'
@@ -12,9 +13,9 @@ import { Pager } from '../components/PagerControls'
 import { useListPage, matchesHomeownerSearch } from '../lib/homeownerDirectory'
 import Skeleton from '../components/skeleton/Skeleton'
 
-const STATUS_FILTERS = ['Overdue', 'Pending', 'Partial', 'Paid', 'Review', 'All']
-
-const AGING_TIERS = ['1-30 days', '31-60 days', '61-90 days', '90+ days']
+const STATUS_FILTERS = ['Overdue', 'Current', 'No balance due', 'Review', 'All', 'Moved']
+const statusClass = (status) => status === 'No balance due' ? 'paid' : status === 'Current' ? 'pending' : status.toLowerCase()
+const STAFF_ROLES = ['admin', 'secretary', 'treasurer']
 
 const ACTION_TYPES = ['Phone Call', 'Email Sent', 'Formal Notice', 'Payment Plan Arranged', 'Site Visit', 'Other']
 
@@ -22,7 +23,7 @@ function agingTierOf(daysOverdue) {
   if (daysOverdue <= 30) return '1-30 days'
   if (daysOverdue <= 60) return '31-60 days'
   if (daysOverdue <= 90) return '61-90 days'
-  return '90+ days'
+  return '91+ days'
 }
 
 const SORTS = [
@@ -52,6 +53,8 @@ function AccountDialog({
   saving,
   error,
   canLog,
+  historyLoading,
+  historyError,
   focusForm,
   formatMoney,
   formatDate,
@@ -101,7 +104,7 @@ function AccountDialog({
     }
   }
 
-  const overdue = account.status === 'Overdue'
+  const overdue = account.overdueAmount > 0
 
   return createPortal(
     <div
@@ -128,7 +131,7 @@ function AccountDialog({
             <h2 id="account-dialog-title">{account.name}</h2>
             <p>
               {account.block}, {account.lot} ·{' '}
-              <span className={`od-pill ${account.status.toLowerCase()}`}>{account.status}</span>
+              <span className={`od-pill ${statusClass(account.status)}`}>{account.status}</span>
             </p>
           </div>
           <button type="button" className="od-d-close" onClick={onClose} disabled={saving} aria-label="Close">
@@ -144,15 +147,15 @@ function AccountDialog({
             </div>
             <div className="od-fact">
               <dt>Past due</dt>
-              <dd className={account.overdueAmount > 0 ? 'red' : ''}>{formatMoney(account.overdueAmount)}</dd>
+              <dd className={account.overdueAmount > 0 ? 'red' : ''}>{account.needsReview ? 'Needs review' : formatMoney(account.overdueAmount)}</dd>
             </div>
             <div className="od-fact">
               <dt>Days overdue</dt>
               <dd>{overdue ? Number(account.daysOverdue).toLocaleString() : '—'}</dd>
             </div>
             <div className="od-fact">
-              <dt>Last payment</dt>
-              <dd>{account.lastPaymentAt ? formatDate(account.lastPaymentAt) : 'None yet'}</dd>
+              <dt>Last HOA payment</dt>
+              <dd>{account.lastPaymentAt ? formatDate(account.lastPaymentAt) : 'No HOA payment recorded'}</dd>
             </div>
           </dl>
 
@@ -170,9 +173,9 @@ function AccountDialog({
                 </a>
               )}
               {!account.phone && !account.email && <span className="od-muted">No contact details on file.</span>}
-              <button type="button" className="od-row-btn" onClick={onOpenProfile}>
+              {!account.isMoved && <button type="button" className="od-row-btn" onClick={onOpenProfile}>
                 Open homeowner profile →
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -224,9 +227,11 @@ function AccountDialog({
 
           <div className="od-d-section">
             <h3>
-              History <span>{account.actionCount} logged</span>
+              History {!historyLoading && !historyError && <span>{account.actionCount} logged</span>}
             </h3>
-            {account.actions.length === 0 ? (
+            {historyLoading ? <p className="od-muted">Loading follow-up history…</p> : historyError ? (
+              <p className="od-muted">Follow-up history unavailable. Refresh to retry.</p>
+            ) : account.actions.length === 0 ? (
               <p className="od-muted">No actions logged yet.</p>
             ) : (
               <ol className="od-timeline">
@@ -278,19 +283,19 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [properties, setProperties] = useState([])
   const [paymentSummaries, setPaymentSummaries] = useState([])
-  const [collectionActions, setCollectionActions] = useState([])
-  const [actionsLoading, setActionsLoading] = useState(false)
-  const [actionsError, setActionsError] = useState('')
+  const [actionHistory, setActionHistory] = useState(null)
+  const [actionTotals, setActionTotals] = useState(null)
+  const pendingFollowups = useRef(new Map())
   const [actionsReload, setActionsReload] = useState(0)
   const [penaltySettings, setPenaltySettings] = useState({
     dueDay: 5,
     gracePeriodDays: 0,
-    latePenalty: 0,
   })
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
   const [dataAvailable, setDataAvailable] = useState(false)
+  const [snapshotFailed, setSnapshotFailed] = useState(false)
   const loadSequence = useRef(0)
   const logSubmitting = useRef(false)
   const [search, setSearch] = useState('')
@@ -322,7 +327,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     if (authError || !authUser) return
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, full_name, email, role')
+      .select('id, full_name, email, role, is_active')
       .eq('id', authUser.id)
       .single()
     if (!profileError) setCurrentUser(profile)
@@ -346,18 +351,16 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           () =>
             supabase
               .from('property_payment_summary')
-              .select('property_id, latest_paid_at, latest_amount_paid')
+              .select('property_id, latest_paid_at')
               .order('property_id'),
           { tiebreaker: null },
         ),
-        supabase.from('system_settings').select('due_day, grace_period_days, late_penalty').eq('id', 1).maybeSingle(),
+        supabase.from('system_settings').select('due_day, grace_period_days').eq('id', 1).maybeSingle(),
         fetchAll(
           () =>
             supabase
               .from('property_overdue_summary')
-              .select(
-                'property_id, balance, overdue_amount, is_overdue, days_overdue, aging_complete, aging_date_fallback_count',
-              )
+              .select(OVERDUE_COLUMNS)
               .order('property_id'),
           { tiebreaker: null },
         ),
@@ -369,24 +372,20 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       if (errors.length) throw new Error(errors.map((error) => error.message).join(' '))
       verifyOverdueSnapshot(propertyResult.data, paymentResult.data, settingsResult.data, overdueResult.data)
 
-      const unaged = overdueResult.data.filter((row) => row.aging_complete === false)
-      if (unaged.length)
-        setPageError(
-          `${unaged.length} account(s) have unreconciled aging data. Their overdue classification requires review.`,
-        )
       setProperties(propertyResult.data)
       setPaymentSummaries(paymentResult.data)
       setOverdueSummaries(overdueResult.data)
       setPenaltySettings({
         dueDay: Number(settingsResult.data.due_day),
         gracePeriodDays: Number(settingsResult.data.grace_period_days),
-        latePenalty: Number(settingsResult.data.late_penalty) || 0,
       })
       setDataAvailable(true)
+      setSnapshotFailed(false)
       setActionsReload((value) => value + 1)
     } catch (error) {
       if (sequence === loadSequence.current) {
         // Preserve a previously verified snapshot, never replace it with partial results.
+        setSnapshotFailed(true)
         setPageError(`Unable to load complete overdue data: ${error.message || 'Connection failed.'}`)
       }
     } finally {
@@ -396,16 +395,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       }
     }
   }
-
-  const actionsByProperty = useMemo(() => {
-    const map = new Map()
-    collectionActions.forEach((action) => {
-      const list = map.get(action.property_id) || []
-      list.push(action)
-      map.set(action.property_id, list)
-    })
-    return map
-  }, [collectionActions])
 
   const summaryByProperty = useMemo(
     () => new Map(paymentSummaries.map((row) => [Number(row.property_id), row])),
@@ -418,60 +407,51 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   )
 
   const accounts = useMemo(() => {
-    return properties
-      .filter((property) => (property.homeowner_status || 'active') === 'active')
-      .map((property) => {
-        const latestPayment = summaryByProperty.get(Number(property.id))
-        const aging = overdueByProperty.get(Number(property.id))
-        // No summary is not the same as a zero balance.
-        const classified = describeOverdueAccount(property, aging, latestPayment)
+    const movedIds = new Set(movedAccountsWithBalance(properties).map(property => property.id))
+    return properties.flatMap(property => {
+      const isMoved = movedIds.has(property.id)
+      if (!isMoved && (property.homeowner_status || 'active') !== 'active') return []
+      const aging = overdueByProperty.get(Number(property.id))
+      const classified = describeOverdueAccount(property, aging)
+      return [{
+        ...classified,
+        id: property.id,
+        status: isMoved ? 'Moved' : classified.status,
+        isMoved,
+        name: property.homeowner_name,
+        block: property.block,
+        lot: `Lot ${property.lot_number}`,
+        phone: property.contact_phone || '',
+        email: property.contact_email || '',
+        lastPaymentAt: summaryByProperty.get(Number(property.id))?.latest_paid_at || null,
+      }]
+    })
+  }, [properties, summaryByProperty, overdueByProperty])
 
-        const propertyActions = actionsByProperty.get(property.id) || []
-        const lastAction = propertyActions[0] || null
+  const blocks = useMemo(() => ['All', ...new Set(accounts.map(account => account.block).filter(Boolean))].sort(), [accounts])
+  const scopedAccounts = useMemo(() => accounts
+    .filter(account => blockFilter === 'All' || account.block === blockFilter)
+    .filter(account => matchesHomeownerSearch({ homeowner_name: account.name, block: account.block, lot_number: account.lot }, search)),
+  [accounts, blockFilter, search])
+  const agedAccounts = useMemo(() => scopedAccounts.filter(account => matchesAgingTier(account, agingFilter)), [scopedAccounts, agingFilter])
+  const movedScope = statusFilter === 'Moved'
+  const filtered = useMemo(() => agedAccounts
+    .filter(account => statusFilter === 'All' ? !account.isMoved : account.status === statusFilter)
+    .sort((a, b) => {
+      if (sortKey === 'balance') return b.balance - a.balance || b.daysOverdue - a.daysOverdue || a.id - b.id
+      if (sortKey === 'name') return String(a.name).localeCompare(String(b.name)) || a.id - b.id
+      return b.daysOverdue - a.daysOverdue || b.balance - a.balance || a.id - b.id
+    }), [agedAccounts, sortKey, statusFilter])
 
-        return {
-          ...classified,
-          id: property.id,
-          name: property.homeowner_name,
-          block: property.block,
-          lot: `Lot ${property.lot_number}`,
-          phone: property.contact_phone || '',
-          email: property.contact_email || '',
-          lastPaymentAt: latestPayment?.latest_paid_at || null,
-          lastAction,
-          actionCount: propertyActions.length,
-          actions: propertyActions,
-        }
-      })
-  }, [properties, summaryByProperty, overdueByProperty, actionsByProperty])
-
-  const blocks = useMemo(() => ['All', ...new Set(properties.map((p) => p.block).filter(Boolean))].sort(), [properties])
-
-  const filtered = useMemo(() => {
-    return accounts
-      .filter((a) => statusFilter === 'All' || a.status === statusFilter)
-      .filter((a) => agingFilter === 'All' || a.agingTier === agingFilter)
-      .filter((a) => blockFilter === 'All' || a.block === blockFilter)
-      .filter((a) => matchesHomeownerSearch({ homeowner_name: a.name, block: a.block, lot_number: a.lot }, search))
-      .sort((a, b) => {
-        if (sortKey === 'balance') return b.balance - a.balance || b.daysOverdue - a.daysOverdue || a.id - b.id
-        if (sortKey === 'name') return String(a.name).localeCompare(String(b.name)) || a.id - b.id
-        return b.daysOverdue - a.daysOverdue || b.balance - a.balance || a.id - b.id
-      })
-  }, [accounts, search, blockFilter, statusFilter, agingFilter, sortKey])
-
-  // Tab counts follow the search and block filters, so each tab shows what it would list.
   const statusCounts = useMemo(() => {
     const counts = { All: 0 }
-    accounts
-      .filter((a) => blockFilter === 'All' || a.block === blockFilter)
-      .filter((a) => matchesHomeownerSearch({ homeowner_name: a.name, block: a.block, lot_number: a.lot }, search))
-      .forEach((a) => {
-        counts.All += 1
-        counts[a.status] = (counts[a.status] || 0) + 1
-      })
+    for (const account of agedAccounts) {
+      if (!account.isMoved) counts.All += 1
+      counts[account.status] = (counts[account.status] || 0) + 1
+    }
     return counts
-  }, [accounts, search, blockFilter])
+  }, [agedAccounts])
+  const scopeCount = accounts.filter(account => account.isMoved === movedScope).length
   const hasFilters = Boolean(search.trim()) || blockFilter !== 'All' || agingFilter !== 'All'
   function clearFilters() {
     setSearch('')
@@ -479,56 +459,65 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setAgingFilter('All')
   }
 
-  const accountPage = useListPage(filtered, [search, blockFilter, statusFilter, agingFilter])
+  const accountPage = useListPage(filtered, [search, blockFilter, statusFilter, agingFilter, sortKey])
+  const visibleKey = JSON.stringify(accountPage.rows.map(account => account.id))
+  const matchingKey = JSON.stringify(filtered.map(account => account.id).sort())
+  const historyReady = actionHistory?.key === visibleKey && actionHistory.revision === actionsReload
+  const totalReady = actionTotals?.key === matchingKey && actionTotals.revision === actionsReload
+  const actionsLoading = !historyReady
+  const actionsError = historyReady ? actionHistory.error : ''
+  const totalsError = totalReady ? actionTotals.error : ''
 
-  const visibleIds = JSON.stringify(accountPage.rows.map((account) => account.id))
   useEffect(() => {
-    if (loading) return undefined
+    if (!dataAvailable) return undefined
     let cancelled = false
-    const ids = JSON.parse(visibleIds)
-    setCollectionActions([])
-    setActionsError('')
-    if (!ids.length) {
-      setActionsLoading(false)
-      return undefined
-    }
-    setActionsLoading(true)
+    const ids = JSON.parse(visibleKey)
     async function loadVisibleActions() {
+      const scope = { key: visibleKey, revision: actionsReload }
       try {
-        const { data, error } = await fetchAll(() =>
-          supabase
-            .from('collection_actions')
-            .select('id, property_id, action_type, action_date, details, document_reference, created_by')
-            .in('property_id', ids)
-            .order('action_date', { ascending: false }),
-        )
+        const { data, error } = ids.length ? await fetchAll(() => supabase.from('collection_actions')
+          .select(FOLLOWUP_COLUMNS).in('property_id', ids).order('action_date', { ascending: false })) : { data: [] }
         if (error) throw error
         if (!Array.isArray(data)) throw new Error('Incomplete follow-up history response.')
-        if (!cancelled) setCollectionActions(data)
+        if (!cancelled) setActionHistory({ ...scope, rows: data })
       } catch (error) {
-        if (!cancelled) {
-          setCollectionActions([])
-          setActionsError(`Follow-up history could not be loaded: ${error.message || 'Connection failed.'}`)
-        }
-      } finally {
-        if (!cancelled) setActionsLoading(false)
+        if (!cancelled) setActionHistory({ ...scope, rows: [], error: `Follow-up history unavailable: ${error.message}` })
       }
     }
     loadVisibleActions()
-    return () => {
-      cancelled = true
+    return () => { cancelled = true }
+  }, [visibleKey, dataAvailable, actionsReload])
+
+  useEffect(() => {
+    if (!dataAvailable) return undefined
+    let cancelled = false
+    const scope = { key: matchingKey, revision: actionsReload }
+    countCollectionFollowups(supabase, JSON.parse(matchingKey))
+      .then(count => { if (!cancelled) setActionTotals({ ...scope, count }) })
+      .catch(error => { if (!cancelled) setActionTotals({ ...scope, error: `Follow-up total unavailable: ${error.message}` }) })
+    return () => { cancelled = true }
+  }, [matchingKey, dataAvailable, actionsReload])
+
+  const actionsByProperty = useMemo(() => {
+    const map = new Map()
+    for (const action of historyReady ? actionHistory.rows : []) {
+      const id = Number(action.property_id)
+      const list = map.get(id) || []
+      list.push(action)
+      map.set(id, list)
     }
-  }, [visibleIds, loading, actionsReload])
+    return map
+  }, [historyReady, actionHistory])
 
-  const summary = useMemo(() => {
-    return summarizeOverdueAccounts(accounts)
-  }, [accounts])
-
-  const filteredSummary = useMemo(() => summarizeOverdueAccounts(filtered), [filtered])
-
-  const detail = detailId === null ? null : accounts.find((account) => account.id === detailId) || null
-  const detailIds = accountPage.rows.map((account) => account.id)
-  const detailPosition = detail ? detailIds.indexOf(detail.id) : -1
+  const summary = useMemo(() => summarizeOverdueAccounts(scopedAccounts.filter(account => !account.isMoved)), [scopedAccounts])
+  const filteredSummary = useMemo(() => summarizeOverdueAccounts(filtered, agingFilter), [filtered, agingFilter])
+  const hasAgingReview = scopedAccounts.some(account => account.isMoved === movedScope && account.needsReview)
+  const detailIds = accountPage.rows.map(account => account.id)
+  const detailAccount = accountPage.rows.find(account => account.id === detailId)
+  const detailActions = detailAccount ? actionsByProperty.get(Number(detailId)) || [] : []
+  const detail = detailAccount ? { ...detailAccount, actions: detailActions, actionCount: detailActions.length } : null
+  const detailPosition = detailIds.indexOf(detailId)
+  const canLog = Boolean(currentUser?.id && currentUser.is_active !== false && STAFF_ROLES.includes(currentUser.role))
 
   function resetLogForm() {
     setLogForm({ action_type: ACTION_TYPES[0], details: '', document_reference: '' })
@@ -547,6 +536,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   }
 
   function stepAccount(direction) {
+    if (logSubmitting.current) return
     const nextId = detailIds[detailPosition + direction]
     if (nextId === undefined) return
     resetLogForm()
@@ -557,11 +547,11 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   async function submitLogAction(event) {
     event.preventDefault()
     if (logSubmitting.current) return
-    if (!detail || !currentUser?.id) {
+    if (!detail || !canLog) {
       setLogError('Unable to identify the current user. Please refresh and try again.')
       return
     }
-    if (!logForm.details.trim()) {
+    if (logForm.details.trim().length < 3) {
       setLogError('Add a short note about what happened.')
       return
     }
@@ -570,28 +560,22 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     setLogSaving(true)
     setLogError('')
     try {
-      const { data, error } = await supabase
-        .from('collection_actions')
-        .insert({
-          property_id: detail.id,
-          action_type: logForm.action_type,
-          details: logForm.details.trim(),
-          document_reference: logForm.document_reference.trim() || null,
-          created_by: currentUser.id,
-        })
-        .select('id, property_id, action_type, action_date, details, document_reference, created_by')
-        .single()
-      if (error) throw error
-      if (!data?.id || Number(data.property_id) !== Number(detail.id)) {
-        throw new Error('The follow-up save could not be confirmed. Refresh before retrying.')
+      const payload = {
+        property_id: detail.id,
+        action_type: logForm.action_type,
+        details: logForm.details.trim(),
+        document_reference: logForm.document_reference.trim() || null,
+        created_by: currentUser.id,
       }
-      setCollectionActions((current) => [data, ...current])
+      const request = await followupRequest(payload, pendingFollowups.current)
+      await saveCollectionFollowup(supabase, payload, request.id)
+      request.clear()
       setActionsReload((value) => value + 1)
       notifySuccess(`${logForm.action_type} follow-up saved for ${detail.name || 'this homeowner'}.`)
       resetLogForm()
     } catch (error) {
       setLogError(
-        `${error.message || 'The follow-up could not be saved.'} If the connection was interrupted, refresh the history before retrying.`,
+        `${error.message || 'The follow-up could not be saved.'} For a retry, use the same action details.`,
       )
     } finally {
       logSubmitting.current = false
@@ -610,8 +594,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           <p className="od-eyebrow">Collections</p>
           <h1>Overdue Accounts</h1>
           <p>
-            Homeowners past Due Day {penaltySettings.dueDay} (+{penaltySettings.gracePeriodDays}-day grace period),
-            based on outstanding balance items. Only posted penalties are included in balances.
+            Aging uses each unpaid item’s due date. Monthly dues use day {penaltySettings.dueDay} with a {penaltySettings.gracePeriodDays}-day grace period. Only posted penalties are included. A lot can have unpaid items in more than one age range.
           </p>
         </div>
         <button type="button" className="od-btn" onClick={() => loadData(true)} disabled={refreshing}>
@@ -629,7 +612,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             </span>
           </div>
           <strong className="red">{kpiValue(loading, filtered.length, '42px')}</strong>
-          <small>of {accounts.length} lots</small>
+          <small>of {scopeCount} {movedScope ? 'moved lots with a balance' : 'active lots'}</small>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -639,7 +622,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             </span>
           </div>
           <strong>{kpiValue(loading, organization.formatMoney(filteredSummary.overdueBalance), '86px')}</strong>
-          <small>Total outstanding</small>
+          <small>{agingFilter === 'All' ? 'Past due on matching lots' : `Past due in ${agingFilter}`}</small>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -649,7 +632,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             </span>
           </div>
           <strong>{kpiValue(loading, organization.formatMoney(filteredSummary.currentPortion), '86px')}</strong>
-          <small>Not yet past due</small>
+          <small>Not yet due on matching lots</small>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -660,30 +643,33 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong>
             {kpiValue(
-              loading,
-              filtered.reduce((total, account) => total + account.actionCount, 0),
+              loading || (dataAvailable && !totalReady),
+              totalsError ? 'Unavailable' : actionTotals?.count,
               '42px',
             )}
           </strong>
-          <small>Calls, notices and visits</small>
+          <small>Across all matching lots</small>
         </article>
       </section>
 
-      {!loading && summary.overdueCount > 0 && (
-        <section className="od-tiers" aria-label="Filter by how late">
+      {!loading && !movedScope && summary.overdueCount > 0 && (
+        <section className="od-tiers" aria-label="Filter by age of unpaid items. Lots can have items in more than one age range.">
           {AGING_TIERS.map((tier, index) => (
             <button
               key={tier}
               type="button"
               className={`od-tier ${index === 3 ? 'severe' : ''}`}
               aria-pressed={agingFilter === tier}
-              onClick={() => setAgingFilter(agingFilter === tier ? 'All' : tier)}
+              onClick={() => {
+                setAgingFilter(agingFilter === tier ? 'All' : tier)
+                setStatusFilter('Overdue')
+              }}
             >
               <div className="od-tier-top">
                 <span className="od-tier-name">{tier}</span>
                 <span className="od-tier-tag">{agingFilter === tier ? 'Filtering' : 'Click to filter'}</span>
               </div>
-              <strong>{summary.byTier[tier].count}</strong>
+              <strong>{summary.byTier[tier].count} lots</strong>
               <small>{organization.formatMoney(summary.byTier[tier].balance)} past due</small>
               <div className="od-bar">
                 <i style={{ width: `${Math.round((summary.byTier[tier].balance / maxTierBalance) * 100)}%` }} />
@@ -696,9 +682,11 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
       {pageError && (
         <p className="od-banner od-error">
           <AlertCircle size={16} />
-          {pageError}
+          {pageError}{snapshotFailed && dataAvailable ? ' Showing the last verified snapshot.' : ''}
         </p>
       )}
+      {hasAgingReview && <p className="od-banner od-error" role="status">Some accounts need review. Their aging amounts are excluded from the totals.</p>}
+      {totalsError && <p className="od-banner od-error" role="alert">{totalsError}</p>}
       {actionsError && (
         <p className="od-banner od-error" role="alert">
           {actionsError}
@@ -753,15 +741,15 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             <div className="od-tabs" role="group" aria-label="Filter by status">
               {STATUS_FILTERS.map((s) => (
                 <button key={s} type="button" aria-pressed={statusFilter === s} onClick={() => setStatusFilter(s)}>
-                  {s}
-                  <span className="n">{statusCounts[s] || 0}</span>
+                  {s === 'All' ? 'All active' : s}
+                  <span className="n">{dataAvailable ? statusCounts[s] || 0 : '—'}</span>
                 </button>
               ))}
             </div>
           </div>
           <div className="od-f-meta">
             <span>
-              {filtered.length} matching lot{filtered.length === 1 ? '' : 's'} of {accounts.length}
+              {dataAvailable ? `${filtered.length} matching lot${filtered.length === 1 ? '' : 's'} of ${scopeCount}` : 'Account totals unavailable'}
             </span>
             <span className="od-chips">
               {agingFilter !== 'All' && (
@@ -789,6 +777,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
         </div>
 
+        {movedScope && <p className="od-banner">Moved accounts with outstanding balances are tracked separately from active lots.</p>}
         {loading ? (
           <div className="od-empty" aria-busy="true">
             <Skeleton variant="rect" width="100%" height="64px" />
@@ -819,9 +808,9 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                 <tr>
                   <th>Homeowner</th>
                   <th>Block / Lot</th>
-                  <th>Days overdue</th>
+                  <th title="Days since the oldest unpaid item became overdue">Days overdue</th>
                   <th className="r">Balance</th>
-                  <th>Last payment</th>
+                  <th className="od-hoa-payment-heading">Last HOA payment</th>
                   <th>Last action</th>
                   <th>Status</th>
                   <th className="r">Actions</th>
@@ -829,8 +818,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               </thead>
               <tbody>
                 {accountPage.rows.map((account) => {
-                  const tierIndex = tierIndexOf(account.agingTier)
-                  const isOverdue = account.status === 'Overdue'
+                  const oldestTier = agingTierOf(account.daysOverdue)
+                  const tierIndex = tierIndexOf(oldestTier)
+                  const isOverdue = account.overdueAmount > 0
+                  const pastDue = agingFilter === 'All' ? account.overdueAmount : account.agingAmounts[agingFilter]
+                  const actions = actionsByProperty.get(Number(account.id)) || []
+                  const lastAction = actions[0]
                   return (
                     <tr
                       key={account.id}
@@ -882,7 +875,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                         {isOverdue ? (
                           <span className="od-days">
                             <b>{Number(account.daysOverdue).toLocaleString()} days</b>
-                            <span className={`od-tag t${tierIndex + 1}`}>{account.agingTier}</span>
+                            <span className={`od-tag t${tierIndex + 1}`}>{oldestTier}</span>
                           </span>
                         ) : (
                           <span className="od-muted">—</span>
@@ -891,16 +884,16 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                       <td className="r">
                         <span className="od-money">{organization.formatMoney(account.balance)}</span>
                         <span className="od-sub">
-                          {account.overdueAmount > 0
-                            ? `${organization.formatMoney(account.overdueAmount)} past due`
-                            : 'Nothing past due'}
+                          {account.needsReview ? 'Aging needs review'
+                            : pastDue > 0 ? `${organization.formatMoney(pastDue)} ${agingFilter === 'All' ? 'past due' : 'in this age range'}`
+                              : 'Nothing past due'}
                         </span>
                       </td>
                       <td>
                         {account.lastPaymentAt ? (
                           organization.formatDate(account.lastPaymentAt)
                         ) : (
-                          <span className="od-muted">No payments yet</span>
+                          <span className="od-muted">No HOA payment</span>
                         )}
                       </td>
                       <td>
@@ -908,12 +901,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                           <Skeleton variant="rect" width="100px" height="1em" />
                         ) : actionsError ? (
                           <span className="od-muted">History unavailable</span>
-                        ) : account.lastAction ? (
+                        ) : lastAction ? (
                           <>
-                            <b className="od-semi">{account.lastAction.action_type}</b>
+                            <b className="od-semi">{lastAction.action_type}</b>
                             <span className="od-sub">
-                              {organization.formatDate(account.lastAction.action_date)}
-                              {account.actionCount > 1 ? ` (+${account.actionCount - 1} more)` : ''}
+                              {organization.formatDate(lastAction.action_date)}
+                              {actions.length > 1 ? ` (+${actions.length - 1} more)` : ''}
                             </span>
                           </>
                         ) : (
@@ -921,20 +914,20 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
                         )}
                       </td>
                       <td>
-                        <span className={`od-pill ${account.status.toLowerCase()}`}>{account.status}</span>
+                        <span className={`od-pill ${statusClass(account.status)}`}>{account.status}</span>
                       </td>
                       <td className="r" onClick={(event) => event.stopPropagation()}>
                         <div className="od-row-actions">
-                          <button
+                          <button type="button" className="od-row-btn od-view-btn" onClick={() => openAccount(account)}>
+                            View
+                          </button>
+                          {canLog && <button
                             type="button"
                             className="od-row-btn primary"
                             onClick={() => openAccount(account, true)}
                           >
                             + Log action
-                          </button>
-                          <button type="button" className="od-row-btn" onClick={() => openAccount(account)}>
-                            View
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>
@@ -961,7 +954,9 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           setForm={setLogForm}
           saving={logSaving}
           error={logError}
-          canLog={Boolean(currentUser?.id)}
+          canLog={canLog}
+          historyLoading={actionsLoading}
+          historyError={actionsError}
           focusForm={focusForm}
           formatMoney={organization.formatMoney}
           formatDate={organization.formatDate}

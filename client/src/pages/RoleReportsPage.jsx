@@ -24,7 +24,7 @@ async function loadRoleSources(role, month) {
     common,
     fetchAll(() => supabase.from('events').select('id,title,event_date,location')
       .gte('event_date',dates.from).lte('event_date',dates.to).order('event_date')),
-    fetchAll(() => supabase.from('documents').select('id,title,category,created_at')
+    fetchAll(() => supabase.from('document_upload_report').select('id,title,category,created_at')
       .gte('created_at',span.start).lt('created_at',span.end).order('created_at')),
     fetchAll(() => supabase.from('properties')
       .select('id,block,lot_number,homeowner_name,homeowner_status,created_at,status_updated_at').order('id')),

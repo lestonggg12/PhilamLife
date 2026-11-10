@@ -92,7 +92,7 @@ export function BalanceItemsTable({ items, totalDue, onVoid }) {
 
 export function BalanceReductionHistory({ payments, adjustments, error }) {
   const paymentRows = payments
-    .filter((payment) => payment.status !== 'Voided')
+    .filter((payment) => String(payment.status).trim().toLowerCase() !== 'voided')
     .map((payment) => ({
       id: `payment-${payment.id}`,
       label: payment.receipt_number || 'Payment (no receipt number recorded)',
@@ -257,6 +257,7 @@ export default function BalanceBreakdown({
 
   async function confirmVoid(event) {
     event.preventDefault()
+    if (voiding || !canManage || !voidTarget) return
     const reason = voidReason.trim()
     if (reason.length < 5) {
       setVoidError('Enter a reason (at least 5 characters).')
@@ -264,20 +265,26 @@ export default function BalanceBreakdown({
     }
     setVoiding(true)
     setVoidError('')
-    const { data, error: updateError } = await supabase
-      .from('balance_entries')
-      .update({ voided_at: new Date().toISOString(), void_reason: reason })
-      .eq('id', voidTarget.ref_id)
-      .select('id')
-    setVoiding(false)
-    if (updateError || !data?.length) {
-      setVoidError(updateError?.message || 'Could not void this balance. You may not have permission.')
-      return
+    try {
+      const { data, error: updateError } = await supabase
+        .from('balance_entries')
+        .update({ voided_at: new Date().toISOString(), void_reason: reason })
+        .eq('id', voidTarget.ref_id)
+        .eq('property_id', Number(propertyId))
+        .is('voided_at', null)
+        .select('id')
+      if (updateError || data?.length !== 1 || data[0].id !== voidTarget.ref_id) {
+        throw new Error(updateError?.message || 'This cancellation could not be confirmed. Refresh and check the account.')
+      }
+      setVoidTarget(null)
+      setVoidReason('')
+      setReloadTick((tick) => tick + 1)
+      onChanged?.('Balance voided. Its linked late penalties were cancelled with it.')
+    } catch (failure) {
+      setVoidError(failure?.message || 'This cancellation could not be confirmed. Refresh and check the account.')
+    } finally {
+      setVoiding(false)
     }
-    setVoidTarget(null)
-    setVoidReason('')
-    setReloadTick((tick) => tick + 1)
-    if (onChanged) onChanged(`Balance voided. Its late penalties were voided with it.`)
   }
 
   if (!propertyId) return null
@@ -354,7 +361,9 @@ export default function BalanceBreakdown({
       {voidTarget && (
         <form className="bb-void" onSubmit={confirmVoid}>
           <strong>Void “{voidTarget.label}”?</strong>
-          <p>Its late penalties will be voided and the balance reduced. This cannot be undone.</p>
+          <p>This cancels the original entry of {money(voidTarget.original)} and its linked late penalties.
+            Payments stay on the account. If the cancellation exceeds the amount due, the difference becomes advance credit.
+            This cannot be undone.</p>
           <textarea
             value={voidReason}
             onChange={(event) => { setVoidReason(event.target.value); setVoidError('') }}

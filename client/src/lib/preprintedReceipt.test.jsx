@@ -24,6 +24,40 @@ describe('preprinted invoice output', () => {
     expect(buildPreprintedFields('service', { amount_due: '2400', amount_paid: '2400', quantity: 2 })).toMatchObject({ quantity: '2.00', unitPrice: '1,200.00' })
     expect(buildPreprintedFields('service', { amount_due: '2400', amount_paid: '500', quantity: 2, service_name: 'Hall' })).toMatchObject({ quantity: '2.00', unitPrice: '', totalSales: '500.00', totalPaid: '500.00', description: 'Part payment - Hall' })
   })
+  it('itemizes the saved debt and advance credit without discounting the advance', () => {
+    const cash = { id: 1984, previous_balance: '2335.95', amount_paid: '3000.00',
+      charge_type: 'Balance Payment', coverage_period: 'Balance Payment',
+      manual_discount: { gross_amount: '3100.00', cash_received: '3000.00', discount_amount: '100.00' } }
+    const f = buildPreprintedFields('payment', cash)
+    expect(f).toMatchObject({ description: 'Debt after 100.00 discount',
+      unitPrice: '2,235.95', lineAmount: '2,235.95', totalSales: '3,000.00',
+      discount: '', totalPaid: '3,000.00', discountNote: 'Debt discount applied: -100.00', advanceLine: {
+        description: 'Advance credit (future dues)', lineAmount: '764.05' } })
+    expect(preprintedLayoutError(f)).toBe('')
+    const html = renderToStaticMarkup(<PreprintedReceipt model={{ ...model(), preprinted: f }} alignment={{ x: 0, y: 0 }} />)
+    expect(html).toContain('paper-advance-description')
+    expect(html).toContain('paper-discount-note')
+    expect(html).toContain('Debt discount applied: -100.00')
+    expect(html).toContain('764.05')
+  })
+  it('shows a 500-peso discount without subtracting it twice', () => {
+    const f = buildPreprintedFields('payment', {
+      amount_paid: '5000.00', previous_balance: '4358.31', charge_type: 'Balance Payment',
+      manual_discount: { gross_amount: '5500.00', cash_received: '5000.00', discount_amount: '500.00' },
+    })
+    expect(f).toMatchObject({ lineAmount: '3,858.31',
+      advanceLine: { lineAmount: '1,141.69' },
+      discountNote: 'Debt discount applied: -500.00',
+      totalSales: '5,000.00', discount: '', totalPaid: '5,000.00' })
+    const html = renderToStaticMarkup(<PreprintedReceipt model={{ ...model(), preprinted: f }} alignment={{ x: 0, y: 0 }} />)
+    expect(html).toContain('Debt discount applied: -500.00')
+    expect(preprintedLayoutError(f)).toBe('')
+  })
+  it('keeps ordinary and fully settled discounted receipts on a single line', () => {
+    expect(buildPreprintedFields('payment', { amount_paid: '500', previous_balance: '500' }).advanceLine).toBeNull()
+    expect(buildPreprintedFields('payment', { amount_paid: '900', previous_balance: '1000',
+      manual_discount: { discount_amount: '100', gross_amount: '1000' } }).advanceLine).toBeNull()
+  })
   it('preserves decimal service quantities using exact integer arithmetic', () => {
     expect(buildPreprintedFields('service', { amount_due: '1200', amount_paid: '1200', quantity: '1.50' })).toMatchObject({ quantity: '1.50', unitPrice: '800.00' })
   })

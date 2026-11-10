@@ -66,7 +66,7 @@ describe('Treasurer can record new payments but not change existing records', ()
       .toBe("userRole === 'admin' || userRole === 'secretary'")
     expect(assignment(homeowners, 'canManageBalances'))
       .toBe('canManageBlocks')
-    expect(homeowners).toContain('{balanceDialog && canManageBalances && (')
+    expect(homeowners).toContain('{balanceDialog && canManageBalances && isActiveHomeowner(balanceDialog) && (')
     expect(homeowners).toContain('canManageBlocks={canManageBlocks}')
   })
 
@@ -78,9 +78,9 @@ describe('Treasurer can record new payments but not change existing records', ()
     expect(payments).toContain('{showCharges && canManageCharges && (')
     expect(payments).not.toMatch(/(showCharge|showCharges) && canManagePayments/)
   })
-  it('hides Edit Contact on the homeowner profile from treasurer', () => {
+  it('allows permitted staff to edit contact for active accounts', () => {
     expect(assignment(homeowners, 'canEditContact')).toBe('canManageHomeowners')
-    expect(homeowners).toMatch(/\{canEditContact && \(\s*<button[\s\S]{0,160}?contacts\?edit=/)
+    expect(homeowners).toMatch(/\{!formerAccount && canEditContact && \(\s*<button[\s\S]{0,160}?contacts\?edit=/)
   })
   it('keeps homeowner and contact editing admin/secretary only', () => {
     expect(assignment(ledger, 'canManageHomeowners')).toBe("role === 'admin' || role === 'secretary'")

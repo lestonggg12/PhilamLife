@@ -1,64 +1,71 @@
 import { describe, expect, it, vi } from 'vitest'
-import { uploadDocumentSafely } from './documentUpload'
+import { documentUploadRequest, uploadDocumentSafely } from './documentUpload'
 
-function client({ uploaded = { error: null }, saved = { data: { id: 'doc-1' }, error: null }, removed = { error: null }, verified = { data: null, error: null } } = {}) {
-  const upload = vi.fn().mockResolvedValue(uploaded)
-  const remove = vi.fn().mockResolvedValue(removed)
-  const single = vi.fn().mockResolvedValue(saved)
-  const maybeSingle = vi.fn().mockResolvedValue(verified)
-  const eq = vi.fn(() => ({ maybeSingle }))
-  const select = vi.fn(() => ({ single, eq }))
-  const insert = vi.fn(() => ({ select }))
-  return { storage: { from: vi.fn(() => ({ upload, remove })) }, from: vi.fn(() => ({ insert, select })), upload, remove, insert, eq, maybeSingle }
+const file = new Blob(['test'], { type: 'application/pdf' })
+const path = 'documents/unique.pdf'
+const payload = {
+  title: 'Minutes', category: 'Minutes', original_file_name: 'minutes.pdf',
+  mime_type: 'application/pdf', file_size: 4, uploaded_by: 'secretary',
 }
-const file = { type: 'application/pdf' }
-const payload = { title: 'Minutes', storage_path: 'documents/unique.pdf' }
-const run = (c) => uploadDocumentSafely(c, 'hoa-documents', payload.storage_path, file, payload)
+const row = { ...payload, id: 'doc-1', storage_path: path, deletion_requested_at: null }
+
+function fixture({ storageError, saved = { data: row }, found = { data: null } } = {}) {
+  const upload = storageError ? vi.fn().mockRejectedValue(storageError) : vi.fn().mockResolvedValue({})
+  const remove = vi.fn()
+  const rpc = vi.fn(() => ({ single: async () => saved }))
+  const lookup = { eq: vi.fn(() => lookup), maybeSingle: async () => found }
+  return { storage: { from: () => ({ upload, remove }) }, from: () => ({ select: () => lookup }), upload, remove, rpc, lookup }
+}
+const run = (client) => uploadDocumentSafely(client, 'hoa-documents', path, file, payload)
 
 describe('document upload consistency', () => {
-  it('uploads before writing metadata and never removes a successful upload', async () => {
-    const c = client()
-    await expect(run(c)).resolves.toEqual({ id: 'doc-1' })
-    expect(c.upload).toHaveBeenCalledWith(payload.storage_path, file, expect.objectContaining({ upsert: false }))
-    expect(c.upload.mock.invocationCallOrder[0]).toBeLessThan(c.insert.mock.invocationCallOrder[0])
-    expect(c.remove).not.toHaveBeenCalled()
+  it('uploads without overwrite, then registers through the verified server endpoint', async () => {
+    const db = fixture()
+    await expect(run(db)).resolves.toEqual(row)
+    expect(db.upload).toHaveBeenCalledWith(path, file, expect.objectContaining({ upsert: false }))
+    expect(db.rpc).toHaveBeenCalledWith('register_document_upload', expect.objectContaining({ p_storage_path: path }))
+    expect(db.upload.mock.invocationCallOrder[0]).toBeLessThan(db.rpc.mock.invocationCallOrder[0])
   })
-  it('does not write metadata when Storage rejects the upload', async () => {
-    const c = client({ uploaded: { error: { message: 'Quota exceeded' } } })
-    await expect(run(c)).rejects.toThrow('Quota exceeded')
-    expect(c.insert).not.toHaveBeenCalled()
+
+  it('registers the same path when the Storage response was lost after upload', async () => {
+    const db = fixture({ storageError: new Error('Connection lost') })
+    await expect(run(db)).resolves.toEqual(row)
+    expect(db.upload).toHaveBeenCalledOnce()
+    expect(db.remove).not.toHaveBeenCalled()
   })
-  it('cleans up the uploaded object if metadata saving fails', async () => {
-    const c = client({ saved: { data: null, error: { message: 'RLS denied' } } })
-    await expect(run(c)).rejects.toThrow('RLS denied')
-    expect(c.remove).toHaveBeenCalledWith([payload.storage_path])
+
+  it('recovers a committed matching entry if metadata registration returned an error', async () => {
+    const db = fixture({ saved: { error: { message: 'Lost response' } }, found: { data: row } })
+    await expect(run(db)).resolves.toEqual(row)
+    expect(db.lookup.eq).toHaveBeenCalledWith('storage_path', path)
+    expect(db.remove).not.toHaveBeenCalled()
   })
-  it('reports an orphan if the rollback cannot delete Storage bytes', async () => {
-    const c = client({ saved: { data: null, error: { message: 'Database offline' } }, removed: { error: { message: 'Storage offline' } } })
-    await expect(run(c)).rejects.toThrow('Storage cleanup also failed')
-    expect(c.remove).toHaveBeenCalledTimes(1)
+
+  it.each([{ uploaded_by: 'different' }, { title: 'different' }, { deletion_requested_at: 'pending' }])(
+    'rejects a recovered record that is not the available original: %o', async changes => {
+      const db = fixture({ saved: { error: { message: 'Unique constraint' } }, found: { data: { ...row, ...changes } } })
+      await expect(run(db)).rejects.toThrow('Retry with the same file')
+      expect(db.remove).not.toHaveBeenCalled()
+    },
+  )
+
+  it('keeps the bytes for the same attempt if verification is unavailable', async () => {
+    const db = fixture({ saved: { error: { message: 'Offline' } }, found: { error: { message: 'Offline' } } })
+    await expect(run(db)).rejects.toThrow('Offline')
+    expect(db.remove).not.toHaveBeenCalled()
   })
-  it('also attempts cleanup on a thrown database/network exception', async () => {
-    const c = client()
-    c.insert.mockImplementation(() => { throw new Error('Network down') })
-    await expect(run(c)).rejects.toThrow('Network down')
-    expect(c.remove).toHaveBeenCalledTimes(1)
+
+  it('distinguishes an explicitly retired upload path from a lost response', async () => {
+    const db = fixture({ saved: { error: { code: 'PHD01', message: 'Upload again to create a new entry.' } } })
+    await expect(run(db)).rejects.toMatchObject({ code: 'PHD01' })
   })
-  it('recovers metadata committed despite a lost INSERT response without deleting bytes', async () => {
-    const c = client({
-      saved: { data: null, error: { message: 'Connection interrupted' } },
-      verified: { data: { id: 'doc-2', storage_path: payload.storage_path, title: 'Minutes' }, error: null },
-    })
-    await expect(run(c)).resolves.toMatchObject({ id: 'doc-2' })
-    expect(c.eq).toHaveBeenCalledWith('storage_path', payload.storage_path)
-    expect(c.remove).not.toHaveBeenCalled()
-  })
-  it('leaves bytes untouched when the database cannot verify an uncertain save', async () => {
-    const c = client({
-      saved: { data: null, error: { message: 'Connection interrupted' } },
-      verified: { data: null, error: { message: 'Database unavailable' } },
-    })
-    await expect(run(c)).rejects.toThrow('result is uncertain')
-    expect(c.remove).not.toHaveBeenCalled()
+
+  it('reuses a path for identical bytes and details until confirmation, then uses a fresh path', async () => {
+    const pending = new Map()
+    const first = await documentUploadRequest(file, payload, 'minutes.pdf', pending)
+    expect((await documentUploadRequest(new Blob(['test']), payload, 'minutes.pdf', pending)).path).toBe(first.path)
+    expect((await documentUploadRequest(new Blob(['else']), payload, 'minutes.pdf', pending)).path).not.toBe(first.path)
+    first.clear()
+    expect((await documentUploadRequest(file, payload, 'minutes.pdf', pending)).path).not.toBe(first.path)
   })
 })

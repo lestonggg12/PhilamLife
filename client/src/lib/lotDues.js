@@ -33,3 +33,7 @@ export function formatDues(value) {
   const n = Number(value)
   return pesoFormat.format(Number.isFinite(n) ? n : 0)
 }
+
+export function hasRecurringDues(dues) {
+  return dues?.monthly_dues != null && Number(dues.lot_size_sqm) > 0 && Number(dues.price_per_sqm) > 0
+}
