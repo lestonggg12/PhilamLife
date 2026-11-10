@@ -53,3 +53,7 @@
 .cctv-approved{font-size:11px;font-weight:700;white-space:nowrap;border-radius:20px;padding:5px 10px;color:#1f724b;background:#e9f8ef;border:1px solid #cae8d7}
 .cctv-audit{font-size:11px;line-height:1.5;color:#8999aa;margin:14px 0 0}
 @media(max-width:700px){.cctv-card-heading{padding:17px;flex-wrap:wrap}.cctv-chip{margin-left:56px}.cctv-card-body{padding:17px}.cctv-form{grid-template-columns:minmax(0,1fr)}.cctv-footer{flex-direction:column;align-items:stretch}.cctv-approve{width:100%}.cctv-heading-copy h3{font-size:17px}}
+
+/* Approved is distinct from actually credited: show the posting evidence. */
+.cctv-schedule .cctv-posting{margin:9px 0 0;padding:8px 10px;border-radius:8px;background:#eef7f1;color:#206447;font-size:12px;line-height:1.5;font-weight:600}
+.cctv-schedule .cctv-posting-warning{background:#fff5e6;color:#875307}

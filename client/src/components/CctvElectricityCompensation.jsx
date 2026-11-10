@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import { cctvPostingAudit } from '../lib/cctvPostingAudit'
 import DateField from './DateField'
 import './CctvElectricityCompensation.css'
 
@@ -12,6 +13,7 @@ const monthLabel = (date) => new Intl.DateTimeFormat('en-PH', {
 export default function CctvElectricityCompensation({ canEdit, fixedPropertyId = null, onChanged }) {
   const [properties, setProperties] = useState([])
   const [schedules, setSchedules] = useState([])
+  const [audit, setAudit] = useState({ propertyId: null, charges: [], credits: [], ready: false, error: '' })
   const [propertyId, setPropertyId] = useState(fixedPropertyId == null ? '' : String(fixedPropertyId))
   const [amount, setAmount] = useState('')
   const [startMonth, setStartMonth] = useState('')
@@ -36,6 +38,33 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
       .sort((a, b) => `${a.block} ${a.lot_number}`.localeCompare(`${b.block} ${b.lot_number}`)))
     setSchedules((policies.data || []).sort((a, b) => b.starts_on.localeCompare(a.starts_on)))
   }
+
+  async function loadAudit(id) {
+    if (id == null) return
+    const [bills, credits] = await Promise.all([
+      fetchAll(() => supabase.from('property_charges')
+        .select('id,charge_type,billing_month,amount,voided_at')
+        .eq('property_id', id).eq('charge_type', 'Association Dues')),
+      fetchAll(() => supabase.from('account_adjustments')
+        .select('id,charge_id,approval_reference,balance_effect,reversed_at')
+        .eq('property_id', id).like('approval_reference', 'CCTV:%')),
+    ])
+    if (bills.error || credits.error) throw bills.error || credits.error
+    return { propertyId: String(id), charges: bills.data || [], credits: credits.data || [], ready: true, error: '' }
+  }
+
+  useEffect(() => {
+    if (fixedPropertyId == null) return undefined
+    let active = true
+    setAudit({ propertyId: String(fixedPropertyId), charges: [], credits: [], ready: false, error: '' })
+    loadAudit(fixedPropertyId).then((data) => {
+      if (active) setAudit(data)
+    }).catch((error) => {
+      if (active) setAudit({ propertyId: String(fixedPropertyId), charges: [], credits: [],
+        ready: false, error: error.message || 'Unable to verify posted credits' })
+    })
+    return () => { active = false }
+  }, [fixedPropertyId])
 
   useEffect(() => {
     let mounted = true
@@ -73,6 +102,7 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
     saving.current = true
     setBusy(true)
     setMessage('')
+    let committed = false
     try {
       const { error } = await supabase.rpc('create_cctv_electricity_schedule', {
         p_property_id: Number(fixedPropertyId ?? propertyId),
@@ -82,14 +112,23 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
         p_reason: reason.trim(),
       })
       if (error) throw error
-      await refresh()
-      onChanged?.()
-      setMessage('CCTV compensation saved. Eligible existing bills have been credited; future bills will be credited automatically.')
+      committed = true
       setAmount('')
       setStartMonth('')
       setEndMonth('')
+      try {
+        await refresh()
+        if (fixedPropertyId != null) setAudit(await loadAudit(fixedPropertyId))
+        setMessage('CCTV schedule approved. Existing eligible monthly bills have been checked; credits for future months post when each bill is issued.')
+      } catch (refreshError) {
+        setAudit((previous) => ({ ...previous, ready: false, error: refreshError.message }))
+        setMessage('CCTV schedule WAS approved, but the posting display could not refresh. Reload this page to verify it; do not approve the same period again.')
+      }
+      onChanged?.()
     } catch (error) {
-      setMessage(`CCTV compensation was not confirmed: ${error.message}`)
+      setMessage(committed
+        ? 'CCTV schedule was approved. Refresh this page before taking further action.'
+        : `CCTV schedule approval could not be confirmed: ${error.message}. Check approved schedules before retrying.`)
     } finally {
       saving.current = false
       setBusy(false)
@@ -98,6 +137,7 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
 
   const selected = properties.find((p) => String(p.id) === String(fixedPropertyId ?? propertyId))
   const visibleSchedules = fixedPropertyId == null ? schedules : schedules.filter((s) => String(s.property_id) === String(fixedPropertyId))
+  const auditReady = fixedPropertyId != null && audit.ready && audit.propertyId === String(fixedPropertyId)
   const validDraft = Boolean((fixedPropertyId ?? propertyId) && Number(amount) > 0 && startMonth && reason.trim().length >= 5 && (!endMonth || endMonth >= startMonth))
   const errorMessage = /unable|not confirmed|valid monthly/i.test(message)
 
@@ -152,10 +192,19 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
         <div className="cctv-schedules">{visibleSchedules.map((s) => {
           const p = properties.find((x) => x.id === s.property_id)
           const finalMonth = s.ends_before ? monthLabel(new Date(Date.parse(`${s.ends_before}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)) : 'Ongoing'
+          const posting = auditReady ? cctvPostingAudit(s, audit.charges, audit.credits) : null
           return <article className="cctv-schedule" key={s.id}>
             <div><strong>{money.format(Number(s.monthly_credit))} <span>/ month</span></strong><p>{monthLabel(s.starts_on)} – {finalMonth}</p>
               {fixedPropertyId == null && <small>{p ? `${p.block}, Lot ${p.lot_number} — ${p.homeowner_name || ''}` : `Property ${s.property_id}`}</small>}
-              <small>{s.reason}</small></div><span className="cctv-approved">Approved</span>
+              <small>{s.reason}</small>
+              {fixedPropertyId != null && (posting?.issues.length
+                ? <p className="cctv-posting cctv-posting-warning" role="alert">Posting discrepancy: {posting.issues.map((m) => m.month).join(', ')}. Review the monthly credit ledger before recording another transaction.</p>
+                : posting?.billedMonths
+                  ? <p className="cctv-posting">Posted and verified: {posting.postedMonths} billed month(s), {money.format(posting.postedAmount)} non-cash credit.</p>
+                  : posting
+                    ? <p className="cctv-posting">Approved; awaiting an eligible monthly dues bill. No credit has been posted yet.</p>
+                    : <p className="cctv-posting cctv-posting-warning">{audit.error ? `Posting verification unavailable: ${audit.error}` : 'Checking posted credits…'}</p>)}
+            </div><span className="cctv-approved">Approved</span>
           </article>
         })}</div>}
       <p className="cctv-audit">Schedules are immutable for audit safety. New rates require non-overlapping periods.</p>

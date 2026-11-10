@@ -3,6 +3,23 @@ import { describe, expect, it } from 'vitest'
 import { buildLedgerStatement, ledgerStatementNotes } from './ledgerStatement'
 
 describe('buildLedgerStatement', () => {
+  it('identifies CCTV electricity as a non-cash credit, not a payment discount', () => {
+    const result = buildLedgerStatement({
+      openingBalance: 0,
+      storedBalance: 650,
+      charges: [{ id: 'cctv-bill', charge_type: 'Association Dues', billing_month: '2026-11-01',
+        amount: '800.00', created_at: '2026-11-01T00:00:00Z' }],
+      adjustments: [{ id: 'cctv-credit', charge_id: 'cctv-bill', adjustment_type: 'credit',
+        balance_effect: '-150.00', approval_reference: 'CCTV:cctv-bill:schedule-1',
+        reason: 'CCTV electricity compensation for November 2026', created_at: '2026-11-02T00:00:00Z' }],
+    })
+    const credit = result.lines.find((row) => row.id === 'adjustment-cctv-credit')
+    expect(credit.description).toBe('CCTV electricity compensation')
+    expect(credit.credit).toBe(150)
+    expect(result.totals.finalBalance).toBe(650)
+    expect(result.totals.reconcilesWithStoredBalance).toBe(true)
+  })
+
   it('shows a custom manual charge deadline without changing the charge total', () => {
     const result = buildLedgerStatement({
       storedBalance: 5000,

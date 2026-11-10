@@ -242,7 +242,10 @@ function adjustmentEntries(adjustment) {
     order: 0,
     kind: 'account-adjustment',
     date: adjustment.created_at,
-    description: adjustmentTitles[adjustment.adjustment_type] || 'Balance correction',
+    description: adjustment.adjustment_type === 'credit' &&
+      String(adjustment.approval_reference || '').startsWith('CCTV:')
+      ? 'CCTV electricity compensation'
+      : adjustmentTitles[adjustment.adjustment_type] || 'Balance correction',
     reference_number: readableLedgerText(adjustment.approval_reference),
     details: [
       `This adjustment ${effect > 0 ? 'increased' : 'reduced'} the lot’s balance by ${money(Math.abs(effect))}.`,
