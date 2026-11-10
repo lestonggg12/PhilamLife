@@ -12,6 +12,7 @@ import { paymentSetupErrors } from '../lib/paymentSetup'
 import { isValidManualChargeDueDate } from '../lib/manualChargeDueDate'
 import { advanceCreditDetails, advanceCreditNote } from '../lib/advanceCredit'
 import { PAYMENT_PURPOSES, CHARGE_TYPES, isBalanceReducingPurpose, paymentAdvanceConfirmation } from '../lib/paymentPurposes'
+import { manualDiscountSettlesFullBalance } from '../lib/manualDiscountEligibility'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
 import BalanceBreakdown from '../components/BalanceBreakdown'
@@ -1468,6 +1469,15 @@ function selectHomeowner(property) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
       return
     }
+    if (manualDiscount.enabled && !manualDiscountSettlesFullBalance({
+      outstandingBalance: previous,
+      cashRetained: paid,
+      discountAmount: manualDiscountAmount,
+      isBalanceReducingPayment,
+    })) {
+      setFormError('Manual discounts require full settlement of the outstanding debt. Partial payments and retained advance credits are not eligible. Return any excess as change or remove the discount.')
+      return
+    }
     // A draft has no timer. Generate a key for its first valid submission,
     // and retain it while the same submission is being retried.
     const paymentSubmissionKey = paymentSubmissionKeyRef.current ??= crypto.randomUUID()
@@ -2016,9 +2026,10 @@ function selectHomeowner(property) {
                   <label htmlFor="payment-amount">{annualAdvance ? 'Payment Amount (11 months)' : 'Payment Amount (actual amount received)'}
                     <input id="payment-amount" name="amountPaid" type="number" min="0.01" step="0.01" value={form.amountPaid} onChange={updateField} readOnly={annualAdvance} required />
                   </label>
-                  <label htmlFor="payment-simple-discount">Discount (₱) — optional
-                    <input id="payment-simple-discount" type="number" min="0" step="0.01" placeholder="0.00" value={manualDiscount.value} disabled={saving || annualAdvance}
+                  <label htmlFor="payment-simple-discount">Discount (₱) — full balance settlement only
+                    <input id="payment-simple-discount" type="number" min="0" step="0.01" placeholder="0.00" value={manualDiscount.value} disabled={saving || annualAdvance || !isBalanceReducingPayment || balanceDue <= 0}
                       onChange={(event) => setManualDiscount((d) => ({ ...d, value: event.target.value, enabled: Number(event.target.value) > 0, type: 'fixed' }))} />
+                    <small>Not available for partial payments or advance credit. The separate 12-month promotion remains available.</small>
                   </label>
                   <div className="payment-record-field">
                     <label id="payment-method-label">Payment Method</label>
@@ -2088,6 +2099,12 @@ function selectHomeowner(property) {
                     </div>
                   )}
                   {annualAdvance && <p className="payment-record-hint">12-month advance payment includes one month free.</p>}
+                  {manualDiscountAmount > 0 && !annualAdvance && !manualDiscountSettlesFullBalance({
+                    outstandingBalance: balanceDue,
+                    cashRetained: cashTendered - changeAmount,
+                    discountAmount: manualDiscountAmount,
+                    isBalanceReducingPayment,
+                  }) && <p className="payment-record-hint" role="status">Manual discounts require full debt settlement with no retained advance credit. Return any excess as change, or remove the discount.</p>}
                   {form.propertyId && createPortal(
                     <div
                       id="payment-balance-popover"
