@@ -188,7 +188,7 @@ const actorName =
           .eq('property_id', entry.id)
           .order('created_at', { ascending: true })),
         fetchAll(() => supabase.from('account_adjustments')
-          .select('id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at')
+          .select('id, charge_id, created_at, adjustment_type, balance_effect, reason, approval_reference, reversed_at')
           .eq('property_id', entry.id)
           .order('created_at')),
         fetchAll(() => supabase.from('balance_entries')
@@ -421,7 +421,7 @@ const actorName =
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-top"><p className="ledger-summary-label">Total Billed</p><div className="ledger-summary-icon ledger-summary-icon-due"><FileText size={18} /></div></div>
           <p className="ledger-summary-value">{loading ? 'Loading...' : !ledgerVerified || pageError || !filteredTotals ? 'Unavailable' : peso.format(filteredTotals.totalDue)}</p>
-          <small>Posted charges and positive opening balances</small>
+          <small>Adjusted posted charges and positive opening balances</small>
         </div>
         <div className="ledger-summary-card glass-card">
           <div className="ledger-summary-top"><p className="ledger-summary-label">Total Collected</p><div className="ledger-summary-icon ledger-summary-icon-paid"><TrendingUp size={18} /></div></div>

@@ -3,8 +3,10 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { formatRate, parsePositiveAmount } from '../lib/lotDues'
 import Skeleton from './skeleton/Skeleton'
+import { useConfirm } from './ConfirmDialog'
 
 export default function PricePerSqmForm({ canEdit = false }) {
+  const confirm = useConfirm()
   const [current, setCurrent] = useState(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -39,6 +41,7 @@ export default function PricePerSqmForm({ canEdit = false }) {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (saving) return
     if (!canEdit) {
       setMessage({ type: 'error', text: 'Only an Admin can change the price per square meter.' })
       return
@@ -50,15 +53,24 @@ export default function PricePerSqmForm({ canEdit = false }) {
     }
     setSaving(true)
     setMessage(null)
-    const { data, error } = await supabase.rpc('set_price_per_sqm', { p_rate: parsed.value })
-    setSaving(false)
-    if (error) {
-      setMessage({ type: 'error', text: error.message })
-      return
+    try {
+      const approved = await confirm({
+        title: 'Apply the monthly dues rate?',
+        message: `${formatRate(parsed.value)} applies to current-month bills for all active lots, including bills already paid. A rate increase can add to the balance due. A reduction can leave account credit.`,
+        confirmLabel: 'Apply rate',
+        cancelLabel: 'Cancel',
+      })
+      if (!approved) return
+      const { data, error } = await supabase.rpc('set_price_per_sqm', { p_rate: parsed.value })
+      if (error) throw error
+      setCurrent(data)
+      setInput(String(data))
+      setMessage({ type: 'success', text: 'Rate saved and current-month dues updated.' })
+    } catch (error) {
+      setMessage({ type: 'error', text: error?.message || 'Unable to confirm the rate update. Refresh before retrying.' })
+    } finally {
+      setSaving(false)
     }
-    setCurrent(data)
-    setInput(String(data))
-    setMessage({ type: 'success', text: 'Price per square meter updated. All homeowner dues now use this rate.' })
   }
 
   if (loading) {

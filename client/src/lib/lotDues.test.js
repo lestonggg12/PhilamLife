@@ -6,23 +6,21 @@ describe('monthly association dues', () => {
     const query = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      is: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue(result),
     }
     return { from: vi.fn().mockReturnValue(query), query }
   }
 
-  it('reads the original active dues charge for the selected lot and Manila billing month', async () => {
+  it('reads the adjusted active dues charge for the selected lot and Manila billing month', async () => {
     const client = mockChargeQuery({ data: { amount: '640.50' }, error: null })
     await expect(loadPostedMonthlyDues(client, 42, '2026-11')).resolves.toBe('640.50')
-    expect(client.from).toHaveBeenCalledWith('property_charges')
+    expect(client.from).toHaveBeenCalledWith('property_effective_charges')
     expect(client.query.select).toHaveBeenCalledWith('amount')
     expect(client.query.eq.mock.calls).toEqual([
       ['property_id', 42],
       ['billing_month', '2026-11-01'],
       ['charge_type', 'Association Dues'],
     ])
-    expect(client.query.is).toHaveBeenCalledWith('voided_at', null)
   })
 
   it('distinguishes an unbilled month from an unavailable charge read', async () => {

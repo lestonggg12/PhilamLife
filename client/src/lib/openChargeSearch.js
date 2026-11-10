@@ -21,7 +21,7 @@ export async function loadOpenCharges(client, properties, search) {
   // Bound concurrency as well as URL size for very broad searches.
   for (let offset = 0; offset < ranges.length; offset += 4) {
     const group = await Promise.all(ranges.slice(offset, offset + 4).map(async ({ from, to }) => {
-      let query = client.from('property_charges').select(COLUMNS, { count: 'exact' }).is('voided_at', null)
+      let query = client.from('property_effective_charges').select(COLUMNS, { count: 'exact' }).is('voided_at', null)
       if (from !== undefined) query = query.gte('property_id', from)
       if (to !== undefined) query = from === undefined
         ? query.or(`property_id.lt.${to},property_id.is.null`)

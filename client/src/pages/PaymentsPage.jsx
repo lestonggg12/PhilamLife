@@ -1,6 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
@@ -394,7 +394,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const navigate = useNavigate()
   const handledPaymentRequestRef = useRef(null)
   const paymentSubmitRef = useRef(false)
-  const [paymentSubmissionKey, setPaymentSubmissionKey] = useState(null)
+  const paymentSubmissionKeyRef = useRef(null)
   const paymentAttemptRef = useRef(null)
   const chargeSubmitRef = useRef(false)
   const voidSubmitRef = useRef(false)
@@ -631,22 +631,35 @@ export default function PaymentsPage({ user: suppliedUser }) {
     }
   }
 
+  const openPaymentDraft = useCallback((property) => {
+    if (!canManagePayments || paymentSubmitRef.current) return
+    paymentSubmissionKeyRef.current = null
+    paymentAttemptRef.current = null
+    discountAttemptRef.current = null
+    advanceApprovedRef.current = false
+    setAdvanceConfirm(null)
+    setChangeHandling('advance')
+    setManualDiscount({ enabled: false, chargeId: '', type: 'fixed', value: '', reason: '', approval: '' })
+    setForm(property ? { ...EMPTY_FORM, ...paymentLotFields(property) } : EMPTY_FORM)
+    setFormError('')
+    setHomeownerMenuOpen(false)
+    setAnnualAdvancePrompt(false)
+    setAnnualAdvance(false)
+    setShowForm(true)
+  }, [canManagePayments])
+
   // A profile's Record Payment button carries only its lot ID. Wait for the
   // current ledger and role, then consume the request so closing/refreshing the
   // form does not reopen it. Name, lot and balance come from the fresh ledger.
   useEffect(() => {
     const propertyId = location.state?.recordPaymentPropertyId
-    if (propertyId == null || loading || !canManagePayments || pageError) return
+    if (propertyId == null || loading || saving || !canManagePayments || pageError) return
     if (handledPaymentRequestRef.current === location.key) return
     handledPaymentRequestRef.current = location.key
 
     const property = findActivePaymentLot(properties, propertyId)
     if (property) {
-      setForm({ ...EMPTY_FORM, ...paymentLotFields(property) })
-      setFormError('')
-      setHomeownerMenuOpen(false)
-      setAnnualAdvance(false)
-      setShowForm(true)
+      openPaymentDraft(property)
     } else {
       setPageError('This lot is no longer active or available. Select an active homeowner to record a payment.')
     }
@@ -657,7 +670,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
       { pathname: location.pathname, search: location.search, hash: location.hash },
       { replace: true, state: Object.keys(remainingState).length ? remainingState : null },
     )
-  }, [location, loading, canManagePayments, pageError, properties, navigate])
+  }, [location, loading, saving, canManagePayments, pageError, properties, navigate, openPaymentDraft])
 
   // Dues payments come off the balance in full (extra becomes advance credit).
   // Fees/penalties only pay off an open charge of the same type; otherwise they are a one-time fee.
@@ -1084,18 +1097,7 @@ function selectHomeowner(property) {
 
 
   function openForm() {
-    if (!canManagePayments) return
-    setChangeHandling('advance')
-    setManualDiscount({ enabled: false, chargeId: '', type: 'fixed', value: '', reason: '', approval: '' })
-    discountAttemptRef.current = null
-    paymentAttemptRef.current = null
-    setPaymentSubmissionKey(crypto.randomUUID())
-    setForm(EMPTY_FORM)
-    setFormError('')
-    setHomeownerMenuOpen(false)
-    setAnnualAdvancePrompt(false)
-    setAnnualAdvance(false)
-    setShowForm(true)
+    openPaymentDraft()
   }
 
   function closeForm() {
@@ -1374,10 +1376,6 @@ function selectHomeowner(property) {
   async function recordPayment(event) {
     event.preventDefault()
     if (paymentSubmitRef.current) return
-    if (!paymentSubmissionKey) {
-      setFormError('Payment session expired. Close and reopen Record Payment.')
-      return
-    }
     const advanceApproved = advanceApprovedRef.current
     advanceApprovedRef.current = false
 
@@ -1469,10 +1467,12 @@ function selectHomeowner(property) {
       setFormError('Enter a valid discount below the original amount. Discounts cannot be stacked.')
       return
     }
+    // A draft has no timer. Generate a key for its first valid submission,
+    // and retain it while the same submission is being retried.
+    const paymentSubmissionKey = paymentSubmissionKeyRef.current ??= crypto.randomUUID()
     paymentSubmitRef.current = true
     setSaving(true)
     setFormError('')
-
 
     const payload = {
   property_id: Number(form.propertyId),
@@ -1607,7 +1607,7 @@ function selectHomeowner(property) {
     setChangeHandling('advance')
     setReceipt(data)
     paymentAttemptRef.current = null
-    setPaymentSubmissionKey(null)
+    paymentSubmissionKeyRef.current = null
     notifySuccess(`Payment ${data.receipt_number} recorded for ${data.homeowner_name}, ${data.block_name || ""}, Lot ${data.lot_number || ""}.`)
     } catch (error) {
       setFormError(`The payment could not be confirmed. Refresh payment history before retrying to avoid a duplicate. ${error.message}`)
@@ -1655,7 +1655,7 @@ function selectHomeowner(property) {
           )}
 
           {canManagePayments && (
-            <button className="payments-primary" type="button" onClick={openForm}>
+            <button className="payments-primary" type="button" onClick={openForm} disabled={saving}>
               <span aria-hidden="true">+</span>
               Record Payment
             </button>

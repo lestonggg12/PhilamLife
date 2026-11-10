@@ -340,3 +340,24 @@ it('explains a bill, an anniversary penalty, a payment allocation and a waiver w
   expect(result.lines.flatMap(line => [line.description, line.reference_number, ...line.details]).join(' ')).not.toContain(chargeId)
   expect(result.totals).toMatchObject({ payments: 150, totalDebits: 215, totalCredits: 115, finalBalance: 100, canExport: true })
 })
+
+it('shows the original monthly bill and its rate adjustment as separate entries', () => {
+  const charge = { id: 'bill', charge_type: 'Association Dues', amount: 627.56,
+    billing_month: '2026-11-01', created_at: '2026-11-03T00:00:00Z' }
+  const adjustment = { id: 'change', charge_id: 'bill', adjustment_type: 'monthly_dues_reprice',
+    balance_effect: 156.89, created_at: '2026-11-10T00:00:00Z', reason: 'New November rate' }
+  const result = buildLedgerStatement({
+    charges: [charge], adjustments: [adjustment], openingBalance: 0, storedBalance: 784.45,
+  })
+  expect(result.lines.map(line => [line.kind, line.debit, line.running_balance])).toEqual([
+    ['charge', 627.56, 627.56], ['account-adjustment', 156.89, 784.45],
+  ])
+  expect(result.lines[1].description).toBe('Monthly dues rate adjustment')
+
+  const voided = buildLedgerStatement({
+    charges: [{ ...charge, voided_at: '2026-11-12T00:00:00Z' }],
+    adjustments: [adjustment], openingBalance: 0, storedBalance: 0,
+  })
+  expect(voided.lines).toEqual([])
+  expect(voided.totals.finalBalance).toBe(0)
+})

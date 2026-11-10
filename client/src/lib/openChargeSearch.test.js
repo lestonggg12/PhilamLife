@@ -27,7 +27,9 @@ function matches(row, filter) {
 function fixture(rows, fail = false) {
   const requests = []
   const client = createClient('https://example.supabase.co', 'test-key', { auth: { persistSession: false }, global: { fetch: async (url) => {
-    const params = new URL(url).searchParams
+    const request = new URL(url)
+    expect(request.pathname).toBe('/rest/v1/property_effective_charges')
+    const params = request.searchParams
     requests.push(params)
     if (fail) return new Response(JSON.stringify({ message: 'Test failure' }), { status: 500 })
     let data = rows.filter((row) => [...params].every(([key, value]) => {

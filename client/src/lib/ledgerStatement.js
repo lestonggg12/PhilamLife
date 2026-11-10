@@ -229,6 +229,7 @@ const adjustmentTitles = {
   debit_correction: 'Correction that increases the balance',
   credit_correction: 'Correction that reduces the balance',
   reversal: 'Earlier adjustment reversed',
+  monthly_dues_reprice: 'Monthly dues rate adjustment',
 }
 
 function adjustmentEntries(adjustment) {
@@ -272,10 +273,15 @@ export function buildLedgerStatement({ payments = [], charges = [], adjustments 
   const entered = balanceEntries.flatMap(enteredBalanceEntries)
   const enteredTotal = entered.reduce((sum, entry) => sum + entry.debit, 0)
   const chargesById = new Map(charges.map(charge => [charge.id, charge]))
+  const activeAdjustments = adjustments.filter((adjustment) => {
+    if (adjustment.adjustment_type !== 'monthly_dues_reprice') return true
+    const charge = chargesById.get(adjustment.charge_id)
+    return charge?.charge_type === 'Association Dues' && !charge.voided_at
+  })
   const entries = [
     ...entered, ...charges.flatMap(chargeEntries),
     ...payments.flatMap(payment => paymentEntries(payment, chargesById)),
-    ...adjustments.flatMap(adjustmentEntries),
+    ...activeAdjustments.flatMap(adjustmentEntries),
   ].sort(compareEntries)
   const historyDelta = entries.reduce((sum, entry) => sum + entry.delta, 0)
   const storedBalanceCents = cents(storedBalance)

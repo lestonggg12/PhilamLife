@@ -40,12 +40,11 @@ export function hasRecurringDues(dues) {
 
 export async function loadPostedMonthlyDues(client, propertyId, month) {
   const { data, error } = await client
-    .from('property_charges')
+    .from('property_effective_charges')
     .select('amount')
     .eq('property_id', propertyId)
     .eq('billing_month', `${month}-01`)
     .eq('charge_type', 'Association Dues')
-    .is('voided_at', null)
     .maybeSingle()
   if (error) throw error
   return data?.amount ?? null

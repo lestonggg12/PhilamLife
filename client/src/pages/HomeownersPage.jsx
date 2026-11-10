@@ -161,7 +161,7 @@ function HomeownerProfileSkeleton() {
         <Skeleton width="108px" height="38px" radius="7px" />
       </div>
       <div className="homeowner-summary-grid homeowner-profile-skeleton-grid">
-        {Array.from({ length: 7 }, (_, index) => (
+        {Array.from({ length: 6 }, (_, index) => (
           <div className="homeowner-profile-skeleton-card" key={index}>
             <Skeleton width="92px" height="14px" />
             <Skeleton width="132px" height="25px" />
@@ -242,8 +242,27 @@ export default function HomeownersPage() {
     }
   }, [classificationPropertyId, homeownerId])
   useEffect(() => {
+    let active = true
+    let channel
+    const refresh = () => { if (active) void loadHomeowners(true) }
     loadHomeowners()
-    return () => { directoryRequest.current += 1 }
+    window.addEventListener('focus', refresh)
+    try {
+      channel = supabase.channel(`homeowner-dues-rate:${crypto.randomUUID()}`)
+      channel.on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1',
+      }, refresh).subscribe((status) => {
+        if (status === 'SUBSCRIBED') refresh()
+      })
+    } catch {
+      // Focus and the Refresh button also reload the rate and balances.
+    }
+    return () => {
+      active = false
+      directoryRequest.current += 1
+      window.removeEventListener('focus', refresh)
+      if (channel) void supabase.removeChannel(channel).catch(() => {})
+    }
   }, [])
 
   useEffect(() => {
@@ -546,19 +565,28 @@ useEffect(() => {
   const selectedPropertyId = selectedProperty?.id ?? null
   const formerAccount = selectedProperty != null && !isActiveHomeowner(selectedProperty)
   const selectedLotDues = duesByProperty.get(Number(selectedPropertyId))
-  const hasMonthlyDues = !formerAccount && hasRecurringDues(selectedLotDues)
-  const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
-    : hasMonthlyDues ? `${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
-    : 'Monthly dues are unavailable until the lot size and rate are set.'
-  const postedDuesReady = postedDues?.propertyId === selectedPropertyId
+  const hasMonthlyDues = hasRecurringDues(selectedLotDues)
+  const postedDuesReady = !refreshing && postedDues?.propertyId === selectedPropertyId
     && postedDues?.month === summaryMonth && postedDues?.revision === detailReloadKey
   const postedAmount = postedDuesReady ? postedDues.amount : null
-  const postedDuesNote = !postedDuesReady ? 'Loading posted dues…'
-    : postedDues.failed ? 'Posted dues unavailable. Refresh to retry.'
-    : postedAmount == null ? 'No active dues charge posted' : 'Original charge for the month'
+  const nextBillAmount = hasMonthlyDues ? selectedLotDues.monthly_dues : null
+  const monthlyDuesAmount = !formerAccount && postedDuesReady && !postedDues.failed
+    ? postedAmount ?? nextBillAmount : null
+  const monthlyDuesFormula = hasMonthlyDues
+    ? `${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}` : null
+  const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
+    : !postedDuesReady ? 'Loading monthly dues…'
+    : postedDues.failed ? 'Monthly dues unavailable. Refresh to retry.'
+    : postedAmount != null
+      ? Number(postedAmount) === Number(nextBillAmount) && monthlyDuesFormula
+        ? `${monthLabel(summaryMonth)} · ${monthlyDuesFormula}`
+        : `Posted for ${monthLabel(summaryMonth)}`
+      : monthlyDuesFormula
+        ? `Next bill · ${monthlyDuesFormula}`
+        : 'Set the lot size and rate to calculate dues.'
 
   useEffect(() => {
-    if (selectedPropertyId == null) return undefined
+    if (selectedPropertyId == null || formerAccount) return undefined
     const scope = { propertyId: selectedPropertyId, month: summaryMonth, revision: detailReloadKey }
     let cancelled = false
     setPostedDues(null)
@@ -574,7 +602,7 @@ useEffect(() => {
 
     load()
     return () => { cancelled = true }
-  }, [detailReloadKey, selectedPropertyId, summaryMonth])
+  }, [detailReloadKey, formerAccount, selectedPropertyId, summaryMonth])
 
   useEffect(() => {
     setHistoryReceipt(null)
@@ -1131,7 +1159,7 @@ useEffect(() => {
 
             <section className="homeowner-summary-grid" aria-label="Financial summary for the selected lot">
               {showDetailSkeleton
-                ? Array.from({ length: 7 }, (_, index) => (
+                ? Array.from({ length: 6 }, (_, index) => (
                   <article className="homeowner-summary-skeleton-card" key={index}>
                     <Skeleton width="92px" height="14px" />
                     <Skeleton width="132px" height="25px" />
@@ -1153,14 +1181,8 @@ useEffect(() => {
                   </article>
                   <article>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>Dues billed · {monthLabel(summaryMonth)}</span>
-                    <strong>{postedAmount != null ? formatDues(postedAmount) : '—'}</strong>
-                    <small>{postedDuesNote}</small>
-                  </article>
-                  <article>
-                    <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>Recurring association dues</span>
-                    <strong>{hasMonthlyDues ? formatDues(selectedLotDues.monthly_dues) : '—'}</strong>
+                    <span>Monthly association dues</span>
+                    <strong>{monthlyDuesAmount != null ? formatDues(monthlyDuesAmount) : '—'}</strong>
                     <small>{monthlyDuesNote}</small>
                   </article>
                   <article className={summary.outstanding > 0 ? 'has-balance' : ''}>
