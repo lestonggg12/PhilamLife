@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
+import DateField from './DateField'
 import './CctvElectricityCompensation.css'
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
@@ -125,14 +126,18 @@ export default function CctvElectricityCompensation({ canEdit, fixedPropertyId =
           <input type="number" min="0.01" max="100000" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={!canEdit || busy} required placeholder="150.00" />
           <small>Deducted from eligible monthly dues</small>
         </label>
-        <label className="cctv-field"><span>Starting month <b>*</b></span>
-          <input type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} disabled={!canEdit || busy} required />
-          <small>Previous months are allowed</small>
-        </label>
-        <label className="cctv-field"><span>Ending month <em>Optional</em></span>
-          <input type="month" value={endMonth} min={startMonth || undefined} onChange={(e) => setEndMonth(e.target.value)} disabled={!canEdit || busy} />
-          <small>Leave empty for an ongoing credit</small>
-        </label>
+        <div className="cctv-field"><span>Starting month <b>*</b></span>
+          <DateField monthOnly value={startMonth} onChange={setStartMonth} disabled={!canEdit || busy}
+            ariaLabel="CCTV compensation starting month" placeholder="Select starting month" required clearable={false} />
+          <small>Earlier months may be selected for retroactive compensation</small>
+        </div>
+        <div className="cctv-field"><span>Ending month <em>Optional</em></span>
+          <DateField monthOnly value={endMonth} min={startMonth || undefined} onChange={setEndMonth}
+            disabled={!canEdit || busy} ariaLabel="CCTV compensation ending month" placeholder="No end date (ongoing)" />
+          {endMonth && <button type="button" className="cctv-clear-month" onClick={() => setEndMonth('')}
+            disabled={!canEdit || busy}>Remove ending month — make ongoing</button>}
+          <small>Leave blank to apply every eligible month indefinitely</small>
+        </div>
         <label className="cctv-field cctv-full"><span>Approval / electricity arrangement <b>*</b></span>
           <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} disabled={!canEdit || busy} minLength={5} maxLength={250} required />
         </label>
