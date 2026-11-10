@@ -59,7 +59,9 @@ export function buildPreprintedFields(kind, row) {
     debtBeforeDiscount > manualDiscount && paid > debtBeforeDiscount - manualDiscount &&
     row.charge_type !== 'Other'
   const advanceCredit = debtAdvanceSplit ? paid - (debtBeforeDiscount - manualDiscount) : 0n
-  const total = validAnnual ? gross : validManual ? manualGross : paid
+  // For debt + advance payments, the printed lines already reflect the discount.
+  // Do not add the discount back to the cash total and then subtract it again.
+  const total = validAnnual ? gross : validManual && !debtAdvanceSplit ? manualGross : paid
   let quantity = validAnnual ? '12' : '1'
   let unitPrice = validAnnual && gross % 12n === 0n ? amount(gross / 12n) : validAnnual ? '' : amount(total)
   const serviceDue = cents(row.amount_due)
@@ -78,10 +80,10 @@ export function buildPreprintedFields(kind, row) {
       ? amount(numerator / printedQuantityCents)
       : ''
   }
-  if (debtAdvanceSplit) unitPrice = amount(debtBeforeDiscount)
+  if (debtAdvanceSplit) unitPrice = amount(debtBeforeDiscount - manualDiscount)
   if (unitPrice.length > 10) unitPrice = ''
   const partial = kind === 'service' && serviceDue > paid
-  const description = debtAdvanceSplit ? 'Outstanding debt (before discount)' : kind === 'service'
+  const description = debtAdvanceSplit ? `Debt after ${amount(manualDiscount)} discount` : kind === 'service'
     ? `${partial ? 'Part payment - ' : ''}${row.service_name || 'Village service'}${row.balance_of ? ' - balance payment' : ''}`
     : row.coverage_period || row.charge_type || 'Homeowner payment'
   const date = row.paid_at || row.created_at
@@ -94,12 +96,12 @@ export function buildPreprintedFields(kind, row) {
     date: issuedDate, description: cents(row.receipt_breakdown?.returned_change?.change_amount) > 0n
       ? `${description} / Change returned: ${amount(cents(row.receipt_breakdown.returned_change.change_amount))}`
       : description, quantity, unitPrice,
-    lineAmount: amount(debtAdvanceSplit ? debtBeforeDiscount : total),
+    lineAmount: amount(debtAdvanceSplit ? debtBeforeDiscount - manualDiscount : total),
     advanceLine: debtAdvanceSplit ? {
       description: 'Advance credit (future dues)', quantity: '1',
       unitPrice: amount(advanceCredit), lineAmount: amount(advanceCredit),
     } : null,
-    totalSales: amount(total), discount: validAnnual ? amount(discount) : validManual ? amount(manualDiscount) : '',
+    totalSales: amount(total), discount: validAnnual ? amount(discount) : validManual && !debtAdvanceSplit ? amount(manualDiscount) : '',
     totalPaid: amount(paid), issuedBy: row.recorded_by_name || '',
     method: [row.payment_method, row.reference_number].filter(Boolean).join(' / '),
   }
