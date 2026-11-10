@@ -21,6 +21,8 @@ import Skeleton from '../components/skeleton/Skeleton'
 import useDelayedLoading from '../components/skeleton/useDelayedLoading'
 import { updateHomeowner, removeHomeowner } from '../lib/homeownerWrites'
 import { fetchAll } from '../lib/fetchAll'
+import { cctvMonthlyDues } from '../lib/cctvMonthlyDues'
+import '../components/CctvDuesSummary.css'
 import { requireHomeownerSnapshot } from '../lib/homeownerDirectorySnapshot'
 import { useOrganization } from '../context/OrganizationContext'
 import { formatDate as formatDateValue } from '../config/organization'
@@ -195,6 +197,7 @@ export default function HomeownersPage() {
   const [detailData, setDetailData] = useState({ propertyId: null, payments: [], serviceTransactions: [] })
   const [paymentCounts, setPaymentCounts] = useState(() => homeownerDirectoryCache.paymentCounts || new Map())
   const [duesByProperty, setDuesByProperty] = useState(() => homeownerDirectoryCache.duesByProperty || new Map())
+  const [cctvSchedules, setCctvSchedules] = useState({ propertyId: null, rows: [], ready: false, error: '' })
   const [hasDirectorySnapshot, setHasDirectorySnapshot] = useState(() => homeownerDirectoryCache.properties !== null)
   const [summaryMonth, setSummaryMonth] = useState(manilaMonth)
   useManilaMonthRollover(setSummaryMonth)
@@ -573,6 +576,36 @@ useEffect(() => {
     : !hasMonthlyDues ? 'Set the lot size and rate to calculate dues.'
     : selectedLotDues.prepaid ? `${nextBillingLabel} · covered by annual payment`
       : `${nextBillingLabel} · ${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
+
+  // A CCTV credit is a separate non-cash adjustment to a monthly bill.
+  // Read approved schedules for this property instead of estimating discounts from payments.
+  useEffect(() => {
+    if (selectedPropertyId == null) return undefined
+    let cancelled = false
+    setCctvSchedules({ propertyId: selectedPropertyId, rows: [], ready: false, error: '' })
+    async function loadCctvSchedules() {
+      const { data, error } = await supabase.from('cctv_electricity_schedules')
+        .select('monthly_credit,starts_on,ends_before')
+        .eq('property_id', selectedPropertyId)
+      if (cancelled) return
+      setCctvSchedules({
+        propertyId: selectedPropertyId,
+        rows: error ? [] : data || [],
+        ready: !error,
+        error: error?.message || '',
+      })
+    }
+    void loadCctvSchedules().catch((error) => {
+      if (!cancelled) setCctvSchedules({ propertyId: selectedPropertyId, rows: [], ready: false,
+        error: error?.message || 'Unknown error' })
+    })
+    return () => { cancelled = true }
+  }, [selectedPropertyId, detailReloadKey])
+
+  const cctvReady = cctvSchedules.ready && cctvSchedules.propertyId === selectedPropertyId
+  const cctvDues = cctvReady && monthlyDuesAmount != null
+    ? cctvMonthlyDues(monthlyDuesAmount, selectedLotDues?.billing_month, cctvSchedules.rows)
+    : null
 
   useEffect(() => {
     setHistoryReceipt(null)
@@ -1152,8 +1185,18 @@ useEffect(() => {
                   <article>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
                     <span>Monthly association dues</span>
-                    <strong>{monthlyDuesAmount != null ? formatDues(monthlyDuesAmount) : '—'}</strong>
+                    <strong>{monthlyDuesAmount == null ? '—' : cctvReady ? formatDues(cctvDues.net) : 'Checking credits…'}</strong>
                     <small>{monthlyDuesNote}</small>
+                    {cctvDues?.credit > 0 && (
+                      <div className="homeowner-cctv-dues-detail" aria-label="Association dues after CCTV electricity compensation">
+                        <div><span>Regular monthly dues</span><b>{formatDues(cctvDues.gross)}</b></div>
+                        <div><span>CCTV electricity compensation</span><b>− {formatDues(cctvDues.credit)}</b></div>
+                        <p>Approved electricity credit for powering subdivision CCTV equipment.</p>
+                      </div>
+                    )}
+                    {monthlyDuesAmount != null && !cctvReady && cctvSchedules.propertyId === selectedPropertyId && cctvSchedules.error && (
+                      <small role="alert">Unable to verify CCTV credits. Refresh this profile before relying on the dues amount.</small>
+                    )}
                   </article>
                   <article className={summary.outstanding > 0 ? 'has-balance' : ''}>
                     <span className="homeowner-summary-icon"><AlertCircle size={18} /></span>
