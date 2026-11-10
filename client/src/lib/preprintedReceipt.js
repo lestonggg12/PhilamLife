@@ -51,6 +51,14 @@ export function buildPreprintedFields(kind, row) {
   const manualDiscount = cents(manual?.discount_amount)
   const manualGross = cents(manual?.gross_amount ?? (Number((row.amount_paid ?? row.amount) || 0) + Number(manual?.discount_amount || 0)))
   const validManual = !validAnnual && manualDiscount > 0n && manualGross === paid + manualDiscount
+  // Itemize retained overpayments: a debt discount never applies to advance credit.
+  // Older receipts may lack manual_cash_discount metadata; their saved debt and
+  // cash amounts still allow an exact reconstruction of a full-balance payment.
+  const debtBeforeDiscount = cents(row.previous_balance)
+  const debtAdvanceSplit = kind === 'payment' && validManual &&
+    debtBeforeDiscount > manualDiscount && paid > debtBeforeDiscount - manualDiscount &&
+    row.charge_type !== 'Other'
+  const advanceCredit = debtAdvanceSplit ? paid - (debtBeforeDiscount - manualDiscount) : 0n
   const total = validAnnual ? gross : validManual ? manualGross : paid
   let quantity = validAnnual ? '12' : '1'
   let unitPrice = validAnnual && gross % 12n === 0n ? amount(gross / 12n) : validAnnual ? '' : amount(total)
@@ -70,9 +78,10 @@ export function buildPreprintedFields(kind, row) {
       ? amount(numerator / printedQuantityCents)
       : ''
   }
+  if (debtAdvanceSplit) unitPrice = amount(debtBeforeDiscount)
   if (unitPrice.length > 10) unitPrice = ''
   const partial = kind === 'service' && serviceDue > paid
-  const description = kind === 'service'
+  const description = debtAdvanceSplit ? 'Outstanding debt (before discount)' : kind === 'service'
     ? `${partial ? 'Part payment - ' : ''}${row.service_name || 'Village service'}${row.balance_of ? ' - balance payment' : ''}`
     : row.coverage_period || row.charge_type || 'Homeowner payment'
   const date = row.paid_at || row.created_at
@@ -85,7 +94,12 @@ export function buildPreprintedFields(kind, row) {
     date: issuedDate, description: cents(row.receipt_breakdown?.returned_change?.change_amount) > 0n
       ? `${description} / Change returned: ${amount(cents(row.receipt_breakdown.returned_change.change_amount))}`
       : description, quantity, unitPrice,
-    lineAmount: amount(total), totalSales: amount(total), discount: validAnnual ? amount(discount) : validManual ? amount(manualDiscount) : '',
+    lineAmount: amount(debtAdvanceSplit ? debtBeforeDiscount : total),
+    advanceLine: debtAdvanceSplit ? {
+      description: 'Advance credit (future dues)', quantity: '1',
+      unitPrice: amount(advanceCredit), lineAmount: amount(advanceCredit),
+    } : null,
+    totalSales: amount(total), discount: validAnnual ? amount(discount) : validManual ? amount(manualDiscount) : '',
     totalPaid: amount(paid), issuedBy: row.recorded_by_name || '',
     method: [row.payment_method, row.reference_number].filter(Boolean).join(' / '),
   }
@@ -93,6 +107,8 @@ export function buildPreprintedFields(kind, row) {
 
 export function preprintedLayoutError(fields) {
   if (!fields) return 'The saved receipt details are unavailable.'
+  if (fields.advanceLine && (wrapReceiptText(fields.description).length !== 1 ||
+      wrapReceiptText(fields.advanceLine.description).length !== 1)) return 'The payment lines cannot fit on the printed form.'
   if (String(fields.quantity).length > 6) return 'The saved quantity is too wide for the form. Ask the office to review it before printing.'
   if (wrapReceiptText(fields.description).length > 6) return 'This payment description is too long for the six lines on this form. Ask the office to review it before printing; no details have been cut off.'
   if (wrapReceiptText(fields.name, 57).length > 2) return 'The homeowner name is too long for this form. Ask the office to review it before printing.'
