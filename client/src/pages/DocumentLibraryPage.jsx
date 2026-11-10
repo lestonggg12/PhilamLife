@@ -5,9 +5,7 @@ import Select from '../components/Select'
 import './DocumentLibraryPage.css'
 import Skeleton from '../components/skeleton/Skeleton'
 import {
-  AlertCircle,
   Download,
-  FileText,
   Plus,
   RefreshCw,
   Search,
@@ -20,6 +18,8 @@ import { deleteDocumentSafely } from '../lib/documentDeletion'
 import { uploadDocumentSafely } from '../lib/documentUpload'
 import { useOrganization } from '../context/OrganizationContext'
 import ActionDialog from '../components/ActionDialog'
+import { Pager } from '../components/PagerControls'
+import { useListPage } from '../lib/homeownerDirectory'
 
 const BUCKET = 'hoa-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -53,6 +53,37 @@ const ACCEPTED_MIME_TYPES = new Set([
   'image/png',
 ])
 
+
+const SORT_OPTIONS = [
+  { value: 'new', label: 'Newest first' },
+  { value: 'old', label: 'Oldest first' },
+  { value: 'name', label: 'Name A–Z' },
+  { value: 'size', label: 'Largest first' },
+]
+
+const SORTERS = {
+  new: (a, b) => new Date(b.created_at) - new Date(a.created_at),
+  old: (a, b) => new Date(a.created_at) - new Date(b.created_at),
+  name: (a, b) => String(a.title || '').localeCompare(String(b.title || '')),
+  size: (a, b) => (Number(b.file_size) || 0) - (Number(a.file_size) || 0),
+}
+
+const VIEW_KEY = 'doc-library-view'
+
+function fileExtension(fileName) {
+  const name = String(fileName || '')
+  const index = name.lastIndexOf('.')
+  return index >= 0 ? name.slice(index + 1).toLowerCase() : ''
+}
+
+function fileKind(fileName) {
+  const ext = fileExtension(fileName)
+  if (ext === 'pdf') return 'pdf'
+  if (ext === 'doc' || ext === 'docx') return 'doc'
+  if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return 'xls'
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return 'img'
+  return 'other'
+}
 
 const EMPTY_FORM = {
   title: '',
@@ -106,6 +137,15 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [highlightedDocumentId, setHighlightedDocumentId] = useState(null)
+  const [sort, setSort] = useState('new')
+  const [detailDocument, setDetailDocument] = useState(null)
+  const [view, setView] = useState(() => {
+    try {
+      return window.localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
   const loadSequence = useRef(0)
   const uploadInProgress = useRef(false)
 
@@ -122,6 +162,24 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     loadDocuments()
     resolveCurrentUser()
   }, [])
+
+  useEffect(() => {
+    if (!detailDocument) return undefined
+    function onKeyDown(event) {
+      if (event.key === 'Escape') setDetailDocument(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [detailDocument])
+
+  function changeView(next) {
+    setView(next)
+    try {
+      window.localStorage.setItem(VIEW_KEY, next)
+    } catch {
+      // Storage can be unavailable; the view simply won't be remembered.
+    }
+  }
 
   async function resolveCurrentUser() {
     if (suppliedUser) {
@@ -360,24 +418,77 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
     }
   }
 
-  const filteredDocuments = useMemo(() => {
+  const searchedDocuments = useMemo(() => {
     const term = search.trim().toLowerCase()
+    if (!term) return documents
 
-    return documents.filter((document) => {
-      const matchesCategory =
-        category === 'All' || document.category === category
-      const matchesSearch =
-        !term ||
-        [
-          document.title,
-          document.original_file_name,
-          document.category,
-          document.uploaded_by_name,
-        ].some((value) => String(value || '').toLowerCase().includes(term))
+    return documents.filter((document) =>
+      [
+        document.title,
+        document.original_file_name,
+        document.category,
+        document.uploaded_by_name,
+      ].some((value) => String(value || '').toLowerCase().includes(term)),
+    )
+  }, [documents, search])
 
-      return matchesCategory && matchesSearch
-    })
-  }, [category, documents, search])
+  const filteredDocuments = useMemo(() => {
+    return searchedDocuments
+      .filter((document) => category === 'All' || document.category === category)
+      .slice()
+      .sort(SORTERS[sort] || SORTERS.new)
+  }, [category, searchedDocuments, sort])
+
+  const documentPage = useListPage(filteredDocuments, [search, category, sort])
+
+  const usedCategories = CATEGORIES.filter((item) =>
+    documents.some((document) => document.category === item),
+  )
+  const hasFilters = category !== 'All' || search.trim() !== ''
+
+  function clearFilters() {
+    setCategory('All')
+    setSearch('')
+  }
+
+  function actionButtons(document) {
+    return (
+      <div className="doc-actions" onClick={(event) => event.stopPropagation()}>
+        <button
+          type="button"
+          className="doc-download-button"
+          onClick={() => downloadDocument(document)}
+          disabled={downloadingId === document.id || Boolean(document.deletion_requested_at)}
+          aria-label={`Download ${document.title}`}
+        >
+          <Download size={16} />
+          {downloadingId === document.id ? 'Downloading...' : 'Download'}
+        </button>
+
+        {canDeleteDocuments && (
+          <button
+            type="button"
+            className={`doc-delete-button${document.deletion_requested_at ? ' doc-delete-retry' : ''}`}
+            onClick={() => requestDeleteDocument(document)}
+            disabled={deletingId === document.id}
+            aria-label={`${document.deletion_requested_at ? 'Retry deletion of' : 'Delete'} ${document.title}`}
+            title={document.deletion_requested_at ? 'Retry deletion' : 'Delete this document'}
+          >
+            <Trash2 size={16} />
+            {document.deletion_requested_at && 'Retry deletion'}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  function openOnKey(event, document) {
+    if (event.target !== event.currentTarget) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      setDetailDocument(document)
+    }
+  }
 
   const totalSize = documents.reduce(
     (sum, document) => sum + (Number(document.file_size) || 0),
@@ -393,13 +504,13 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
   return (
     <div className="doc-library">
-      <div className="doc-header">
+      <header className="doc-header">
         <div>
           <p className="doc-eyebrow">
             {canUploadDocuments ? 'Secretary workspace' : 'Document access'}
           </p>
           <h1>Document Library</h1>
-          <p>Store and download official HOA documents securely.</p>
+          <p className="doc-lede">Store and download official HOA documents securely.</p>
         </div>
 
         <div className="doc-header-actions">
@@ -423,26 +534,30 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="doc-summary" aria-label="Document summaries" aria-busy={loading || refreshing}>
-        <div className="doc-summary-item">
-          <span><FileText size={18} /> Matching documents</span>
+      <section className="doc-summary" aria-label="Document summaries" aria-busy={loading || refreshing}>
+        <article className="doc-summary-item">
+          <span>Matching documents</span>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredDocuments.length}</strong>
-        </div>
-        <div className="doc-summary-item">
-          <span><Download size={18} /> Matching file size</span>
+          <small>of {documents.length} in the library</small>
+        </article>
+        <article className="doc-summary-item">
+          <span>Matching file size</span>
           <strong>{loading ? '—' : formatFileSize(filteredTotalSize)}</strong>
-        </div>
-        <div className="doc-summary-item">
-          <span><Search size={18} /> Categories in view</span>
+          <small>Total of the files shown</small>
+        </article>
+        <article className="doc-summary-item">
+          <span>Categories in view</span>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredCategoryCount}</strong>
-        </div>
-        <div className="doc-summary-item">
-          <span><AlertCircle size={18} /> Deletion pending</span>
+          <small>of {categoryCount} in use</small>
+        </article>
+        <article className={`doc-summary-item${filteredPendingCount > 0 ? ' doc-summary-warn' : ''}`}>
+          <span>Deletion pending</span>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : filteredPendingCount}</strong>
-        </div>
-      </div>
+          <small>Waiting for storage cleanup</small>
+        </article>
+      </section>
 
       {!loading && canUploadDocuments && (
         <p className="doc-storage-note">
@@ -451,89 +566,163 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
         </p>
       )}
 
-      <div className="doc-toolbar">
-        <label className="doc-search-wrap">
-          <Search size={16} aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Search by title, file name, category, or uploader..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="doc-search"
-            aria-label="Search documents"
-          />
-        </label>
-
-        <Select ariaLabel="Filter documents by category" value={category} onChange={setCategory} options={[{ value: 'All', label: 'All Categories' }, ...CATEGORIES.map((item) => ({ value: item, label: item }))]} />
-
-      </div>
-
-      <div className="doc-result-row">
-        <span>
-          Showing {filteredDocuments.length} of {documents.length} documents
-        </span>
-      </div>
-
       {pageError && <p className="doc-message doc-error">{pageError}</p>}
-      <div className="doc-list glass-card" aria-live="polite">
+
+      <section className="doc-card" aria-label="Documents" aria-live="polite">
+        <div className="doc-filters">
+          <div className="doc-filter-row">
+            <label className="doc-search-wrap">
+              <Search size={16} aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search by title, file name, category or uploader"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="doc-search"
+                aria-label="Search documents"
+              />
+            </label>
+
+            <div className="doc-sort">
+              <Select ariaLabel="Sort documents" value={sort} onChange={setSort} options={SORT_OPTIONS} />
+            </div>
+
+            <div className="doc-view-toggle" role="group" aria-label="Layout">
+              <button type="button" aria-pressed={view === 'list'} onClick={() => changeView('list')}>☰ List</button>
+              <button type="button" aria-pressed={view === 'grid'} onClick={() => changeView('grid')}>▦ Cards</button>
+            </div>
+          </div>
+
+          <div className="doc-filter-row">
+            <div className="doc-tabs" role="group" aria-label="Filter documents by category">
+              {['All', ...usedCategories].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={category === item}
+                  onClick={() => setCategory(item)}
+                >
+                  {item === 'All' ? 'All categories' : item}
+                  <em>
+                    {item === 'All'
+                      ? searchedDocuments.length
+                      : searchedDocuments.filter((document) => document.category === item).length}
+                  </em>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="doc-result-row">
+            <span>
+              Showing {filteredDocuments.length} of {documents.length} documents
+            </span>
+            <span className="doc-chips">
+              {category !== 'All' && (
+                <span className="doc-chip">
+                  {category}
+                  <button type="button" onClick={() => setCategory('All')} aria-label="Remove category filter">×</button>
+                </span>
+              )}
+              {hasFilters && (
+                <button type="button" className="doc-link-button" onClick={clearFilters}>Clear all filters</button>
+              )}
+            </span>
+          </div>
+        </div>
+
         {loading ? (
           <div className="doc-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><Skeleton variant="rect" width="100%" height="64px" /><span className="skeleton-region-status" role="status">Loading</span></div>
         ) : pageError && documents.length === 0 ? (
           <p className="doc-empty" role="alert">Unable to display the document list. Use Refresh to retry.</p>
         ) : filteredDocuments.length === 0 ? (
-          <p className="doc-empty">
-            {documents.length === 0
-              ? 'No documents have been uploaded yet.'
-              : 'No documents match your filters.'}
-          </p>
+          <div className="doc-empty">
+            <h3>{documents.length === 0 ? 'No documents yet' : 'No documents match'}</h3>
+            <p>
+              {documents.length === 0
+                ? 'No documents have been uploaded yet.'
+                : 'Try another category or clear the filters.'}
+            </p>
+          </div>
+        ) : view === 'list' ? (
+          <div className="doc-table-scroll">
+            <table className="doc-table">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Category</th>
+                  <th>Size</th>
+                  <th>Uploaded</th>
+                  <th>Uploaded by</th>
+                  <th className="num">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documentPage.rows.map((document) => (
+                  <tr
+                    key={document.id}
+                    className={document.id === highlightedDocumentId ? 'motion-record-highlight' : ''}
+                    tabIndex={0}
+                    onClick={() => setDetailDocument(document)}
+                    onKeyDown={(event) => openOnKey(event, document)}
+                    aria-label={`Open ${document.title}`}
+                  >
+                    <td>
+                      <div className="doc-cell">
+                        <span className={`doc-type ${fileKind(document.original_file_name)}`} aria-hidden="true">
+                          {fileExtension(document.original_file_name).toUpperCase().slice(0, 4) || 'FILE'}
+                        </span>
+                        <div>
+                          <p className="doc-name">{document.title}</p>
+                          <p className="doc-file-name">{document.original_file_name}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="doc-category">{document.category}</span>
+                      {document.deletion_requested_at && <span className="doc-pending" role="status">Deletion pending</span>}
+                    </td>
+                    <td>{formatFileSize(document.file_size)}</td>
+                    <td>{organization.formatDate(document.created_at, { withTime: true })}</td>
+                    <td>{document.uploaded_by_name}</td>
+                    <td className="num">{actionButtons(document)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          filteredDocuments.map((document) => (
-            <article key={document.id} className={`doc-row${document.id === highlightedDocumentId ? ' motion-record-highlight' : ''}`}>
-              <div className="doc-icon">
-                <FileText size={21} />
-              </div>
-              <div className="doc-info">
+          <div className="doc-grid">
+            {documentPage.rows.map((document) => (
+              <article
+                key={document.id}
+                className={`doc-tile${document.id === highlightedDocumentId ? ' motion-record-highlight' : ''}`}
+                tabIndex={0}
+                onClick={() => setDetailDocument(document)}
+                onKeyDown={(event) => openOnKey(event, document)}
+                aria-label={`Open ${document.title}`}
+              >
+                <span className={`doc-type large ${fileKind(document.original_file_name)}`} aria-hidden="true">
+                  {fileExtension(document.original_file_name).toUpperCase().slice(0, 4) || 'FILE'}
+                </span>
                 <p className="doc-name">{document.title}</p>
                 <p className="doc-file-name">{document.original_file_name}</p>
-                <p className="doc-meta">
+                <div className="doc-tile-meta">
                   <span className="doc-category">{document.category}</span>
-                  {document.deletion_requested_at && <span role="status">Deletion pending</span>}
                   <span>{formatFileSize(document.file_size)}</span>
-                  <span>{organization.formatDate(document.created_at, { withTime: true })}</span>
-                  <span>Uploaded by {document.uploaded_by_name}</span>
+                </div>
+                {document.deletion_requested_at && <span className="doc-pending" role="status">Deletion pending</span>}
+                <p className="doc-file-name">
+                  {organization.formatDate(document.created_at, { withTime: true })} · {document.uploaded_by_name}
                 </p>
-              </div>
-
-              <div className="doc-actions">
-                <button
-                  type="button"
-                  className="doc-download-button"
-                  onClick={() => downloadDocument(document)}
-                  disabled={downloadingId === document.id || Boolean(document.deletion_requested_at)}
-                  aria-label={`Download ${document.title}`}
-                >
-                  <Download size={17} />
-                  {downloadingId === document.id ? 'Downloading...' : 'Download'}
-                </button>
-
-                {canDeleteDocuments && (
-                  <button
-                    type="button"
-                    className={`doc-delete-button${document.deletion_requested_at ? ' doc-delete-retry' : ''}`}
-                    onClick={() => requestDeleteDocument(document)}
-                    disabled={deletingId === document.id}
-                    aria-label={`${document.deletion_requested_at ? 'Retry deletion of' : 'Delete'} ${document.title}`}
-                    title={document.deletion_requested_at ? 'Retry deletion' : 'Delete this document'}
-                  >
-                    <Trash2 size={17} />
-                    {document.deletion_requested_at && 'Retry deletion'}
-                  </button>
-                )}
-              </div>
-            </article>
-          ))
+                {actionButtons(document)}
+              </article>
+            ))}
+          </div>
         )}
-      </div>
+
+        {!loading && <Pager page={documentPage.page} total={filteredDocuments.length} onPageChange={documentPage.setPage} />}
+      </section>
 
       <ActionDialog
         open={!!pendingDelete}
@@ -633,6 +822,74 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+      {detailDocument && (
+        <div
+          className="doc-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDetailDocument(null)
+          }}
+        >
+          <section className="doc-modal doc-detail" role="dialog" aria-modal="true" aria-labelledby="doc-detail-title">
+            <div className="doc-modal-header">
+              <div className="doc-detail-head">
+                <span className={`doc-type large ${fileKind(detailDocument.original_file_name)}`} aria-hidden="true">
+                  {fileExtension(detailDocument.original_file_name).toUpperCase().slice(0, 4) || 'FILE'}
+                </span>
+                <div>
+                  <h2 id="doc-detail-title">{detailDocument.title}</h2>
+                  <p>{detailDocument.original_file_name}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="doc-close-button"
+                onClick={() => setDetailDocument(null)}
+                aria-label="Close details"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <dl className="doc-facts">
+              <div><dt>Category</dt><dd>{detailDocument.category}</dd></div>
+              <div><dt>File size</dt><dd>{formatFileSize(detailDocument.file_size)}</dd></div>
+              <div><dt>Uploaded</dt><dd>{organization.formatDate(detailDocument.created_at, { withTime: true })}</dd></div>
+              <div><dt>Uploaded by</dt><dd>{detailDocument.uploaded_by_name}</dd></div>
+            </dl>
+
+            {detailDocument.deletion_requested_at && (
+              <p className="doc-form-error">This document is pending deletion and cannot be downloaded.</p>
+            )}
+
+            <div className="doc-form-actions">
+              {canDeleteDocuments && (
+                <button
+                  type="button"
+                  className="doc-cancel-button doc-detail-delete"
+                  onClick={() => {
+                    const target = detailDocument
+                    setDetailDocument(null)
+                    requestDeleteDocument(target)
+                  }}
+                >
+                  <Trash2 size={16} />
+                  {detailDocument.deletion_requested_at ? 'Retry deletion' : 'Delete'}
+                </button>
+              )}
+              <button
+                type="button"
+                className="doc-submit-button"
+                onClick={() => downloadDocument(detailDocument)}
+                disabled={downloadingId === detailDocument.id || Boolean(detailDocument.deletion_requested_at)}
+              >
+                <Download size={16} />
+                {downloadingId === detailDocument.id ? 'Downloading...' : 'Download'}
+              </button>
+            </div>
           </section>
         </div>
       )}
