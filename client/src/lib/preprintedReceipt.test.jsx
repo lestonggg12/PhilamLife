@@ -29,11 +29,12 @@ describe('preprinted invoice output', () => {
       charge_type: 'Balance Payment', coverage_period: 'Balance Payment',
       manual_discount: { gross_amount: '3100.00', cash_received: '3000.00', discount_amount: '100.00' } }
     const f = buildPreprintedFields('payment', cash)
-    expect(f).toMatchObject({ lineAmount: '2,335.95', totalSales: '3,100.00',
-      discount: '100.00', totalPaid: '3,000.00', advanceLine: {
+    expect(f).toMatchObject({ description: 'Debt after 100.00 discount',
+      unitPrice: '2,235.95', lineAmount: '2,235.95', totalSales: '3,000.00',
+      discount: '', totalPaid: '3,000.00', advanceLine: {
         description: 'Advance credit (future dues)', lineAmount: '764.05' } })
     expect(preprintedLayoutError(f)).toBe('')
-    const html = renderToStaticMarkup(<PreprintedReceipt model={{ ...model(), preprinted: f }} />)
+    const html = renderToStaticMarkup(<PreprintedReceipt model={{ ...model(), preprinted: f }} alignment={{ x: 0, y: 0 }} />)
     expect(html).toContain('paper-advance-description')
     expect(html).toContain('764.05')
   })
