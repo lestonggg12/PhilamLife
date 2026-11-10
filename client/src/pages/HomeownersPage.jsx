@@ -1187,6 +1187,11 @@ useEffect(() => {
                     <span>Monthly association dues</span>
                     <strong>{monthlyDuesAmount == null ? '—' : cctvReady ? formatDues(cctvDues.net) : 'Checking credits…'}</strong>
                     <small>{monthlyDuesNote}</small>
+                    {cctvSchedules.rows?.length > 0 && selectedProperty.property_classification === 'unclassified' && (
+                      <small role="status" style={{ color: '#a15e13', fontWeight: 700 }}>
+                        Annual overdue penalties are paused because this lot is unclassified. An Admin must verify its property classification before penalty assessment.
+                      </small>
+                    )}
                     {cctvDues?.credit > 0 && (
                       <div className="homeowner-cctv-dues-detail" aria-label="Association dues after CCTV electricity compensation">
                         <div><span>Regular monthly dues</span><b>{formatDues(cctvDues.gross)}</b></div>

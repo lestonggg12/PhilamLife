@@ -101,9 +101,11 @@ export function buildPreprintedFields(kind, row) {
       description: 'Advance credit (future dues)', quantity: '1',
       unitPrice: amount(advanceCredit), lineAmount: amount(advanceCredit),
     } : null,
-    // A debt discount is already included in the net payment line.
-    // Disclose it without subtracting it twice from the cash total.
-    discountNote: debtAdvanceSplit ? `Debt discount applied: -${amount(manualDiscount)}` : '',
+    // Non-cash CCTV credits are historical account adjustments, never another
+    // discount against cash received. Keep the existing manual-debt note first.
+    discountNote: debtAdvanceSplit ? `Debt discount applied: -${amount(manualDiscount)}`
+      : cents(row.receipt_breakdown?.cctv_credit_snapshot?.total) > 0n
+        ? `CCTV credits on account: -${amount(cents(row.receipt_breakdown.cctv_credit_snapshot.total))}` : '',
     totalSales: amount(total), discount: validAnnual ? amount(discount) : validManual && !debtAdvanceSplit ? amount(manualDiscount) : '',
     totalPaid: amount(paid), issuedBy: row.recorded_by_name || '',
     method: [row.payment_method, row.reference_number].filter(Boolean).join(' / '),

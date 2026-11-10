@@ -181,6 +181,14 @@ const annualDiscountAmount = isAnnualDiscount
       : ''
   )
   if (creditNote) notes.push({ label: 'Advance credit', text: creditNote })
+  // A saved, non-cash billing adjustment is distinct from the amount tendered.
+  // Only display the snapshot captured BEFORE this receipt was issued.
+  const cctvTotal = num(row.receipt_breakdown?.cctv_credit_snapshot?.total)
+  const cctvMonths = num(row.receipt_breakdown?.cctv_credit_snapshot?.months)
+  if (cctvTotal > 0 && cctvMonths > 0) {
+    notes.push({ label: 'CCTV Electricity Compensation',
+      text: `${money(cctvTotal)} in non-cash dues credits already posted to this account across ${cctvMonths} billed month${cctvMonths === 1 ? '' : 's'}. These were applied to monthly dues, not deducted from this cash payment.` })
+  }
   const start = annualDiscount?.coverage_start
   const end = annualDiscount?.coverage_end
   if (isAnnualDiscount && /^\d{4}-\d{2}-01$/.test(start) && /^\d{4}-\d{2}-01$/.test(end)) {
