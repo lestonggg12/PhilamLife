@@ -34,7 +34,7 @@ import { printReceipt } from '../lib/printReceipt'
 import { recordReceiptActivity } from '../lib/receiptActivityAudit'
 import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import ActionDialog from '../components/ActionDialog'
-import { formatDues, formatLotSize, formatRate, hasRecurringDues, loadPostedMonthlyDues, parsePositiveAmount } from '../lib/lotDues'
+import { formatDues, formatLotSize, formatRate, hasRecurringDues, parsePositiveAmount } from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
 import HomeownerLotChips from '../components/HomeownerLotChips'
@@ -194,7 +194,6 @@ export default function HomeownersPage() {
   const [detailData, setDetailData] = useState({ propertyId: null, payments: [], serviceTransactions: [] })
   const [paymentCounts, setPaymentCounts] = useState(() => homeownerDirectoryCache.paymentCounts || new Map())
   const [duesByProperty, setDuesByProperty] = useState(() => homeownerDirectoryCache.duesByProperty || new Map())
-  const [postedDues, setPostedDues] = useState(null)
   const [hasDirectorySnapshot, setHasDirectorySnapshot] = useState(() => homeownerDirectoryCache.properties !== null)
   const [summaryMonth, setSummaryMonth] = useState(manilaMonth)
   useManilaMonthRollover(setSummaryMonth)
@@ -250,7 +249,7 @@ export default function HomeownersPage() {
     try {
       channel = supabase.channel(`homeowner-dues-rate:${crypto.randomUUID()}`)
       channel.on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'system_settings', filter: 'id=eq.1',
+        event: '*', schema: 'public', table: 'association_dues_rates',
       }, refresh).subscribe((status) => {
         if (status === 'SUBSCRIBED') refresh()
       })
@@ -459,7 +458,7 @@ useEffect(() => {
       const [duesResult, propertyResult, paymentResult] = await Promise.all([
         fetchAll(() => supabase
           .from('property_monthly_dues')
-          .select('property_id, lot_size_sqm, price_per_sqm, monthly_dues')
+          .select('property_id, lot_size_sqm, price_per_sqm, monthly_dues, billing_month, billing_amount, prepaid')
           .order('property_id'), { tiebreaker: null }),
         fetchAll(() => supabase
           .from('properties')
@@ -565,44 +564,14 @@ useEffect(() => {
   const selectedPropertyId = selectedProperty?.id ?? null
   const formerAccount = selectedProperty != null && !isActiveHomeowner(selectedProperty)
   const selectedLotDues = duesByProperty.get(Number(selectedPropertyId))
-  const hasMonthlyDues = hasRecurringDues(selectedLotDues)
-  const postedDuesReady = !refreshing && postedDues?.propertyId === selectedPropertyId
-    && postedDues?.month === summaryMonth && postedDues?.revision === detailReloadKey
-  const postedAmount = postedDuesReady ? postedDues.amount : null
-  const nextBillAmount = hasMonthlyDues ? selectedLotDues.monthly_dues : null
-  const monthlyDuesAmount = !formerAccount && postedDuesReady && !postedDues.failed
-    ? postedAmount ?? nextBillAmount : null
-  const monthlyDuesFormula = hasMonthlyDues
-    ? `${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}` : null
+  const hasMonthlyDues = selectedLotDues?.prepaid || hasRecurringDues(selectedLotDues)
+  const monthlyDuesAmount = !formerAccount && hasMonthlyDues ? selectedLotDues.billing_amount : null
+  const nextBillingLabel = selectedLotDues?.billing_month
+    ? monthLabel(selectedLotDues.billing_month.slice(0, 7)) : 'Next bill'
   const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
-    : !postedDuesReady ? 'Loading monthly dues…'
-    : postedDues.failed ? 'Monthly dues unavailable. Refresh to retry.'
-    : postedAmount != null
-      ? Number(postedAmount) === Number(nextBillAmount) && monthlyDuesFormula
-        ? `${monthLabel(summaryMonth)} · ${monthlyDuesFormula}`
-        : `Posted for ${monthLabel(summaryMonth)}`
-      : monthlyDuesFormula
-        ? `Next bill · ${monthlyDuesFormula}`
-        : 'Set the lot size and rate to calculate dues.'
-
-  useEffect(() => {
-    if (selectedPropertyId == null || formerAccount) return undefined
-    const scope = { propertyId: selectedPropertyId, month: summaryMonth, revision: detailReloadKey }
-    let cancelled = false
-    setPostedDues(null)
-
-    async function load() {
-      try {
-        const amount = await loadPostedMonthlyDues(supabase, scope.propertyId, scope.month)
-        if (!cancelled) setPostedDues({ ...scope, amount })
-      } catch {
-        if (!cancelled) setPostedDues({ ...scope, failed: true })
-      }
-    }
-
-    load()
-    return () => { cancelled = true }
-  }, [detailReloadKey, formerAccount, selectedPropertyId, summaryMonth])
+    : !hasMonthlyDues ? 'Set the lot size and rate to calculate dues.'
+    : selectedLotDues.prepaid ? `${nextBillingLabel} · covered by annual payment`
+      : `${nextBillingLabel} · ${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
 
   useEffect(() => {
     setHistoryReceipt(null)
@@ -1031,7 +1000,7 @@ useEffect(() => {
                           <strong>{property.homeowner_name}</strong>
                           <small>{property.block} · Lot {property.lot_number}</small>
                           <small>
-                            {hasRecurringDues(dues)
+                            {dues?.prepaid ? `${formatDues(dues.billing_amount)}/mo · prepaid` : hasRecurringDues(dues)
                               ? `${formatLotSize(dues.lot_size_sqm)} · ${formatRate(dues.price_per_sqm)} · ${formatDues(dues.monthly_dues)}/mo`
                               : 'Recurring dues unavailable'}
                           </small>

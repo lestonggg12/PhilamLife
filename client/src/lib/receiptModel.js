@@ -1,4 +1,5 @@
 import { isBalanceReducingPurpose } from './paymentPurposes'
+import { monthLabel } from './pagedQuery'
 import { buildPreprintedFields } from './preprintedReceipt'
 // Turns a saved payment or service-transaction row into the plain "receipt
 // model" that ReceiptSheet draws. Every receipt in the app (Record Payment,
@@ -180,6 +181,11 @@ const annualDiscountAmount = isAnnualDiscount
       : ''
   )
   if (creditNote) notes.push({ label: 'Advance credit', text: creditNote })
+  const start = annualDiscount?.coverage_start
+  const end = annualDiscount?.coverage_end
+  if (isAnnualDiscount && /^\d{4}-\d{2}-01$/.test(start) && /^\d{4}-\d{2}-01$/.test(end)) {
+    notes.push({ label: 'Prepaid dues coverage', text: `${monthLabel(start.slice(0, 7))} through ${monthLabel(end.slice(0, 7))}` })
+  }
 
   // What was owed just before this payment (saved with the payment). Printed
   // only for homeowners who have an entered balance or late penalties, so

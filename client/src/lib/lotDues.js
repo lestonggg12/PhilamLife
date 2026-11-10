@@ -37,15 +37,3 @@ export function formatDues(value) {
 export function hasRecurringDues(dues) {
   return dues?.monthly_dues != null && Number(dues.lot_size_sqm) > 0 && Number(dues.price_per_sqm) > 0
 }
-
-export async function loadPostedMonthlyDues(client, propertyId, month) {
-  const { data, error } = await client
-    .from('property_effective_charges')
-    .select('amount')
-    .eq('property_id', propertyId)
-    .eq('billing_month', `${month}-01`)
-    .eq('charge_type', 'Association Dues')
-    .maybeSingle()
-  if (error) throw error
-  return data?.amount ?? null
-}
