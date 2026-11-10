@@ -420,6 +420,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const balancePopoverRef = useRef({ trigger: null, panel: null, position: null })
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
+  const [paymentSaveNotice, setPaymentSaveNotice] = useState(null)
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
   const [popupNotice, setPopupNotice] = useState('')
@@ -1442,8 +1443,8 @@ function selectHomeowner(property) {
   }
 }
 
-    const advance = paymentAdvanceConfirmation({
-      purpose: form.paymentPurpose, paid: paid + manualDiscountAmount, previous, openOfType, annualAdvance,
+    const advance = manualDiscount.enabled ? null : paymentAdvanceConfirmation({
+      purpose: form.paymentPurpose, paid, previous, openOfType, annualAdvance,
     })
     if (advance && !advanceApproved) {
       setAdvanceConfirm(advance)
@@ -1563,6 +1564,17 @@ function selectHomeowner(property) {
           result = await supabase.from('payments').insert(payload).select('*').single()
         }
         if (result.error) {
+          if (manualDiscount.enabled && result.error.code === '22023' && (
+            result.error.message === 'There is no outstanding debt eligible for this discount.' ||
+            result.error.message === 'The original amount exceeds the unpaid charges for this payment purpose.'
+          )) {
+            // The RPC rejected this save before recording a payment.
+            paymentAttemptRef.current = null
+            discountAttemptRef.current = null
+            paymentSubmissionKeyRef.current = null
+            setPaymentSaveNotice({ title: 'Payment not saved', message: result.error.message })
+            return
+          }
           const previous = await supabase.from('payments').select('*')
             .eq('submission_key', paymentSubmissionKey).maybeSingle()
           if (previous.error) throw new Error('Receipt recovery is unavailable. Do not submit again until history has been checked.')
@@ -1610,7 +1622,10 @@ function selectHomeowner(property) {
     paymentSubmissionKeyRef.current = null
     notifySuccess(`Payment ${data.receipt_number} recorded for ${data.homeowner_name}, ${data.block_name || ""}, Lot ${data.lot_number || ""}.`)
     } catch (error) {
-      setFormError(`The payment could not be confirmed. Refresh payment history before retrying to avoid a duplicate. ${error.message}`)
+      setPaymentSaveNotice({
+        title: 'Payment could not be confirmed',
+        message: `Refresh payment history before retrying to avoid a duplicate. ${error.message}`,
+      })
     } finally {
       paymentSubmitRef.current = false
       setSaving(false)
@@ -2493,6 +2508,14 @@ function selectHomeowner(property) {
           </ReceiptDialog>
         )
       })()}
+
+      <ActionDialog
+        open={!!paymentSaveNotice}
+        title={paymentSaveNotice?.title}
+        message={paymentSaveNotice?.message}
+        tone="danger"
+        onConfirm={() => setPaymentSaveNotice(null)}
+      />
 
       <ActionDialog
         open={!!popupNotice}
