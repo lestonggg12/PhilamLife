@@ -47,6 +47,7 @@ import { useListPage, matchesHomeownerSearch, summarizeActiveLots } from '../lib
 import '../components/HomeownerDirectoryPaging.css'
 import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 import AccountActivity from '../components/AccountActivity'
+import CctvElectricityCompensation from '../components/CctvElectricityCompensation'
 import useManilaMonthRollover, { manilaMonth } from '../hooks/useManilaMonthRollover'
 import { monthLabel } from '../lib/pagedQuery'
 import { getManilaYearMonth, homeownerPaymentTotals, paymentTrackerStatus, serviceInvoiceBalances } from '../lib/homeownerPaymentPeriods'
@@ -1586,6 +1587,14 @@ useEffect(() => {
                 </button>
               ))}
             </nav>
+
+            {activeTab === 'overview' && userRole === 'admin' && !formerAccount && selectedPropertyId != null && (
+              <section className="homeowner-info-card" aria-label="CCTV electricity compensation" style={{ marginBottom: 16 }}>
+                <h3>CCTV electricity compensation</h3>
+                <p>Approved monthly electricity credits for this homeowner's lot, including eligible past months.</p>
+                <CctvElectricityCompensation key={selectedPropertyId} fixedPropertyId={selectedPropertyId} canEdit onChanged={() => { setDetailReloadKey((key) => key + 1); void loadHomeowners(true) }} />
+              </section>
+            )}
 
             {activeTab === 'overview' && (
               <section className="homeowner-overview-grid">

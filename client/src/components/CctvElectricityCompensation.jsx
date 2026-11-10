@@ -7,10 +7,10 @@ const monthLabel = (date) => new Intl.DateTimeFormat('en-PH', {
   month: 'long', year: 'numeric', timeZone: 'UTC',
 }).format(new Date(`${date}T12:00:00Z`))
 
-export default function CctvElectricityCompensation({ canEdit }) {
+export default function CctvElectricityCompensation({ canEdit, fixedPropertyId = null, onChanged }) {
   const [properties, setProperties] = useState([])
   const [schedules, setSchedules] = useState([])
-  const [propertyId, setPropertyId] = useState('')
+  const [propertyId, setPropertyId] = useState(fixedPropertyId == null ? '' : String(fixedPropertyId))
   const [amount, setAmount] = useState('')
   const [startMonth, setStartMonth] = useState('')
   const [endMonth, setEndMonth] = useState('')
@@ -18,6 +18,10 @@ export default function CctvElectricityCompensation({ canEdit }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const saving = useRef(false)
+
+  useEffect(() => {
+    if (fixedPropertyId != null) setPropertyId(String(fixedPropertyId))
+  }, [fixedPropertyId])
 
   async function refresh() {
     const [lots, policies] = await Promise.all([
@@ -57,7 +61,7 @@ export default function CctvElectricityCompensation({ canEdit }) {
     event.preventDefault()
     if (saving.current || !canEdit) return
     const n = Number(amount)
-    if (!propertyId || !/^\d+(?:\.\d{1,2})?$/.test(amount) || n <= 0 ||
+    if (!(fixedPropertyId ?? propertyId) || !/^\d+(?:\.\d{1,2})?$/.test(amount) || n <= 0 ||
         n > 100000 || !/^\d{4}-\d{2}$/.test(startMonth) ||
         (endMonth && (!/^\d{4}-\d{2}$/.test(endMonth) || endMonth < startMonth)) ||
         reason.trim().length < 5) {
@@ -69,7 +73,7 @@ export default function CctvElectricityCompensation({ canEdit }) {
     setMessage('')
     try {
       const { error } = await supabase.rpc('create_cctv_electricity_schedule', {
-        p_property_id: Number(propertyId),
+        p_property_id: Number(fixedPropertyId ?? propertyId),
         p_monthly_credit: n,
         p_start_month: `${startMonth}-01`,
         p_end_month: endMonth ? `${endMonth}-01` : null,
@@ -77,6 +81,7 @@ export default function CctvElectricityCompensation({ canEdit }) {
       })
       if (error) throw error
       await refresh()
+      onChanged?.()
       setMessage('CCTV compensation saved. Eligible existing bills have been credited; future bills will be credited automatically.')
       setAmount('')
       setStartMonth('')
@@ -89,16 +94,17 @@ export default function CctvElectricityCompensation({ canEdit }) {
     }
   }
 
-  const selected = properties.find((p) => String(p.id) === String(propertyId))
+  const selected = properties.find((p) => String(p.id) === String(fixedPropertyId ?? propertyId))
+  const visibleSchedules = fixedPropertyId == null ? schedules : schedules.filter((s) => String(s.property_id) === String(fixedPropertyId))
   return <div style={{ display: 'grid', gap: 14, width: '100%' }}>
     <p className="ss-info">This is a non-cash credit applied against each eligible month's association dues, even when the homeowner pays partially or not at all. Backdated months apply to existing bills. Receipts are not modified.</p>
     <form onSubmit={save} style={{ display: 'grid', gap: 12 }}>
-      <label className="ss-field"><span>Homeowner / lot</span>
+      {fixedPropertyId == null && <label className="ss-field"><span>Homeowner / lot</span>
         <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} disabled={!canEdit || busy} required>
           <option value="">Select an active homeowner</option>
           {properties.map((p) => <option key={p.id} value={p.id}>{p.block}, Lot {p.lot_number} — {p.homeowner_name || 'No name'}</option>)}
         </select>
-      </label>
+      </label>}
       {selected && <small>{selected.block}, Lot {selected.lot_number}</small>}
       <label className="ss-field"><span>Monthly electricity credit (₱)</span>
         <input type="number" min="0.01" max="100000" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={!canEdit || busy} required placeholder="150.00" />
@@ -116,9 +122,9 @@ export default function CctvElectricityCompensation({ canEdit }) {
       <button type="submit" className="ss-primary" disabled={!canEdit || busy}>{busy ? 'Applying credits…' : 'Approve monthly CCTV credit'}</button>
     </form>
     <h3>Approved schedules</h3>
-    {schedules.length === 0 ? <p className="ss-info">No CCTV compensation schedules yet.</p> :
+    {visibleSchedules.length === 0 ? <p className="ss-info">No CCTV compensation schedules yet.</p> :
       <div style={{ display: 'grid', gap: 9 }}>
-        {schedules.map((s) => {
+        {visibleSchedules.map((s) => {
           const p = properties.find((x) => x.id === s.property_id)
           return <div key={s.id} style={{ border: '1px solid var(--border-color, #ccc)', padding: 12, borderRadius: 8 }}>
             <strong>{p ? `${p.block}, Lot ${p.lot_number} — ${p.homeowner_name || ''}` : `Property ${s.property_id}`}</strong>
