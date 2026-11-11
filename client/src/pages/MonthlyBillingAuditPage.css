@@ -1,0 +1,47 @@
+/* Scoped styling for the read-only monthly billing audit. */
+.billing-audit-page { box-sizing: border-box; width: 100%; max-width: 1440px; min-width: 0; margin: 0 auto; padding: 24px; color: var(--text-dark, #254862); }
+.billing-audit-page *, .billing-audit-page *::before, .billing-audit-page *::after { box-sizing: border-box; }
+.billing-audit-header, .billing-audit-panel, .billing-audit-stat { border: 1px solid rgba(255,255,255,.76); background: linear-gradient(155deg,rgba(255,255,255,.76),rgba(255,255,255,.45)); box-shadow: 0 12px 34px -22px rgba(24,74,119,.38), 0 2px 12px rgba(24,74,119,.06); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-radius: 20px; }
+.billing-audit-header { padding: 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; flex-wrap: wrap; }
+.billing-audit-eyebrow { color: var(--primary,#176aa5); font-size: 11px; font-weight: 800; letter-spacing: .13em; margin-bottom: 6px; }
+.billing-audit-header h1 { margin: 0 0 8px; font-size: clamp(1.45rem, 2.5vw, 2rem); line-height: 1.2; color: var(--text-dark,#274f6b); }
+.billing-audit-header p { margin: 0; max-width: 640px; color: var(--text-muted,#58738a); font-size: 14px; line-height: 1.5; }
+.billing-audit-header-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.billing-audit-header-actions label { font-size: 12px; font-weight: 750; align-self: center; }
+.billing-audit-page input, .billing-audit-page select { font: inherit; font-size: 13px; min-height: 42px; padding: 9px 12px; background: rgba(255,255,255,.84); color: var(--text-dark,#244b66); border: 1px solid rgba(108,150,179,.35); border-radius: 11px; max-width: 100%; }
+.billing-audit-page button { font: inherit; font-size: 13px; font-weight: 700; border-radius: 11px; padding: 10px 13px; min-height: 42px; cursor: pointer; color: #195d8d; border: 1px solid rgba(83,145,188,.25); background: rgba(255,255,255,.8); }
+.billing-audit-page button:hover:not(:disabled) { background: #e7f2ff; }
+.billing-audit-page button:disabled { opacity: .43; cursor: not-allowed; }
+.billing-audit-page :is(button,input,select,a,[tabindex]):focus-visible { outline: 3px solid #2f86c8; outline-offset: 3px; }
+.billing-audit-page .billing-audit-refresh { color: white; background: var(--primary,#186da5); border-color: transparent; }
+.billing-audit-page .billing-audit-refresh:hover:not(:disabled) { background: var(--primary-dark,#0d598d); }
+.billing-audit-notice { margin-top: 17px; padding: 15px 18px; border-radius: 14px; background: rgba(239,247,255,.88); border: 1px solid #cde1f3; font-size: 13px; line-height: 1.6; color: #355a75; }
+.billing-audit-notice p { margin: 0; }.billing-audit-notice p + small, .billing-audit-notice strong + p { display: block; margin-top: 5px; }
+.billing-audit-notice-error { border-color: #f4c6c6; background: #fff0f0; color: #8a2929; }
+.billing-audit-stats { margin-top: 17px; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; }
+.billing-audit-stat { padding: 19px 17px; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.billing-audit-stat span { font-size: 12px; color: #5a758b; font-weight: 600; }
+.billing-audit-stat strong { font-size: clamp(1.1rem,1.6vw,1.55rem); overflow-wrap: anywhere; color: #195a88; font-variant-numeric: tabular-nums; }
+.billing-audit-explainer { padding: 0 3px; margin: 14px 0 18px; font-size: 12px; line-height: 1.6; color: #5a758b; }
+.billing-audit-panel { min-width: 0; padding: 20px; }
+.billing-audit-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; padding-bottom: 18px; }
+.billing-audit-toolbar h2 { margin: 0; font-size: 18px; color: #254e6c; }
+.billing-audit-toolbar p { margin: 5px 0 0; font-size: 13px; color: #667e92; }
+.billing-audit-controls { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.billing-audit-controls label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: #516e83; }
+.billing-audit-controls select { min-width: 175px; }.billing-audit-controls input { min-width: 210px; }
+.billing-audit-table-scroll { max-width: 100%; overflow-x: auto; border-radius: 12px; border: 1px solid rgba(153,182,204,.35); }
+.billing-audit-table { width: 100%; min-width: 850px; border-collapse: collapse; font-size: 13px; text-align: left; }
+.billing-audit-table thead { background: rgba(212,231,245,.8); }.billing-audit-table th { padding: 13px 14px; white-space: nowrap; color: #365f7e; font-size: 11px; text-transform: uppercase; letter-spacing: .035em; }
+.billing-audit-table td { padding: 13px 14px; border-top: 1px solid #e1eaf1; vertical-align: middle; }.billing-audit-table tbody tr:nth-child(even) { background: rgba(242,248,252,.55); }.billing-audit-table tbody tr:hover { background: rgba(226,240,252,.72); }
+.billing-audit-account { color: #145f98; font-weight: 750; text-decoration: none; }.billing-audit-account:hover { text-decoration: underline; }
+.billing-audit-secondary, .billing-audit-charge { display: block; font-size: 11px; color: #6b8296; line-height: 1.6; }.billing-audit-charge { font-family: ui-monospace,SFMono-Regular,Consolas,monospace; }
+.billing-audit-classification { text-transform: capitalize; }.billing-audit-money { white-space: nowrap; font-variant-numeric: tabular-nums; }.billing-audit-unrecorded { color: #76899a; font-size: 12px; }
+.billing-audit-status { display: inline-block; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.4; white-space: normal; }
+.billing-audit-status-muted { background: #e8edf2; color: #596c7d; }.billing-audit-status-success { background: #e1f5ec; color: #197451; }.billing-audit-status-warning { background: #fff2dc; color: #926011; }
+.billing-audit-empty { margin: 0; padding: 22px; text-align: center; color: #647f94; }
+.billing-audit-pager { display: flex; gap: 15px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-top: 16px; font-size: 12px; color: #567389; }
+.billing-audit-pager > div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }.billing-audit-pager button { min-height: 34px; padding: 7px 10px; }.billing-audit-pager > div > span { margin: 0 5px; white-space: nowrap; }
+@media (max-width: 1100px) { .billing-audit-stats { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 760px) { .billing-audit-page { padding: 14px; }.billing-audit-header { padding: 18px; }.billing-audit-header-actions { width: 100%; }.billing-audit-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }.billing-audit-panel { padding: 12px; }.billing-audit-controls,.billing-audit-controls label { width: 100%; }.billing-audit-controls :is(input,select) { width: 100%; min-width: 0; }.billing-audit-pager { justify-content: center; } }
+@media (max-width: 420px) { .billing-audit-stats { grid-template-columns: 1fr; }.billing-audit-header-actions input { flex: 1 1 150px; }.billing-audit-header-actions button { width: 100%; } }

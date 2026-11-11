@@ -3,11 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { groupMonthlyBillingAudit, summarizeMonthlyBillingAudit } from '../lib/monthlyBillingAudit'
+import './MonthlyBillingAuditPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
-const monthNow = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' })
-  .format(new Date()).replace(/^(\d{4})-(\d{2}).*/, '$1-$2')
+const monthNow = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).format(new Date()).replace(/^(\d{4})-(\d{2}).*/, '$1-$2')
 const validMonth = m => /^\d{4}-(0[1-9]|1[0-2])$/.test(m || '')
+const PER_PAGE = 25
 
 export default function MonthlyBillingAuditPage() {
   const [params, setParams] = useSearchParams()
@@ -15,6 +16,7 @@ export default function MonthlyBillingAuditPage() {
   const month = validMonth(requested) ? requested : monthNow()
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [revision, setRevision] = useState(0)
   const [data, setData] = useState({ scope: '', loading: true, error: '', rows: [], report: null })
 
@@ -45,6 +47,7 @@ export default function MonthlyBillingAuditPage() {
     return () => { cancelled = true }
   }, [month, revision])
 
+  useEffect(() => { setPage(1) }, [month, filter, search])
   const ready = data.scope === month && !data.loading && !data.error
   const totals = useMemo(() => summarizeMonthlyBillingAudit(ready ? data.rows : []), [ready, data.rows])
   const rows = useMemo(() => (ready ? data.rows : []).filter(row => {
@@ -55,60 +58,75 @@ export default function MonthlyBillingAuditPage() {
     const p = row.properties || {}
     return `${p.homeowner_name || ''} ${p.block || ''} ${p.lot_number || ''} ${row.property_id}`.toLowerCase().includes(search.toLowerCase().trim())
   }), [data.rows, ready, filter, search])
+  const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE))
+  const currentPage = Math.min(page, pages)
+  const visibleRows = rows.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE)
+  const stats = [
+    ['Dues charges', totals.billed.toLocaleString('en-PH')],
+    ['Total dues billed', peso.format(totals.assessed)],
+    ['Verified credit used', peso.format(totals.verifiedCredit)],
+    ['Verified unpaid portion', peso.format(totals.verifiedUnpaid)],
+    ['Missing credit evidence', totals.unknown.toLocaleString('en-PH')],
+  ]
+  const statusFor = row => row.voided_at ? ['Voided', 'muted'] : row.hasEvidence ? row.fullyCovered ? ['Covered by credit', 'success'] : row.unpaidAdded > 0 ? ['Unpaid portion added', 'warning'] : ['Recorded', 'success'] : ['Historical evidence unavailable', 'muted']
 
-  return <div style={{ padding: '24px', maxWidth: 1250, margin: 'auto' }}>
-    <header style={{ marginBottom: 20 }}>
-      <h1>Monthly Billing Audit</h1>
-      <p>Staff-only, read-only history for Admin, Secretary and Treasurer. Billing is not a cash receipt.</p>
-      <label htmlFor="billing-month">Billing month </label>
-      <input id="billing-month" type="month" value={month} onChange={e => {
-        if (validMonth(e.target.value)) setParams({ month: e.target.value })
-      }} />{' '}
-      <button type="button" onClick={() => setRevision(value => value + 1)}>Refresh audit</button>
+  return <main className="billing-audit-page">
+    <header className="billing-audit-header">
+      <div>
+        <div className="billing-audit-eyebrow">FINANCE / READ-ONLY REPORT</div>
+        <h1>Monthly Billing Audit</h1>
+        <p>Review monthly charges, verified credit deductions and outstanding portions. Billing is not a cash receipt.</p>
+      </div>
+      <div className="billing-audit-header-actions">
+        <label htmlFor="billing-month">Billing month</label>
+        <input id="billing-month" type="month" value={month} onChange={e => { if (validMonth(e.target.value)) setParams({ month: e.target.value }) }} />
+        <button className="billing-audit-refresh" type="button" disabled={data.loading} onClick={() => setRevision(value => value + 1)}>↻ Refresh audit</button>
+      </div>
     </header>
 
-    {data.loading || data.scope !== month ? <p role="status">Loading billing audit…</p> :
-      data.error ? <p role="alert">Billing audit unavailable: {data.error}</p> : <>
-        <section style={{ background: 'var(--surface, #f4f7fa)', borderRadius: 12, padding: 16, marginBottom: 20 }} aria-label="Monthly billing run status">
-          {data.report?.payload?.snapshot_missing ? <p role="alert"><strong>Billing snapshot unavailable.</strong> The system could not verify the complete automatic run. Review individual charges and the billing job before relying on totals.</p>
-            : data.report ? <><h2>{data.report.title}</h2><p>{data.report.body}</p><p>Summary recorded: {new Date(data.report.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} (Manila time).</p></>
-              : <p><strong>No verified completion summary for this month.</strong> Billing may not have run yet, or its notification may have expired. Records below do not by themselves prove the scheduled run completed.</p>}
+    {data.loading || data.scope !== month ? <div className="billing-audit-panel" role="status">Loading billing audit…</div> :
+      data.error ? <div className="billing-audit-notice billing-audit-notice-error" role="alert">Billing audit unavailable: {data.error}</div> : <>
+        <section className="billing-audit-notice" aria-label="Monthly billing run status">
+          {data.report?.payload?.snapshot_missing ? <p role="alert"><strong>Billing snapshot unavailable.</strong> The complete automatic run could not be verified. Review the charges and scheduled job before relying on totals.</p>
+            : data.report ? <><strong>{data.report.title}</strong><p>{data.report.body}</p><small>Summary recorded: {new Date(data.report.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} (Manila time)</small></>
+              : <p><strong>No verified completion summary for this month.</strong> Billing may not have run yet, or the completion notification may have expired. Charges alone do not prove the scheduled run completed.</p>}
         </section>
-        <section aria-label="Billing totals" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-          <div><strong>{totals.billed}</strong><div>Non-voided dues charges</div></div>
-          <div><strong>{peso.format(totals.assessed)}</strong><div>Dues billed (not cash)</div></div>
-          <div><strong>{peso.format(totals.verifiedCredit)}</strong><div>Verified advance credit used</div></div>
-          <div><strong>{peso.format(totals.verifiedUnpaid)}</strong><div>Verified new unpaid portions</div></div>
-          <div><strong>{totals.unknown}</strong><div>Charges without saved credit evidence</div></div>
+        <section className="billing-audit-stats" aria-label="Billing totals">
+          {stats.map(([label, value]) => <div className="billing-audit-stat" key={label}><span>{label}</span><strong>{value}</strong></div>)}
         </section>
-        <p>Verified credit and unpaid figures exclude older charges with no audit evidence; they are not estimated. Credit used here is not an additional payment.</p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-          <label>Filter <select value={filter} onChange={e => setFilter(e.target.value)}>
-            <option value="all">All accounts</option><option value="credit">Credit used</option>
-            <option value="unpaid">New unpaid amount</option><option value="covered">Fully covered by credit</option>
-            <option value="unknown">Audit evidence unavailable</option>
-          </select></label>
-          <label>Search account <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, block, lot or ID" /></label>
-        </div>
-        <p>{rows.length} matching charges</p>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr><th scope="col">Account</th><th scope="col">Classification</th><th scope="col">Dues assessed</th><th scope="col">Credit used</th><th scope="col">New unpaid portion</th><th scope="col">Status</th></tr></thead>
-            <tbody>{rows.map(row => {
-              const p = row.properties || {}
-              return <tr key={row.id} style={{ borderTop: '1px solid #ccd6e0' }}>
-                <td style={{ padding: 10 }}><Link to={`/homeowners/${row.property_id}`}>{p.homeowner_name || `Property ${row.property_id}`}</Link>
-                  <div>Block {p.block || '—'}, Lot {p.lot_number ?? '—'}</div><small>Charge: {row.id}</small></td>
-                <td>{String(p.property_classification || 'unclassified').replaceAll('_', ' ')}</td>
-                <td>{peso.format(Number(row.amount))}</td>
-                <td>{row.creditUsed == null ? 'Not recorded' : peso.format(row.creditUsed)}</td>
-                <td>{row.unpaidAdded == null ? 'Not recorded' : peso.format(row.unpaidAdded)}</td>
-                <td>{row.voided_at ? 'Voided' : row.hasEvidence ? row.fullyCovered ? 'Covered by credit' : row.unpaidAdded > 0 ? 'Unpaid portion added' : 'Recorded' : 'Historical evidence unavailable'}</td>
-              </tr>
-            })}</tbody>
-          </table>
-        </div>
-        {!rows.length && <p>No matching billing charges.</p>}
+        <p className="billing-audit-explainer">Credit and unpaid amounts reflect saved audit evidence only. Historical values are never estimated, and credit used is not additional cash received.</p>
+        <section className="billing-audit-panel" aria-label="Billing charge records">
+          <div className="billing-audit-toolbar">
+            <div><h2>Billing records</h2><p>{rows.length.toLocaleString('en-PH')} matching charges</p></div>
+            <div className="billing-audit-controls">
+              <label htmlFor="billing-filter">Status filter<select id="billing-filter" value={filter} onChange={e => setFilter(e.target.value)}>
+                <option value="all">All accounts</option><option value="credit">Credit used</option><option value="unpaid">New unpaid amount</option><option value="covered">Fully covered by credit</option><option value="unknown">Audit evidence unavailable</option>
+              </select></label>
+              <label htmlFor="billing-search">Search account<input id="billing-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, block, lot or ID" /></label>
+            </div>
+          </div>
+          <div className="billing-audit-table-scroll" role="region" aria-label="Billing records table" tabIndex={0}>
+            <table className="billing-audit-table"><thead><tr><th scope="col">Account</th><th scope="col">Classification</th><th scope="col">Dues assessed</th><th scope="col">Credit used</th><th scope="col">New unpaid</th><th scope="col">Status</th></tr></thead>
+              <tbody>{visibleRows.map(row => {
+                const p = row.properties || {}
+                const [status, type] = statusFor(row)
+                return <tr key={row.id}>
+                  <td><Link className="billing-audit-account" to={`/homeowners/${row.property_id}`}>{p.homeowner_name || `Property ${row.property_id}`}</Link><span className="billing-audit-secondary">Block {p.block || '—'} · Lot {p.lot_number ?? '—'}</span><span className="billing-audit-charge" title={String(row.id)}>Charge #{String(row.id).slice(0, 8)}</span></td>
+                  <td className="billing-audit-classification">{String(p.property_classification || 'unclassified').replaceAll('_', ' ')}</td>
+                  <td className="billing-audit-money">{peso.format(Number(row.amount))}</td>
+                  <td className="billing-audit-money">{row.creditUsed == null ? <span className="billing-audit-unrecorded">Not recorded</span> : peso.format(row.creditUsed)}</td>
+                  <td className="billing-audit-money">{row.unpaidAdded == null ? <span className="billing-audit-unrecorded">Not recorded</span> : peso.format(row.unpaidAdded)}</td>
+                  <td><span className={`billing-audit-status billing-audit-status-${type}`}>{status}</span></td>
+                </tr>
+              })}</tbody>
+            </table>
+            {!rows.length && <p className="billing-audit-empty">No matching billing charges.</p>}
+          </div>
+          {rows.length > 0 && <nav className="billing-audit-pager" aria-label="Billing records pagination">
+            <span>Showing {(currentPage - 1) * PER_PAGE + 1}–{Math.min(currentPage * PER_PAGE, rows.length)} of {rows.length}</span>
+            <div><button type="button" disabled={currentPage === 1} onClick={() => setPage(1)}>First</button><button type="button" disabled={currentPage === 1} onClick={() => setPage(n => Math.max(1, n - 1))}>Previous</button><span>Page {currentPage} of {pages}</span><button type="button" disabled={currentPage === pages} onClick={() => setPage(n => Math.min(pages, n + 1))}>Next</button><button type="button" disabled={currentPage === pages} onClick={() => setPage(pages)}>Last</button></div>
+          </nav>}
+        </section>
       </>}
-  </div>
+  </main>
 }
