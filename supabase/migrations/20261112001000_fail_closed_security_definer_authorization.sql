@@ -62,9 +62,9 @@ ALTER POLICY "Active Admin and Treasurer can read approved expense budgets"
     AND (SELECT public.current_user_role()) IN ('admin', 'treasurer')
   );
 
-ALTER POLICY "Secretary can record service transactions"
+ALTER POLICY "Secretary and Treasurer can record service transactions"
   ON public.service_transactions
   WITH CHECK (
-    (SELECT public.current_user_role()) = 'secretary'
+    (SELECT public.current_user_role()) IN ('secretary', 'treasurer')
     AND recorded_by = (SELECT auth.uid())
   );

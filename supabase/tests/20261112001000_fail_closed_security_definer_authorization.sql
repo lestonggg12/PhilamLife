@@ -132,14 +132,14 @@ BEGIN
   FROM pg_policies
   WHERE schemaname = 'public' AND tablename = 'expense_budgets'
     AND policyname = 'Active Admin and Treasurer can read approved expense budgets';
-  IF v_policy NOT LIKE '%SELECT public.current_user_role()%' THEN
+  IF v_policy NOT LIKE '%SELECT current_user_role()%' THEN
     RAISE EXCEPTION 'expense_budgets policy was not optimized.';
   END IF;
   SELECT coalesce(qual, '') || coalesce(with_check, '') INTO v_policy
   FROM pg_policies
   WHERE schemaname = 'public' AND tablename = 'service_transactions'
-    AND policyname = 'Secretary can record service transactions';
-  IF v_policy NOT LIKE '%SELECT public.current_user_role()%' THEN
+    AND policyname = 'Secretary and Treasurer can record service transactions';
+  IF v_policy NOT LIKE '%SELECT current_user_role()%' THEN
     RAISE EXCEPTION 'service_transactions policy was not optimized.';
   END IF;
   IF (SELECT coalesce(sum(current_balance), 0) FROM public.properties) <> v_balance_before
