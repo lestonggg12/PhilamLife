@@ -575,7 +575,7 @@ useEffect(() => {
     ? monthLabel(selectedLotDues.billing_month.slice(0, 7)) : 'Next bill'
   const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
     : !hasMonthlyDues ? 'Set the lot size and rate to calculate dues.'
-    : selectedLotDues.prepaid ? `${nextBillingLabel} · covered by annual payment`
+    : selectedLotDues.prepaid ? `${nextBillingLabel} · prepaid monthly equivalent (not a new charge)`
       : `${nextBillingLabel} · ${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
 
   // A CCTV credit is a separate non-cash adjustment to a monthly bill.
@@ -1185,7 +1185,7 @@ useEffect(() => {
                   </article>
                   <article>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>Monthly association dues</span>
+                    <span>{selectedLotDues?.prepaid ? 'Covered by annual prepayment' : 'Monthly association dues'}</span>
                     <strong>{monthlyDuesAmount == null ? '—' : cctvReady ? formatDues(cctvDues.net) : 'Checking credits…'}</strong>
                     <small>{monthlyDuesNote}</small>
                     {cctvSchedules.rows?.length > 0 && selectedProperty.property_classification === 'unclassified' && (
@@ -1193,11 +1193,18 @@ useEffect(() => {
                         Annual overdue penalties are paused because this lot is unclassified. An Admin must verify its property classification before penalty assessment.
                       </small>
                     )}
-                    {cctvDues?.credit > 0 && (
+                    {cctvDues && (selectedLotDues?.prepaid || cctvDues.credit > 0) && (
                       <div className="homeowner-cctv-dues-detail" aria-label="Association dues after CCTV electricity compensation">
-                        <div><span>Regular monthly dues</span><b>{formatDues(cctvDues.gross)}</b></div>
-                        <div><span>CCTV electricity compensation</span><b>− {formatDues(cctvDues.credit)}</b></div>
-                        <p>Approved electricity credit for powering subdivision CCTV equipment.</p>
+                        {selectedLotDues?.prepaid && (
+                          <div><span>Current standard dues ({formatLotSize(selectedLotDues.lot_size_sqm)} Ã— {formatRate(selectedLotDues.price_per_sqm)})</span><b>{formatDues(selectedLotDues.monthly_dues)}</b></div>
+                        )}
+                        <div><span>{selectedLotDues?.prepaid ? 'Locked prepaid monthly amount' : 'Regular monthly dues'}</span><b>{formatDues(cctvDues.gross)}</b></div>
+                        {cctvDues.credit > 0 && (
+                          <div><span>CCTV electricity compensation</span><b>âˆ’ {formatDues(cctvDues.credit)}</b></div>
+                        )}
+                        <p>{selectedLotDues?.prepaid
+                          ? 'This monthly equivalent is covered by an annual prepayment, not a new payment due. The prepaid price remains locked for the covered month.'
+                          : 'Approved electricity credit for powering subdivision CCTV equipment.'}</p>
                       </div>
                     )}
                     {monthlyDuesAmount != null && !cctvReady && cctvSchedules.propertyId === selectedPropertyId && cctvSchedules.error && (
