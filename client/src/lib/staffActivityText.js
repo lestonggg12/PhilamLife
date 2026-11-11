@@ -248,6 +248,10 @@ export function staffNotificationCopy(item) {
  } else if(item.kind==='collection_run' && p.snapshot_missing) {
   title='Monthly Billing Needs Review'
   body='The pre-billing snapshot was not available, so the monthly credit and outstanding-balance breakdown cannot be verified. Check the Monthly Billing Audit and scheduled billing logs.'
+ } else if(item.kind==='collection_run' && Number(p.report_version) === 2) {
+  // Preserve the corrected database assessment, credit, and unpaid totals.
+  title=item.title || 'Monthly Billing Applied'
+  body=stripInternal(item.body)
  } else if(item.kind==='collection_run' && p.credit_deducted_formatted) {
   const month=p.collection_date ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',month:'long',year:'numeric'}).format(new Date(`${String(p.collection_date).slice(0,10)}T12:00:00+08:00`)) : 'this month'
   title=`Monthly Billing Applied — ${month}`
