@@ -56,6 +56,7 @@ const EMPTY_FORM = {
   blockName: '',
   lotNumber: '',
   paymentPurpose: '',
+  specificChargeId: '',
   customPaymentPurpose: '',
   coveragePeriod: '',
   previousBalance: '',
@@ -440,6 +441,43 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [paymentSaveNotice, setPaymentSaveNotice] = useState(null)
+  const [specificPenaltyOptions, setSpecificPenaltyOptions] = useState([])
+  const [specificPenaltyError, setSpecificPenaltyError] = useState('')
+  const [specificPenaltyLoading, setSpecificPenaltyLoading] = useState(false)
+
+  // No date manipulation: available penalties come from the same live unpaid-item
+  // view used by the ledger. The database rechecks the target during insertion.
+  useEffect(() => {
+    if (!showForm || !form.propertyId || form.paymentPurpose !== 'Penalty / Late Fee') {
+      setSpecificPenaltyOptions([])
+      setSpecificPenaltyError('')
+      setSpecificPenaltyLoading(false)
+      return undefined
+    }
+    let cancelled = false
+    setSpecificPenaltyLoading(true)
+    setSpecificPenaltyError('')
+    supabase.from('property_balance_items')
+      .select('ref_id,label,unpaid,item_date')
+      .eq('property_id', Number(form.propertyId))
+      .eq('kind', 'penalty')
+      .gt('unpaid', 0)
+      .order('item_date', { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        setSpecificPenaltyOptions(error ? [] : data || [])
+        setSpecificPenaltyError(error ? 'Could not verify unpaid penalties. Refresh before selecting a charge.' : '')
+        setSpecificPenaltyLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [showForm, form.propertyId, form.paymentPurpose, reloadTick])
+
+  useEffect(() => {
+    // When a different homeowner is selected, never retain the former charge ID.
+    setForm((current) => current.specificChargeId
+      ? { ...current, specificChargeId: '' }
+      : current)
+  }, [form.propertyId])
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState(null)
   const [popupNotice, setPopupNotice] = useState('')
@@ -1017,6 +1055,7 @@ function updateField(event) {
   setForm((current) => ({
     ...current,
     [name]: value,
+    ...(name === 'paymentPurpose' ? { specificChargeId: '' } : {}),
     ...(leavingAnnualAdvance
       ? {
           amountPaid: '',
@@ -1449,6 +1488,18 @@ function selectHomeowner(property) {
       setFormError('Amount paid must be greater than zero.')
       return
     }
+    if (form.specificChargeId) {
+      const target = specificPenaltyOptions.find((item) => item.ref_id === form.specificChargeId)
+      if (form.paymentPurpose !== 'Penalty / Late Fee' || !target || specificPenaltyError ||
+          specificPenaltyLoading || manualDiscount.enabled || annualAdvance || changeAmount > 0) {
+        setFormError('Choose an available penalty and pay it without annual discounts, manual discounts or returned change.')
+        return
+      }
+      if (Math.round(paid * 100) > Math.round(Number(target.unpaid) * 100)) {
+        setFormError('The payment exceeds the selected penalty balance. Reload the account and verify the amount.')
+        return
+      }
+    }
     if (annualAdvance) {
   if (!canOfferAnnualDiscount) {
     setFormError(
@@ -1513,6 +1564,9 @@ function selectHomeowner(property) {
   charge_type: PAYMENT_PURPOSES.includes(form.paymentPurpose)
     ? form.paymentPurpose
     : 'Other',
+  specific_charge_id: form.paymentPurpose === 'Penalty / Late Fee' && form.specificChargeId
+    ? form.specificChargeId
+    : null,
   previous_balance: previous,
 
   // amount is the full dues credit; amount_paid is the cash actually received.
@@ -2032,6 +2086,25 @@ function selectHomeowner(property) {
                       <Select ariaLabel="Payment Purpose" value={form.paymentPurpose} onChange={(value) => updateField({ target: { name: 'paymentPurpose', value } })} placeholder="Select payment purpose" options={PAYMENT_PURPOSES.map((purpose) => ({ value: purpose, label: purpose }))} />
                     </div>
                   </div>
+                  {form.paymentPurpose === 'Penalty / Late Fee' && (
+                    <div className="payment-record-field payment-purpose-field">
+                      <label id="specific-penalty-label">Apply payment to a particular penalty (optional)</label>
+                      <div className="payment-purpose-select-wrap" aria-labelledby="specific-penalty-label">
+                        <Select ariaLabel="Penalty allocation target" value={form.specificChargeId}
+                          onChange={(value) => updateField({ target: { name: 'specificChargeId', value } })}
+                          options={[
+                            { value: '', label: 'General balance allocation (oldest dues may be paid first)' },
+                            ...specificPenaltyOptions.map((item) => ({
+                              value: item.ref_id,
+                              label: `${item.label} — ${peso.format(Number(item.unpaid))} outstanding`,
+                            })),
+                          ]} />
+                      </div>
+                      <small>Select a penalty to settle that charge only; otherwise the normal account-wide allocation rules apply.</small>
+                      {specificPenaltyLoading && <small role="status">Loading unpaid penalties…</small>}
+                      {specificPenaltyError && <small role="alert">{specificPenaltyError}</small>}
+                    </div>
+                  )}
                   {form.paymentPurpose === 'Other' && (
                     <label htmlFor="payment-other-purpose">Other payment purpose
                       <input id="payment-other-purpose" name="customPaymentPurpose" value={form.customPaymentPurpose} onChange={updateField} placeholder="Enter the payment purpose" maxLength="80" required />

@@ -18,6 +18,7 @@ const normalize = (kind, value) => {
       property_id: str(value.property_id),
       recorded_by: str(value.recorded_by),
       charge_type: str(value.charge_type || 'Association Dues'),
+      specific_charge_id: str(value.specific_charge_id),
       coverage_period: str(value.coverage_period),
       amount: money(value.amount),
       amount_paid: money(value.amount_paid ?? value.amount),
