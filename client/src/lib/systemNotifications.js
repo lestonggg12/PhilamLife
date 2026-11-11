@@ -7,6 +7,8 @@ export const NOTIFICATION_LINK = '/overdue-accounts'
 export const unreadBadge = (count) => count > 9 ? '9+' : String(count)
 export function notificationLink(link, role) {
   if (link === '/system-settings') return role === 'admin' ? link : '/activity-log'
+  // Accept only a month-scoped read-only audit link from trusted billing alerts.
+  if (/^\/billing-audit\?month=\d{4}-(0[1-9]|1[0-2])$/.test(String(link))) return link
   if ([NOTIFICATION_LINK, '/activity-log', '/expenses'].includes(link) || /^\/homeowners\/[1-9]\d*$/.test(String(link))) return link
   return NOTIFICATION_LINK
 }
