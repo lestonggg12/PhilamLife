@@ -172,7 +172,7 @@ export default function SecretaryDashboard() {
       <section className="sec-stats-grid" aria-label="Secretary summaries">
         <article className="sec-stat-card">
           <div className="sec-stat-top">
-            <span className="sec-stat-label">Total Homeowners</span>
+            <span className="sec-stat-label">Active Property Accounts</span>
             <span className="sec-stat-icon sec-stat-icon-blue">
               <Users size={19} />
             </span>
@@ -180,7 +180,7 @@ export default function SecretaryDashboard() {
           <strong className="sec-stat-value">
             {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : activeProperties.length.toLocaleString('en-PH')}
           </strong>
-          <p className="sec-stat-footer">Active homeowners in the ledger</p>
+          <p className="sec-stat-footer">All active property accounts, including homeowners and lot owners</p>
         </article>
 
         <article className="sec-stat-card">
