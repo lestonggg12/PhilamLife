@@ -242,9 +242,16 @@ export function staffNotificationCopy(item) {
  } else if(item.kind==='ownership_changed') {
   title=/transfer/i.test(item.title || '')?'Property ownership transferred':p.new_status==='moved'?'Homeowner marked as moved out':'Homeowner details changed'
   body=stripInternal(item.body).replace(/ Account:.*$/,'').replace(/Block\s+Block\s+/gi,'Block ')
+ } else if(item.kind==='collection_run' && p.evidence_scope==='charges_only') {
+  title=item.title || 'Monthly dues charges verified'
+  body=stripInternal(item.body)
+ } else if(item.kind==='collection_run' && p.snapshot_missing) {
+  title='Monthly Billing Needs Review'
+  body='The pre-billing snapshot was not available, so the monthly credit and outstanding-balance breakdown cannot be verified. Check the Monthly Billing Audit and scheduled billing logs.'
  } else if(item.kind==='collection_run' && p.credit_deducted_formatted) {
-  title='Monthly dues collection update'
-  body=`Advance credit paid ${p.credit_deducted_formatted} toward monthly dues for ${p.credit_accounts} property accounts: ${p.fully_covered} paid in full by credit and ${p.partly_covered} partly paid. ${p.unpaid_accounts} accounts without advance credit still owe ${p.unpaid_total_formatted}; ${p.overdue_accounts} already appear in Overdue Accounts at reporting time.${p.observed_on && p.collection_date && p.observed_on !== p.collection_date ? ` This delayed report shows unpaid and overdue accounts as of ${staffDate(p.observed_on)}.` : ''}`
+  const month=p.collection_date ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',month:'long',year:'numeric'}).format(new Date(`${String(p.collection_date).slice(0,10)}T12:00:00+08:00`)) : 'this month'
+  title=`Monthly Billing Applied — ${month}`
+  body=`The scheduled monthly dues run was verified for eligible accounts in its pre-billing snapshot. Advance credit covered ${p.credit_deducted_formatted} for ${p.credit_accounts} accounts (${p.fully_covered} fully covered, ${p.partly_covered} partly covered). ${p.unpaid_accounts} accounts without advance credit had ${p.unpaid_total_formatted} outstanding at reporting time; ${p.overdue_accounts} were already overdue.${p.observed_on && p.collection_date && p.observed_on !== p.collection_date ? ` This delayed report reflects balances as of ${staffDate(p.observed_on)}.` : ''} These are dues assessments and credits, not new cash receipts.`
  } else if(item.kind==='penalty_anniversary' && p.total_formatted) {
   title='Yearly late-payment penalties added';body=`The system added ${p.total_formatted} in yearly penalties to ${p.balances} unpaid balances: ${p.homeowners} homeowner balances, ${p.lot_owners} lot-owner balances and ${p.unclassified} not yet classified.${p.caught_up_balances ? ` This includes ${p.caught_up_balances} penalties for earlier anniversaries that the system caught up on.` : ''}`
  }

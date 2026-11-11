@@ -97,7 +97,8 @@ export default function MonthlyBillingAuditPage() {
     {data.loading || data.scope !== month ? <div className="billing-audit-panel" role="status">Loading billing audit…</div> :
       data.error ? <div className="billing-audit-notice billing-audit-notice-error" role="alert">Billing audit unavailable: {data.error}</div> : <>
         <section className="billing-audit-notice" aria-label="Monthly billing run status">
-          {data.report?.payload?.snapshot_missing ? <p role="alert"><strong>Billing snapshot unavailable.</strong> The complete automatic run could not be verified. Review the charges and scheduled job before relying on totals.</p>
+          {data.report?.payload?.evidence_scope === 'charges_only' ? <p><strong>{data.report.title}.</strong> {data.report.body}</p>
+            : data.report?.payload?.snapshot_missing ? <p role="alert"><strong>Billing snapshot unavailable.</strong> The complete automatic run could not be verified. Review the charges and scheduled job before relying on totals.</p>
             : data.report ? <><strong>{data.report.title}</strong><p>{data.report.body}</p><small>Summary recorded: {new Date(data.report.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} (Manila time)</small></>
               : <p><strong>Automatic run not confirmed by this view.</strong> There is no matching completion notification available here. This does not mean billing failed: notifications may be missing, expired, or inaccessible. Review the scheduled job logs for confirmation. The charges below are still recorded assessments.</p>}
         </section>
