@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fetchSystemNotifications, markAllNotificationsRead, markNotificationsRead,
-  isCurrentNotification, notificationLink, popoverPosition, relativeManilaTime, unreadBadge } from './systemNotifications'
+  isCurrentNotification, notificationLink, popoverPosition, relativeManilaTime, unreadBadge, NOTIFICATION_LIMIT } from './systemNotifications'
 function database(responses) {
   const calls=[]
   return {calls,from:vi.fn((table)=>{
@@ -47,7 +47,7 @@ describe('system notification data access',()=>{
   it('loads three rows and counts all unexpired unread notices',async()=>{
     const db=database([{data:[{id:'1',notification_reads:[]},{id:'2',notification_reads:[{notification_id:'2'}]}]},{count:35}])
     expect(await fetchSystemNotifications(db)).toMatchObject({unread:35,items:[{id:'1',read:false},{id:'2',read:true}]})
-    expect(db.calls).toContainEqual(['notifications','limit',3])
+    expect(db.calls).toContainEqual(['notifications','limit',NOTIFICATION_LIMIT])
     expect(db.calls).toContainEqual(['notifications','is','notification_reads',null])
   })
   it('propagates failure instead of presenting unavailable data as empty',async()=>{

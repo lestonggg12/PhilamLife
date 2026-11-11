@@ -1,5 +1,5 @@
 // All amounts and account totals are supplied and formatted by Postgres.
-export const NOTIFICATION_LIMIT = 3
+export const NOTIFICATION_LIMIT = 20
 export function isCurrentNotification(item, now = Date.now()) {
   return !item.expires_at || (Number.isFinite(Date.parse(item.expires_at)) && Date.parse(item.expires_at) > now)
 }

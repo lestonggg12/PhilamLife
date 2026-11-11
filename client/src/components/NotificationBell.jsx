@@ -9,7 +9,7 @@ import { mergeLiveNotification, watchStaffInserts } from '../lib/notificationRea
 import { staffNotificationCopy } from '../lib/staffActivityText'
 import './NotificationBell.css'
 
-const icons = { collection_reminder: CalendarClock, collection_run: Coins, penalty_anniversary: TriangleAlert, transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert }
+const icons = { collection_reminder: CalendarClock, collection_run: Coins, penalty_anniversary: TriangleAlert, transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert, monthly_balance_added: Coins, penalty_collected: Coins }
 
 export default function NotificationBell({ user }) {
   const navigate = useNavigate()
