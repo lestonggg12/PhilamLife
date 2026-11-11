@@ -1,0 +1,8 @@
+.ss-dues-scheduled-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border: 1px solid rgba(120,162,210,.28); border-radius: 11px; background: rgba(120,162,210,.06); }
+.ss-dues-cancel { padding: 6px 9px; border: 1px solid rgba(170,68,68,.25); background: #fff; border-radius: 8px; color: #9a3131; font: inherit; font-size: 12px; cursor: pointer; }
+.ss-dues-cancel:hover:not(:disabled) { border-color: #9a3131; background: #fff5f5; }
+.ss-dues-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ss-dues-actions .ss-primary { width: auto; flex: 1 1 130px; }
+.ss-dues-secondary { min-height: 40px; border: 1px solid rgba(120,162,210,.5); border-radius: 10px; background: white; color: var(--text-dark,#071e30); padding: 9px 13px; font: inherit; cursor: pointer; }
+.ss-dues-now { background: #1464a0; }
+.ss-dues-secondary:disabled,.ss-dues-cancel:disabled { opacity:.55; cursor:not-allowed; }
