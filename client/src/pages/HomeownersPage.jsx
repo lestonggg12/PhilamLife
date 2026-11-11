@@ -49,6 +49,7 @@ import { useListPage, matchesHomeownerSearch, summarizeActiveLots } from '../lib
 import '../components/HomeownerDirectoryPaging.css'
 import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 import AccountActivity from '../components/AccountActivity'
+import MonthlyChargeHistory from '../components/MonthlyChargeHistory'
 import CctvElectricityCompensation from '../components/CctvElectricityCompensation'
 import useManilaMonthRollover, { manilaMonth } from '../hooks/useManilaMonthRollover'
 import { monthLabel } from '../lib/pagedQuery'
@@ -1588,6 +1589,7 @@ useEffect(() => {
                             <div className="homeowner-month-grand-total"><span>Total received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
                             </div>
                           </div>
+                          <MonthlyChargeHistory propertyId={selectedPropertyId} month={`${trackerYear}-${String(expandedTrackerMonth + 1).padStart(2, '0')}`} refreshKey={detailReloadKey} />
                           <AccountActivity propertyId={selectedPropertyId} month={`${trackerYear}-${String(expandedTrackerMonth + 1).padStart(2, '0')}`} refreshKey={detailReloadKey} />
                         </div>
                         <footer className="homeowner-month-dialog-footer">

@@ -4,9 +4,10 @@ import { supabase } from '../lib/supabaseClient'
 import { activityTimestamp, fetchAccountActivity } from '../lib/accountActivity'
 import { watchStaffInserts } from '../lib/notificationRealtime'
 import { staffNotificationCopy } from '../lib/staffActivityText'
+import { financialAuditDetails } from '../lib/financialAuditDetails'
 import './AccountActivity.css'
 
-const icons = { transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, penalty_applied: TriangleAlert, balance_added: Coins }
+const icons = { transaction_voided: Ban, ownership_changed: UserRound, settings_changed: Settings, credit_applied: Coins, monthly_balance_added: Coins, penalty_applied: TriangleAlert, penalty_collected: Coins, balance_added: Coins }
 
 export default function AccountActivity({ propertyId, month, year, refreshKey }) {
   const heading = useId()
@@ -63,6 +64,9 @@ export default function AccountActivity({ propertyId, month, year, refreshKey })
           const copy = staffNotificationCopy(item)
           return <li key={item.id}><span className={`account-activity-icon is-${item.kind}`}><Icon size={17} aria-hidden="true" /></span>
             <div className="account-activity-content"><strong>{copy.title}</strong><p>{copy.body}</p>
+              {financialAuditDetails(item).length > 0 && <details><summary>Recorded financial details and references</summary>
+                <ul>{financialAuditDetails(item).map((detail) => <li key={detail}>{detail}</li>)}</ul>
+              </details>}
               <small><time dateTime={item.occurred_at}>{activityTimestamp(item.occurred_at)}</time> · {item.payload?.actor_name || 'Actor not recorded'}</small>
               {!!item.payload?.related_reversals?.length && <details><summary>Changes included with this cancellation</summary>
                 <ul>{copy.related.map((description, index) => <li key={index}>{description}</li>)}</ul>

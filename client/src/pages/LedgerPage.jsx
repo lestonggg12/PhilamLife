@@ -1,6 +1,7 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
+import AccountActivity from '../components/AccountActivity'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -603,6 +604,7 @@ const actorName =
                 )}
               </table>
             </div>
+            {!statementLoading && !statementError && statementAccount && <AccountActivity propertyId={statementAccount.id} />}
             <div className="ledger-modal-actions"><button type="button" className="ledger-cancel-button" onClick={closeStatement}>Close</button><button type="button" className="ledger-save-button" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating || !ledgerVerified || loading || Boolean(pageError) || !statementAccount.statementTotals?.canExport}>{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div>
           </article>
         </div>
