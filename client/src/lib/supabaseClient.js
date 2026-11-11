@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { createRememberedDevice, REMEMBER_CHANGED_EVENT } from './rememberDevice'
+import { markRecoveryIntent, clearRecoveryIntent } from './recoveryIntent'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -26,4 +27,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
+})
+
+// Watch for Supabase password recovery events before React mounts.
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') markRecoveryIntent(session?.user?.id)
+  if (event === 'SIGNED_OUT') clearRecoveryIntent()
 })

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrganization } from '../context/OrganizationContext';
 import { supabase } from '../lib/supabaseClient';
+import { hasValidRecoveryIntent, clearRecoveryIntent } from '../lib/recoveryIntent';
 import './ForgotPasswordPage.css';
 
 export default function ResetPasswordPage() {
@@ -16,18 +17,20 @@ export default function ResetPasswordPage() {
   const [validSession, setValidSession] = useState(false);
 
   useEffect(() => {
-    // When the user arrives here via the emailed reset link, Supabase's
-    // client library automatically parses the recovery token from the URL
-    // and establishes a temporary "recovery" session. We just need to
-    // confirm that session exists before letting them set a new password.
+    // An ordinary signed-in session is not proof of an emailed recovery link.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setValidSession(Boolean(session));
+      setValidSession(hasValidRecoveryIntent(session?.user?.id));
+      setCheckingSession(false);
+    }).catch(() => {
+      setValidSession(false);
       setCheckingSession(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || session) {
-        setValidSession(true);
+      if (event === 'PASSWORD_RECOVERY') {
+        setValidSession(hasValidRecoveryIntent(session?.user?.id));
+      } else if (event === 'SIGNED_OUT') {
+        setValidSession(false);
       }
     });
 
@@ -44,10 +47,13 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    const minLength = organization.requireStrongPassword ? 8 : 6;
-
-    if (newPassword.length < minLength) {
-      setError(`Password must be at least ${minLength} characters long.`);
+    if (!validSession) {
+      setError('Open a fresh password recovery link to change your password.');
+      return;
+    }
+    const minLength = 12;
+    if (newPassword.length < minLength || newPassword.length > 128) {
+      setError('Password must be between 12 and 128 characters.');
       return;
     }
 
@@ -56,18 +62,10 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    // "Require strong passwords" in Admin > System Settings > Security
-    // controls whether this stricter rule applies. Off just means the
-    // minimum-length check above still applies — never no rule at all.
-    if (organization.requireStrongPassword) {
-      const hasUpperCase = /[A-Z]/.test(newPassword);
-      const hasNumber = /\d/.test(newPassword);
-      const hasSymbol = /[^A-Za-z0-9]/.test(newPassword);
-
-      if (!hasUpperCase || !hasNumber || !hasSymbol) {
-        setError('Password must contain an uppercase letter, a number, and a symbol.');
-        return;
-      }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) ||
+        !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setError('Password must include upper- and lower-case letters, a number, and a symbol.');
+      return;
     }
 
     setLoading(true);
@@ -83,6 +81,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    clearRecoveryIntent();
+    setValidSession(false);
     setMessage('Password reset successfully! Redirecting to login...');
     await supabase.auth.signOut();
     setTimeout(() => {
@@ -127,7 +127,7 @@ export default function ResetPasswordPage() {
                     className="forgot-input"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder={organization.requireStrongPassword ? 'At least 8 characters' : 'At least 6 characters'}
+                    placeholder="12 or more characters"
                     disabled={loading}
                   />
                 </div>
@@ -146,9 +146,7 @@ export default function ResetPasswordPage() {
                 </div>
               </div>
               <p className="forgot-password-requirements">
-                {organization.requireStrongPassword
-                  ? 'Password must contain: an uppercase letter, a number, a symbol, and be at least 8 characters'
-                  : 'Password must be at least 6 characters'}
+                Password must be 12–128 characters and contain upper- and lower-case letters, a number, and a symbol.
               </p>
 
               {error && <div className="forgot-error-message">{error}</div>}

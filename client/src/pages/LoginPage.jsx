@@ -99,6 +99,7 @@ export default function LoginPage({ onAuthenticated }) {
         } else {
           setError('Invalid email or password');
         }
+        sessionStorage.setItem('philam-idle-last-activity', String(Date.now()));
         setLoading(false);
         return;
       }

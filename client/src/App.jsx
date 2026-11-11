@@ -12,6 +12,8 @@ import { watchRememberedDevice } from './lib/rememberDevice'
 import { normalizeRole, normalizeProfileRole } from './lib/profileRole'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import SessionSecurity from './components/SessionSecurity'
+import MfaGate from './components/MfaGate'
 import Skeleton from './components/skeleton/Skeleton'
 import SkeletonRegion from './components/skeleton/SkeletonRegion'
 import { ConfirmProvider } from './components/ConfirmDialog'
@@ -203,12 +205,17 @@ function AppContent() {
   }, [])
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    clearRememberMePreference()
-
-    setIsAuthenticated(false)
-    setUser(null)
-    navigate('/login')
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // Network errors must not leave session tokens on this device.
+    } finally {
+      clearRememberMePreference()
+      try { sessionStorage.removeItem('philam-idle-last-activity') } catch { /* Storage unavailable */ }
+      setIsAuthenticated(false)
+      setUser(null)
+      navigate('/login', { replace: true })
+    }
   }
 
   const accessAuthenticatedPortal = () => {
@@ -300,7 +307,11 @@ function AppContent() {
             <Route
               element={
                 <ProtectedRoute isAuthenticated={isAuthenticated}>
-                  <Layout user={user} onLogout={handleLogout} />
+                  <SessionSecurity onExpired={handleLogout}>
+                    <MfaGate onSignOut={handleLogout}>
+                      <Layout user={user} onLogout={handleLogout} />
+                    </MfaGate>
+                  </SessionSecurity>
                 </ProtectedRoute>
               }
             >
