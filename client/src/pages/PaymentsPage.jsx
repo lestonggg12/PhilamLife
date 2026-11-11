@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
 import { supabase } from '../lib/supabaseClient'
+import ReceiptNoteAmendmentDialog from '../components/ReceiptNoteAmendmentDialog'
 import { fetchAll } from '../lib/fetchAll'
 import { readPropertyBalance } from '../lib/paymentBalanceRefresh'
 import { loadOpenCharges } from '../lib/openChargeSearch'
@@ -312,7 +313,7 @@ function PaymentDateRange({
 }
 
 /* ---------- Payment details pop-up (opens when a row is clicked) ---------- */
-function PaymentDetailDialog({ payment, formatDate, canVoid, onClose, onVoid, onReceipt }) {
+function PaymentDetailDialog({ payment, formatDate, canVoid, onClose, onVoid, onReceipt, onAmend }) {
   const dialogRef = useRef(null)
   const isVoided = payment.status === 'Voided'
   const amount = peso.format(Number(payment.amount_paid ?? payment.amount) || 0)
@@ -350,6 +351,7 @@ function PaymentDetailDialog({ payment, formatDate, canVoid, onClose, onVoid, on
     ['Property', `${payment.block_name} · Lot ${payment.lot_number}`],
     ['Details', payment.coverage_period, true],
     ['Method', payment.payment_method],
+    ['Receipt note', payment.note],
   ]
 
   return (
@@ -397,6 +399,7 @@ function PaymentDetailDialog({ payment, formatDate, canVoid, onClose, onVoid, on
         )}
 
         <div className="payment-detail-actions">
+          {canVoid && !isVoided && <button type="button" className="payments-secondary" onClick={onAmend}>Amend note</button>}
           {canVoid && !isVoided && (
             <button type="button" className="payments-secondary payment-detail-void" onClick={onVoid}>× Void payment</button>
           )}
@@ -506,6 +509,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [voidTarget, setVoidTarget] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailPayment, setDetailPayment] = useState(null)
+  const [noteAmendmentTarget, setNoteAmendmentTarget] = useState(null)
   const [voidReason, setVoidReason] = useState('')
   const [voiding, setVoiding] = useState(false)
   const [voidError, setVoidError] = useState('')
@@ -2438,6 +2442,16 @@ function selectHomeowner(property) {
         </div>
       )}
 
+      {noteAmendmentTarget && (
+        <ReceiptNoteAmendmentDialog
+          payment={noteAmendmentTarget}
+          onClose={() => setNoteAmendmentTarget(null)}
+          onSaved={(note) => {
+            setRows(current => current.map(row => row.id === noteAmendmentTarget.id ? { ...row, note } : row))
+            setNoteAmendmentTarget(null)
+          }}
+        />
+      )}
       {detailPayment && (
         <PaymentDetailDialog
           payment={detailPayment}
@@ -2445,6 +2459,7 @@ function selectHomeowner(property) {
           canVoid={canVoidPayments}
           onClose={() => setDetailPayment(null)}
           onVoid={() => voidFromDetail(detailPayment)}
+          onAmend={() => { setNoteAmendmentTarget(detailPayment); setDetailPayment(null) }}
           onReceipt={() => openReceipt(detailPayment)}
         />
       )}
