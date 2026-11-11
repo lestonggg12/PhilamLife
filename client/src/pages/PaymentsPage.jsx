@@ -193,6 +193,7 @@ function PaymentDateRange({
   const presets = useMemo(() => paymentPresets(todayKey), [todayKey])
   const [cursor, setCursor] = useState(() => monthStart(to > todayKey ? todayKey : to))
   const [draft, setDraft] = useState({ from, to, preset })
+  const [selectRange, setSelectRange] = useState(false)
 
   // Ask the page for just this month's "has payments" dots.
   useEffect(() => {
@@ -205,7 +206,10 @@ function PaymentDateRange({
   const atCurrentMonth = cursor.slice(0, 7) >= todayKey.slice(0, 7)
 
   function pickCell(key) {
-    if (picking) {
+    // A calendar day selects that day immediately. Range selection is opt-in.
+    if (!selectRange) {
+      onApply(key, key, 'custom')
+    } else if (picking) {
       const [start, end] = key < draft.from ? [key, draft.from] : [draft.from, key]
       setDraft({ from: start, to: end, preset: 'custom' })
     } else {
@@ -213,7 +217,9 @@ function PaymentDateRange({
     }
   }
 
-  const summary = picking ? 'Pick an end date' : formatLabel(low, high, draft.preset)
+  const summary = selectRange
+    ? (picking ? 'Pick an end date' : formatLabel(low, high, draft.preset))
+    : 'Click any day to view its receipts'
 
   return (
     <div className="payments-range" role="dialog" aria-label="Choose payment dates">
@@ -270,22 +276,34 @@ function PaymentDateRange({
 
         <div className="payments-range-legend">
           <span><i /> Has payments</span>
-          <span>Click a start date, then an end date</span>
+          <label className="payments-range-mode">
+            <input
+              type="checkbox"
+              checked={selectRange}
+              onChange={(event) => {
+                setSelectRange(event.target.checked)
+                setDraft({ from, to, preset })
+              }}
+            />
+            Select a date range
+          </label>
         </div>
       </div>
 
       <div className="payments-range-foot">
         <span>{summary}</span>
         <div>
-          <button type="button" className="payments-secondary" onClick={onCancel}>Cancel</button>
-          <button
-            type="button"
-            className="payments-primary"
-            disabled={picking}
-            onClick={() => onApply(low, high, 'custom')}
-          >
-            Apply
-          </button>
+          <button type="button" className="payments-secondary" onClick={onCancel}>Close</button>
+          {selectRange && (
+            <button
+              type="button"
+              className="payments-primary"
+              disabled={picking}
+              onClick={() => onApply(low, high, 'custom')}
+            >
+              Apply range
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -468,6 +486,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   })
   const calendar = useAnimatedPopover()
   const calendarAnchorRef = useRef(null)
+  const calendarPanelRef = useRef(null)
 
   const role = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
   const canManagePayments =
@@ -539,8 +558,8 @@ export default function PaymentsPage({ user: suppliedUser }) {
 
     function handleOutsideClick(event) {
       if (
-        calendarAnchorRef.current &&
-        !calendarAnchorRef.current.contains(event.target)
+        !calendarAnchorRef.current?.contains(event.target) &&
+        !calendarPanelRef.current?.contains(event.target)
       ) {
         calendar.hide()
       }
@@ -1818,27 +1837,31 @@ function selectHomeowner(property) {
                 </button>
               )}
 
-              {calendar.mounted && (
-                <div className={`payments-calendar-animation ${calendar.visible ? 'is-visible' : ''}`}>
-                  <PaymentDateRange
-                    from={range.from}
-                    to={range.to}
-                    preset={range.preset}
-                    todayKey={todayKey}
-                    activeDateKeys={activeDateKeys}
-                    onViewMonthChange={loadActiveDays}
-                    onApply={applyDateRange}
-                    onCancel={calendar.hide}
-                    formatLabel={rangeLabel}
-                  />
-                </div>
-              )}
             </div>
           )}
 
           {searching && <span className="payments-date-chip">All dates</span>}
           <span className="payments-result-count">{listLoading ? '…' : countLabel(pageInfo)}</span>
         </div>
+
+        {calendar.mounted && !searching && (
+          <div
+            ref={calendarPanelRef}
+            className={`payments-calendar-animation payments-calendar-in-flow ${calendar.visible ? 'is-visible' : ''}`}
+          >
+            <PaymentDateRange
+              from={range.from}
+              to={range.to}
+              preset={range.preset}
+              todayKey={todayKey}
+              activeDateKeys={activeDateKeys}
+              onViewMonthChange={loadActiveDays}
+              onApply={applyDateRange}
+              onCancel={calendar.hide}
+              formatLabel={rangeLabel}
+            />
+          </div>
+        )}
 
         <table className="payments-table">
           <thead>

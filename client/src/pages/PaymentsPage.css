@@ -523,12 +523,12 @@
   border-bottom: 0;
 }
 
-.payments-page .payments-table th:nth-child(1) { width: 18%; }
-.payments-page .payments-table th:nth-child(2) { width: 22%; }
-.payments-page .payments-table th:nth-child(3) { width: 22%; }
-.payments-page .payments-table th:nth-child(4) { width: 15%; }
-.payments-page .payments-table th:nth-child(5) { width: 10%; }
-.payments-page .payments-table th:nth-child(6) { width: 13%; }
+.payments-page .payments-table th:nth-child(1) { width: 17%; }
+.payments-page .payments-table th:nth-child(2) { width: 19%; }
+.payments-page .payments-table th:nth-child(3) { width: 18%; }
+.payments-page .payments-table th:nth-child(4) { width: 14%; }
+.payments-page .payments-table th:nth-child(5) { width: 16%; }
+.payments-page .payments-table th:nth-child(6) { width: 16%; }
 
 .payments-primary-text,
 .payments-secondary-text,
@@ -2384,18 +2384,40 @@
   .payments-range-presets button { width: auto; }
 }
 
-/* ===== Date range picker: anchor the wider popover to the right edge of the switcher ===== */
-.payments-day-switcher > .payments-calendar-animation {
-  right: 0;
-  left: auto;
+/* ===== Date picker: display below the toolbar, never over payment rows ===== */
+.payments-page .payments-table-card > .payments-calendar-in-flow {
+  position: relative;
+  inset: auto;
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 20px 16px;
+  max-width: calc(100% - 40px);
   transform-origin: top right;
 }
 
+.payments-calendar-in-flow .payments-range {
+  max-width: 100%;
+}
+
+.payments-range-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.payments-range-mode input { cursor: pointer; }
+
 @media (max-width: 640px) {
-  .payments-day-switcher > .payments-calendar-animation {
-    right: auto;
-    left: 0;
+  .payments-page .payments-table-card > .payments-calendar-in-flow {
+    margin: 10px 12px 14px;
+    max-width: calc(100% - 24px);
+    justify-content: center;
   }
+  .payments-range {
+    width: 100%;
+  }
+  .payments-range-foot { flex-wrap: wrap; }
 }
 
 /* ===== Void dialog ===== */
