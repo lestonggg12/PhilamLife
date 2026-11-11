@@ -51,7 +51,7 @@ sum(GREATEST(COALESCE(payments.balance_effect, 0::numeric) - COALESCE(payments.e
   FROM public.property_payment_allocations a
   WHERE a.payment_id = payments.id
     AND a.property_charge_id = payments.specific_charge_id
-)) AS effect$pool$;
+)) AS effect$pool$; 
   v_rewrite_output text := $output$
     (original + CASE WHEN kind IN ('dues','penalty','charge') THEN (
       SELECT COALESCE(sum(a.allocated_amount), 0)
