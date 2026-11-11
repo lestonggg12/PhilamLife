@@ -61,6 +61,7 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const RoleReportsPage = lazy(() => import('./pages/RoleReportsPage'))
 const AnnualReportsPage = lazy(() => import('./pages/AnnualReportsPage'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
+const MonthlyBillingAuditPage = lazy(() => import('./pages/MonthlyBillingAuditPage'))
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'))
 const DocumentLibraryPage = lazy(
   () => import('./pages/DocumentLibraryPage')
@@ -378,6 +379,13 @@ function AppContent() {
               />
 
               {/* Shared management and financial pages */}
+              <Route
+                path="/billing-audit"
+                element={guarded(
+                  ['admin', 'secretary', 'treasurer'],
+                  <MonthlyBillingAuditPage />
+                )}
+              />
               <Route
                 path="/ledger"
                 element={guarded(

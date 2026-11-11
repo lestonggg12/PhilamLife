@@ -95,6 +95,12 @@ export default function Sidebar({
       roles: ['admin', 'treasurer', 'secretary'],
     },
     {
+      name: 'Monthly Billing Audit',
+      path: '/billing-audit',
+      icon: FileText,
+      roles: ['admin', 'secretary', 'treasurer'],
+    },
+    {
       name: 'Amenity Revenue',
       path: '/treasurer/service-revenue',
       icon: Zap,

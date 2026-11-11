@@ -105,7 +105,10 @@ export default function NotificationBell({ user }) {
     try {
       await markNotificationsRead(supabase, user.id, [item.id])
       setOpen(false)
-      navigate(notificationLink(item.link, user.role))
+      const collectionDate = item.kind === 'collection_run' ? item.payload?.collection_date : null
+      const billingMonth = /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(String(collectionDate || ''))
+        ? String(collectionDate).slice(0, 7) : null
+      navigate(billingMonth ? `/billing-audit?month=${billingMonth}` : notificationLink(item.link, user.role))
       await refresh()
     } catch { setError('Could not mark this notification as read. Please retry.') }
     finally { setBusy(false) }
