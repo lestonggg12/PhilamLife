@@ -7,11 +7,12 @@
 .billing-audit-header h1 { margin: 0 0 8px; font-size: clamp(1.45rem, 2.5vw, 2rem); line-height: 1.2; color: var(--text-dark,#274f6b); }
 .billing-audit-header p { margin: 0; max-width: 640px; color: var(--text-muted,#58738a); font-size: 14px; line-height: 1.5; }
 .billing-audit-header-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
-.billing-audit-header-actions label { font-size: 12px; font-weight: 750; align-self: center; }
-.billing-audit-page input, .billing-audit-page select { font: inherit; font-size: 13px; min-height: 42px; padding: 9px 12px; background: rgba(255,255,255,.84); color: var(--text-dark,#244b66); border: 1px solid rgba(108,150,179,.35); border-radius: 11px; max-width: 100%; }
-.billing-audit-page button { font: inherit; font-size: 13px; font-weight: 700; border-radius: 11px; padding: 10px 13px; min-height: 42px; cursor: pointer; color: #195d8d; border: 1px solid rgba(83,145,188,.25); background: rgba(255,255,255,.8); }
-.billing-audit-page button:hover:not(:disabled) { background: #e7f2ff; }
-.billing-audit-page button:disabled { opacity: .43; cursor: not-allowed; }
+.billing-audit-month-field { display: flex; flex-direction: column; gap: 6px; min-width: 162px; }
+.billing-audit-month-field > span { font-size: 12px; font-weight: 750; }
+.billing-audit-page input:not(.tsr-date-hidden), .billing-audit-page select { font: inherit; font-size: 13px; min-height: 42px; padding: 9px 12px; background: rgba(255,255,255,.84); color: var(--text-dark,#244b66); border: 1px solid rgba(108,150,179,.35); border-radius: 11px; max-width: 100%; }
+.billing-audit-page button:not(.tsr-date-trigger) { font: inherit; font-size: 13px; font-weight: 700; border-radius: 11px; padding: 10px 13px; min-height: 42px; cursor: pointer; color: #195d8d; border: 1px solid rgba(83,145,188,.25); background: rgba(255,255,255,.8); }
+.billing-audit-page button:not(.tsr-date-trigger):hover:not(:disabled) { background: #e7f2ff; }
+.billing-audit-page button:not(.tsr-date-trigger):disabled { opacity: .43; cursor: not-allowed; }
 .billing-audit-page :is(button,input,select,a,[tabindex]):focus-visible { outline: 3px solid #2f86c8; outline-offset: 3px; }
 .billing-audit-page .billing-audit-refresh { color: white; background: var(--primary,#186da5); border-color: transparent; }
 .billing-audit-page .billing-audit-refresh:hover:not(:disabled) { background: var(--primary-dark,#0d598d); }
@@ -44,4 +45,4 @@
 .billing-audit-pager > div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }.billing-audit-pager button { min-height: 34px; padding: 7px 10px; }.billing-audit-pager > div > span { margin: 0 5px; white-space: nowrap; }
 @media (max-width: 1100px) { .billing-audit-stats { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media (max-width: 760px) { .billing-audit-page { padding: 14px; }.billing-audit-header { padding: 18px; }.billing-audit-header-actions { width: 100%; }.billing-audit-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }.billing-audit-panel { padding: 12px; }.billing-audit-controls,.billing-audit-controls label { width: 100%; }.billing-audit-controls :is(input,select) { width: 100%; min-width: 0; }.billing-audit-pager { justify-content: center; } }
-@media (max-width: 420px) { .billing-audit-stats { grid-template-columns: 1fr; }.billing-audit-header-actions input { flex: 1 1 150px; }.billing-audit-header-actions button { width: 100%; } }
+@media (max-width: 420px) { .billing-audit-stats { grid-template-columns: 1fr; }.billing-audit-month-field { flex: 1 1 150px; }.billing-audit-header-actions button { width: 100%; } }

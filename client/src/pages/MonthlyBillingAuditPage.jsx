@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { groupMonthlyBillingAudit, summarizeMonthlyBillingAudit } from '../lib/monthlyBillingAudit'
+import DateField from '../components/DateField'
 import './MonthlyBillingAuditPage.css'
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
@@ -78,8 +79,11 @@ export default function MonthlyBillingAuditPage() {
         <p>Review monthly charges, verified credit deductions and outstanding portions. Billing is not a cash receipt.</p>
       </div>
       <div className="billing-audit-header-actions">
-        <label htmlFor="billing-month">Billing month</label>
-        <input id="billing-month" type="month" value={month} onChange={e => { if (validMonth(e.target.value)) setParams({ month: e.target.value }) }} />
+        <div className="billing-audit-month-field">
+          <span>Billing month</span>
+          <DateField monthOnly value={month} onChange={value => { if (validMonth(value)) setParams({ month: value }) }}
+            ariaLabel="Billing month" clearable={false} />
+        </div>
         <button className="billing-audit-refresh" type="button" disabled={data.loading} onClick={() => setRevision(value => value + 1)}>↻ Refresh audit</button>
       </div>
     </header>
