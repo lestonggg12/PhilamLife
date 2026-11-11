@@ -2,6 +2,7 @@ import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import AccountActivity from '../components/AccountActivity'
+import { annotateLedgerStatementEvidence } from '../lib/ledgerAuditAnnotations'
 import './LedgerPage.css'
 import { FileText, TrendingUp, AlertCircle, CreditCard } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -250,6 +251,17 @@ const actorName =
         openingBalanceNote: lotResult.data.opening_balance_note,
         openingBalanceAsOf: lotResult.data.opening_balance_as_of,
       })
+      // Saved audit evidence enriches original rows. It NEVER changes their
+      // amounts, dates, running balances, or verified statement totals.
+      const auditResult = await fetchAll(() => supabase.from('account_activity')
+        .select('id,kind,payload')
+        .eq('property_id', entry.id)
+        .in('kind', ['credit_applied', 'monthly_balance_added', 'penalty_applied', 'penalty_collected']))
+      if (requestId !== statementRequestRef.current) return
+      if (auditResult.error || !Array.isArray(auditResult.data)) {
+        throw new Error(`Financial audit evidence could not be verified: ${auditResult.error?.message || 'Incomplete results.'}`)
+      }
+      const annotatedLines = annotateLedgerStatementEvidence(statement.lines, auditResult.data)
       const closingCorrections = adjustmentResult.data
       const savedBalance = statement.totals.storedBalance
       setStatementAccount(current => current ? {
@@ -260,7 +272,7 @@ const actorName =
         closingAdjustment: closingCorrections.reduce((sum, item) => sum + Number(item.adjustment_amount), 0),
         closingAdjustmentReason: closingCorrections.map(item => readableLedgerText(item.reason)).filter(Boolean).join(' '),
       } : current)
-      setStatementLines(statement.lines)
+      setStatementLines(annotatedLines)
       setStatementLoading(false)
     } catch (failure) {
       if (requestId !== statementRequestRef.current) return
