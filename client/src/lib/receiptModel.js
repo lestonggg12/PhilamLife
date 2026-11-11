@@ -151,10 +151,18 @@ export function buildReceiptModel(kind, row, organization, { advanceNote = '', s
   // Homeowner payment
   const paid = num(row.amount_paid ?? row.amount)
   const previous = num(row.previous_balance)
-  const remaining = num(row.remaining_balance)
   const voided = row.status === 'Voided'
   const manualDiscount = row.manual_discount || null
   const manualDiscountAmount = num(manualDiscount?.discount_amount)
+  // The payment stores a balance snapshot after cash but before the separate
+  // discount adjustment. Some PaymentsPage callers already correct it; only
+  // subtract the discount here if the snapshot is still the intermediate one.
+  const savedRemaining = num(row.remaining_balance)
+  const intermediateCents = Math.round((previous - paid) * 100)
+  const remaining = !voided && manualDiscountAmount > 0 &&
+    Math.round(savedRemaining * 100) === intermediateCents
+      ? Math.round((savedRemaining - manualDiscountAmount) * 100) / 100
+      : savedRemaining
   const manualGross = manualDiscountAmount > 0
     ? num(manualDiscount?.gross_amount) || paid + manualDiscountAmount
     : paid
