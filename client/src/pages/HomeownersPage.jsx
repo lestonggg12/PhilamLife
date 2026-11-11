@@ -567,6 +567,10 @@ useEffect(() => {
   )
 
   const selectedPropertyId = selectedProperty?.id ?? null
+  const [duesBreakdownExpanded, setDuesBreakdownExpanded] = useState(false)
+  const [duesPopoverPosition, setDuesPopoverPosition] = useState(null)
+  const duesInfoRef = useRef(null)
+  const duesPopoverRef = useRef(null)
   const formerAccount = selectedProperty != null && !isActiveHomeowner(selectedProperty)
   const selectedLotDues = duesByProperty.get(Number(selectedPropertyId))
   const hasMonthlyDues = selectedLotDues?.prepaid || hasRecurringDues(selectedLotDues)
@@ -577,6 +581,11 @@ useEffect(() => {
     : !hasMonthlyDues ? 'Set the lot size and rate to calculate dues.'
     : selectedLotDues.prepaid ? `${nextBillingLabel} · prepaid monthly equivalent (not a new charge)`
       : `${nextBillingLabel} · ${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
+
+  useEffect(() => {
+    setDuesBreakdownExpanded(false)
+    setDuesPopoverPosition(null)
+  }, [selectedPropertyId])
 
   // A CCTV credit is a separate non-cash adjustment to a monthly bill.
   // Read approved schedules for this property instead of estimating discounts from payments.
@@ -607,6 +616,52 @@ useEffect(() => {
   const cctvDues = cctvReady && monthlyDuesAmount != null
     ? cctvMonthlyDues(monthlyDuesAmount, selectedLotDues?.billing_month, cctvSchedules.rows)
     : null
+
+  useEffect(() => {
+    if (!duesBreakdownExpanded) return undefined
+    const updatePosition = () => {
+      const anchor = duesInfoRef.current
+      const popover = duesPopoverRef.current
+      if (!anchor || !popover) return
+      const anchorRect = anchor.getBoundingClientRect()
+      const width = Math.min(popover.offsetWidth || 300, window.innerWidth - 24)
+      const height = popover.offsetHeight
+      const spaceBelow = window.innerHeight - anchorRect.bottom - 12
+      const spaceAbove = anchorRect.top - 12
+      const openAbove = spaceBelow < height && spaceAbove > spaceBelow
+      const left = Math.min(Math.max(12, anchorRect.right - width), window.innerWidth - width - 12)
+      const top = openAbove ? anchorRect.top - height - 8 : anchorRect.bottom + 8
+      setDuesPopoverPosition({ left, top: Math.max(12, top) })
+    }
+    const frame = window.requestAnimationFrame(updatePosition)
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [duesBreakdownExpanded])
+
+  useEffect(() => {
+    if (!duesBreakdownExpanded) return undefined
+    const handlePointerDown = (event) => {
+      if (duesInfoRef.current?.contains(event.target) || duesPopoverRef.current?.contains(event.target)) return
+      setDuesBreakdownExpanded(false)
+    }
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setDuesBreakdownExpanded(false)
+        duesInfoRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [duesBreakdownExpanded])
 
   useEffect(() => {
     setHistoryReceipt(null)
@@ -1183,29 +1238,51 @@ useEffect(() => {
                     <strong>{paymentAmount(paidTotals.thisYear)}</strong>
                     <small>{paymentSummaryReady ? `All receipt categories · ${summaryMonth.slice(0, 4)} year to date` : paymentSummaryNote}</small>
                   </article>
-                  <article>
+                  <article className={`homeowner-summary-dues-card${selectedLotDues?.prepaid ? ' is-prepaid' : ''}`}>
                     <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span>{selectedLotDues?.prepaid ? 'Covered by annual prepayment' : 'Monthly association dues'}</span>
+                    <span className="homeowner-summary-heading">
+                      <span>{selectedLotDues?.prepaid ? 'Covered by annual prepayment' : 'Monthly association dues'}</span>
+                      {cctvDues && (selectedLotDues?.prepaid || cctvDues.credit > 0) && (
+                        <button
+                          type="button"
+                          className="homeowner-dues-info"
+                          ref={duesInfoRef}
+                          aria-label={`${duesBreakdownExpanded ? 'Hide' : 'Show'} dues breakdown`}
+                          aria-expanded={duesBreakdownExpanded}
+                          aria-controls={`homeowner-dues-breakdown-${selectedPropertyId}`}
+                          onClick={() => setDuesBreakdownExpanded(value => !value)}
+                        >
+                          <AlertCircle size={16} />
+                        </button>
+                      )}
+                    </span>
                     <strong>{monthlyDuesAmount == null ? '—' : cctvReady ? formatDues(cctvDues.net) : 'Checking credits…'}</strong>
-                    <small>{monthlyDuesNote}</small>
+                    <small>{selectedLotDues?.prepaid ? `${nextBillingLabel} · Prepaid monthly equivalent` : monthlyDuesNote}</small>
                     {cctvSchedules.rows?.length > 0 && selectedProperty.property_classification === 'unclassified' && (
                       <small role="status" style={{ color: '#a15e13', fontWeight: 700 }}>
                         Annual overdue penalties are paused because this lot is unclassified. An Admin must verify its property classification before penalty assessment.
                       </small>
                     )}
-                    {cctvDues && (selectedLotDues?.prepaid || cctvDues.credit > 0) && (
-                      <div className="homeowner-cctv-dues-detail" aria-label="Association dues after CCTV electricity compensation">
+                    {cctvDues && (selectedLotDues?.prepaid || cctvDues.credit > 0) && duesBreakdownExpanded && createPortal(
+                      <div
+                        className="homeowner-cctv-dues-detail homeowner-cctv-dues-popover"
+                        id={`homeowner-dues-breakdown-${selectedPropertyId}`}
+                        aria-label="Association dues after CCTV electricity compensation"
+                        ref={duesPopoverRef}
+                        style={duesPopoverPosition ? { left: duesPopoverPosition.left, top: duesPopoverPosition.top } : { visibility: 'hidden' }}
+                      >
                         {selectedLotDues?.prepaid && (
-                          <div><span>Current standard dues ({formatLotSize(selectedLotDues.lot_size_sqm)} Ã— {formatRate(selectedLotDues.price_per_sqm)})</span><b>{formatDues(selectedLotDues.monthly_dues)}</b></div>
+                          <div><span>Standard dues ({formatLotSize(selectedLotDues.lot_size_sqm)} {'×'} {formatRate(selectedLotDues.price_per_sqm)})</span><b>{formatDues(selectedLotDues.monthly_dues)}</b></div>
                         )}
                         <div><span>{selectedLotDues?.prepaid ? 'Locked prepaid monthly amount' : 'Regular monthly dues'}</span><b>{formatDues(cctvDues.gross)}</b></div>
                         {cctvDues.credit > 0 && (
-                          <div><span>CCTV electricity compensation</span><b>âˆ’ {formatDues(cctvDues.credit)}</b></div>
+                          <div><span>CCTV electricity compensation</span><b>{'−'} {formatDues(cctvDues.credit)}</b></div>
                         )}
                         <p>{selectedLotDues?.prepaid
                           ? 'This monthly equivalent is covered by an annual prepayment, not a new payment due. The prepaid price remains locked for the covered month.'
                           : 'Approved electricity credit for powering subdivision CCTV equipment.'}</p>
-                      </div>
+                      </div>,
+                      document.body,
                     )}
                     {monthlyDuesAmount != null && !cctvReady && cctvSchedules.propertyId === selectedPropertyId && cctvSchedules.error && (
                       <small role="alert">Unable to verify CCTV credits. Refresh this profile before relying on the dues amount.</small>

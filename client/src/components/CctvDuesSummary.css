@@ -8,14 +8,82 @@
   color: #245a43;
 }
 .homeowner-cctv-dues-detail > div {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 5px 12px;
   font-size: 11px;
   line-height: 1.5;
 }
 .homeowner-cctv-dues-detail > div + div { margin-top: 4px; }
-.homeowner-cctv-dues-detail b { font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.homeowner-cctv-dues-detail span { min-width: 0; overflow-wrap: anywhere; }
+.homeowner-cctv-dues-detail b { min-width: max-content; text-align: right; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .homeowner-cctv-dues-detail p { margin: 7px 0 0; font-size: 10px; line-height: 1.45; color: #507a65; }
+.homeowner-cctv-dues-popover {
+  position: fixed;
+  z-index: 1100;
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(70vh, 360px);
+  overflow: auto;
+  margin: 0;
+  box-shadow: 0 14px 28px rgba(15, 63, 106, 0.22);
+}
+
+.homeowner-summary-dues-card.is-prepaid {
+  justify-content: flex-start;
+  padding: 14px;
+}
+.homeowner-summary-dues-card.is-prepaid .homeowner-summary-icon {
+  margin-bottom: 7px;
+}
+.homeowner-summary-dues-card.is-prepaid > strong {
+  margin-top: 4px;
+  font-size: 1.3rem;
+}
+.homeowner-summary-dues-card.is-prepaid > small {
+  line-height: 1.2;
+}
+.homeowner-summary-dues-card.is-prepaid .homeowner-cctv-dues-detail {
+  margin-top: 7px;
+  padding: 8px 9px;
+}
+.homeowner-summary-dues-card.is-prepaid .homeowner-cctv-dues-detail > div {
+  line-height: 1.35;
+}
+.homeowner-summary-dues-card.is-prepaid .homeowner-cctv-dues-detail p {
+  margin-top: 5px;
+  line-height: 1.35;
+}
+
+.homeowner-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+}
+.homeowner-summary-heading > span {
+  min-width: 0;
+}
+.homeowner-dues-info {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  padding: 2px;
+  border: 1px solid #b7d9c8;
+  border-radius: 50%;
+  background: #f0fbf5;
+  color: #26734f;
+  cursor: pointer;
+}
+.homeowner-dues-info:hover {
+  border-color: #71b394;
+  background: #e1f5eb;
+}
+.homeowner-dues-info:focus-visible {
+  outline: 2px solid #26734f;
+  outline-offset: 2px;
+}
