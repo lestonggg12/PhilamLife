@@ -371,3 +371,102 @@
     margin-left: -8px;
   }
 }
+/* Sign-out dialog: scoped to the navbar, shared across staff portals. */
+.navbar-logout-overlay {
+  position: fixed; inset: 0; z-index: 4000;
+  display: grid; place-items: center; padding: 20px;
+  background: linear-gradient(135deg, #12334e70, #193f5e8c);
+  -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+  overscroll-behavior: contain;
+}
+.navbar-logout-dialog, .navbar-logout-dialog * { box-sizing: border-box; }
+.navbar-logout-dialog {
+  position: relative; width: min(430px, 100%); min-width: 0;
+  max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px);
+  overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid #ffffffd9; border-radius: 26px; background: #fff;
+  box-shadow: 0 30px 90px #0b29464d, 0 4px 16px #0b29461f;
+  color: #13344d; font-family: var(--font-body, 'Segoe UI', Arial, sans-serif);
+}
+.navbar-logout-dialog button { font-family: inherit; cursor: pointer; }
+.navbar-logout-dialog button:focus-visible { outline: 3px solid #7cb7e0; outline-offset: 3px; }
+.navbar-logout-close {
+  position: absolute; z-index: 1; top: 15px; right: 15px;
+  display: grid; place-items: center; width: 32px; height: 32px;
+  padding: 0; border: 0; border-radius: 50%; background: transparent; color: #7590a4;
+}
+.navbar-logout-close:hover { background: #eaf3fa; color: #244f6e; }
+.navbar-logout-heading {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 30px 28px 0; text-align: center;
+  background: radial-gradient(ellipse at top, #eaf5ff, transparent 75%);
+}
+.navbar-logout-icon {
+  display: grid; place-items: center; width: 62px; height: 62px; flex: 0 0 62px;
+  border-radius: 20px; background: linear-gradient(145deg, #eff8ff, #dfedfb);
+  border: 1px solid #c7e0f3; color: #1769a6;
+  box-shadow: 0 4px 0 #fff, 0 8px 20px #316b9912;
+}
+.navbar-logout-brand {
+  margin: 0; color: #5b809b; font-size: 10px; line-height: 1.5;
+  font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; overflow-wrap: anywhere;
+}
+.navbar-logout-heading h2 {
+  margin: 7px 0 0; color: #123751; font-family: inherit;
+  font-size: 26px; font-weight: 700; line-height: 1.25; letter-spacing: -.8px;
+}
+.navbar-logout-content { padding: 12px 28px 22px; }
+.navbar-logout-message {
+  max-width: 315px; margin: 0 auto 21px; text-align: center;
+  font-size: 13px; font-weight: 400; line-height: 1.7; color: #658096;
+}
+.navbar-logout-account {
+  display: flex; align-items: center; gap: 11px; padding: 13px 14px;
+  border: 1px solid #deebf4; background: #f7fbfe; border-radius: 14px;
+}
+.navbar-logout-avatar {
+  display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px;
+  border-radius: 12px; background: #e3f0fb; color: #1769a6; font-size: 11px; font-weight: 750;
+}
+.navbar-logout-account-copy { min-width: 0; flex: 1; }
+.navbar-logout-account-copy strong {
+  display: block; font-size: 12px; font-weight: 650; line-height: 1.5; color: #244e6b; overflow-wrap: anywhere;
+}
+.navbar-logout-account-copy > span { display: block; font-size: 11px; color: #7b94a7; line-height: 1.5; margin-top: 3px; }
+.navbar-logout-session {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap;
+  font-size: 10px; color: #328575; background: #e9f5f0;
+  border: 1px solid #dceee6; padding: 5px 7px; border-radius: 6px;
+}
+.navbar-logout-session::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #299a76; }
+.navbar-logout-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 0 28px 26px; }
+.navbar-logout-actions button {
+  display: flex; justify-content: center; align-items: center; gap: 8px;
+  min-width: 0; min-height: 46px; padding: 10px 9px; border: 1px solid #d7e4ee;
+  border-radius: 12px; font-size: 12px; font-weight: 700; line-height: 1.4;
+  box-shadow: none; color: #466b85; background: #fff;
+  transition: background .15s, transform .15s;
+}
+.navbar-logout-actions svg, .navbar-logout-icon svg { display: block; flex-shrink: 0; }
+.navbar-logout-actions button:hover { background: #f3f8fc; }
+.navbar-logout-actions .navbar-logout-confirm { background: #1769a6; border-color: #1769a6; color: #fff; box-shadow: 0 5px 12px #1769a620; }
+.navbar-logout-actions .navbar-logout-confirm:hover { background: #105c94; border-color: #105c94; }
+.navbar-logout-actions button:active:not(:disabled) { transform: translateY(1px); }
+.navbar-logout-dialog button:disabled { cursor: wait; opacity: .65; }
+.navbar-logout-error { margin: 12px 0 0; padding: 10px; border-radius: 9px; background: #fff1ef; color: #a93d32; font-size: 12px; line-height: 1.5; }
+@media (max-width: 520px) {
+  .navbar-logout-overlay { padding: 14px; }
+  .navbar-logout-dialog { border-radius: 24px; max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px); }
+  .navbar-logout-heading { padding: 27px 22px 0; gap: 14px; }
+  .navbar-logout-heading h2 { font-size: 25px; }
+  .navbar-logout-content { padding: 12px 22px 20px; }
+  .navbar-logout-actions { padding: 0 22px 23px; gap: 9px; }
+  .navbar-logout-icon { width: 58px; height: 58px; flex-basis: 58px; }
+}
+@media (max-width: 360px) {
+  .navbar-logout-account { padding: 11px; }
+  .navbar-logout-session { display: none; }
+  .navbar-logout-actions { grid-template-columns: 1fr; }
+  .navbar-logout-actions .navbar-logout-confirm { grid-row: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .navbar-logout-actions button { transition: none; } }
