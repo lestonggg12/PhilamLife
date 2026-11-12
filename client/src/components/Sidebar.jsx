@@ -1,177 +1,178 @@
-
-import React from 'react'
-import { NavLink } from 'react-router-dom'
+import React from "react";
+import { NavLink } from "react-router-dom";
 import {
-  BarChart3,
-  CreditCard,
-  FileText,
-  DollarSign,
-  Home,
+  LayoutDashboard,
+  History,
+  CalendarDays,
+  ContactRound,
+  House,
+  ClockAlert,
+  FolderOpen,
+  BookOpen,
+  ClipboardCheck,
+  HandCoins,
+  ConciergeBell,
+  WalletCards,
+  BanknoteArrowUp,
+  ChartPie,
+  ReceiptText,
+  MessageSquareWarning,
   Settings,
-  Activity,
-  Users,
-  Zap,
-  Calendar,
-  FileArchive,
-  Phone,
-  AlertCircle,
-} from './Icons'
-import { useOrganization } from '../context/OrganizationContext'
-import './Sidebar.css'
+} from "lucide-react";
+import { useOrganization } from "../context/OrganizationContext";
+import "./Sidebar.css";
 
-export default function Sidebar({
-  user,
-  onLogout,
-  open = false,
-  onNavigate,
-}) {
-  const { organization } = useOrganization()
-  const role = user?.role?.trim().toLowerCase()
-  const displayName = user?.full_name?.trim() || user?.email || 'User'
+export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
+  const { organization } = useOrganization();
+  const role = user?.role?.trim().toLowerCase();
+  const displayName = user?.full_name?.trim() || user?.email || "User";
 
   const dashboardPath =
-    role === 'admin'
-      ? '/admin/dashboard'
-      : role === 'treasurer'
-        ? '/treasurer/dashboard'
-        : '/secretary/dashboard'
+    role === "admin"
+      ? "/admin/dashboard"
+      : role === "treasurer"
+        ? "/treasurer/dashboard"
+        : "/secretary/dashboard";
 
   const overviewItems = [
     {
-      name: 'Dashboard',
+      name: "Dashboard",
       path: dashboardPath,
-      icon: BarChart3,
-      roles: ['admin', 'treasurer', 'secretary'],
+      icon: LayoutDashboard,
+      roles: ["admin", "treasurer", "secretary"],
     },
     {
-      name: 'Activity Log',
-      path: '/activity-log',
-      icon: Activity,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Activity Log",
+      path: "/activity-log",
+      icon: History,
+      roles: ["admin", "secretary", "treasurer"],
     },
     {
-      name: 'Event Calendar',
-      path: '/calendar',
-      icon: Calendar,
-      roles: ['admin', 'treasurer', 'secretary'],
+      name: "Event Calendar",
+      path: "/calendar",
+      icon: CalendarDays,
+      roles: ["admin", "treasurer", "secretary"],
     },
     {
-      name: 'Contact Manager',
-      path: '/contacts',
-      icon: Phone,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Contact Manager",
+      path: "/contacts",
+      icon: ContactRound,
+      roles: ["admin", "secretary", "treasurer"],
     },
     {
-      name: 'Homeowners',
-      path: '/homeowners',
-      icon: Users,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Homeowners",
+      path: "/homeowners",
+      icon: House,
+      roles: ["admin", "secretary", "treasurer"],
     },
     {
-      name: 'Overdue Accounts',
-      path: '/overdue-accounts',
-      icon: AlertCircle,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Overdue Accounts",
+      path: "/overdue-accounts",
+      icon: ClockAlert,
+      roles: ["admin", "secretary", "treasurer"],
     },
     {
-      name: 'Grievances',
-      path: '/secretary/grievances',
-      icon: FileText,
-      roles: ['secretary'],
+      name: "Grievances",
+      path: "/secretary/grievances",
+      icon: MessageSquareWarning,
+      roles: ["secretary"],
     },
     {
-      name: 'Document Library',
-      path: '/documents',
-      icon: FileArchive,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Document Library",
+      path: "/documents",
+      icon: FolderOpen,
+      roles: ["admin", "secretary", "treasurer"],
     },
-  ].filter((item) => item.roles.includes(role))
+  ].filter((item) => item.roles.includes(role));
 
   const financeItems = [
     {
-      name: 'Ledger',
-      path: '/ledger',
-      icon: FileText,
-      roles: ['admin', 'treasurer', 'secretary'],
+      name: "Ledger",
+      path: "/ledger",
+      icon: BookOpen,
+      roles: ["admin", "treasurer", "secretary"],
     },
     {
-      name: 'Monthly Billing Audit',
-      path: '/billing-audit',
-      icon: FileText,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Monthly Billing Audit",
+      path: "/billing-audit",
+      icon: ClipboardCheck,
+      roles: ["admin", "secretary", "treasurer"],
     },
     {
-      name: 'Amenity Revenue',
-      path: '/treasurer/service-revenue',
-      icon: Zap,
-      roles: ['treasurer'],
+      name: "Amenity Revenue",
+      path: "/treasurer/service-revenue",
+      icon: HandCoins,
+      roles: ["treasurer"],
     },
     {
-      name: 'Services',
-      path: '/secretary/services',
-      icon: Zap,
-      roles: ['secretary', 'treasurer'],
+      name: "Services",
+      path: "/secretary/services",
+      icon: ConciergeBell,
+      roles: ["secretary", "treasurer"],
     },
     {
-      name: 'Payments',
-      path: '/payments',
-      icon: CreditCard,
-      roles: ['admin', 'treasurer', 'secretary'],
+      name: "Payments",
+      path: "/payments",
+      icon: WalletCards,
+      roles: ["admin", "treasurer", "secretary"],
     },
     {
-      name: 'Expenses',
-      path: '/expenses',
-      icon: DollarSign,
-      roles: ['admin', 'secretary', 'treasurer'],
+      name: "Expenses",
+      path: "/expenses",
+      icon: BanknoteArrowUp,
+      roles: ["admin", "secretary", "treasurer"],
     },
     {
-      name: 'Reports',
-      path: role === 'admin' ? '/reports' : role === 'treasurer' ? '/treasurer/reports' : '/secretary/reports',
-      icon: BarChart3,
-      roles: ['admin', 'treasurer', 'secretary'],
+      name: "Reports",
+      path:
+        role === "admin"
+          ? "/reports"
+          : role === "treasurer"
+            ? "/treasurer/reports"
+            : "/secretary/reports",
+      icon: ChartPie,
+      roles: ["admin", "treasurer", "secretary"],
     },
 
     {
-      name: 'Official Receipts',
-      path: '/secretary/receipts',
-      icon: FileText,
-      roles: ['secretary', 'treasurer'],
+      name: "Official Receipts",
+      path: "/secretary/receipts",
+      icon: ReceiptText,
+      roles: ["secretary", "treasurer"],
     },
-  ].filter((item) => item.roles.includes(role))
+  ].filter((item) => item.roles.includes(role));
 
   const systemItems = [
     {
-      name: 'System Settings',
-      path: '/system-settings',
+      name: "System Settings",
+      path: "/system-settings",
       icon: Settings,
-      roles: ['admin'],
+      roles: ["admin"],
     },
-  ].filter((item) => item.roles.includes(role))
+  ].filter((item) => item.roles.includes(role));
 
   const renderNavItems = (items) =>
     items.map((item) => (
       <NavLink
         key={item.path}
         to={item.path}
-        end={item.path === '/' || item.path.endsWith('/dashboard')}
+        end={item.path === "/" || item.path.endsWith("/dashboard")}
         onClick={onNavigate}
-        className={({ isActive }) =>
-          `nav-item${isActive ? ' active' : ''}`
-        }
+        className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
       >
         <span className="nav-icon">
-          <item.icon size={18} />
+          <item.icon size={20} strokeWidth={1.8} aria-hidden="true" />
         </span>
         <span className="nav-text">{item.name}</span>
       </NavLink>
-    ))
+    ));
 
   return (
-    <aside className={`sidebar${open ? ' open' : ''}`}>
+    <aside className={`sidebar${open ? " open" : ""}`}>
       <div className="sidebar-header">
         <div className="logo">
           <span className="logo-badge">
-            <Home size={18} />
+            <House size={18} strokeWidth={1.8} aria-hidden="true" />
           </span>
 
           <span className="logo-text-group">
@@ -181,7 +182,7 @@ export default function Sidebar({
                 ? `${user.role.charAt(0).toUpperCase()}${user.role
                     .slice(1)
                     .toLowerCase()} Portal`
-                : 'Portal'}
+                : "Portal"}
             </span>
           </span>
         </div>
@@ -190,26 +191,20 @@ export default function Sidebar({
       <nav className="sidebar-nav">
         <div className="nav-section">
           <h3 className="nav-section-title">OVERVIEW</h3>
-          <div className="nav-items">
-            {renderNavItems(overviewItems)}
-          </div>
+          <div className="nav-items">{renderNavItems(overviewItems)}</div>
         </div>
 
         {financeItems.length > 0 && (
           <div className="nav-section">
             <h3 className="nav-section-title">FINANCE</h3>
-            <div className="nav-items">
-              {renderNavItems(financeItems)}
-            </div>
+            <div className="nav-items">{renderNavItems(financeItems)}</div>
           </div>
         )}
 
         {systemItems.length > 0 && (
           <div className="nav-section">
             <h3 className="nav-section-title">SYSTEM</h3>
-            <div className="nav-items">
-              {renderNavItems(systemItems)}
-            </div>
+            <div className="nav-items">{renderNavItems(systemItems)}</div>
           </div>
         )}
       </nav>
@@ -220,16 +215,16 @@ export default function Sidebar({
             {(
               user?.full_name?.trim()?.charAt(0) ||
               user?.email?.charAt(0) ||
-              'U'
+              "U"
             ).toUpperCase()}
           </div>
 
           <div className="user-info">
             <div className="user-name">{displayName}</div>
-            <div className="user-role">{user?.role || 'Admin'}</div>
+            <div className="user-role">{user?.role || "Admin"}</div>
           </div>
         </div>
       </div>
     </aside>
-  )
+  );
 }
