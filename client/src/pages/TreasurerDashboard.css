@@ -1,15 +1,16 @@
 /* ==========================================================================
-   Treasurer Dashboard — Liquid Glass
-   Values copied from ActivityLogPage.css (the client-approved reference),
-   applied the same way as SecretaryDashboard.css: same page wrapper, hero
-   card, panel surface, buttons and type scale. Only existing app tokens
-   (--primary, --success, --warning, --danger, --text-*, --font-*) are used.
-   Every rule is scoped under .treasurer-dashboard so nothing leaks.
+   Treasurer Dashboard — compact layout
+   Header · key figures · stats strip · analytics row · activity + checks.
+   Uses the app's existing tokens (--primary, --success, --danger, ...).
    ========================================================================== */
 
-/* ---------- Page wrapper (= .activity-log-page) ---------- */
-
 .treasurer-dashboard {
+  --td-ink: #0f3f6a;
+  --td-paper: #eef5fc;
+  --td-line: #d4e3ef;
+  --td-teal: #5fb8b4;
+  --td-coral: #dd8f78;
+  --td-warn: #8a5a00;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -22,633 +23,503 @@
   padding-top: 22px;
   color: var(--text-dark);
 }
+.treasurer-dashboard * { box-sizing: border-box; }
 
-.treasurer-dashboard * {
-  box-sizing: border-box;
-}
-
-/* ---------- Shared glass surface (= .activity-header / .activity-day-panel) ---------- */
-
+/* ---------- Surfaces ---------- */
 .treasurer-dashboard .treasurer-hero,
 .treasurer-dashboard .treasurer-stat-card,
+.treasurer-dashboard .td-chip {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.48));
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 18px 40px -22px rgba(15, 63, 106, 0.3);
+}
 .treasurer-dashboard .treasurer-panel {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
-  -webkit-backdrop-filter: blur(22px) saturate(190%);
-  backdrop-filter: blur(22px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
-  position: relative;
-  overflow: hidden;
-  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 16px 36px -24px rgba(15, 63, 106, 0.35);
 }
 
-.treasurer-dashboard .treasurer-hero::before,
-.treasurer-dashboard .treasurer-stat-card::before,
-.treasurer-dashboard .treasurer-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 40%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 100%);
-  pointer-events: none;
-}
-
-.treasurer-dashboard .treasurer-hero > *,
-.treasurer-dashboard .treasurer-stat-card > *,
-.treasurer-dashboard .treasurer-panel > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ---------- Hero (= .activity-header) ---------- */
-
+/* ---------- Header ---------- */
 .treasurer-dashboard .treasurer-hero {
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 26px 30px;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 22px 26px;
   border-radius: 24px;
-  margin: 0;
 }
-
+.treasurer-dashboard .td-hero-main { min-width: 0; }
 .treasurer-dashboard .treasurer-eyebrow {
   display: block;
-  margin: 0 0 6px;
-  color: var(--primary);
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 1.4px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  font-family: var(--font-mono, var(--font-body));
+  color: var(--primary);
 }
-
 .treasurer-dashboard .treasurer-hero h1 {
-  margin: 0 0 6px;
-  color: var(--text-dark);
-  font-size: 32px;
+  margin: 4px 0 0;
   font-family: var(--font-display);
+  font-size: 30px;
   font-weight: 600;
-  letter-spacing: -0.3px;
-  line-height: normal;
+  line-height: 1.1;
+  color: var(--text-dark);
 }
-
-.treasurer-dashboard .treasurer-hero p {
-  margin: 0;
-  color: var(--text-muted);
+.treasurer-dashboard .td-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.treasurer-dashboard .td-month {
+  padding: 6px 14px;
+  border: 1px solid #c5d8e7;
+  border-radius: 999px;
+  background: #fff;
   font-size: 13.5px;
+  font-weight: 700;
 }
+.treasurer-dashboard .td-sep { width: 4px; height: 4px; border-radius: 50%; background: #9fb6c8; }
+.treasurer-dashboard .td-updated { color: var(--text-muted); font-size: 13px; }
+.treasurer-dashboard .td-refresh {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--primary);
+  cursor: pointer;
+}
+.treasurer-dashboard .td-refresh:hover:not(:disabled) { background: rgba(20, 100, 160, 0.1); }
+.treasurer-dashboard .td-refresh:disabled { opacity: 0.6; cursor: default; }
+.treasurer-dashboard .treas-spin-icon { animation: treas-spin-rotate 0.9s linear infinite; }
+@keyframes treas-spin-rotate { to { transform: rotate(360deg); } }
 
-/* ---------- Refresh button (= .refresh-btn) ---------- */
-
-.treasurer-dashboard .treasurer-refresh {
+.treasurer-dashboard .td-hero-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.treasurer-dashboard .td-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 12px;
-  background: var(--primary);
-  color: #fff;
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 700;
-  white-space: nowrap;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #c5d8e7;
+  border-radius: 11px;
+  background: #fff;
+  color: #145a87;
   font-family: var(--font-body);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 12px 24px -12px rgba(20, 100, 160, 0.55);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
 }
-
-.treasurer-dashboard .treasurer-refresh:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px -12px rgba(20, 100, 160, 0.62);
+.treasurer-dashboard .td-btn:hover { background: var(--td-paper); }
+.treasurer-dashboard .td-btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.treasurer-dashboard .td-btn.primary:hover { background: #115487; }
+.treasurer-dashboard .td-menu-wrap { position: relative; }
+.treasurer-dashboard .td-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 260px;
+  padding: 6px;
+  border: 1px solid #c8dbe9;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 22px 44px -16px rgba(15, 63, 106, 0.4);
 }
-
-.treasurer-dashboard .treasurer-refresh:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.treasurer-dashboard .td-menu a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
 }
-
-.treasurer-dashboard .treas-spin-icon {
-  animation: treas-spin-rotate 0.9s linear infinite;
-}
-
-@keyframes treas-spin-rotate {
-  from { transform: rotate(0); }
-  to { transform: rotate(360deg); }
-}
-
-/* ---------- Error banner (= .activity-error) ---------- */
+.treasurer-dashboard .td-menu a:hover,
+.treasurer-dashboard .td-menu a:focus-visible { background: var(--td-paper); }
+.treasurer-dashboard .td-menu strong { display: block; font-size: 14px; font-weight: 600; }
+.treasurer-dashboard .td-menu small { display: block; margin-top: 1px; color: var(--text-muted); font-size: 12.5px; }
 
 .treasurer-dashboard .treasurer-error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
+  gap: 10px;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: rgba(192, 57, 43, 0.08);
-  border: 1px solid rgba(192, 57, 43, 0.25);
-  color: var(--danger);
-  font-size: 0.88rem;
-}
-
-/* ---------- Action links (inner glass tiles) ---------- */
-
-.treasurer-dashboard .treasurer-actions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 0;
-}
-
-.treasurer-dashboard .treasurer-actions a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(192, 57, 43, 0.3);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.5);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  color: var(--text-dark);
-  text-decoration: none;
-  box-shadow: 0 10px 22px -12px rgba(15, 63, 106, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  transition: transform 0.15s ease, background 0.15s ease;
+  background: #fdebe8;
+  color: #a32b1f;
+  font-size: 14px;
 }
 
-.treasurer-dashboard .treasurer-actions a > svg {
-  flex: 0 0 auto;
-  color: var(--primary);
-}
-
-.treasurer-dashboard .treasurer-actions a span {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-
-.treasurer-dashboard .treasurer-actions a strong {
-  overflow: hidden;
-  margin-bottom: 3px;
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.treasurer-dashboard .treasurer-actions a small {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.treasurer-dashboard .treasurer-actions a:hover {
-  background: rgba(255, 255, 255, 0.7);
-  transform: translateY(-1px);
-}
-
-/* ---------- Stat cards ---------- */
-
-.treasurer-dashboard .treasurer-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
-  gap: 14px;
-  margin: 0;
-}
-
+/* ---------- Key figures ---------- */
+.treasurer-dashboard .td-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .treasurer-dashboard .treasurer-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  padding: 20px;
-  border-radius: 24px;
-  transition: transform 0.2s ease;
-  container-type: inline-size;
+  padding: 18px 20px;
+  border-radius: 20px;
 }
-
-.treasurer-dashboard .treasurer-stat-card:hover {
-  transform: translateY(-2px);
-}
-
 .treasurer-dashboard .treasurer-stat-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  color: var(--text-muted);
-}
-
-/* label (= .activity-table th scale) */
-.treasurer-dashboard .treasurer-stat-heading span {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.45px;
-  line-height: 1.4;
-  text-transform: uppercase;
-  font-family: var(--font-mono, var(--font-body));
-}
-
-/* tone = icon color only (no left bar) */
-.treasurer-dashboard .treasurer-stat-heading svg {
-  flex: 0 0 auto;
-  color: var(--tone);
-}
-
-.treasurer-dashboard .treasurer-stat-card > strong {
-  display: block;
-  margin: 14px 0 6px;
-  color: var(--text-dark);
-  font-family: var(--font-display);
-  font-size: clamp(14px, 12.5cqw, 29px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-  white-space: nowrap;
-}
-
-.treasurer-dashboard .treasurer-stat-card > small {
-  display: block;
-  color: var(--text-muted);
-  font-size: 12.8px;
-}
-
-.treasurer-dashboard .tone-green { --tone: var(--success); }
-.treasurer-dashboard .tone-blue { --tone: var(--primary); }
-.treasurer-dashboard .tone-red { --tone: var(--danger); }
-.treasurer-dashboard .tone-navy { --tone: var(--text-dark); }
-
-/* ---------- Content grid + panels (= .activity-day-panel / .activity-day-heading) ---------- */
-
-.treasurer-dashboard .treasurer-content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
-  gap: 18px;
-  margin: 0;
-}
-
-.treasurer-dashboard .treasurer-panel {
-  min-width: 0;
-  padding: 24px 28px 22px;
-  border-radius: 24px;
-}
-
-.treasurer-dashboard .treasurer-panel-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 18px;
-}
-
-/* kicker label above the h2 (= .activity-table th scale, in primary) */
-.treasurer-dashboard .treasurer-kicker {
-  display: block;
-  color: var(--primary);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.45px;
-  text-transform: uppercase;
-  font-family: var(--font-mono, var(--font-body));
-}
-
-.treasurer-dashboard .treasurer-panel-heading h2 {
-  margin: 4px 0 0;
-  color: var(--text-dark);
-  font-size: 22px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-/* total beside "Aging overview" (= .header-date-value) */
-.treasurer-dashboard .treasurer-panel-heading > strong {
-  color: var(--text-dark);
-  font-size: 19px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-/* ---------- Aging overview ---------- */
-
-.treasurer-dashboard .treasurer-aging-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-}
-
-.treasurer-dashboard .treasurer-aging-item {
-  min-width: 0;
-  container-type: inline-size;
-  padding: 12px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 10px 22px -12px rgba(15, 63, 106, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
-
-.treasurer-dashboard .treasurer-aging-item span {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--text-muted);
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
-
-.treasurer-dashboard .treasurer-aging-item strong {
-  display: block;
-  color: var(--text-dark);
-  font-size: clamp(11px, 13cqw, 13px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.treasurer-dashboard .treasurer-aging-item.watch {
-  border-color: rgba(212, 146, 10, 0.28);
-  background: rgba(212, 146, 10, 0.14);
-}
-
-.treasurer-dashboard .treasurer-aging-item.warning {
-  border-color: rgba(212, 146, 10, 0.4);
-  background: rgba(212, 146, 10, 0.22);
-}
-
-.treasurer-dashboard .treasurer-aging-item.danger,
-.treasurer-dashboard .treasurer-aging-item.critical {
-  border-color: rgba(192, 57, 43, 0.25);
-  background: rgba(192, 57, 43, 0.08);
-}
-
-.treasurer-dashboard .treasurer-aging-item.critical strong {
-  color: var(--danger);
-}
-
-.treasurer-dashboard .treasurer-panel-link {
-  display: inline-block;
-  margin-top: 16px;
+.treasurer-dashboard .td-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: #fff;
   color: var(--primary);
+}
+.treasurer-dashboard .treasurer-stat-card > strong {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--td-ink);
+  font-variant-numeric: tabular-nums;
+}
+.treasurer-dashboard .treasurer-stat-card.is-positive > strong { color: var(--success); }
+.treasurer-dashboard .treasurer-stat-card.is-negative > strong { color: var(--danger); }
+.treasurer-dashboard .treasurer-stat-card > small { margin-top: 4px; color: var(--text-muted); font-size: 13px; }
+.treasurer-dashboard .td-meter {
+  display: flex;
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #dde9f3;
+}
+.treasurer-dashboard .td-meter i { display: block; height: 100%; }
+.treasurer-dashboard .td-meter .dues { background: var(--primary); }
+.treasurer-dashboard .td-meter .services { background: var(--td-teal); }
+.treasurer-dashboard .td-meter .expense { background: var(--td-coral); }
+.treasurer-dashboard .td-tag {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: #fdebe8;
+  color: #a32b1f;
   font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- Stats strip ---------- */
+.treasurer-dashboard .td-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.treasurer-dashboard .td-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 16px;
+  border-radius: 16px;
+}
+.treasurer-dashboard .td-chip-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--primary);
+}
+.treasurer-dashboard .td-chip-icon.danger { background: #fdebe8; color: #a32b1f; }
+.treasurer-dashboard .td-chip-icon.teal { background: #dff3f2; color: #237a76; }
+.treasurer-dashboard .td-chip > div > span {
+  display: block;
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.treasurer-dashboard .td-chip > div > strong {
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--td-ink);
+  font-variant-numeric: tabular-nums;
+}
+.treasurer-dashboard .td-chip > small {
+  max-width: 46%;
+  margin-left: auto;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* ---------- Two-column rows ---------- */
+.treasurer-dashboard .td-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.treasurer-dashboard .treasurer-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 20px 24px 0;
+}
+.treasurer-dashboard .treasurer-panel-heading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+.treasurer-dashboard .td-sub { margin: 3px 0 0; color: var(--text-muted); font-size: 13px; }
+.treasurer-dashboard .td-heading-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.treasurer-dashboard .td-panel-body { flex: 1; padding: 18px 24px 24px; }
+.treasurer-dashboard .treasurer-panel-link {
+  color: var(--primary);
+  font-size: 13.5px;
   font-weight: 700;
   text-decoration: none;
 }
+.treasurer-dashboard .treasurer-panel-link:hover { text-decoration: underline; }
+.treasurer-dashboard .treasurer-empty { margin: 0; padding: 26px 24px; text-align: center; color: var(--text-muted); }
 
-.treasurer-dashboard .treasurer-panel-link:hover {
-  text-decoration: underline;
+.treasurer-dashboard .td-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+  background: rgba(238, 245, 252, 0.8);
 }
+.treasurer-dashboard .td-seg button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-light, #2a5470);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.treasurer-dashboard .td-seg button[aria-pressed='true'] { background: var(--primary); color: #fff; }
 
-/* ---------- Finance checks ---------- */
+/* cash flow */
+.treasurer-dashboard .td-bars { display: grid; gap: 14px; }
+.treasurer-dashboard .td-bar-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 7px; font-size: 14px; }
+.treasurer-dashboard .td-bar-top b { font-weight: 600; }
+.treasurer-dashboard .td-bar-top span { font-family: var(--font-display); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.treasurer-dashboard .td-track { display: flex; height: 18px; overflow: hidden; border-radius: 99px; background: #e4eef6; }
+.treasurer-dashboard .td-track i { display: block; height: 100%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.treasurer-dashboard .td-track .dues { background: var(--primary); }
+.treasurer-dashboard .td-track .services { background: var(--td-teal); }
+.treasurer-dashboard .td-track .expense { background: var(--td-coral); }
+.treasurer-dashboard .td-legend-inline { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 6px; color: var(--text-muted); font-size: 12.5px; }
+.treasurer-dashboard .td-dot { display: inline-flex; align-items: center; gap: 6px; }
+.treasurer-dashboard .td-dot::before { content: ''; width: 9px; height: 9px; border-radius: 3px; background: var(--dot, var(--primary)); }
+.treasurer-dashboard .td-dot.dues { --dot: var(--primary); }
+.treasurer-dashboard .td-dot.services { --dot: var(--td-teal); }
+.treasurer-dashboard .td-net {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #e3f0fb, #d3e6f7);
+}
+.treasurer-dashboard .td-net span { color: var(--text-light, #2a5470); font-size: 14px; }
+.treasurer-dashboard .td-net small { display: block; color: var(--text-muted); font-size: 12.5px; }
+.treasurer-dashboard .td-net strong { font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--td-ink); font-variant-numeric: tabular-nums; }
 
-.treasurer-dashboard .treasurer-check-list {
+/* aging */
+.treasurer-dashboard .td-aging-bar { display: flex; height: 26px; gap: 2px; overflow: hidden; border-radius: 99px; background: #e4eef6; }
+.treasurer-dashboard .td-aging-bar i { display: block; height: 100%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.treasurer-dashboard .td-aging-list { margin-top: 18px; }
+.treasurer-dashboard .td-aging-row {
   display: grid;
-  gap: 6px;
+  grid-template-columns: 18px 1fr auto 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid #dceefb;
+  font-size: 14px;
 }
+.treasurer-dashboard .td-aging-row:last-child { border-bottom: 0; }
+.treasurer-dashboard .td-aging-row i { width: 12px; height: 12px; border-radius: 4px; }
+.treasurer-dashboard .td-aging-row b { font-family: var(--font-display); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.treasurer-dashboard .td-aging-row em { font-style: normal; text-align: right; color: var(--text-muted); font-size: 13px; }
+.treasurer-dashboard i.current { background: #c9d8e4; }
+.treasurer-dashboard i.watch { background: #e8c86a; }
+.treasurer-dashboard i.warning { background: #e0a23a; }
+.treasurer-dashboard i.danger { background: #d9826b; }
+.treasurer-dashboard i.critical { background: var(--danger); }
+.treasurer-dashboard .td-aging-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; color: var(--text-muted); font-size: 13px; }
+.treasurer-dashboard .td-aging-foot b { color: var(--td-ink); }
 
-.treasurer-dashboard .treasurer-check-list > div {
+/* Collection mix: labels stay inside; currency total stays below the ring. */
+.treasurer-dashboard .td-donut-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-width: 0;
+}
+.treasurer-dashboard .td-donut {
+  position: relative;
+  flex: none;
+  width: min(180px, 100%);
+  aspect-ratio: 1;
+}
+.treasurer-dashboard .td-donut svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.treasurer-dashboard .td-donut circle { fill: none; stroke-width: 20; }
+.treasurer-dashboard .td-donut .track { stroke: #e4eef6; }
+.treasurer-dashboard .td-donut .dues { stroke: var(--primary); }
+.treasurer-dashboard .td-donut .services { stroke: var(--td-teal); }
+.treasurer-dashboard .td-donut-mid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 36px;
+  text-align: center;
+  pointer-events: none;
+}
+.treasurer-dashboard .td-donut-mid small {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.treasurer-dashboard .td-donut-total {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+.treasurer-dashboard .td-donut-total small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.treasurer-dashboard .td-donut-total strong {
+  display: block;
+  color: var(--td-ink);
+  font: 600 clamp(22px, 2vw, 28px)/1.25 var(--font-display, Georgia, serif);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.treasurer-dashboard .td-legend { display: grid; gap: 12px; width: 100%; }
+.treasurer-dashboard .td-legend > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.treasurer-dashboard .td-legend b { font-variant-numeric: tabular-nums; }
+
+/* activity */
+.treasurer-dashboard .treasurer-activity-list { padding: 14px 24px 22px; }
+.treasurer-dashboard .treasurer-activity-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 4px;
+  border-bottom: 1px solid #dceefb;
+}
+.treasurer-dashboard .treasurer-activity-row:last-child { border-bottom: 0; }
+.treasurer-dashboard .activity-direction { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; font-weight: 700; }
+.treasurer-dashboard .activity-direction.in { background: #e3f4ec; color: var(--success); }
+.treasurer-dashboard .activity-direction.out { background: #fdebe8; color: var(--danger); }
+.treasurer-dashboard .treasurer-activity-row strong { display: block; font-size: 14.5px; }
+.treasurer-dashboard .treasurer-activity-row small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.treasurer-dashboard .treasurer-activity-row > b { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--success); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.treasurer-dashboard .treasurer-activity-row > b.expense { color: var(--danger); }
+
+/* needs attention */
+.treasurer-dashboard .td-checks { display: grid; flex: 1; align-content: start; gap: 10px; padding: 18px 20px 22px; }
+.treasurer-dashboard .td-check {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px;
-  border-radius: 12px;
-  transition: background 0.2s ease;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d9e6f0;
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
 }
-
-.treasurer-dashboard .treasurer-check-list > div:hover {
-  background: rgba(255, 255, 255, 0.5);
-}
-
-/* chips (= .status-badge tints) */
-.treasurer-dashboard .check-icon {
-  display: grid;
-  width: 31px;
-  height: 31px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
-}
-
-.treasurer-dashboard .check-icon.warning { background: rgba(212, 146, 10, 0.18); color: #805e00; }
-.treasurer-dashboard .check-icon.blue { background: rgba(20, 100, 160, 0.16); color: var(--primary); }
-.treasurer-dashboard .check-icon.green { background: rgba(26, 138, 96, 0.16); color: var(--success); }
-.treasurer-dashboard .check-icon.navy { background: rgba(120, 162, 210, 0.16); color: var(--text-dark); }
-
-.treasurer-dashboard .treasurer-check-list p {
-  min-width: 0;
-  margin: 0;
-}
-
-.treasurer-dashboard .treasurer-check-list strong,
-.treasurer-dashboard .treasurer-check-list small {
-  display: block;
-}
-
-.treasurer-dashboard .treasurer-check-list strong {
-  color: var(--text-dark);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.treasurer-dashboard .treasurer-check-list small {
-  margin-top: 3px;
-  color: var(--text-muted);
-  font-size: 12.8px;
-}
-
-/* ---------- Recent cash activity ---------- */
-
-.treasurer-dashboard .activity-panel {
-  grid-column: 1 / -1;
-}
-
-.treasurer-dashboard .treasurer-activity-list {
-  display: grid;
-}
-
-.treasurer-dashboard .treasurer-activity-row {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 4px;
-  border-bottom: 1px solid rgba(120, 162, 210, 0.14);
-  transition: background 0.2s ease;
-}
-
-.treasurer-dashboard .treasurer-activity-row:hover {
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.treasurer-dashboard .treasurer-activity-row:last-child {
-  border-bottom: 0;
-}
-
-.treasurer-dashboard .activity-direction {
-  display: grid;
-  width: 29px;
-  height: 29px;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(26, 138, 96, 0.16);
-  color: var(--success);
-  font-size: 14px;
-  font-weight: 800;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
-}
-
-.treasurer-dashboard .activity-direction.out {
-  background: rgba(192, 57, 43, 0.08);
-  border: 1px solid rgba(192, 57, 43, 0.25);
-  color: var(--danger);
-}
-
-.treasurer-dashboard .treasurer-activity-row div {
-  min-width: 0;
-}
-
-.treasurer-dashboard .treasurer-activity-row div strong,
-.treasurer-dashboard .treasurer-activity-row div small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.treasurer-dashboard .treasurer-activity-row div strong {
-  color: var(--text-dark);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.treasurer-dashboard .treasurer-activity-row div small {
-  margin-top: 3px;
-  color: var(--text-muted);
-  font-size: 12.8px;
-}
-
-.treasurer-dashboard .treasurer-activity-row > b {
-  color: var(--success);
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.treasurer-dashboard .treasurer-activity-row > b.expense {
-  color: var(--danger);
-}
-
-/* empty / loading (= .no-activities p) */
-.treasurer-dashboard .treasurer-empty {
-  margin: 0;
-  padding: 24px;
-  color: var(--text-muted);
-  font-size: 12.8px;
-  text-align: center;
-}
-
-/* Recent cash activity: two columns on wide screens (newest first, reading
-   down the left column, then the right: 4 rows + 3 rows for 7 entries). */
-@media (min-width: 1100px) {
-  .treasurer-dashboard .treasurer-activity-list {
-    grid-auto-flow: column;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(4, auto);
-    column-gap: 32px;
-  }
-
-  .treasurer-dashboard .treasurer-activity-row:nth-child(4) {
-    border-bottom: 0;
-  }
-}
+.treasurer-dashboard a.td-check { transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s; }
+.treasurer-dashboard a.td-check:hover { transform: translateY(-1px); border-color: #b8d0e3; box-shadow: 0 10px 20px -16px rgba(15, 63, 106, 0.5); }
+.treasurer-dashboard .td-check-badge { display: grid; place-items: center; flex: none; min-width: 38px; height: 38px; padding: 0 6px; border-radius: 12px; font-size: 15px; font-weight: 700; }
+.treasurer-dashboard .td-check.hi .td-check-badge { background: #fdebe8; color: #a32b1f; }
+.treasurer-dashboard .td-check.md .td-check-badge { background: #fbf0d6; color: var(--td-warn); }
+.treasurer-dashboard .td-check.ok .td-check-badge { background: #e3f4ec; color: var(--success); }
+.treasurer-dashboard .td-check.lo .td-check-badge { background: #dceefb; color: var(--td-ink); }
+.treasurer-dashboard .td-check-text strong { display: block; font-size: 14px; }
+.treasurer-dashboard .td-check-text small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 12.5px; line-height: 1.35; }
+.treasurer-dashboard .td-check-go { margin-left: auto; flex: none; color: var(--text-muted); }
+.treasurer-dashboard .td-period { margin: 2px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--td-paper); color: var(--text-light, #2a5470); font-size: 12.5px; line-height: 1.45; }
 
 /* ---------- Responsive ---------- */
-
-@media (max-width: 1050px) {
-  .treasurer-dashboard .treasurer-actions,
-  .treasurer-dashboard .treasurer-stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .treasurer-dashboard .treasurer-content-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .treasurer-dashboard .activity-panel {
-    grid-column: auto;
-  }
+@media (max-width: 1100px) {
+  .treasurer-dashboard .td-row { grid-template-columns: 1fr; }
+  .treasurer-dashboard .td-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .treasurer-dashboard .td-strip { grid-template-columns: 1fr; }
 }
-
-@media (max-width: 720px) {
-  .treasurer-dashboard .treasurer-hero {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .treasurer-dashboard .treasurer-actions,
-  .treasurer-dashboard .treasurer-stat-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .treasurer-dashboard .treasurer-aging-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .treasurer-dashboard .treasurer-aging-item.current {
-    grid-column: 1 / -1;
-  }
-
-  .treasurer-dashboard .treasurer-activity-row {
-    grid-template-columns: 29px minmax(0, 1fr);
-  }
-
-  .treasurer-dashboard .treasurer-activity-row > b {
-    grid-column: 2;
-  }
-
-  .treasurer-dashboard .treasurer-panel {
-    padding: 18px 16px;
-  }
+@media (max-width: 640px) {
+  .treasurer-dashboard .td-kpis { grid-template-columns: 1fr; }
+  .treasurer-dashboard .treasurer-hero { padding: 18px 16px; }
+  .treasurer-dashboard .treasurer-hero h1 { font-size: 26px; }
+  .treasurer-dashboard .td-hero-actions { width: 100%; }
+  .treasurer-dashboard .td-hero-actions > .td-btn.primary { flex: 1 1 100%; }
+  .treasurer-dashboard .td-hero-actions > .td-btn,
+  .treasurer-dashboard .td-menu-wrap { flex: 1; }
+  .treasurer-dashboard .td-menu-wrap .td-btn { width: 100%; }
+  .treasurer-dashboard .td-menu { left: 0; right: auto; width: 100%; }
+  .treasurer-dashboard .treasurer-panel-heading { padding: 16px 16px 0; }
+  .treasurer-dashboard .td-panel-body { padding: 16px; }
+  .treasurer-dashboard .treasurer-activity-list { padding: 10px 16px 18px; }
+  .treasurer-dashboard .td-aging-row { grid-template-columns: 14px 1fr auto; }
+  .treasurer-dashboard .td-aging-row em { display: none; }
+  .treasurer-dashboard .td-chip > small { max-width: 50%; }
 }
-
-/* Hero stacking (= .activity-header at 600px) */
-@media (max-width: 600px) {
-  .treasurer-dashboard .treasurer-hero {
-    align-items: stretch;
-    flex-direction: column;
-    padding: 20px;
-  }
-
-  .treasurer-dashboard .treasurer-refresh {
-    flex: 1;
-    justify-content: center;
-    width: 100%;
-  }
-
-  .treasurer-dashboard .treasurer-panel-heading {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 8px;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .treasurer-dashboard * { transition: none !important; animation: none !important; }
 }
-
-/* Match the Admin and Secretary portal header/stat dimensions. */
-.treasurer-dashboard .treasurer-hero,
-.treasurer-dashboard .treasurer-stat-card {
-  border-radius: 22px;
-}
-
-.treasurer-dashboard .treasurer-hero { min-height: 124px; padding: 24px 28px; }
-.treasurer-dashboard .treasurer-hero h1 { font-size: 30px; line-height: 1.15; }
-.treasurer-dashboard .treasurer-eyebrow { font-size: 11px; }
-.treasurer-dashboard .treasurer-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
-.treasurer-dashboard .treasurer-stat-card { min-height: 124px; padding: 16px 18px; container-type: normal; }
-.treasurer-dashboard .treasurer-stat-heading svg { width: 40px; height: 40px; padding: 10px; border: 1px solid rgba(255,255,255,.7); border-radius: 11px; background: rgba(255,255,255,.5); box-shadow: inset 0 1px 1px rgba(255,255,255,.9), 0 4px 10px -4px rgba(15,63,106,.25); }
-.treasurer-dashboard .treasurer-stat-card > strong { margin-top: 10px; margin-bottom: 0; font-size: 28px; font-weight: 600; }
-.treasurer-dashboard .treasurer-stat-card > small { margin-top: 6px; font-size: 13px; line-height: 1.4; }
