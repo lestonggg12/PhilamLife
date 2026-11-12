@@ -20,6 +20,27 @@ function Field({ label, wide = false, required = false, children }) {
   )
 }
 
+function DetailCard({ rows, children }) {
+  return (
+    <div className="gc-detail-card">
+      {children}
+      <dl className="gc-detail-list">
+        {rows.map(([label, value, optional = false]) => {
+          const isMissing = optional && !String(value ?? '').trim()
+          return (
+            <div className="gc-detail-row" key={label}>
+              <dt>{label}</dt>
+              <dd className={isMissing ? 'gc-not-provided' : undefined}>
+                {isMissing ? 'Not provided' : value}
+              </dd>
+            </div>
+          )
+        })}
+      </dl>
+    </div>
+  )
+}
+
 function formatManilaDate(value) {
   const date = new Date(value || Date.now())
   return new Intl.DateTimeFormat('en-PH', {
@@ -34,13 +55,31 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedCase, setSavedCase] = useState(null)
+  const [copyLabel, setCopyLabel] = useState('Copy')
   const pendingId = useRef(null)
   const savingRef = useRef(false)
   const successRef = useRef(null)
+  const copyTimerRef = useRef(null)
 
   useEffect(() => {
     if (stage === 'success') successRef.current?.focus()
   }, [stage])
+
+  useEffect(() => () => window.clearTimeout(copyTimerRef.current), [])
+
+  async function copyReference() {
+    if (!savedCase?.reference) return
+    try {
+      await navigator.clipboard.writeText(savedCase.reference)
+      setCopyLabel('Copied')
+      window.clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = window.setTimeout(() => setCopyLabel('Copy'), 1800)
+    } catch {
+      setCopyLabel('Copy failed')
+      window.clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = window.setTimeout(() => setCopyLabel('Copy'), 1800)
+    }
+  }
 
   function update(field, value) {
     setDraft(current => ({ ...current, [field]: value }))
@@ -96,6 +135,7 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
     setNote('')
     setError('')
     setSavedCase(null)
+    setCopyLabel('Copy')
     pendingId.current = null
     setStage('form')
   }
@@ -104,45 +144,66 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
     <div className="gc-modal-content">
       <header className="gc-header">
         <div className="gc-header-copy">
-          <h2 id="gc-title">{stage === 'success' ? 'Grievance recorded' :
+          <h2 id="gc-title">{stage === 'success' ? 'Case recorded' :
             stage === 'review' ? 'Review grievance' : 'Record a grievance'}</h2>
-          <p>{stage === 'success' ? 'Your shared record is confirmed.' :
-            stage === 'review' ? 'Check these details before saving.' :
+          {stage !== 'success' && (
+            <p>{stage === 'review' ? 'Check these details before saving.' :
               'Complete the details below. Required fields are marked *.'}</p>
+          )}
         </div>
-        <button type="button" className="gc-icon-close" aria-label="Close grievance form"
+        <button type="button" className="gc-icon-close" aria-label="Close"
           onClick={onClose} disabled={saving}>×</button>
       </header>
 
       <div className="gc-body">
         {stage === 'success' ? (
-          <section ref={successRef} className="gc-success" role="status" aria-live="polite" tabIndex={-1}>
+          <section className="gc-success" role="status" aria-live="polite">
             <span className="gc-success-icon" aria-hidden="true">✓</span>
-            <h3>Grievance recorded</h3>
+            <h3 ref={successRef} tabIndex={-1}>Grievance recorded</h3>
             <p>The case has been saved to the shared database and is now visible to the committee.</p>
-            <dl className="gc-summary">
-              <dt>Reference ID</dt><dd>{savedCase?.reference}</dd>
-              <dt>Title</dt><dd>{savedCase?.title}</dd>
-              <dt>Category</dt><dd>{savedCase?.category}</dd>
-              <dt>Person filing</dt><dd>{savedCase?.filedBy}</dd>
-              <dt>Date saved (Manila)</dt><dd>{savedCase?.dateSaved}</dd>
-            </dl>
+            <DetailCard rows={[
+              ['Title', savedCase?.title],
+              ['Category', savedCase?.category],
+              ['Person filing', savedCase?.filedBy],
+              ['Date saved (Manila)', savedCase?.dateSaved],
+            ]}>
+              <div className="gc-reference-row">
+                <span className="gc-reference-label">Reference ID</span>
+                <div className="gc-reference-actions">
+                  <span className="gc-reference-badge">{savedCase?.reference}</span>
+                  <button type="button" className="gc-copy-button" onClick={copyReference}
+                    aria-label={copyLabel === 'Copied' ? 'Reference ID copied' : 'Copy reference ID'}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="8" y="8" width="12" height="12" rx="2" />
+                      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                    </svg>
+                    {copyLabel}
+                  </button>
+                </div>
+              </div>
+            </DetailCard>
           </section>
         ) : stage === 'review' ? (
           <section aria-label="Review grievance before saving">
-            <p className="gc-review-intro">Nothing has been saved yet. Please confirm the details below.</p>
-            <dl className="gc-summary">
-              <dt>Title</dt><dd>{draft.title}</dd>
-              <dt>Category</dt><dd>{draft.category}</dd>
-              <dt>Person filing</dt><dd>{draft.filedBy}</dd>
-              <dt>Person concerned</dt><dd>{draft.concerns}</dd>
-              <dt>Location</dt><dd>{draft.location}</dd>
-              <dt>Description</dt><dd>{draft.description}</dd>
-              <dt>Requested action</dt><dd>{draft.requestedAction || '—'}</dd>
-              <dt>Filing note</dt><dd>{note}</dd>
-            </dl>
-          </section>
-        ) : (
+            <div className="gc-review-notice" role="note">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+              </svg>
+              <span>Nothing has been saved yet. Confirm to submit this case.</span>
+            </div>
+            <DetailCard rows={[
+              ['Title', draft.title],
+              ['Category', draft.category],
+              ['Person filing', draft.filedBy],
+              ['Person concerned', draft.concerns],
+              ['Location', draft.location],
+              ['Description', draft.description],
+              ['Requested action', draft.requestedAction, true],
+              ['Filing note', note],
+            ]} />
+          </section>        ) : (
           <form id="gc-entry-form" className="gc-form" onSubmit={review}>
             <div className="gc-grid">
               <Field label="Complaint title" required><input required maxLength={160}

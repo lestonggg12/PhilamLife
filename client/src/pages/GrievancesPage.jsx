@@ -394,4 +394,105 @@ const styles = `
 @media(max-width:900px){.gc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:639px){.gc-grid{grid-template-columns:minmax(0,1fr)}.gc-header,.gc-footer{padding:12px 14px}.gc-body{padding:14px}.gc-header h2{font-size:19px}.gc-footer{flex-wrap:wrap}.gc-footer .gc-button{flex:1 1 120px}.gc-summary{grid-template-columns:1fr;gap:4px}.gc-summary dd{margin-bottom:10px}}
 
+
+/* Secretary cloud grievance modal: consistent review and recorded steps. */
+.gc-modal-content { height: min(640px, 90dvh); }
+.gc-icon-close {
+  border: 0;
+  background: transparent;
+  color: #62788d;
+  border-radius: 10px;
+  font-size: 27px;
+}
+.gc-icon-close:hover:not(:disabled) { background: #e9f1f9; color: #304c65; }
+.gc-review-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #bfd8ec;
+  border-radius: 12px;
+  background: #eaf4fd;
+  color: #315c7b;
+  line-height: 1.5;
+  font-size: 13px;
+}
+.gc-review-notice svg { flex: 0 0 18px; margin-top: 1px; color: #1464a0; }
+.gc-detail-card {
+  overflow: hidden;
+  border: 1px solid #d0e4f0;
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+}
+.gc-detail-list { margin: 0; }
+.gc-detail-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 14px 18px;
+}
+.gc-detail-row + .gc-detail-row { border-top: 1px solid #e4edf5; }
+.gc-detail-row dt { color: #607b90; font-size: 13px; font-weight: 500; line-height: 1.55; }
+.gc-detail-row dd {
+  min-width: 0;
+  margin: 0;
+  color: #0f2a43;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.gc-detail-row dd.gc-not-provided { color: #8195a5; font-weight: 400; font-style: italic; }
+.gc-success-icon { width: 64px; height: 64px; }
+.gc-success h3 { margin: 14px 0 8px; }
+.gc-success h3:focus-visible { outline: 2px solid #1464a0; outline-offset: 4px; border-radius: 4px; }
+.gc-success .gc-detail-card { margin-top: 24px; }
+.gc-reference-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: #f6fbff;
+  border-bottom: 1px solid #d0e4f0;
+}
+.gc-reference-label { color: #607b90; font-size: 13px; font-weight: 500; }
+.gc-reference-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.gc-reference-badge {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 9px;
+  background: #e4f1fd;
+  color: #1464a0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.gc-copy-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #c8d9e9;
+  border-radius: 9px;
+  background: #fff;
+  color: #1464a0;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.gc-copy-button:focus-visible { outline: 3px solid #1464a055; outline-offset: 2px; }
+.gc-copy-button:hover { background: #eef6fd; }
+@media (max-width: 639px) {
+  .gc-detail-row { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 14px; }
+  .gc-reference-row { padding: 14px; }
+}
 `.replace(/^\+/gm, '')
