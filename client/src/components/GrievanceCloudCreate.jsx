@@ -5,6 +5,7 @@ import {
   buildNewGrievanceDetails,
 } from '../lib/grievanceCloud';
 import DateField, { todayKey } from './DateField';
+import './GrievanceCloudCreate.css';
 
 const CATEGORIES = [
   'Noise',
@@ -43,9 +44,10 @@ function Field({ label, wide = false, required = false, children }) {
   );
 }
 
-function DetailCard({ rows, children }) {
+function DetailCard({ rows, children, title, className = '' }) {
   return (
-    <div className="gc-detail-card">
+    <div className={`gc-detail-card ${className}`.trim()}>
+      {title && <h4 className="gcc-card-title">{title}</h4>}
       {children}
       <dl className="gc-detail-list">
         {rows.map(([label, value, optional = false]) => {
@@ -62,6 +64,11 @@ function DetailCard({ rows, children }) {
       </dl>
     </div>
   );
+}
+
+function formatOptionalDate(value) {
+  if (!value) return 'Not provided';
+  return formatManilaDate(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value);
 }
 
 function formatManilaDate(value) {
@@ -85,9 +92,12 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
   const pendingId = useRef(null);
   const savingRef = useRef(false);
   const successRef = useRef(null);
+  const contentRef = useRef(null);
   const copyTimerRef = useRef(null);
 
   useEffect(() => {
+    const body = contentRef.current?.querySelector('.gc-body');
+    if (body) body.scrollTop = 0;
     if (stage === 'success') successRef.current?.focus();
   }, [stage]);
 
@@ -153,6 +163,11 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
         category: record.category || draft.category,
         filedBy: record.complainant || draft.filedBy.trim(),
         dateSaved: formatManilaDate(record.filed_at || record.created_at),
+        concerns: record.respondent ?? draft.concerns.trim(),
+        location: record.location ?? draft.location.trim(),
+        handler: record.assigned_handler ?? draft.handler.trim(),
+        incidentDate: record.incident_date ?? draft.incidentDate,
+        followUp: record.follow_up_date ?? draft.followUp,
       };
       pendingId.current = null;
       setSavedCase(confirmation);
@@ -181,8 +196,11 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
   }
 
   return (
-    <div className="gc-modal-content">
+    <div ref={contentRef} className={`gc-modal-content gcc-create gcc-stage-${stage}`}>
       <header className="gc-header">
+        {stage === 'review' && <span className="gcc-header-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H5v16h14V5h-4M9 3h6v4H9zM8 12h8M8 16h5" /></svg>
+        </span>}
         <div className="gc-header-copy">
           <h2 id="gc-title">
             {stage === 'success'
@@ -214,7 +232,7 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
         {stage === 'success' ? (
           <section className="gc-success" role="status" aria-live="polite">
             <span className="gc-success-icon" aria-hidden="true">
-              ✓
+              <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
             </span>
             <h3 ref={successRef} tabIndex={-1}>
               Grievance recorded
@@ -224,10 +242,16 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
               to the committee.
             </p>
             <DetailCard
+              className="gcc-saved-summary"
               rows={[
                 ['Title', savedCase?.title],
                 ['Category', savedCase?.category],
                 ['Person filing', savedCase?.filedBy],
+                ['Person concerned', savedCase?.concerns],
+                ['Location', savedCase?.location],
+                ['Incident date', formatOptionalDate(savedCase?.incidentDate)],
+                ['Assigned handler', savedCase?.handler, true],
+                ['Next follow-up', formatOptionalDate(savedCase?.followUp)],
                 ['Date saved (Manila)', savedCase?.dateSaved],
               ]}
             >
@@ -266,6 +290,7 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
                 </div>
               </div>
             </DetailCard>
+            <p className="gcc-success-followup">Keep the reference ID for follow-up. Review the assigned handler and next follow-up date above.</p>
           </section>
         ) : stage === 'review' ? (
           <section aria-label="Review grievance before saving">
@@ -285,21 +310,28 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
                 <path d="M12 11v5M12 8h.01" />
               </svg>
               <span>
-                Nothing has been saved yet. Confirm to submit this case.
+                Not saved yet. Check the people, case details, and follow-up before confirming.
               </span>
             </div>
-            <DetailCard
-              rows={[
-                ['Title', draft.title],
-                ['Category', draft.category],
+            <div className="gcc-case-heading">
+              <div><h3>{draft.title}</h3><small>New grievance · Reference ID is assigned after saving</small></div>
+              <span className="gcc-category">{draft.category}</span>
+            </div>
+            <div className="gcc-review-grid">
+              <DetailCard title="Case details" rows={[
                 ['Person filing', draft.filedBy],
                 ['Person concerned', draft.concerns],
                 ['Location', draft.location],
-                ['Description', draft.description],
-                ['Requested action', draft.requestedAction, true],
-                ['Filing note', note],
-              ]}
-            />
+                ['Incident date', formatOptionalDate(draft.incidentDate)],
+                ['Assigned handler', draft.handler, true],
+                ['Next follow-up', formatOptionalDate(draft.followUp)],
+              ]} />
+              <div className="gcc-narrative">
+                <article className="gcc-text-card"><h4 className="gcc-card-title">What happened</h4><p>{draft.description}</p></article>
+                <article className="gcc-text-card"><h4 className="gcc-card-title">Requested action</h4><p>{draft.requestedAction.trim() || 'Not provided'}</p></article>
+              </div>
+            </div>
+            <section className="gcc-filing-note"><h4>Filing note</h4><p>{note}</p></section>
           </section>
         ) : (
           <form id="gc-entry-form" className="gc-form" onSubmit={review}>
@@ -496,6 +528,7 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
           </>
         ) : stage === 'review' ? (
           <>
+            <span className="gcc-footer-hint">Review before submitting</span>
             <button
               type="button"
               className="gc-button gc-button-secondary"

@@ -626,6 +626,12 @@ export default function GrievancesPage() {
             value={stats.total}
             note={`${stats.filed} filed this month`}
             icon="file"
+            segments={[
+              { label: 'Open', count: stats.open, color: '#e2a519' },
+              { label: 'In progress', count: stats.progress, color: '#4a9ed5' },
+              { label: 'Resolved', count: stats.resolved, color: '#1a946d' },
+              ...(stats.total > stats.open + stats.progress + stats.resolved ? [{ label: 'Other closed', count: stats.total - stats.open - stats.progress - stats.resolved, color: '#9cb8cb' }] : []),
+            ]}
             selected={filter === 'all'}
             onClick={() => {
               setTab('register');
@@ -638,6 +644,10 @@ export default function GrievancesPage() {
             note={`${stats.progress} in progress, ${stats.open} not started`}
             icon="clock"
             tone="amber"
+            segments={[
+              { label: 'In progress', count: stats.progress, color: '#4a9ed5' },
+              { label: 'Not started', count: stats.open, color: '#9cb8cb' },
+            ]}
             selected={filter === 'active'}
             onClick={() => {
               setTab('register');
@@ -652,8 +662,9 @@ export default function GrievancesPage() {
                 ? `Oldest is ${stats.oldest} days overdue`
                 : 'Nothing overdue'
             }
-            icon="warning"
-            tone="red"
+            icon={stats.due > 0 ? 'warning' : 'check'}
+            tone={stats.due > 0 ? 'red' : 'green'}
+            badge={stats.due > 0 ? 'Needs follow-up' : 'All caught up'}
             danger={stats.due > 0}
             selected={filter === 'overdue'}
             onClick={() => {
@@ -673,6 +684,11 @@ export default function GrievancesPage() {
               toggleFilter('resolved');
             }}
             progress={stats.rate}
+            ring
+            legend={[
+              { label: 'Resolved', count: stats.resolved, color: '#1a946d' },
+              { label: 'Still open', count: stats.active, color: '#e2a519' },
+            ]}
           />
         </section>
         {cloudCheck.state === 'error' && (
@@ -1026,23 +1042,37 @@ function StatCard({
   selected,
   onClick,
   progress,
+  segments = [],
+  legend = [],
+  badge,
+  ring = false,
 }) {
+  const segmentTotal = segments.reduce((sum, item) => sum + item.count, 0);
+  const visibleLegend = segments.length ? segments : legend;
+  const ringPercent = Math.max(0, Math.min(100, Number(progress) || 0));
   return (
     <button
       type="button"
-      className={`stat-card ${selected ? 'is-selected' : ''}`}
+      className={`stat-card stat-theme-${tone} ${ring ? 'stat-has-ring' : ''} ${selected ? 'is-selected' : ''}`}
       aria-pressed={selected}
       onClick={onClick}
     >
       <span className="stat-top">
         <span>{label}</span>
-        <span className={`stat-icon ${tone}`}>
-          <Icon name={icon} size={17} />
-        </span>
+        {ring ? <span className="stat-resolution-ring" style={{ '--stat-ring-angle': `${ringPercent * 3.6}deg` }} aria-hidden="true" /> : (
+          <span className={`stat-icon ${tone}`} aria-hidden="true"><Icon name={icon} size={17} /></span>
+        )}
       </span>
       <strong className={danger ? 'danger-number' : ''}>{value}</strong>
       <small>{note}</small>
-      {progress !== undefined && (
+      {segments.length > 0 && <span className="stat-distribution" aria-hidden="true">
+        {segments.map((item) => <span key={item.label} style={{ width: `${segmentTotal ? item.count / segmentTotal * 100 : 0}%`, backgroundColor: item.color }} />)}
+      </span>}
+      {!!visibleLegend.length && <span className="stat-legend">
+        {visibleLegend.map((item) => <span key={item.label}><i style={{ backgroundColor: item.color }} aria-hidden="true" />{item.label} {item.count}</span>)}
+      </span>}
+      {badge && <span className={`stat-caught-up ${danger ? 'is-due' : ''}`}><Icon name={danger ? 'warning' : 'check'} size={13} />{badge}</span>}
+      {progress !== undefined && !ring && (
         <span className="progress-track">
           <span style={{ width: `${progress}%` }} />
         </span>

@@ -1,0 +1,95 @@
+/* Review and saved confirmation only. The entry form keeps its current layout. */
+.grievance-dialog-scope > section[role="dialog"]:has(> .gcc-create.gcc-stage-review) {
+  width: min(880px, calc(100vw - 32px)) !important;
+}
+.grievance-dialog-scope > section[role="dialog"]:has(> .gcc-create.gcc-stage-success) {
+  width: min(580px, calc(100vw - 32px)) !important;
+}
+.grievance-dialog-scope > section[role="dialog"]:has(> .gcc-create:is(.gcc-stage-review, .gcc-stage-success)) {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  border-radius: 23px !important; border-color: #fff !important;
+  box-shadow: 0 25px 80px #1037503d;
+}
+.grievance-dialog-scope .gc-modal-content.gcc-create:is(.gcc-stage-review, .gcc-stage-success) {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; width: 100%;
+  height: auto; max-height: calc(90vh - 2px); max-height: calc(90dvh - 2px);
+  overflow: hidden; background: #f7fbff; color: #244e6b;
+  font-family: var(--font-body, 'Segoe UI', Arial, sans-serif);
+}
+.gcc-create:is(.gcc-stage-review, .gcc-stage-success) * { box-sizing: border-box; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-header {
+  display: flex; align-items: flex-start; gap: 12px; flex: 0 0 auto;
+  padding: 19px 23px 17px; margin: 0; border-bottom: 1px solid #dceaf4;
+  background: linear-gradient(120deg, #fff, #edf7ff);
+}
+.gcc-header-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border: 1px solid #d4e8f6; border-radius: 12px; color: #1769a6; background: #e9f4fd; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-header-copy { flex: 1; min-width: 0; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-header h2 { margin: 0 0 5px; font-family: var(--font-display, Georgia, serif); font-size: 25px; line-height: 1.2; color: #12354c; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-header p { margin: 0; font-size: 12px; color: #486b85; line-height: 1.6; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-icon-close { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; flex: 0 0 30px; border: 1px solid #d9e8f3; border-radius: 9px; background: #fff; color: #b45648; font-size: 20px; line-height: 1; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 17px 23px 19px; }
+.grievance-dialog-scope .gcc-create .gc-review-notice { display: flex; align-items: center; gap: 8px; margin: 0 0 13px; padding: 9px 11px; border: 1px solid #d4e7fa; border-radius: 10px; background: #edf6ff; color: #315f82; font-size: 12px; line-height: 1.6; }
+.gcc-create .gc-review-notice svg { flex-shrink: 0; color: #1769a6; }
+.gcc-case-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 1px; margin-bottom: 14px; }
+.gcc-case-heading > div { min-width: 0; }
+.gcc-case-heading h3 { margin: 0; color: #1b4563; font-size: 20px; font-weight: 700; line-height: 1.45; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.gcc-case-heading small { display: block; margin-top: 4px; color: #4e6d84; font-size: 11px; line-height: 1.5; }
+.gcc-category { flex-shrink: 0; padding: 5px 9px; border: 1px solid #cee3f5; border-radius: 8px; background: #e6f1fc; color: #246b9e; font-size: 10px; font-weight: 700; }
+.gcc-review-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.15fr); gap: 14px; align-items: stretch; }
+.grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-card, .gcc-text-card { min-width: 0; margin: 0; padding: 0; border: 1px solid #d7e7f3; border-radius: 13px; overflow: hidden; background: #fff; }
+.grievance-dialog-scope .gcc-create .gcc-card-title { margin: 0; padding: 12px 15px; background: #1464a0; color: #fff; border-bottom: 1px solid #0e5389; font-family: inherit; font-size: 12px; font-weight: 750; line-height: 1.5; }
+.grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-list { margin: 0; padding: 0 14px; }
+.grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-row { display: grid; grid-template-columns: 105px minmax(0,1fr); align-items: start; gap: 10px; margin: 0; padding: 10px 0; border: 0; border-bottom: 1px solid #e8f0f7; }
+.grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-row:last-child { border: 0; }
+.grievance-dialog-scope .gcc-create .gcc-review-grid dt { margin: 0; color: #46667f; font-size: 11px; font-weight: 600; line-height: 1.6; }
+.grievance-dialog-scope .gcc-create .gcc-review-grid dd { margin: 0; color: #193e59; font-size: 12px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.grievance-dialog-scope .gcc-create dd.gc-not-provided { color: #526e83; font-weight: 400; font-style: normal; }
+.gcc-narrative { display: grid; grid-template-rows: 1fr 1fr; gap: 12px; min-width: 0; }
+.gcc-text-card p { margin: 0; padding: 13px 15px; color: #345773; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gcc-filing-note { margin-top: 13px; padding: 11px 14px; border: 1px solid #cddfeb; border-radius: 12px; background: #f0f6fb; }
+.gcc-filing-note h4 { margin: 0 0 5px; color: #3f6581; font-size: 10px; font-weight: 750; letter-spacing: .6px; line-height: 1.5; text-transform: uppercase; }
+.gcc-filing-note p { margin: 0; color: #3b5c75; font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-footer { position: static; display: flex; flex: 0 0 auto; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0; padding: 14px 23px; border-top: 1px solid #dceaf4; background: #fff; }
+.gcc-footer-hint { flex: 1; color: #4d6b82; font-size: 11px; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-button { display: inline-flex; justify-content: center; align-items: center; width: auto; min-height: 40px; padding: 9px 15px; border: 1px solid #c8deee; border-radius: 10px; background: #fff; color: #2f658b; font-family: inherit; font-size: 11px; font-weight: 700; line-height: 1.5; }
+.grievance-dialog-scope .gcc-create:is(.gcc-stage-review, .gcc-stage-success) .gc-button-primary { background: #1769a6; border-color: #1769a6; color: #fff; }
+.gcc-create .gc-button:focus-visible, .gcc-create .gc-copy-button:focus-visible { outline: 3px solid #8ebee2; outline-offset: 2px; }
+.grievance-dialog-scope .gcc-create.gcc-stage-success .gc-header { padding: 18px 22px; }
+.grievance-dialog-scope .gcc-create.gcc-stage-success .gc-header h2 { margin: 2px 0 0; font-family: inherit; font-size: 15px; font-weight: 700; }
+.grievance-dialog-scope .gcc-create.gcc-stage-success .gc-body { padding: 18px 24px 20px; }
+.grievance-dialog-scope .gcc-create .gc-success { padding: 9px 0 0; text-align: center; }
+.grievance-dialog-scope .gcc-create .gc-success-icon { display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 11px; border: 1px solid #ccebdc; border-radius: 16px; background: #e7f6ee; color: #24845f; }
+.grievance-dialog-scope .gcc-create .gc-success h3 { margin: 0 0 9px; color: #163c53; font-size: 22px; line-height: 1.4; letter-spacing: -.5px; }
+.grievance-dialog-scope .gcc-create .gc-success > p:not(.gcc-success-followup) { max-width: 370px; margin: 0 auto 15px; color: #46677f; font-size: 12px; line-height: 1.8; }
+.grievance-dialog-scope .gcc-create .gcc-saved-summary { max-width: none; width: 100%; margin: 0; border: 0; border-radius: 0; background: transparent; }
+.grievance-dialog-scope .gcc-create .gc-reference-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 14px; border: 1px solid #cce2f3; border-radius: 12px; background: #eff7ff; text-align: left; }
+.grievance-dialog-scope .gcc-create .gc-reference-label { color: #426782; font-size: 11px; font-weight: 600; }
+.grievance-dialog-scope .gcc-create .gc-reference-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.grievance-dialog-scope .gcc-create .gc-reference-badge { padding: 0; border: 0; background: transparent; color: #1769a6; font-size: 17px; font-weight: 750; letter-spacing: .4px; overflow-wrap: anywhere; }
+.grievance-dialog-scope .gcc-create .gc-copy-button { display: inline-flex; align-items: center; gap: 6px; min-height: 33px; padding: 7px 10px; border: 1px solid #c8deee; border-radius: 9px; background: #fff; color: #2f658b; font-size: 10px; font-weight: 650; }
+.grievance-dialog-scope .gcc-create .gcc-saved-summary .gc-detail-list { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 0 17px; margin: 10px 0 0; padding: 0; text-align: left; }
+.grievance-dialog-scope .gcc-create .gcc-saved-summary .gc-detail-row { display: block; min-width: 0; padding: 10px 0; border: 0; border-bottom: 1px solid #e2edf6; }
+.grievance-dialog-scope .gcc-create .gcc-saved-summary .gc-detail-row:first-child { grid-column: 1 / -1; }
+.grievance-dialog-scope .gcc-create .gcc-saved-summary dt { margin: 0 0 3px; color: #4a6880; font-size: 11px; font-weight: 600; line-height: 1.5; }
+.grievance-dialog-scope .gcc-create .gcc-saved-summary dd { margin: 0; color: #204761; font-size: 12px; font-weight: 600; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.grievance-dialog-scope .gcc-create .gcc-success-followup { margin: 13px 0 0; padding: 11px 12px; border: 1px solid #d8e9f5; border-radius: 10px; background: #edf6fe; color: #3f6380; text-align: left; font-size: 11px; line-height: 1.7; }
+@media (max-width: 650px) {
+  .grievance-dialog-scope .gcc-create:is(.gcc-stage-review,.gcc-stage-success) .gc-header { padding: 17px 18px; }
+  .grievance-dialog-scope .gcc-create:is(.gcc-stage-review,.gcc-stage-success) .gc-header h2 { font-size: 22px; }
+  .grievance-dialog-scope .gcc-create:is(.gcc-stage-review,.gcc-stage-success) .gc-body { padding: 15px 18px; }
+  .grievance-dialog-scope .gcc-create:is(.gcc-stage-review,.gcc-stage-success) .gc-footer { padding: 12px 18px; }
+  .grievance-dialog-scope .gcc-create.gcc-stage-success .gc-header h2 { font-size: 15px; }
+  .gcc-review-grid { grid-template-columns: minmax(0,1fr); }
+  .grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-list { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 0 14px; }
+  .grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-row { display: block; padding: 10px 0; }
+  .gcc-narrative { grid-template-rows: auto; }
+  .gcc-case-heading h3 { font-size: 18px; }
+  .gcc-footer-hint { display: none; }
+  .grievance-dialog-scope .gcc-create:is(.gcc-stage-review,.gcc-stage-success) .gc-footer .gc-button { flex: 1; }
+}
+@media (max-width: 380px) {
+  .gcc-case-heading { flex-wrap: wrap; }
+  .grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-list,
+  .grievance-dialog-scope .gcc-create .gcc-saved-summary .gc-detail-list { grid-template-columns: minmax(0,1fr); }
+  .grievance-dialog-scope .gcc-create .gcc-review-grid .gc-detail-row { display: grid; grid-template-columns: 95px minmax(0,1fr); gap: 9px; }
+}
