@@ -37,6 +37,27 @@ const ROLE_CHOICES = [
   },
 ]
 
+// Floating, blurred "bubbles" for the background. Fixed values (no Math.random) so
+// the layout is identical on every render. x = horizontal start, size = px,
+// blur = px, dur = seconds per rise, delay = negative so bubbles are already
+// mid-float on load, sway = sideways drift, o = peak opacity.
+const BUBBLES = [
+  { x: '4%',  size: 110, blur: 7, dur: 34, delay: -6,  sway: '46px',  o: 0.5 },
+  { x: '12%', size: 46,  blur: 3, dur: 24, delay: -17, sway: '-30px', o: 0.6 },
+  { x: '19%', size: 150, blur: 10, dur: 42, delay: -28, sway: '60px', o: 0.38 },
+  { x: '27%', size: 64,  blur: 4, dur: 28, delay: -9,  sway: '-42px', o: 0.55 },
+  { x: '35%', size: 28,  blur: 2, dur: 20, delay: -14, sway: '24px',  o: 0.65 },
+  { x: '43%', size: 96,  blur: 6, dur: 36, delay: -22, sway: '-54px', o: 0.45 },
+  { x: '51%', size: 52,  blur: 3, dur: 26, delay: -3,  sway: '34px',  o: 0.6 },
+  { x: '58%', size: 170, blur: 12, dur: 46, delay: -33, sway: '-66px', o: 0.34 },
+  { x: '66%', size: 72,  blur: 5, dur: 30, delay: -11, sway: '48px',  o: 0.5 },
+  { x: '73%', size: 36,  blur: 2, dur: 22, delay: -19, sway: '-26px', o: 0.65 },
+  { x: '80%', size: 124, blur: 8, dur: 38, delay: -25, sway: '56px',  o: 0.42 },
+  { x: '87%', size: 58,  blur: 4, dur: 27, delay: -7,  sway: '-38px', o: 0.55 },
+  { x: '93%', size: 90,  blur: 6, dur: 33, delay: -15, sway: '40px',  o: 0.48 },
+  { x: '48%', size: 40,  blur: 3, dur: 23, delay: -30, sway: '-28px', o: 0.6 },
+]
+
 function scrollToSection(id) {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -236,6 +257,25 @@ export default function LandingPage({ onAccessPortal } = {}) {
         <div className="lp-orb lp-orb-1"></div>
         <div className="lp-orb lp-orb-2"></div>
         <div className="lp-orb lp-orb-3"></div>
+
+        {/* Floating blurred bubbles */}
+        <div className="lp-bubbles">
+          {BUBBLES.map((bubble, index) => (
+            <span
+              key={index}
+              className="lp-bubble"
+              style={{
+                '--x': bubble.x,
+                '--size': `${bubble.size}px`,
+                '--blur': `${bubble.blur}px`,
+                '--dur': `${bubble.dur}s`,
+                '--delay': `${bubble.delay}s`,
+                '--sway': bubble.sway,
+                '--o': bubble.o,
+              }}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Intro splash */}
