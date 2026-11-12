@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { downloadGrievanceBackup } from '../lib/grievanceBackup'
 import { supabase } from '../lib/supabaseClient'
+import GrievanceCloudCreate from '../components/GrievanceCloudCreate'
 
 // Resolve the date in the HOA timezone rather than freezing a past calendar date.
 // This is refreshed when the page is reloaded; live midnight rollover is a separate follow-up.
@@ -56,6 +57,7 @@ export default function GrievancesPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [cloudCheck, setCloudCheck] = useState({ state: 'checking', count: null })
   const [sharedCases, setSharedCases] = useState([])
+  const [cloudRefresh, setCloudRefresh] = useState(0)
   const lastFocus = useRef(null)
 
   const handlerOptions = useMemo(() => ['All handlers', ...new Set(cases.map((item) => item.handler).filter(Boolean))], [cases])
@@ -105,7 +107,7 @@ export default function GrievancesPage() {
         }
       })
     return () => { active = false }
-  }, [])
+  }, [cloudRefresh])
 
 
   useEffect(() => {
@@ -198,6 +200,9 @@ export default function GrievancesPage() {
               </ul>
             </>}
       </section>
+    )}
+    {cloudCheck.state === 'ready' && (
+      <GrievanceCloudCreate onSaved={() => setCloudRefresh(value => value + 1)} />
     )}
     <main className="grievance-app">
       <header className="grievance-hero"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p className="grievance-subtitle">Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-actions"><button className="button-outline" type="button" onClick={backUpLocalCases}>Back up cases</button><button className="button-outline" type="button" onClick={refresh} disabled={refreshing}><Icon name="refresh" size={16} />{refreshing ? 'Refreshing...' : 'Refresh'}</button><button className="button-primary" type="button" onClick={(event) => openForm(null, event.currentTarget)}><Icon name="plus" size={17} />Record grievance</button></div></header>
