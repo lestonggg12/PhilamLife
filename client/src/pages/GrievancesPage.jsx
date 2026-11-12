@@ -21,8 +21,11 @@ const EMPTY_RECORD = { id: '', category: 'Noise', title: '', filedBy: '', concer
 const dateObject = (value) => new Date(`${value}T00:00:00`)
 const formatDate = (value) => value ? dateObject(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 const dayDifference = (from, to) => Math.round((dateObject(to) - dateObject(from)) / 86400000)
-const isOverdue = (item) => item.followUp && item.status !== 'Resolved' && item.followUp <= TODAY
-const isDueSoon = (item) => item.followUp && item.status !== 'Resolved' && dayDifference(TODAY, item.followUp) >= 0 && dayDifference(TODAY, item.followUp) <= 3
+const isClosedCase = (item) => ['Resolved', 'Dismissed', 'Withdrawn'].includes(item.status)
+const isOpenCase = (item) => item.status === 'Open' || item.status === 'Received'
+const isInProgress = (item) => !isClosedCase(item) && !isOpenCase(item)
+const isOverdue = (item) => item.followUp && !isClosedCase(item) && item.followUp <= TODAY
+const isDueSoon = (item) => item.followUp && !isClosedCase(item) && dayDifference(TODAY, item.followUp) >= 0 && dayDifference(TODAY, item.followUp) <= 3
 const slug = (value) => value.toLowerCase().replace(' ', '-')
 
 function Icon({ name, size = 18 }) {
@@ -62,55 +65,88 @@ export default function GrievancesPage() {
   const [cloudRefresh, setCloudRefresh] = useState(0)
   const lastFocus = useRef(null)
 
-  const handlerOptions = useMemo(() => ['All handlers', ...new Set(cases.map((item) => item.handler).filter(Boolean))], [cases])
+  const displayCases = useMemo(() => {
+    const cloud = cloudCheck.state === 'ready' ? sharedCases.map(item => {
+      const filed = item.filed_at ? new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).formatToParts(new Date(item.filed_at)) : []
+      const part = type => filed.find(value => value.type === type)?.value || ''
+      return {
+        id: 'GR-' + item.case_number, title: item.title, category: item.category,
+        filedBy: item.complainant, concerns: item.respondent || '',
+        location: item.location || '', lot: '', handler: item.assigned_handler || '',
+        status: item.status, followUp: item.follow_up_date || '',
+        filedDate: filed.length ? [part('year'), part('month'), part('day')].join('-') : '',
+        _shared: true,
+      }
+    }) : []
+    return [...cloud, ...cases]
+  }, [cases, sharedCases, cloudCheck.state])
+
+  const handlerOptions = useMemo(() => ['All handlers', ...new Set(displayCases.map((item) => item.handler).filter(Boolean))], [displayCases])
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return cases.filter((item) => {
+    return displayCases.filter((item) => {
       const text = [item.id, item.category, item.title, item.filedBy, item.concerns, item.lot, item.location, item.handler].join(' ').toLowerCase()
-      const matchesFilter = filter === 'all' || (filter === 'active' && item.status !== 'Resolved') || (filter === 'overdue' && isOverdue(item)) || (filter === 'resolved' && item.status === 'Resolved') || (filter === 'open' && item.status === 'Open') || (filter === 'progress' && item.status === 'In progress')
+      const matchesFilter = filter === 'all' || (filter === 'active' && !isClosedCase(item)) || (filter === 'overdue' && isOverdue(item)) || (filter === 'resolved' && isClosedCase(item)) || (filter === 'open' && isOpenCase(item)) || (filter === 'progress' && isInProgress(item))
       return (!term || text.includes(term)) && (category === 'All categories' || item.category === category) && (handler === 'All handlers' || item.handler === handler) && matchesFilter
     })
-  }, [cases, search, category, handler, filter])
+  }, [displayCases, search, category, handler, filter])
   const chipCounts = useMemo(() => {
     const term = search.trim().toLowerCase()
-    const base = cases.filter((item) => { const text = [item.id, item.category, item.title, item.filedBy, item.concerns, item.lot, item.location, item.handler].join(' ').toLowerCase(); return (!term || text.includes(term)) && (category === 'All categories' || item.category === category) && (handler === 'All handlers' || item.handler === handler) })
-    return { all: base.length, open: base.filter((item) => item.status === 'Open').length, progress: base.filter((item) => item.status === 'In progress').length, resolved: base.filter((item) => item.status === 'Resolved').length, overdue: base.filter(isOverdue).length }
-  }, [cases, search, category, handler])
+    const base = displayCases.filter((item) => { const text = [item.id, item.category, item.title, item.filedBy, item.concerns, item.lot, item.location, item.handler].join(' ').toLowerCase(); return (!term || text.includes(term)) && (category === 'All categories' || item.category === category) && (handler === 'All handlers' || item.handler === handler) })
+    return { all: base.length, open: base.filter(isOpenCase).length, progress: base.filter(isInProgress).length, resolved: base.filter((item) => item.status === 'Resolved').length, overdue: base.filter(isOverdue).length }
+  }, [displayCases, search, category, handler])
   const stats = useMemo(() => {
-    const resolved = cases.filter((item) => item.status === 'Resolved')
-    const active = cases.filter((item) => item.status !== 'Resolved')
-    const due = cases.filter(isOverdue)
+    const resolved = displayCases.filter(item => item.status === 'Resolved')
+    const active = displayCases.filter(item => !isClosedCase(item))
+    const due = displayCases.filter(isOverdue)
     const oldest = due.reduce((max, item) => Math.max(max, dayDifference(item.followUp, TODAY)), 0)
-    return { total: cases.length, filed: cases.filter((item) => item.filedDate?.slice(0, 7) === TODAY.slice(0, 7)).length, active: active.length, progress: cases.filter((item) => item.status === 'In progress').length, open: cases.filter((item) => item.status === 'Open').length, due: due.length, oldest, resolved: resolved.length, rate: cases.length ? Math.round((resolved.length / cases.length) * 100) : 0 }
-  }, [cases])
+    const total = displayCases.length
+    return {
+      total, filed: displayCases.filter(item => item.filedDate?.slice(0, 7) === TODAY.slice(0, 7)).length,
+      active: active.length, progress: displayCases.filter(isInProgress).length,
+      open: displayCases.filter(isOpenCase).length,
+      due: due.length, oldest, resolved: resolved.length,
+      rate: total ? Math.round(resolved.length / total * 100) : 0,
+    }
+  }, [displayCases])
   const selectedCase = modal?.type === 'case' ? cases.find((item) => item.id === modal.id) : null
 
-  // Read-only preview: local complaint records still live in browser storage.
+  // Read the full authorized shared register; the first 25 are shown in the compact preview.
+  // Existing browser-local cases are never modified by this query.
   useEffect(() => {
     let active = true
-    supabase.from('grievance_cases')
-      .select('id,case_number,title,status,category,complainant,filed_at', { count: 'exact' })
-      .order('filed_at', { ascending: false })
-      .limit(25)
-      .then(({ data, count, error }) => {
-        if (!active) return
-        if (error || !Array.isArray(data)) {
-          setSharedCases([])
-          setCloudCheck({ state: 'error', count: null })
-        } else {
-          setSharedCases(data)
-          setCloudCheck({ state: 'ready', count: count ?? data.length })
+    async function loadSharedRegister() {
+      const rows = []
+      const pageSize = 250
+      let count = 0
+      try {
+        for (let start = 0; start < 100000; start += pageSize) {
+          const { data, count: total, error } = await supabase.from('grievance_cases')
+            .select('id,case_number,title,status,category,complainant,respondent,location,assigned_handler,filed_at,follow_up_date', { count: 'exact' })
+            .order('filed_at', { ascending: false })
+            .range(start, start + pageSize - 1)
+          if (error) throw error
+          if (!Array.isArray(data)) throw new Error('Shared grievance records are unavailable.')
+          rows.push(...data)
+          count = total ?? rows.length
+          if (rows.length >= count || data.length < pageSize) break
         }
-      })
-      .catch(() => {
+        if (active) {
+          setSharedCases(rows)
+          setCloudCheck({ state: 'ready', count })
+        }
+      } catch {
         if (active) {
           setSharedCases([])
           setCloudCheck({ state: 'error', count: null })
         }
-      })
+      }
+    }
+    void loadSharedRegister()
     return () => { active = false }
   }, [cloudRefresh])
-
 
   useEffect(() => {
     document.body.style.overflow = modal || showCloudForm ? 'hidden' : ''
@@ -138,11 +174,11 @@ export default function GrievancesPage() {
     setFormError('')
     setModal({ type: 'form', editing: true })
   }
-  function openCase(record, trigger) { lastFocus.current = trigger || document.activeElement; setDraft({ ...record }); setFormError(''); setModal({ type: 'case', id: record.id }) }
+  function openCase(record, trigger) { if (record._shared) { setToast('Shared cases are read-only until cloud editing is enabled.'); return } lastFocus.current = trigger || document.activeElement; setDraft({ ...record }); setFormError(''); setModal({ type: 'case', id: record.id }) }
   function updateDraft(key, value) { setDraft((current) => ({ ...current, [key]: value })) }
   function clearFilters() { setSearch(''); setCategory('All categories'); setHandler('All handlers'); setFilter('all') }
   function toggleFilter(value) { setFilter((current) => current === value ? 'all' : value) }
-  function refresh() { setRefreshing(true); window.setTimeout(() => { setRefreshing(false); setToast('Grievance register refreshed') }, 350) }
+  function refresh() { setRefreshing(true); setCloudRefresh(value => value + 1); window.setTimeout(() => { setRefreshing(false); setToast('Grievance register refreshed') }, 350) }
   function backUpLocalCases() {
     try {
       const saved = downloadGrievanceBackup(cases)
@@ -198,9 +234,9 @@ export default function GrievancesPage() {
         {cloudCheck.state === 'ready' && sharedCases.length > 0 && (
           <details className="grievance-cloud-preview">
             <summary>View shared cases ({cloudCheck.count})</summary>
-            <p>Latest {sharedCases.length} shared cases (read-only).</p>
+            <p>Latest {Math.min(sharedCases.length, 25)} shared cases (read-only).</p>
             <ul>
-              {sharedCases.map(item => (
+              {sharedCases.slice(0, 25).map(item => (
                 <li key={item.id}>
                   <strong>{`GR-${item.case_number}: ${item.title}`}</strong>
                   {' — '}{item.status}{' · '}{item.category}
@@ -213,21 +249,27 @@ export default function GrievancesPage() {
       <nav className="grievance-tabs" role="tablist" aria-label="Grievance views"><button type="button" role="tab" aria-selected={tab === 'register'} className={tab === 'register' ? 'is-active' : ''} onClick={() => setTab('register')}>Case register</button><button type="button" role="tab" aria-selected={tab === 'statement'} className={tab === 'statement' ? 'is-active' : ''} onClick={() => setTab('statement')}>Period statement</button></nav>
       {tab === 'statement' ? <section className="statement-placeholder" role="tabpanel"><span className="statement-icon"><Icon name="file" size={22} /></span><h2>Period statement</h2><p>Statement preparation will appear here when the case register is connected to real data.</p><button className="button-outline" type="button" onClick={() => setTab('register')}>Return to case register</button></section> : <>
         <section className="grievance-stats" aria-label="Grievance summaries"><StatCard label="Total cases" value={stats.total} note={`${stats.filed} filed this month`} icon="file" selected={filter === 'all'} onClick={() => toggleFilter('all')} /><StatCard label="Active cases" value={stats.active} note={`${stats.progress} in progress, ${stats.open} not started`} icon="clock" tone="amber" selected={filter === 'active'} onClick={() => toggleFilter('active')} /><StatCard label="Follow-up due" value={stats.due} note={stats.due ? `Oldest is ${stats.oldest} days overdue` : 'Nothing overdue'} icon="warning" tone="red" danger={stats.due > 0} selected={filter === 'overdue'} onClick={() => toggleFilter('overdue')} /><StatCard label="Resolution rate" value={`${stats.rate}%`} note={`${stats.resolved} of ${stats.total} resolved`} icon="check" tone="green" selected={filter === 'resolved'} onClick={() => toggleFilter('resolved')} progress={stats.rate} /></section>
-        <section className="register-panel"><div className="status-chips" aria-label="Case status filters">{chips.map(([value, label, count]) => <button type="button" key={value} className={`${filter === value ? 'is-active' : ''} ${value === 'overdue' && filter === value ? 'is-danger' : ''}`} onClick={() => toggleFilter(value)} aria-pressed={filter === value}>{label}<span>{count}</span></button>)}</div><div className="filter-bar"><label className="search-field"><span className="sr-only">Search cases</span><Icon name="search" size={17} /><input data-grievance-search type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people, title, location or handler…" /><kbd>/</kbd></label><label><span className="sr-only">Category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="sr-only">Handler</span><select value={handler} onChange={(event) => setHandler(event.target.value)}>{handlerOptions.map((item) => <option key={item}>{item}</option>)}</select></label>{hasFilters && <button className="clear-link" type="button" onClick={clearFilters}>Clear filters</button>}</div><div className="case-table" role="table" aria-label="Grievance cases"><div className="case-heading" role="row"><span>Case ID</span><span>Case / homeowner</span><span>Lot</span><span>Handler</span><span>Follow-up</span><span>Status</span><span /></div>{filtered.map((item) => <button className="case-row" role="row" type="button" key={item.id} onClick={(event) => openCase(item, event.currentTarget)}><span className="case-id"><strong>{item.id}</strong><small>{item.category}</small></span><span className="case-title"><strong>{item.title}</strong><small>Filed by {item.filedBy} <b>→</b> {item.concerns}</small></span><span data-label="Lot">{item.lot || '—'}</span><span data-label="Handler">{item.handler || '—'}</span><span data-label="Follow-up" className={`follow-up ${isOverdue(item) ? 'is-overdue' : isDueSoon(item) ? 'is-soon' : ''}`}>{isOverdue(item) && <Icon name="warning" size={14} />}{formatDate(item.followUp)}</span><span data-label="Status">{statusPill(item.status)}</span><span className="row-chevron"><Icon name="chevron" size={18} /></span></button>)}{!filtered.length && <EmptyState filtered={hasFilters} onClear={clearFilters} onRecord={(event) => openForm(null, event.currentTarget)} />}</div><footer className="table-footer"><span>Showing {filtered.length} of {cases.length} cases</span><span>Click a row to view or update</span></footer></section>
+        <section className="register-panel"><div className="status-chips" aria-label="Case status filters">{chips.map(([value, label, count]) => <button type="button" key={value} className={`${filter === value ? 'is-active' : ''} ${value === 'overdue' && filter === value ? 'is-danger' : ''}`} onClick={() => toggleFilter(value)} aria-pressed={filter === value}>{label}<span>{count}</span></button>)}</div><div className="filter-bar"><label className="search-field"><span className="sr-only">Search cases</span><Icon name="search" size={17} /><input data-grievance-search type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people, title, location or handler…" /><kbd>/</kbd></label><label><span className="sr-only">Category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="sr-only">Handler</span><select value={handler} onChange={(event) => setHandler(event.target.value)}>{handlerOptions.map((item) => <option key={item}>{item}</option>)}</select></label>{hasFilters && <button className="clear-link" type="button" onClick={clearFilters}>Clear filters</button>}</div><div className="case-table" role="table" aria-label="Grievance cases"><div className="case-heading" role="row"><span>Case ID</span><span>Case / homeowner</span><span>Lot</span><span>Handler</span><span>Follow-up</span><span>Status</span><span /></div>{filtered.map((item) => <button className="case-row" role="row" type="button" key={item.id} onClick={(event) => openCase(item, event.currentTarget)}><span className="case-id"><strong>{item.id}</strong><small>{item.category}</small></span><span className="case-title"><strong>{item.title}</strong><small>Filed by {item.filedBy} <b>→</b> {item.concerns}</small></span><span data-label="Lot">{item.lot || '—'}</span><span data-label="Handler">{item.handler || '—'}</span><span data-label="Follow-up" className={`follow-up ${isOverdue(item) ? 'is-overdue' : isDueSoon(item) ? 'is-soon' : ''}`}>{isOverdue(item) && <Icon name="warning" size={14} />}{formatDate(item.followUp)}</span><span data-label="Status">{statusPill(item.status)}</span><span className="row-chevron"><Icon name="chevron" size={18} /></span></button>)}{!filtered.length && <EmptyState filtered={hasFilters} onClear={clearFilters} onRecord={(event) => openForm(null, event.currentTarget)} />}</div><footer className="table-footer"><span>Showing {filtered.length} of {displayCases.length} cases</span><span>Click a row to view or update</span></footer></section>
       </>}
     </main>
     {showCloudForm && (
-      <CloudGrievanceModal label="Record a shared grievance" onClose={() => setShowCloudForm(false)}>
-        <div style={{ maxHeight: 'min(80vh, 740px)', overflowY: 'auto', padding: 14 }}>
-          {cloudCheck.state === 'ready' ? (
-            <GrievanceCloudCreate onSaved={() => setCloudRefresh(value => value + 1)} />
-          ) : (
-            <p role="alert">Shared grievance storage is not connected. Check the connection before recording a case.</p>
-          )}
-          <button type="button" className="button-outline" onClick={() => setShowCloudForm(false)}>
-            Close
-          </button>
-        </div>
+      <CloudGrievanceModal label="Record a grievance" onClose={() => setShowCloudForm(false)}>
+        {cloudCheck.state === 'ready' ? (
+          <GrievanceCloudCreate
+            onSaved={() => setCloudRefresh(value => value + 1)}
+            onClose={() => setShowCloudForm(false)}
+          />
+        ) : (
+          <div className="gc-modal-content">
+            <header className="gc-header"><h2>Shared storage unavailable</h2>
+              <button type="button" className="gc-icon-close"
+                onClick={() => setShowCloudForm(false)} aria-label="Close">×</button>
+            </header>
+            <div className="gc-body"><p role="alert">Shared grievance storage is not connected. Please try again when it is available.</p></div>
+            <footer className="gc-footer"><button type="button" className="gc-button gc-button-secondary"
+              onClick={() => setShowCloudForm(false)}>Close</button></footer>
+          </div>
+        )}
       </CloudGrievanceModal>
     )}
     {modal?.type === 'case' && selectedCase && <CaseDialog draft={draft} setDraft={setDraft} onClose={closeModal} onEdit={() => { lastFocus.current = document.activeElement; setModal({ type: 'form', editing: true }) }} onSave={saveCaseUpdate} error={formError} />}
@@ -273,9 +315,9 @@ function CloudGrievanceModal({ children, label, onClose }) {
     }}>
       <section ref={panelRef} role="dialog" aria-modal="true" aria-label={label}
         onKeyDown={trapFocus} style={{
-          width: 'min(960px, 100%)',
-          maxHeight: 'calc(100dvh - 32px)',
-          overflowY: 'auto',
+          width: 'min(960px, calc(100vw - 24px))',
+          maxHeight: '90dvh',
+          overflow: 'hidden',
           margin: 'auto',
           borderRadius: 18,
           border: '1px solid #c5dfed',
@@ -315,4 +357,39 @@ const styles = `
 .grievance-cloud-preview ul{padding-left:20px}
 @media(max-width:900px){.grievance-app .grievance-actions{justify-content:flex-start;flex:1 1 100%}}
 @media(max-width:600px){.grievance-app .grievance-hero{padding:20px}.grievance-app .grievance-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.grievance-app .grievance-actions button:last-child{grid-column:1/-1}.grievance-app .grievance-actions button{white-space:normal}}
+/* Cloud grievance modal only. Existing local grievance modals are unaffected. */
+.gc-modal-content{display:flex;flex-direction:column;max-height:90dvh;min-height:0;width:100%;background:#f8fbff;color:#2a5470;font-family:'DM Sans',sans-serif}
+.gc-modal-content *{box-sizing:border-box}
+.gc-header,.gc-footer{flex:0 0 auto;background:#f8fbff;padding:16px 22px}
+.gc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid #d0e4f0}
+.gc-header-copy{min-width:0}
+.gc-header h2{margin:0;color:#071e30;font-size:22px;line-height:1.25}
+.gc-header p{margin:4px 0 0;color:#5a7a92;font-size:13px;line-height:1.4}
+.gc-icon-close{min-width:44px;height:44px;border:1px solid #c9dbe8;border-radius:10px;background:#fff;color:#0f3f6a;font-size:27px;cursor:pointer;flex-shrink:0}
+.gc-body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:16px 22px;overscroll-behavior:contain}
+.gc-footer{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #d0e4f0}
+.gc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 16px}
+.gc-field{display:flex;flex-direction:column;min-width:0;gap:6px;font-size:13px;font-weight:600;color:#345d78}
+.gc-field--wide{grid-column:1/-1}
+.gc-field input,.gc-field select,.gc-field textarea{min-width:0;width:100%;border:1px solid #a8bacb;border-radius:9px;background:#fff;color:#071e30;font:inherit;font-size:14px;padding:9px 12px;outline-offset:2px}
+.gc-field input,.gc-field select{height:44px;min-height:44px;max-height:44px}
+.gc-field textarea{min-height:96px;resize:vertical}
+.gc-field input:focus-visible,.gc-field select:focus-visible,.gc-field textarea:focus-visible,.gc-button:focus-visible,.gc-icon-close:focus-visible{outline:3px solid #1464a055}
+.gc-button{min-height:44px;padding:10px 16px;border-radius:10px;font:inherit;font-size:14px;font-weight:650;cursor:pointer}
+.gc-button-primary{border:1px solid #1464a0;background:#1464a0;color:#fff}
+.gc-button-secondary{border:1px solid #b8d0e0;background:#fff;color:#0f3f6a}
+.gc-button:disabled,.gc-icon-close:disabled{opacity:.6;cursor:not-allowed}
+.gc-error{margin:14px 0 0;padding:12px 14px;border:1px solid #e6a8a8;border-radius:10px;background:#fff3f2;color:#a12626;line-height:1.5}
+.gc-review-intro{margin-top:0}
+.gc-summary{display:grid;grid-template-columns:minmax(110px,190px) minmax(0,1fr);gap:10px 16px;overflow-wrap:anywhere}
+.gc-summary dt{font-weight:650;color:#345d78}
+.gc-summary dd{margin:0;white-space:pre-wrap;color:#071e30}
+.gc-success{text-align:center;max-width:660px;margin:0 auto}
+.gc-success-icon{display:inline-grid;place-items:center;width:62px;height:62px;border-radius:50%;background:#e3f5eb;color:#167247;font-size:32px;font-weight:bold}
+.gc-success h3{color:#071e30;font-size:24px;margin:14px 0 8px}
+.gc-success>p{line-height:1.55}
+.gc-success .gc-summary{text-align:left;margin-top:22px;padding:18px;background:#fff;border:1px solid #d0e4f0;border-radius:12px}
+@media(max-width:900px){.gc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:639px){.gc-grid{grid-template-columns:minmax(0,1fr)}.gc-header,.gc-footer{padding:12px 14px}.gc-body{padding:14px}.gc-header h2{font-size:19px}.gc-footer{flex-wrap:wrap}.gc-footer .gc-button{flex:1 1 120px}.gc-summary{grid-template-columns:1fr;gap:4px}.gc-summary dd{margin-bottom:10px}}
+
 `.replace(/^\+/gm, '')
