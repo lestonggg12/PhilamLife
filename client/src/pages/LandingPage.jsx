@@ -338,7 +338,7 @@ export default function LandingPage({ onAccessPortal } = {}) {
               {lastWordChars}
             </span>
           </h1>
-          <div className="lp-hero-subtitle lp-fade-in" style={{ animationDelay: '.7s' }}>LEDGER &amp; PAYMENT SYSTEM</div>
+          <div className="lp-hero-subtitle lp-fade-in" style={{ animationDelay: '.7s' }}>LEDGER &amp; MANAGEMENT SYSTEM</div>
           <p className="lp-hero-description lp-fade-in" style={{ animationDelay: '.85s' }}>
             A secure platform for managing homeowner dues, collections, and financial records for our community.
           </p>
