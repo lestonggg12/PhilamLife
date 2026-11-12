@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { downloadGrievanceBackup } from '../lib/grievanceBackup'
 import { supabase } from '../lib/supabaseClient'
 import GrievanceCloudCreate from '../components/GrievanceCloudCreate'
+import { createPortal } from 'react-dom'
 
 // Resolve the date in the HOA timezone rather than freezing a past calendar date.
 // This is refreshed when the page is reloaded; live midnight rollover is a separate follow-up.
@@ -216,7 +217,7 @@ export default function GrievancesPage() {
       </>}
     </main>
     {showCloudForm && (
-      <Dialog label="Record a shared grievance" onClose={() => setShowCloudForm(false)}>
+      <CloudGrievanceModal label="Record a shared grievance" onClose={() => setShowCloudForm(false)}>
         <div style={{ maxHeight: 'min(80vh, 740px)', overflowY: 'auto', padding: 14 }}>
           {cloudCheck.state === 'ready' ? (
             <GrievanceCloudCreate onSaved={() => setCloudRefresh(value => value + 1)} />
@@ -227,12 +228,66 @@ export default function GrievancesPage() {
             Close
           </button>
         </div>
-      </Dialog>
+      </CloudGrievanceModal>
     )}
     {modal?.type === 'case' && selectedCase && <CaseDialog draft={draft} setDraft={setDraft} onClose={closeModal} onEdit={() => { lastFocus.current = document.activeElement; setModal({ type: 'form', editing: true }) }} onSave={saveCaseUpdate} error={formError} />}
     {modal?.type === 'form' && draft && <FormDialog draft={draft} setDraft={setDraft} editing={modal.editing} onClose={closeModal} onSave={saveForm} error={formError} />}
     {toast && <div className="grievance-toast" role="status">{toast}</div>}
   </>
+}
+
+// Only the pilot cloud form uses this portal. Legacy grievance dialogs are unchanged.
+function CloudGrievanceModal({ children, label, onClose }) {
+  const panelRef = useRef(null)
+  const restoreFocusRef = useRef(null)
+  useEffect(() => {
+    restoreFocusRef.current = document.activeElement
+    panelRef.current?.querySelector('input,select,textarea,button')?.focus()
+    return () => restoreFocusRef.current?.focus?.()
+  }, [])
+
+  function trapFocus(event) {
+    if (event.key !== 'Tab') return
+    const controls = [...panelRef.current.querySelectorAll('input,select,textarea,button,[tabindex]')]
+      .filter(node => !node.disabled && node.tabIndex !== -1 && node.getClientRects().length > 0)
+    if (!controls.length) { event.preventDefault(); return }
+    const first = controls[0]
+    const last = controls[controls.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  return createPortal(
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 3000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16, boxSizing: 'border-box', overflowY: 'auto',
+      background: 'rgba(15, 63, 106, 0.55)',
+      '--blue': '#1464a0', '--dark': '#0f3f6a', '--ink': '#071e30',
+      '--body': '#2a5470', '--muted': '#5a7a92',
+    }}>
+      <section ref={panelRef} role="dialog" aria-modal="true" aria-label={label}
+        onKeyDown={trapFocus} style={{
+          width: 'min(960px, 100%)',
+          maxHeight: 'calc(100dvh - 32px)',
+          overflowY: 'auto',
+          margin: 'auto',
+          borderRadius: 18,
+          border: '1px solid #c5dfed',
+          background: '#edf6fd',
+          boxShadow: '0 24px 70px rgba(7,30,48,.33)',
+          boxSizing: 'border-box',
+        }}>
+        {children}
+      </section>
+    </div>,
+    document.body,
+  )
 }
 
 function StatCard({ label, value, note, icon, tone = 'blue', danger = false, selected, onClick, progress }) { return <button type="button" className={`stat-card ${selected ? 'is-selected' : ''}`} aria-pressed={selected} onClick={onClick}><span className="stat-top"><span>{label}</span><span className={`stat-icon ${tone}`}><Icon name={icon} size={17} /></span></span><strong className={danger ? 'danger-number' : ''}>{value}</strong><small>{note}</small>{progress !== undefined && <span className="progress-track"><span style={{ width: `${progress}%` }} /></span>}</button> }
