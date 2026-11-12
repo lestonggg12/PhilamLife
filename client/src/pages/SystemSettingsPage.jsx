@@ -37,11 +37,16 @@ const DEFAULT_SETTINGS = {
   date_format: 'MM/DD/YYYY',
 }
 
+const EDITABLE_FIELDS = ['hoa_name', 'address', 'contact_email', 'contact_phone', 'billing_day', 'due_day', 'grace_period_days', 'require_strong_password', 'session_timeout', 'currency', 'timezone', 'date_format']
+
+const GENERAL_SECTIONS = [['organization', 'Organization'], ['dues', 'Dues rate'], ['billing', 'Billing rules'], ['regional', 'Regional'], ['penalties', 'Penalties']]
+
 const HISTORY_KEY = 'philam_settings_export_history'
 
 function Icon({ name, size = 18 }) {
   const paths = {
     general: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></>,
+    calendar: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></>,
     budget: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 14h10" /></>,
     security: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
     backup: <><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></>,
@@ -100,6 +105,11 @@ export default function SystemSettingsPage({ user }) {
   const { organization, refreshOrganization } = useOrganization()
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [savedSettings, setSavedSettings] = useState(null)
+  const [activeSection, setActiveSection] = useState('organization')
+  const pageRef = useRef(null)
+  const canEdit = String(user?.role || '').trim().toLowerCase() === 'admin'
+  const dirtyCount = savedSettings ? EDITABLE_FIELDS.filter((field) => String(settings[field] ?? '') !== String(savedSettings[field] ?? '')).length : 0
   const [loading, setLoading] = useState(true)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [loadedRevision, setLoadedRevision] = useState(null)
@@ -141,6 +151,7 @@ export default function SystemSettingsPage({ user }) {
         if (!Number.isSafeInteger(Number(data.settings_revision))) {
           throw new Error('Settings revision is missing. Apply the required database migration before saving.')
         }
+        setSavedSettings({ ...DEFAULT_SETTINGS, ...data, contact_email: data.contact_email || '', contact_phone: data.contact_phone || '' })
         setLoadedRevision(Number(data.settings_revision))
         setSettingsLoaded(true)
       } catch (error) {
@@ -152,6 +163,27 @@ export default function SystemSettingsPage({ user }) {
     load()
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    if (!dirtyCount) return
+    const warnBeforeUnload = (event) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [dirtyCount])
+
+  function discardChanges() {
+    if (!savedSettings || saving) return
+    setSettings((current) => ({ ...current, ...savedSettings }))
+    setMessage(null)
+  }
+
+  function goToSection(event, id) {
+    event.preventDefault()
+    setActiveSection(id)
+    const section = pageRef.current?.querySelector(`#ss-${id}`)
+    section?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+    section?.focus({ preventScroll: true })
+  }
 
   function update(field, value) {
     setSettings((current) => ({ ...current, [field]: value }))
@@ -189,6 +221,7 @@ export default function SystemSettingsPage({ user }) {
         grace_period_days: String(saved.grace_period_days),
         session_timeout: String(saved.session_timeout),
       }))
+      setSavedSettings({ ...saved, contact_email: saved.contact_email || '', contact_phone: saved.contact_phone || '' })
       setLoadedRevision(Number(saved.settings_revision))
       if (refreshError) {
         setMessage({ type: 'error', text: `Settings were saved, but the shared display could not refresh: ${refreshError.message}. Reload the page before continuing.` })
@@ -292,10 +325,21 @@ export default function SystemSettingsPage({ user }) {
   if (loading) return <div className="ss-page" aria-busy="true"><Skeleton variant="text" width="42%" lines={2} /><Skeleton variant="rect" width="100%" height="52px" /><div className="ss-card-grid"><Skeleton variant="rect" width="100%" height="240px" /><Skeleton variant="rect" width="100%" height="240px" /><Skeleton variant="rect" width="100%" height="240px" /></div><span className="skeleton-region-status" role="status">Loading</span></div>
 
   return (
-    <div className="ss-page">
+    <div className="ss-page" ref={pageRef}>
       <header className="ss-header">
-        <div><h1>System Settings</h1><p>Manage organization, billing, notification, security, and data preferences.</p></div>
-        <span className="ss-admin-badge">Admin access</span>
+        <div className="ss-header-intro">
+          <span className="ss-header-icon" aria-hidden="true"><Icon name="general" size={26} /></span>
+          <div className="ss-header-copy">
+            <span className="ss-header-eyebrow">Administration</span>
+            <h1>System Settings</h1>
+            <p>Manage organization details, billing rules, security, and system data.</p>
+          </div>
+        </div>
+        <div className="ss-header-actions">
+          <span className="ss-admin-badge">{canEdit ? 'Admin access' : 'View only'}</span>
+          <button type="button" className="ss-secondary" disabled={!dirtyCount || saving} onClick={discardChanges}>Discard</button>
+          <button type="button" className="ss-primary" onClick={saveSettings} disabled={!dirtyCount || saving || !settingsLoaded || !canEdit}>{saving ? 'Saving…' : `Save Changes${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
+        </div>
       </header>
 
       <section className="ss-stat-row" aria-label="Settings summary">
@@ -306,7 +350,7 @@ export default function SystemSettingsPage({ user }) {
           <small>{settings.address || 'Address not configured'}</small>
         </article>
         <article className="ss-stat-card">
-          <span className="ss-stat-icon" aria-hidden="true"><Icon name="general" /></span>
+          <span className="ss-stat-icon" aria-hidden="true"><Icon name="calendar" /></span>
           <span className="ss-stat-label">Billing schedule</span>
           <strong>Day {settings.billing_day}</strong>
           <small>Due day {settings.due_day} · {settings.grace_period_days} grace days</small>
@@ -314,7 +358,7 @@ export default function SystemSettingsPage({ user }) {
         <article className="ss-stat-card">
           <span className="ss-stat-icon" aria-hidden="true"><Icon name="security" /></span>
           <span className="ss-stat-label">Security policy</span>
-          <strong>{settings.require_strong_password ? 'Strong passwords' : 'Standard passwords'}</strong>
+          <strong>{settings.require_strong_password ? 'Strong' : 'Standard'}</strong>
           <small>{settings.session_timeout} minute session timeout</small>
         </article>
         <article className="ss-stat-card">
@@ -326,34 +370,46 @@ export default function SystemSettingsPage({ user }) {
       </section>
 
       <nav className="ss-tabs" aria-label="Settings sections">
-        {tabs.map(([id, label]) => <button key={id} type="button" className={activeTab === id ? 'active' : ''} onClick={() => { setActiveTab(id); setMessage(null) }}><Icon name={id} />{label}</button>)}
+        {tabs.map(([id, label]) => <button key={id} type="button" className={activeTab === id ? 'active' : ''} aria-current={activeTab === id ? 'page' : undefined} onClick={() => { setActiveTab(id); setMessage(null) }}><Icon name={id} />{label}</button>)}
       </nav>
 
       {message?.type === 'error' && <div className="ss-message error" role="alert">{message.text}</div>}
 
-      {activeTab === 'general' && <div className="ss-card-grid">
-        <SettingsCard title="Organization details" subtitle="Information shown across the HOA system.">
-          <Field label="HOA Name" value={settings.hoa_name} onChange={(v) => update('hoa_name', v)} wide />
-          <Field label="Address" value={settings.address} onChange={(v) => update('address', v)} wide />
-          <Field label="Contact Email" type="email" value={settings.contact_email || ''} onChange={(v) => update('contact_email', v)} />
-          <Field label="Contact Phone" value={settings.contact_phone || ''} onChange={(v) => update('contact_phone', v)} />
-        </SettingsCard>
-        <SettingsCard title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Billed amounts for past months never change.">
-        <PricePerSqmForm canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
-      </SettingsCard>
-        <SettingsCard className="ss-penalty-card" title="Annual Penalty Rates" subtitle="Future annual compounding on unpaid dues and balances. Posted historical amounts remain unchanged.">
-          <LatePenaltySettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />
-        </SettingsCard>
-        <SettingsCard title="Billing configuration" subtitle="Billing day and overdue-payment rules.">
-          <Field label="Billing Day of Month" type="number" min="1" max="31" value={settings.billing_day} onChange={(v) => update('billing_day', v)} />
-          <Field label="Due Day of Month" type="number" min="1" max="31" value={settings.due_day} onChange={(v) => update('due_day', v)} />
-          <Field label="Grace Period (days)" type="number" min="0" value={settings.grace_period_days} onChange={(v) => update('grace_period_days', v)} />
-        </SettingsCard>
-        <SettingsCard className="ss-preferences-card" title="System preferences" subtitle="Regional display defaults.">
-          <SelectField label="Currency" value={settings.currency} onChange={(v) => update('currency', v)} options={[['PHP', 'Philippine Peso (₱)']]} />
-          <SelectField label="Time Zone" value={settings.timezone} onChange={(v) => update('timezone', v)} options={[['Asia/Manila', 'Asia/Manila']]} />
-          <SelectField label="Date Format" value={settings.date_format} onChange={(v) => update('date_format', v)} options={['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'].map((v) => [v, v])} />
-        </SettingsCard>
+      {activeTab === 'general' && <div className="ss-general-layout">
+        <nav className="ss-toc" aria-label="On this page">
+          <p>On this page</p>
+          {GENERAL_SECTIONS.map(([id, label]) => <a key={id} href={`#ss-${id}`} className={activeSection === id ? 'active' : ''} aria-current={activeSection === id ? 'location' : undefined} onClick={(event) => goToSection(event, id)}>{label}{id === 'penalties' && <small>Own save</small>}</a>)}
+        </nav>
+        <div className="ss-general-sections">
+          <SettingsCard id="ss-organization" className="ss-organization-card" title="Organization details" subtitle="Information shown across the HOA system." badge="Save Changes">
+            <Field label="HOA name" value={settings.hoa_name} onChange={(v) => update('hoa_name', v)} wide />
+            <Field label="Address" value={settings.address} onChange={(v) => update('address', v)} wide />
+            <div className="ss-settings-row"><div className="ss-row-label">Contact<small>Email and phone for residents</small></div><div className="ss-row-controls">
+              <Field label="Email" type="email" value={settings.contact_email || ''} onChange={(v) => update('contact_email', v)} />
+              <Field label="Phone" value={settings.contact_phone || ''} onChange={(v) => update('contact_phone', v)} />
+            </div></div>
+          </SettingsCard>
+          <SettingsCard id="ss-dues" className="ss-dues-card" title="Dues rate" subtitle="Monthly dues = lot size (sqm) × this rate. Prepaid contract prices stay unchanged." badge="Saves on its own" ownSave>
+            <PricePerSqmForm canEdit={canEdit} />
+          </SettingsCard>
+          <SettingsCard id="ss-billing" title="Billing rules" subtitle="Billing day and overdue-payment rules." badge="Save Changes">
+            <div className="ss-settings-row"><div className="ss-row-label">Schedule<small>Day of the month</small></div><div className="ss-row-controls ss-three-controls">
+              <Field label="Billing day" type="number" min="1" max="31" value={settings.billing_day} onChange={(v) => update('billing_day', v)} />
+              <Field label="Due day" type="number" min="1" max="31" value={settings.due_day} onChange={(v) => update('due_day', v)} />
+              <Field label="Grace period (days)" type="number" min="0" value={settings.grace_period_days} onChange={(v) => update('grace_period_days', v)} />
+            </div></div>
+          </SettingsCard>
+          <SettingsCard id="ss-regional" className="ss-preferences-card" title="Regional" subtitle="Display defaults." badge="Save Changes">
+            <div className="ss-settings-row"><div className="ss-row-label">Format<small>Currency, time zone and date</small></div><div className="ss-row-controls ss-three-controls">
+              <SelectField label="Currency" value={settings.currency} onChange={(v) => update('currency', v)} options={[[ 'PHP', 'Philippine Peso (₱)' ]]} />
+              <SelectField label="Time zone" value={settings.timezone} onChange={(v) => update('timezone', v)} options={[[ 'Asia/Manila', 'Asia/Manila' ]]} />
+              <SelectField label="Date format" value={settings.date_format} onChange={(v) => update('date_format', v)} options={['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'].map((v) => [v, v])} />
+            </div></div>
+          </SettingsCard>
+          <SettingsCard id="ss-penalties" className="ss-penalty-card" title="Annual penalty rates" subtitle="Future annual compounding on unpaid dues. Posted historical amounts remain unchanged." badge="Saves on its own" ownSave>
+            <LatePenaltySettings canEdit={canEdit} />
+          </SettingsCard>
+        </div>
       </div>}
 
       {activeTab === 'budget' && <ExpenseBudgetSettings canEdit={String(user?.role || '').trim().toLowerCase() === 'admin'} />}
@@ -379,6 +435,7 @@ export default function SystemSettingsPage({ user }) {
           <div className="ss-export-grid">
             {EXPORTS.map((item) => <div className="ss-export-item" key={item.table}><div><strong>{item.label}</strong><p>{item.description}</p></div><button type="button" onClick={() => exportTable(item.table, item.label)} disabled={!!exporting}>{exporting === item.table ? 'Preparing…' : 'Export CSV'}</button></div>)}
           </div>
+          <details className="ss-export-scope"><summary>View included application tables</summary><div>{ADMIN_EXPORT_TABLES.map((table) => <span key={table}>{table}</span>)}</div></details>
           <p className="ss-info">Includes document metadata. Confidential grievance cases and history, Auth accounts, stored files, database schema and server configuration are excluded. Access follows your existing permissions. Table counts are verified independently; changes made during export may span different moments.</p>
         </SettingsCard>
         <SettingsCard title="Download history" subtitle="Recent exports made in this browser." full>
@@ -386,13 +443,16 @@ export default function SystemSettingsPage({ user }) {
         </SettingsCard>
       </div>}
 
-      {activeTab !== 'backup' && activeTab !== 'budget' && <div className="ss-save-bar"><span>Saves organization, billing, regional and security preferences. Dues rate and penalty settings have their own Save buttons.</span><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving || !settingsLoaded}>{saving ? 'Saving…' : <><Icon name="check" />Save Changes</>}</button></div>}
+      {!!dirtyCount && <div className="ss-save-bar" role="status">
+        <span><strong>{dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}</strong><small>Organization, billing, regional and security preferences. Dues and penalties save separately.</small></span>
+        <div className="ss-save-actions"><button type="button" className="ss-secondary" onClick={discardChanges} disabled={saving}>Discard</button><button type="button" className="ss-primary" onClick={saveSettings} disabled={saving || !settingsLoaded || !canEdit}>{saving ? 'Saving…' : 'Save changes'}</button></div>
+      </div>}
     </div>
   )
 }
 
-function SettingsCard({ title, subtitle, children, full = false, className = '' }) {
-  return <section className={`ss-card ${full ? 'full' : ''} ${className}`.trim()}><div className="ss-card-heading"><h2>{title}</h2><p>{subtitle}</p></div><div className="ss-fields">{children}</div></section>
+function SettingsCard({ id, title, subtitle, children, full = false, className = '', badge, ownSave = false }) {
+  return <section id={id} tabIndex={id ? -1 : undefined} className={`ss-card ${full ? 'full' : ''} ${className}`.trim()}><div className="ss-card-heading"><div><h2>{title}</h2><p>{subtitle}</p></div>{badge && <span className={`ss-card-badge ${ownSave ? 'own-save' : ''}`}>{badge}</span>}</div><div className="ss-fields">{children}</div></section>
 }
 
 function Field({ label, value, onChange, wide = false, ...props }) {
