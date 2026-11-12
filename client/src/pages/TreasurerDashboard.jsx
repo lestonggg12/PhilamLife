@@ -247,10 +247,23 @@ export default function TreasurerDashboard() {
       detail: loading ? 'Checking collections…' : dashboardUnavailable ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`,
     },
     {
-      key: 'allocation', tone: checkTone(allocationGaps ?? 0, 'md'), badge: loading ? '…' : dashboardUnavailable || allocationGaps == null ? '!' : allocationGaps,
-      title: loading ? 'Checking…' : dashboardUnavailable || allocationGaps == null ? 'Allocation check unavailable' : `${plural(allocationGaps, 'receipt')} flagged for allocation review`,
-      detail: 'Verify which bills were paid using the receipt and supporting records.',
-    },
+  key: 'allocation',
+  tone: checkTone(allocationGaps ?? 0, 'md'),
+  badge: loading
+    ? '…'
+    : dashboardUnavailable || allocationGaps == null
+      ? '!'
+      : allocationGaps,
+  title: loading
+    ? 'Checking…'
+    : dashboardUnavailable || allocationGaps == null
+      ? 'Allocation check unavailable'
+      : `${plural(allocationGaps, 'payment')} without explicit charge links`,
+  detail:
+    'Historical payment records may lack bill-level allocation links. ' +
+    'This does not mean cash or payments are missing. ' +
+    'Review receipts and supporting records before assigning charges.',
+},
     {
       key: 'adjustments', tone: checkTone(exceptions.unreferencedAdjustments, 'md'), badge: countBadge(exceptions.unreferencedAdjustments),
       title: loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${plural(exceptions.unreferencedAdjustments, 'adjustment')} without approval references`,

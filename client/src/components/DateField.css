@@ -17,3 +17,9 @@
 .tsr-date-legend-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 13px; border-top: 1px solid rgba(120,162,210,.18); }.tsr-date-legend { display: flex; flex-wrap: wrap; gap: 13px; color: var(--text-muted,#5a7a92); font-size: 11px; }.tsr-date-legend span { display: inline-flex; align-items: center; gap: 6px; }.tsr-date-legend i { width: 9px; height: 9px; border-radius: 50%; }.tsr-date-key-today { border: 2px solid var(--primary-light,#9cc3de); background: rgba(120,162,210,.16); }.tsr-date-key-marker { background: var(--warning,#d69200); }
 .tsr-date-today-link { padding: 0; border: none; background: none; color: var(--primary,#1464a0); cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; text-decoration: underline; }.tsr-date-today-link:disabled { color: #b7c2cd; cursor: not-allowed; text-decoration: none; }.tsr-date-clear { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--primary,#1464a0); font-size: 11px; cursor: pointer; }.tsr-date-clear:disabled { color: #b7c2cd; cursor: not-allowed; }
 .tsr-date-month-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }.tsr-date-month { min-height: 42px; border: 1px solid transparent; border-radius: 11px; background: transparent; color: var(--text-dark,#071e30); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }.tsr-date-month:hover:not(:disabled) { border-color: rgba(120,162,210,.4); background: rgba(120,162,210,.12); }.tsr-date-month.is-selected { border-color: var(--primary,#1464a0); background: var(--primary,#1464a0); color: #fff; }
+
+/* The grievance form is rendered in a body-level portal at z-index 3000.
+   Its shared date-picker is also portaled to body, so it must be above that shell.
+   Restrict the override to times when the grievance modal is present. */
+body:has(.gc-modal-content) > .tsr-date-popover {
+  z-index: 3100; }

@@ -1,0 +1,50 @@
+/* Shared grievance review only. Existing entry and legacy dialogs are unaffected. */
+.gcr-modal { height: min(90dvh, 820px); }
+.gcr-modal .gc-icon-close { border: 1px solid transparent; background: transparent; color: #607b90; }
+.gcr-modal .gc-icon-close:hover { background: #e6f0fa; color: #0f2a43; }
+.gcr-modal .gc-header h2:focus { outline: none; }
+.gcr-body { padding: 20px 22px 24px; }
+.gcr-message { margin: 0; padding: 16px; border: 1px solid #d5e6f0; border-radius: 12px; background: #fff; color: #52718a; }
+.gcr-error { margin: 0; padding: 16px; border: 1px solid #e6afaf; border-radius: 12px; background: #fff5f5; color: #a12626; overflow-wrap: anywhere; }
+.gcr-hero { padding: 18px 20px; border: 1px solid #c8deee; border-radius: 14px; background: linear-gradient(110deg, #fff 0%, #e6f0fa 100%); }
+.gcr-ref { display: inline-block; padding: 7px 12px; border-radius: 8px; background: #dceefc; color: #1464a0; font: 600 14px ui-monospace, Consolas, monospace; }
+.gcr-status { display: inline-block; margin-left: 10px; padding: 6px 10px; border-radius: 20px; background: #fff5da; color: #8c6400; font-size: 12px; font-weight: 600; }
+.gcr-hero h3 { margin: 13px 0 4px; font-size: 22px; color: #0f2a43; overflow-wrap: anywhere; }
+.gcr-hero p { margin: 0; color: #5a7a92; font-size: 13px; }
+.gcr-section { margin-top: 18px; overflow: hidden; border: 1px solid #d0e4f0; border-radius: 13px; background: #fff; }
+.gcr-section h4 { margin: 0; padding: 14px 18px; border-bottom: 1px solid #e5eef4; background: #f5faff; color: #0f2a43; font-size: 15px; }
+.gcr-section h4 span { color: #5a7a92; font-weight: 500; }
+.gcr-details { margin: 0; }
+.gcr-detail { display: grid; grid-template-columns: 185px minmax(0, 1fr); gap: 16px; padding: 12px 18px; border-bottom: 1px solid #ecf2f7; }
+.gcr-detail:last-child { border-bottom: 0; }
+.gcr-detail dt { color: #667f94; font-size: 13px; font-weight: 500; }
+.gcr-detail dd { margin: 0; min-width: 0; color: #0f2a43; font-size: 14px; line-height: 1.5; font-weight: 500; overflow-wrap: anywhere; white-space: pre-wrap; }
+.gcr-detail dd.gcr-empty { color: #8096a8; font-style: italic; font-weight: 400; }
+.gcr-history { margin: 0; padding: 6px 18px 12px 38px; }
+.gcr-history li { padding: 14px 4px; border-bottom: 1px solid #e9f0f5; overflow-wrap: anywhere; }
+.gcr-history li:last-child { border-bottom: 0; }
+.gcr-history-top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.gcr-history-top strong { color: #0f2a43; font-size: 14px; }
+.gcr-history-top time, .gcr-history small { color: #607b90; font-size: 12px; }
+.gcr-history p { margin: 7px 0 0; color: #355e79; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .gcr-body { padding: 14px; }
+  .gcr-hero { padding: 14px; }
+  .gcr-detail { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 14px; }
+  .gcr-section h4 { padding: 12px 14px; }
+  .gcr-history { padding-right: 12px; }
+}
+
+/* Step 3K: controlled shared-grievance update controls. */
+.gcr-update-section { border-color: #bad9ed; background: #f6fbff; }
+.gcr-update-section .gcr-help { margin: 0 0 15px; font-size: 13px; line-height: 1.5; color: #58758b; }
+.gcr-update-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; }
+.gcr-update-grid label { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #45637a; font-size: 13px; font-weight: 500; }
+.gcr-update-grid input,.gcr-update-grid select,.gcr-update-grid textarea { width: 100%; min-width: 0; border: 1px solid #a8c8dc; border-radius: 9px; background: #fff; color: #0f2a43; font: inherit; font-size: 14px; padding: 10px 12px; }
+.gcr-update-grid input,.gcr-update-grid select { min-height: 44px; }
+.gcr-update-grid textarea { min-height: 96px; resize: vertical; }
+.gcr-update-grid :is(input,select,textarea):focus-visible { outline: 3px solid #1464a055; outline-offset: 1px; }
+.gcr-update-wide { grid-column: 1/-1; }
+.gcr-required { font-weight: 500; color: #7b5161; }
+.gcr-notice { margin: 0 0 16px; padding: 12px 15px; border: 1px solid #acd6c1; background: #eef9f2; border-radius: 10px; color: #256248; }
+@media (max-width:639px) { .gcr-update-grid { grid-template-columns: minmax(0,1fr); } .gcr-update-wide { grid-column: 1; } }

@@ -21,8 +21,9 @@ const migration = readFileSync(
 )
 
 const rolesOf = (source, path) => {
-  const match = source.match(new RegExp(`path: '${path}',[\\s\\S]*?roles: \\[([^\\]]*)\\]`))
-  return match ? match[1].match(/'(\w+)'/g).map((role) => role.replace(/'/g, '')).sort() : null
+  const entries = [...source.matchAll(/path:\s*['"]([^'"]+)['"],[\s\S]*?roles:\s*\[([^\]]*)\]/g)]
+  const match = entries.find((entry) => entry[1] === path)
+  return match ? [...match[2].matchAll(/['"](\w+)['"]/g)].map((entry) => entry[1]).sort() : null
 }
 const assignment = (source, name) => {
   const match = source.match(new RegExp(`const ${name} =\\s*([^\\n]+(?:\\n\\s+\\|\\|[^\\n]+)*)`))
