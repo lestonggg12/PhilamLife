@@ -279,7 +279,7 @@ export default function GrievancesPage() {
     )}
     {sharedReviewId && (
       <CloudGrievanceModal label="Review shared grievance" onClose={closeSharedReview}>
-        <GrievanceCloudReview caseId={sharedReviewId} onClose={closeSharedReview} />
+        <GrievanceCloudReview caseId={sharedReviewId} onClose={closeSharedReview} onSaved={() => setCloudRefresh(value => value + 1)} />
       </CloudGrievanceModal>
     )}
     {modal?.type === 'case' && selectedCase && <CaseDialog draft={draft} setDraft={setDraft} onClose={closeModal} onEdit={() => { lastFocus.current = document.activeElement; setModal({ type: 'form', editing: true }) }} onSave={saveCaseUpdate} error={formError} />}
