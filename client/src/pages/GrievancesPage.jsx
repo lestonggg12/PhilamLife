@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { downloadGrievanceBackup } from '../lib/grievanceBackup'
 
 // Resolve the date in the HOA timezone rather than freezing a past calendar date.
 // This is refreshed when the page is reloaded; live midnight rollover is a separate follow-up.
@@ -101,6 +102,14 @@ export default function GrievancesPage() {
   function clearFilters() { setSearch(''); setCategory('All categories'); setHandler('All handlers'); setFilter('all') }
   function toggleFilter(value) { setFilter((current) => current === value ? 'all' : value) }
   function refresh() { setRefreshing(true); window.setTimeout(() => { setRefreshing(false); setToast('Grievance register refreshed') }, 350) }
+  function backUpLocalCases() {
+    try {
+      const saved = downloadGrievanceBackup(cases)
+      setToast(saved ? 'Grievance backup downloaded. Store this file securely.' : 'There are no local grievances to back up.')
+    } catch {
+      setToast('The backup could not be downloaded. Your existing records were not changed.')
+    }
+  }
   function validateRecord(record, note, editing) {
     if (!record.title.trim() || !record.filedBy.trim() || !record.concerns.trim() || !record.location.trim() || !record.description.trim()) return 'Complete the title, people involved, location and description.'
     if (!note.trim()) return 'Add a note explaining this record or update.'
@@ -138,7 +147,7 @@ export default function GrievancesPage() {
   return <>
     <style>{styles}</style>
     <main className="grievance-app">
-      <header className="grievance-hero"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p className="grievance-subtitle">Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-actions"><button className="button-outline" type="button" onClick={refresh} disabled={refreshing}><Icon name="refresh" size={16} />{refreshing ? 'Refreshing...' : 'Refresh'}</button><button className="button-primary" type="button" onClick={(event) => openForm(null, event.currentTarget)}><Icon name="plus" size={17} />Record grievance</button></div></header>
+      <header className="grievance-hero"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p className="grievance-subtitle">Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-actions"><button className="button-outline" type="button" onClick={backUpLocalCases}>Back up cases</button><button className="button-outline" type="button" onClick={refresh} disabled={refreshing}><Icon name="refresh" size={16} />{refreshing ? 'Refreshing...' : 'Refresh'}</button><button className="button-primary" type="button" onClick={(event) => openForm(null, event.currentTarget)}><Icon name="plus" size={17} />Record grievance</button></div></header>
       <nav className="grievance-tabs" role="tablist" aria-label="Grievance views"><button type="button" role="tab" aria-selected={tab === 'register'} className={tab === 'register' ? 'is-active' : ''} onClick={() => setTab('register')}>Case register</button><button type="button" role="tab" aria-selected={tab === 'statement'} className={tab === 'statement' ? 'is-active' : ''} onClick={() => setTab('statement')}>Period statement</button></nav>
       {tab === 'statement' ? <section className="statement-placeholder" role="tabpanel"><span className="statement-icon"><Icon name="file" size={22} /></span><h2>Period statement</h2><p>Statement preparation will appear here when the case register is connected to real data.</p><button className="button-outline" type="button" onClick={() => setTab('register')}>Return to case register</button></section> : <>
         <section className="grievance-stats" aria-label="Grievance summaries"><StatCard label="Total cases" value={stats.total} note={`${stats.filed} filed this month`} icon="file" selected={filter === 'all'} onClick={() => toggleFilter('all')} /><StatCard label="Active cases" value={stats.active} note={`${stats.progress} in progress, ${stats.open} not started`} icon="clock" tone="amber" selected={filter === 'active'} onClick={() => toggleFilter('active')} /><StatCard label="Follow-up due" value={stats.due} note={stats.due ? `Oldest is ${stats.oldest} days overdue` : 'Nothing overdue'} icon="warning" tone="red" danger={stats.due > 0} selected={filter === 'overdue'} onClick={() => toggleFilter('overdue')} /><StatCard label="Resolution rate" value={`${stats.rate}%`} note={`${stats.resolved} of ${stats.total} resolved`} icon="check" tone="green" selected={filter === 'resolved'} onClick={() => toggleFilter('resolved')} progress={stats.rate} /></section>
