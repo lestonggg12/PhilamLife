@@ -487,6 +487,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
   const [duesSettings, setDuesSettings] = useState(null)
   const [advanceConfirm, setAdvanceConfirm] = useState(null)
   const [annualAdvancePrompt, setAnnualAdvancePrompt] = useState(false)
+  const [annualPromotionBalance, setAnnualPromotionBalance] = useState(null)
   const [annualAdvance, setAnnualAdvance] = useState(false)
   const [changeHandling, setChangeHandling] = useState('advance')
   const [manualDiscount, setManualDiscount] = useState({
@@ -707,6 +708,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     setFormError('')
     setHomeownerMenuOpen(false)
     setAnnualAdvancePrompt(false)
+    setAnnualPromotionBalance(null)
     setAnnualAdvance(false)
     setShowForm(true)
   }, [canManagePayments])
@@ -1068,20 +1070,43 @@ function updateField(event) {
       : {}),
   }))
 
-  if (
-    name === 'paymentPurpose' &&
-    value === 'Association Dues' &&
-    Boolean(form.propertyId) &&
-    selectedMonthlyDues > 0 &&
-    Number(form.previousBalance) <= 0
-  ) {
-    setAnnualAdvancePrompt(true)
+  if (name === 'paymentPurpose') {
+    setAnnualAdvancePrompt(false)
+    setAnnualPromotionBalance(null)
   }
 
   setFormError('')
 }
 
+function requestAnnualPromotion() {
+  if (saving) return
+  if (annualAdvance) {
+    chooseAnnualAdvance(false)
+    return
+  }
+  if (!form.propertyId || form.paymentPurpose !== 'Association Dues') return
+  if (Number(form.previousBalance) > 0) {
+    setAnnualPromotionBalance(Number(form.previousBalance))
+    return
+  }
+  if (!canOfferAnnualDiscount) {
+    setFormError('The annual promotion is not available. Refresh the account details and verify the monthly dues first.')
+    return
+  }
+  if (manualDiscount.enabled) {
+    setFormError('Remove the manual discount before applying the 12-month promotion. Discounts cannot be stacked.')
+    return
+  }
+  setAnnualAdvancePrompt(true)
+}
+
 function chooseAnnualAdvance(enabled) {
+  if (enabled && !canOfferAnnualDiscount) {
+    setAnnualAdvancePrompt(false)
+    if (Number(form.previousBalance) > 0) setAnnualPromotionBalance(Number(form.previousBalance))
+    else setFormError('The annual promotion is not available for this account. Refresh the account details and try again.')
+    return
+  }
   setChangeHandling('advance')
   setAnnualAdvancePrompt(false)
   setAnnualAdvance(enabled)
@@ -1143,6 +1168,9 @@ function updateHomeownerSearch(event) {
 function selectHomeowner(property) {
   const wasAnnualAdvance = annualAdvance
   setAnnualAdvance(false)
+  setAnnualAdvancePrompt(false)
+  setAnnualPromotionBalance(null)
+
 
   setForm((current) => ({
     ...current,
@@ -1168,6 +1196,7 @@ function selectHomeowner(property) {
     if (saving) return
     setChangeHandling('advance')
     setAnnualAdvancePrompt(false)
+    setAnnualPromotionBalance(null)
     setAnnualAdvance(false)
     setShowForm(false)
     setFormError('')
@@ -1506,6 +1535,7 @@ function selectHomeowner(property) {
     }
     if (annualAdvance) {
   if (!canOfferAnnualDiscount) {
+    if (Number(form.previousBalance) > 0) setAnnualPromotionBalance(Number(form.previousBalance))
     setFormError(
       'The annual discount is available only for Association Dues when no positive balance is outstanding.',
     )
@@ -1921,7 +1951,8 @@ function selectHomeowner(property) {
           </div>
         )}
 
-        <table className="payments-table">
+        <div className="payments-history-wrap">
+        <table className="payments-table payments-history-table">
           <thead>
             <tr>
               <th>Receipt / Date</th>
@@ -1929,7 +1960,7 @@ function selectHomeowner(property) {
               <th>Payment details</th>
               <th>Amount / Method</th>
               <th>Status</th>
-              <th aria-label="Actions" />
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -2011,24 +2042,26 @@ function selectHomeowner(property) {
             )}
           </tbody>
         </table>
+        </div>
 
         <Pager page={page} total={pageInfo.total} onPageChange={goToPage} disabled={listLoading} />
       </section>
 
       {showForm && canManagePayments && (
         <div className="payments-overlay" onMouseDown={closeForm}>
-          <form className="payment-form payment-form--record" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off" inert={saving ? "inert" : undefined} aria-busy={saving}>
+          <form className="payment-form payment-form--record payment-html-match" role="dialog" aria-modal="true" aria-labelledby="payment-record-title" onSubmit={recordPayment} onMouseDown={(e) => e.stopPropagation()} autoComplete="off" inert={saving ? "inert" : undefined} aria-busy={saving}>
             <div className="payment-modal-heading">
               <div>
-                <h2>Record Payment</h2>
-                <p>Check payment details before saving the receipt.</p>
+                <span className="payment-record-eyebrow">Homeowner collections</span>
+                <h2 id="payment-record-title">Record Payment</h2>
+                <p>Choose an account and enter the payment details.</p>
               </div>
               <button type="button" className="payments-close" onClick={closeForm} aria-label="Close">×</button>
             </div>
 
             <div className="payment-form-grid payment-record-body">
               <section className="payment-record-details" aria-labelledby="payment-details-title">
-                <h3 className="payment-record-section-label" id="payment-details-title">Details</h3>
+                <h3 className="payment-record-section-label" id="payment-details-title">Account &amp; payment details</h3>
                 <div className="payment-record-fields">
                   <div className="payment-homeowner-field">
                     <label htmlFor="payment-homeowner-search">Homeowner full name</label>
@@ -2090,6 +2123,12 @@ function selectHomeowner(property) {
                       <Select ariaLabel="Payment Purpose" value={form.paymentPurpose} onChange={(value) => updateField({ target: { name: 'paymentPurpose', value } })} placeholder="Select payment purpose" options={PAYMENT_PURPOSES.map((purpose) => ({ value: purpose, label: purpose }))} />
                     </div>
                   </div>
+                  <div className="payment-promotion-choice">
+                    <div><strong>12-month dues promotion</strong><p>{annualAdvance ? '1 month free is applied to this annual payment.' : 'Pay 11 months and receive 12 months of coverage.'}</p></div>
+                    <button type="button" className="payment-promotion-apply" onClick={requestAnnualPromotion}
+                      disabled={saving || !form.propertyId || form.paymentPurpose !== 'Association Dues'}
+                      aria-haspopup="dialog">{annualAdvance ? 'Remove promotion' : 'Apply promotion'}</button>
+                  </div>
                   {form.paymentPurpose === 'Penalty / Late Fee' && (
                     <div className="payment-record-field payment-purpose-field">
                       <label id="specific-penalty-label">Apply payment to a particular penalty (optional)</label>
@@ -2129,8 +2168,9 @@ function selectHomeowner(property) {
                   <label htmlFor="payment-simple-discount">Discount (₱) — full balance settlement only
                     <input id="payment-simple-discount" type="number" min="0" step="0.01" placeholder="0.00" value={manualDiscount.value} disabled={saving || annualAdvance || !isBalanceReducingPayment || balanceDue <= 0}
                       onChange={(event) => setManualDiscount((d) => ({ ...d, value: event.target.value, enabled: Number(event.target.value) > 0, type: 'fixed' }))} />
-                    <small>Not available for partial payments or advance credit. The separate 12-month promotion remains available.</small>
+                    <small>Manual discounts require full debt settlement. Use Apply promotion for the separate 12-month offer.</small>
                   </label>
+                  <div className="payment-record-pair payment-method-pair">
                   <div className="payment-record-field">
                     <label id="payment-method-label">Payment Method</label>
                     <div aria-labelledby="payment-method-label">
@@ -2140,9 +2180,14 @@ function selectHomeowner(property) {
                   <label htmlFor="payment-reference">Reference Number {form.paymentMethod !== 'Cash' && '*'}
                     <input id="payment-reference" name="referenceNumber" value={form.referenceNumber} onChange={updateField} maxLength="100" required={form.paymentMethod !== 'Cash'} />
                   </label>
+                  </div>
+                  <label className="payment-record-note" htmlFor="payment-note">Notes (Optional)
+                    <textarea id="payment-note" name="note" value={form.note} onChange={updateField} maxLength="250" rows="2" placeholder="Optional payment note" />
+                  </label>
                 </div>
 
                 <div className="payment-record-summary" aria-live="polite" aria-label="Payment summary">
+                  <h3 className="payment-summary-title">Payment summary</h3>
                   <div className="payment-record-summary-row">
                     <div className="payment-balance-anchor" ref={(node) => { balancePopoverRef.current.trigger = node }}>
                       <span>Total due</span>
@@ -2198,6 +2243,9 @@ function selectHomeowner(property) {
                       <strong>{changeHandling === 'change' ? `− ${peso.format(excessAmount)}` : peso.format(excessAmount)}</strong>
                     </div>
                   )}
+                  <div className="payment-record-summary-row payment-summary-total">
+                    <span>Balance after payment</span><strong>{peso.format(remainingBalance)}</strong>
+                  </div>
                   {annualAdvance && <p className="payment-record-hint">12-month advance payment includes one month free.</p>}
                   {manualDiscountAmount > 0 && !annualAdvance && !manualDiscountSettlesFullBalance({
                     outstandingBalance: balanceDue,
@@ -2250,9 +2298,6 @@ function selectHomeowner(property) {
                   {advanceCreditNote(-remainingBalance, duesSettingsFor(form.propertyId))}
                 </p>
               )}
-              <label className="payment-record-note payment-record-wide" htmlFor="payment-note">Note (Optional)
-                <textarea id="payment-note" name="note" value={form.note} onChange={updateField} maxLength="250" rows="2" />
-              </label>
               {formError && <p className="payments-error payment-record-wide" role="alert">{formError}</p>}
             </div>
 
@@ -2603,6 +2648,10 @@ function selectHomeowner(property) {
         )
       })()}
 
+      <AnnualPromotionBalanceWarning
+        balance={annualPromotionBalance}
+        onClose={() => setAnnualPromotionBalance(null)}
+      />
       <ActionDialog
         open={annualAdvancePrompt}
         title="12-month payment?"
@@ -2658,5 +2707,74 @@ function selectHomeowner(property) {
         onConfirm={() => setPopupNotice('')}
       />
     </div>
+  )
+}
+
+
+function AnnualPromotionBalanceWarning({ balance, onClose }) {
+  const overlayRef = useRef(null)
+  const backRef = useRef(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const open = Number(balance) > 0
+
+  useEffect(() => {
+    if (!open) return
+    const previousFocus = document.activeElement
+    const previousOverflow = document.body.style.overflow
+    const siblings = [...document.body.children].filter((node) => node !== overlayRef.current)
+    const inertStates = siblings.map((node) => [node, node.inert])
+    siblings.forEach((node) => { node.inert = true })
+    document.body.style.overflow = 'hidden'
+    backRef.current?.focus()
+    function handleKey(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        closeRef.current()
+      }
+      if (event.key !== 'Tab') return
+      const controls = [...overlayRef.current.querySelectorAll('button')]
+      const first = controls[0]
+      const last = controls[controls.length - 1]
+      if (event.shiftKey && (document.activeElement === first || !overlayRef.current.contains(document.activeElement))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (document.activeElement === last || !overlayRef.current.contains(document.activeElement))) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKey, true)
+    return () => {
+      document.removeEventListener('keydown', handleKey, true)
+      inertStates.forEach(([node, inert]) => { node.inert = inert })
+      document.body.style.overflow = previousOverflow
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [open])
+
+  if (!open) return null
+  return createPortal(
+    <div className="payment-promotion-overlay" ref={overlayRef} onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose()
+    }}>
+      <section className="payment-promotion-dialog" role="alertdialog" aria-modal="true"
+        aria-labelledby="payment-promotion-title" aria-describedby="payment-promotion-description">
+        <button type="button" className="payment-promotion-close" onClick={onClose} aria-label="Close promotion warning">×</button>
+        <span className="payment-promotion-icon" aria-hidden="true">
+          <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+            <path d="M12 9v4m0 3h.01" />
+          </svg>
+        </span>
+        <span className="payment-promotion-eyebrow">12-month dues promotion</span>
+        <h2 id="payment-promotion-title">Clear the balance first</h2>
+        <p id="payment-promotion-description" className="payment-promotion-description">This account has an outstanding balance. Settle it before applying the 12-month dues promotion with 1 month free.</p>
+        <div className="payment-promotion-debt"><span>Outstanding balance</span><strong>{peso.format(Number(balance))}</strong></div>
+        <p className="payment-promotion-next">Record a regular payment to clear existing dues, penalties, and other outstanding charges. Then start a separate eligible annual payment.</p>
+        <button type="button" className="payment-promotion-back" ref={backRef} onClick={onClose}>Back to payment</button>
+      </section>
+    </div>, document.body
   )
 }
