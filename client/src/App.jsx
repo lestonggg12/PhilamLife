@@ -13,7 +13,6 @@ import { normalizeRole, normalizeProfileRole } from './lib/profileRole'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import SessionSecurity from './components/SessionSecurity'
-import MfaGate from './components/MfaGate'
 import Skeleton from './components/skeleton/Skeleton'
 import SkeletonRegion from './components/skeleton/SkeletonRegion'
 import { ConfirmProvider } from './components/ConfirmDialog'
@@ -308,9 +307,7 @@ function AppContent() {
               element={
                 <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <SessionSecurity onExpired={handleLogout}>
-                    <MfaGate onSignOut={handleLogout}>
-                      <Layout user={user} onLogout={handleLogout} />
-                    </MfaGate>
+                    <Layout user={user} onLogout={handleLogout} />
                   </SessionSecurity>
                 </ProtectedRoute>
               }
