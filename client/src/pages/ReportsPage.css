@@ -24,7 +24,7 @@
   --radius-sm: 7px;
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 8px rgba(15, 23, 42, 0.04);
 
-  padding: 22px 28px 48px;
+  padding: 22px 0px 0px;
   padding-top: 22px;
   background: var(--bg);
   color: var(--ink);
@@ -304,4 +304,9 @@
   .reports-table-wrap.treasurer-overdue-table td { padding: 9px 6px; }
   .reports-table-wrap.treasurer-overdue-table { overflow: visible; }
   .reports-table-wrap.treasurer-overdue-table table[data-column-count="6"] { min-width: 0; }
+}
+@media screen {
+  .reports-page {
+    background: transparent;
+  }
 }

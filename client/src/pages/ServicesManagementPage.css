@@ -10,11 +10,11 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 22px;
+  padding: 22px 0px 0px;
   padding-top: 22px;
   color: var(--text-dark);
 }
-
+S
 .services-page * {
   box-sizing: border-box;
 }

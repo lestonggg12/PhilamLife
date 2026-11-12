@@ -134,3 +134,42 @@
     padding: 12px 14px calc(20px + env(safe-area-inset-bottom, 0px));
   }
 }
+.layout .page-content {
+  min-width: 0;
+}
+
+.layout .page-content > .motion-page-enter {
+  width: 100%;
+  min-width: 0;
+}
+
+.layout .page-content > .motion-page-enter > :is(
+  .treasurer-dashboard,
+  .ledger-page,
+  .payments-page,
+  .official-receipts-page,
+  .billing-audit-page,
+  .tsr-page,
+  .tex-page
+) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 22px 0 0;
+}
+
+@media (max-width: 768px) {
+  .layout .page-content > .motion-page-enter > :is(
+    .treasurer-dashboard,
+    .ledger-page,
+    .payments-page,
+    .official-receipts-page,
+    .billing-audit-page,
+    .tsr-page,
+    .tex-page
+  ) {
+    padding-top: 16px;
+  }
+}

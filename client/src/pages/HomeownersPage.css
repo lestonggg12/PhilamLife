@@ -25,7 +25,7 @@
   --ho-radius-lg: 14px;
   --ho-ease: 160ms cubic-bezier(0.2, 0, 0, 1);
 
-  padding: 22px;
+  padding: 22px 0px 0px;
   color: var(--text-dark);
 }
 

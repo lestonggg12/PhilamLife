@@ -41,7 +41,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 22px;
+  padding: 22px 0px 0px;
   overflow-x: hidden;
   background: transparent;
 } /* original header card */

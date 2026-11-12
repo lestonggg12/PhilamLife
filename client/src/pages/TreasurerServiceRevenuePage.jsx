@@ -1,3 +1,4 @@
+import { Eye, Ban } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock, Search, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -46,6 +47,7 @@ export default function TreasurerServiceRevenuePage() {
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [recentOnly, setRecentOnly] = useState(true)
   const [serviceFilter, setServiceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [fromDate, setFromDate] = useState('')
@@ -54,27 +56,11 @@ export default function TreasurerServiceRevenuePage() {
   const [voidTarget, setVoidTarget] = useState(null)
   const [receiptPrintNotice, setReceiptPrintNotice] = useState('')
   const settlement = useSettledAmountStatus(selectedReceipt)
-  const [showBreakdown, setShowBreakdown] = useState(() => {
-    try {
-      return localStorage.getItem('tsr-breakdown-open') === '1'
-    } catch {
-      return false
-    }
-  })
-
   const request = useRef(0)
   useEffect(() => {
     loadTransactions()
     return () => { request.current += 1 }
   }, [fromDate, toDate])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('tsr-breakdown-open', showBreakdown ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-  }, [showBreakdown])
 
   async function loadTransactions() {
     const sequence = ++request.current
@@ -139,6 +125,11 @@ export default function TreasurerServiceRevenuePage() {
     fromDate,
     toDate,
   ])
+
+  const visibleTransactions = useMemo(() => {
+    const newest = [...filteredTransactions].sort((a, b) => (Date.parse(b.paid_at) || 0) - (Date.parse(a.paid_at) || 0) || String(b.id).localeCompare(String(a.id)))
+    return recentOnly ? newest.slice(0, 5) : newest
+  }, [filteredTransactions, recentOnly])
 
   const summary = useMemo(() => ({
     totalCollected: totals.total,
@@ -208,7 +199,7 @@ export default function TreasurerServiceRevenuePage() {
               <DollarSign size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.collectedThisMonth)}</h3>
+          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.collectedThisMonth)}</h3><p className="tsr-stat-caption">Active receipts · current month</p>
         </div>
 
         <div className="tsr-stat-card">
@@ -218,7 +209,7 @@ export default function TreasurerServiceRevenuePage() {
               <TrendingUp size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalCollected)}</h3>
+          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalCollected)}</h3><p className="tsr-stat-caption">Active receipts across all dates</p>
         </div>
 
         <div className="tsr-stat-card">
@@ -228,12 +219,12 @@ export default function TreasurerServiceRevenuePage() {
               <Clock size={18} />
             </div>
           </div>
-          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</h3>
+          <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</h3><p className="tsr-stat-caption">Remaining balances across all dates</p>
         </div>
 
         <div className="tsr-stat-card">
           <div className="tsr-stat-top">
-            <span className="tsr-stat-label">Top Service</span>
+            <span className="tsr-stat-label">Top service revenue</span>
             <div className="tsr-stat-icon-box tsr-icon-accent">
               <svg
                 width="18"
@@ -251,12 +242,12 @@ export default function TreasurerServiceRevenuePage() {
               </svg>
             </div>
           </div>
-          <h3 className="tsr-stat-value tsr-stat-value-sm">
-            {loading || !summary.topService ? '—' : summary.topService.name}
+          <h3 className="tsr-stat-value">
+            {loading || !summary.topService ? '—' : peso.format(summary.topService.amount)}
           </h3>
           {!loading && summary.topService && (
             <p className="tsr-stat-sub">
-              {peso.format(summary.topService.amount)}
+              {summary.topService.name}
               {summary.totalCollected > 0 && (
                 <> · {((summary.topService.amount / summary.totalCollected) * 100).toFixed(0)}% of total</>
               )}
@@ -265,54 +256,16 @@ export default function TreasurerServiceRevenuePage() {
         </div>
       </div>
 
-      <p className="tsr-result-count">
+      <details className="tsr-totals-note"><summary>About these revenue totals</summary>      <p className="tsr-result-count">
         Revenue cards show all-time totals except Collected This Month. Date filters below apply to transaction history only. Paid (Receipt) shows the payment recorded on that receipt; later balance collections appear as separate receipts.
-      </p>
+      </p>      </details>
 
       <section className="tsr-breakdown-section">
-        <button
-          type="button"
-          className="tsr-breakdown-toggle"
-          onClick={() => setShowBreakdown((open) => !open)}
-          aria-expanded={showBreakdown}
-          aria-controls="tsr-breakdown-panel"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-          <span>Revenue by Service</span>
-          <svg
-            className={`tsr-breakdown-chevron${showBreakdown ? ' is-open' : ''}`}
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
+        <div className="tsr-revenue-heading"><div><h3>Revenue by service</h3><p>See which amenities contribute to collections.</p></div><span>All time · Active receipts</span></div>
 
         <div
           id="tsr-breakdown-panel"
-          className={`tsr-breakdown-collapse${showBreakdown ? ' is-open' : ''}`}
-          aria-hidden={!showBreakdown}
+          className="tsr-revenue-content"
         >
           <div className="tsr-breakdown-collapse-inner">
             <div className="tsr-breakdown-panel">
@@ -352,9 +305,9 @@ export default function TreasurerServiceRevenuePage() {
 
       <div className="tsr-content-grid">
         <div className="tsr-table-panel">
-          <h3 className="tsr-section-title">Transaction History</h3>
+          <div className="tsr-history-heading"><div><h3 className="tsr-section-title">{recentOnly ? 'Recent transactions' : 'Transaction history'}</h3><p>Latest recorded receipts first. Search or filter to narrow the list.</p></div><div className="tsr-history-tabs" role="group" aria-label="Transaction history range"><button type="button" className={recentOnly ? 'active' : ''} aria-pressed={recentOnly} onClick={() => setRecentOnly(true)}>Recent 5</button><button type="button" className={!recentOnly ? 'active' : ''} aria-pressed={!recentOnly} onClick={() => { clearFilters(); setRecentOnly(false); }}>All records</button></div></div>
 
-          <div className="tsr-controls">
+          <section className="tsr-filter-panel" aria-label="Filter transactions"><div className="tsr-controls">
             <label className="tsr-control tsr-search-control">
               <span>Search</span>
               <div className="tsr-search-field">
@@ -414,12 +367,11 @@ export default function TreasurerServiceRevenuePage() {
             >
               Clear Filters
             </button>
-          </div>
+          </div></section>
 
           <p className="tsr-result-count">
             {pageError ? 'Transaction count unavailable' : <>
-              Showing {filteredTransactions.length} of {transactions.length}
-               transactions
+              Showing {visibleTransactions.length} of {filteredTransactions.length} matching transactions · Newest first
             </>}
           </p>
 
@@ -434,46 +386,23 @@ export default function TreasurerServiceRevenuePage() {
               <table className="tsr-table">
                 <thead>
                   <tr>
-                    <th>Receipt</th>
-                    <th>Receipt No.</th>
-                    <th>Payment Date</th>
-                    <th>Service</th>
-                    <th>Customer</th>
-                    <th>Block / Lot</th>
+                    <th>Receipt / Payment Date</th>
+                    <th>Amenity / Service</th>
+                    <th>Customer / Property</th>
                     <th>Method</th>
                     <th>Status</th>
                     <th className="tsr-amount-col">Due</th>
                     <th className="tsr-amount-col">Paid (Receipt)</th>
+                    <th>Receipt</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.map((t) => (
+                  {visibleTransactions.map((t) => (
                     <tr key={t.id}>
-                      <td>
-                        <button
-                          type="button"
-                          className="tsr-receipt-button"
-                          aria-label={`View receipt ${t.receipt_number}`}
-                          onClick={() => setSelectedReceipt(t)}
-                        >
-                          View Receipt
-                        </button>
-                        {t.payment_status !== 'voided' && (
-                          <button
-                            type="button"
-                            className="svd-inline-button"
-                            aria-label={`Void receipt ${t.receipt_number}`}
-                            onClick={() => setVoidTarget(t)}
-                          >
-                            Void Receipt
-                          </button>
-                        )}
-                      </td>
-                      <td><strong>{t.receipt_number}</strong></td>
-                      <td>{t.paid_at ? organization.formatDate(t.paid_at, { withTime: true }) : '—'}</td>
+
+                      <td><strong>{t.receipt_number}</strong><small className="tsr-row-sub">{t.paid_at ? organization.formatDate(t.paid_at, { withTime: true }) : '—'}</small></td>
                       <td>{t.service_name}</td>
-                      <td>{t.customer_name}</td>
-                      <td>{t.block_name}, Lot {t.lot_number}</td>
+                      <td><strong>{t.customer_name}</strong><small className="tsr-row-sub">{t.block_name} · Lot {t.lot_number}</small></td>
                       <td>{t.payment_method}</td>
                       <td>
                         <span className={`tsr-status-pill tsr-status-${transactionPaymentStatus(t, owedIds)}`}>
@@ -482,6 +411,26 @@ export default function TreasurerServiceRevenuePage() {
                       </td>
                       <td className="tsr-amount-col">{peso.format(Number(t.amount_due) || 0)}</td>
                       <td className="tsr-amount-col tsr-amount-paid">{transactionPaymentStatus(t, owedIds) === 'voided' ? 'Voided' : peso.format(Number(t.amount_paid) || 0)}</td>
+                      <td className="tsr-action-col">
+                        <button
+                          type="button"
+                          className="tsr-receipt-button"
+                          aria-label={`View receipt ${t.receipt_number}`}
+                          onClick={() => setSelectedReceipt(t)}
+                        >
+                          <Eye size={15} aria-hidden="true" /> <span>View Receipt</span>
+                        </button>
+                        {t.payment_status !== 'voided' && (
+                          <button
+                            type="button"
+                            className="svd-inline-button"
+                            aria-label={`Void receipt ${t.receipt_number}`}
+                            onClick={() => setVoidTarget(t)}
+                          >
+                            <Ban size={14} aria-hidden="true" /> <span>Void Receipt</span>
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

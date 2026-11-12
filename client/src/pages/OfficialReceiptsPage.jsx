@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import DateField from '../components/DateField'
-import Select from '../components/Select'
 import {
   CreditCard,
   Eye,
@@ -823,7 +822,7 @@ export default function OfficialReceiptsPage({ user }) {
           </p>
 
           <h1>
-            Payment Receipts Management
+            Official Receipts
           </h1>
 
           <p>
@@ -999,7 +998,7 @@ export default function OfficialReceiptsPage({ user }) {
       <section className="official-receipts-records">
         <div className="official-records-heading">
           <div>
-            <h2>Receipt Records</h2>
+            <h2>Receipt history</h2>
 
             <p>
               {loading
@@ -1020,49 +1019,21 @@ export default function OfficialReceiptsPage({ user }) {
           )}
         </div>
 
-        <div className="official-receipts-filters">
-          <label className="official-search-field">
-            <span>Search</span>
-            <div className="official-search-control">
-              <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
-              aria-label="Search official receipts"
-              placeholder="Receipt no., homeowner, property, or purpose"
-            />
+        <div className="official-filter-toolbar">
+          <label className="official-search-field"><span>Search</span><div className="official-search-control"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search official receipts" placeholder="Receipt no., homeowner, property, or purpose" value={search} onChange={event => setSearch(event.target.value)} /></div></label>
+          <div className="official-filter-row">
+            <div className="official-receipt-tabs" role="group" aria-label="Receipt type">
+              {[
+                ['all', 'All receipts'], ['payment', 'Regular payments'], ['service', 'Service payments'],
+              ].map(([value, label]) => <button key={value} type="button" aria-pressed={typeFilter === value} onClick={() => setTypeFilter(value)}>{label}</button>)}
             </div>
-          </label>
-
-          <label>
-            <span>Receipt type</span>
-
-            <Select ariaLabel="Receipt type" value={typeFilter} onChange={setTypeFilter} options={[{ value: 'all', label: 'All receipt types' }, { value: 'payment', label: 'Regular payments' }, { value: 'service', label: 'Service payments' }]} />
-          </label>
-
-          <label>
-            <span>From date</span>
-
-            <DateField ariaLabel="From date" value={fromDate} max={toDate || undefined} onChange={setFromDate} />
-          </label>
-
-          <label>
-            <span>To date</span>
-
-            <DateField ariaLabel="To date" value={toDate} min={fromDate || undefined} onChange={setToDate} />
-          </label>
-
-          <button
-            type="button"
-            className="official-clear-button"
-            onClick={clearFilters}
-            disabled={!filtersActive && monthKey === currentManilaMonthKey()}
-          >
-            Clear Filters
-          </button>
+            <div className="official-date-fields">
+              <label><span>From date</span><DateField ariaLabel="From date" value={fromDate} max={toDate || undefined} onChange={setFromDate} /></label>
+              <label><span>To date</span><DateField ariaLabel="To date" value={toDate} min={fromDate || undefined} onChange={setToDate} /></label>
+              <button type="button" className="official-clear-button" onClick={clearFilters} disabled={!filtersActive && monthKey === currentManilaMonthKey()}>Clear Filters</button>
+            </div>
+          </div>
+          <p className="official-search-hint">Search by receipt number, homeowner, property, payment method, or reference number.</p>
         </div>
 
         {invalidDateRange && (
@@ -1074,6 +1045,7 @@ export default function OfficialReceiptsPage({ user }) {
 
         <div className="official-receipts-table-wrap">
           <table className="official-receipts-table">
+            <colgroup>{[12, 12, 10, 13, 17, 10, 7, 8, 11].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup>
             <thead>
               <tr>
                 <th>Receipt No.</th>
@@ -1083,7 +1055,8 @@ export default function OfficialReceiptsPage({ user }) {
                 <th>Payment Details</th>
                 <th>Amount</th>
                 <th>Method</th>
-                <th aria-label="Actions" />
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
 
@@ -1091,7 +1064,7 @@ export default function OfficialReceiptsPage({ user }) {
               {loading && rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan="8"
+                    colSpan="9"
                     className="official-receipts-empty"
                   >
                     <div aria-busy="true"><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><Skeleton variant="rect" width="100%" height="42px" /><span className="skeleton-region-status" role="status">Loading</span></div>
@@ -1100,7 +1073,7 @@ export default function OfficialReceiptsPage({ user }) {
               ) : invalidDateRange ? (
                 <tr>
                   <td
-                    colSpan="8"
+                    colSpan="9"
                     className="official-receipts-empty"
                   >
                     Fix the date range above to view receipts.
@@ -1108,14 +1081,14 @@ export default function OfficialReceiptsPage({ user }) {
                 </tr>
               ) : listError ? (
                 <tr>
-                  <td colSpan="8" className="official-receipts-empty" role="alert">
+                  <td colSpan="9" className="official-receipts-empty" role="alert">
                     Receipt history could not be verified. Refresh Receipts to retry.
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan="8"
+                    colSpan="9"
                     className="official-receipts-empty"
                   >
                     {scopeKind === 'month'
@@ -1127,31 +1100,28 @@ export default function OfficialReceiptsPage({ user }) {
                 rows.map(
                   (receipt) => (
                     <tr key={receipt.id} className={receipt.isVoided ? 'official-row-voided' : ''}>
-                      <td>
+                      <td data-label="Receipt no.">
                         <strong>
                           {receipt.receiptNumber}
                         </strong>
                       </td>
 
-                      <td>
+                      <td data-label="Date issued">
                         {formatDateTime(
                           receipt.issuedAt,
                           organization.dateFormat,
                         )}
                       </td>
 
-                      <td>
+                      <td data-label="Type">
                         <span
                           className={`official-type-badge ${receipt.type}`}
                         >
                           {receipt.typeLabel}
                         </span>
-                        {receipt.isVoided && (
-                          <span className="official-voided-badge">Voided</span>
-                        )}
                       </td>
 
-                      <td>
+                      <td data-label="Homeowner">
                         <strong>
                           {receipt.payer}
                         </strong>
@@ -1161,21 +1131,26 @@ export default function OfficialReceiptsPage({ user }) {
                         </small>
                       </td>
 
-                      <td>
+                      <td data-label="Payment details">
                         {receipt.description}
                       </td>
 
-                      <td className={`official-amount ${receipt.isVoided ? 'official-amount-voided' : ''}`}>
+                      <td data-label="Amount" className={`official-amount ${receipt.isVoided ? 'official-amount-voided' : ''}`}>
                         {peso.format(
                           receipt.amount,
                         )}
                       </td>
 
-                      <td>
+                      <td data-label="Method">
                         {receipt.method}
                       </td>
 
-                      <td>
+                      <td data-label="Status" className="official-status-cell">
+                        <span className={`official-receipt-status ${receipt.isVoided ? 'is-voided' : 'is-active'}`}>
+                          {receipt.isVoided ? 'Voided' : 'Active'}
+                        </span>
+                      </td>
+                      <td data-label="Actions" className="official-table-action-cell"><div className="official-table-action-buttons">
                         <button
                           type="button"
                           className="official-view-button"
@@ -1194,7 +1169,7 @@ export default function OfficialReceiptsPage({ user }) {
                             Void
                           </button>
                         )}
-                      </td>
+                      </div></td>
                     </tr>
                   ),
                 )
