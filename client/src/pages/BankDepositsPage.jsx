@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import BankDepositReceiptMatcher from '../components/BankDepositReceiptMatcher'
 import './BankDepositsPage.css'
 
 const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
@@ -161,6 +162,7 @@ export default function BankDepositsPage({ user }) {
     Awaiting receipt matching
   </span>
 )}
+              {canTreasurer && (row.status === 'pending' || row.status === 'cleared') && <BankDepositReceiptMatcher deposit={row} />}
               {(role === 'secretary' || row.status === 'reconciled' || row.status === 'voided') && 'Read only'}
             </td>
           </tr>)}</tbody>
