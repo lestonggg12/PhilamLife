@@ -343,6 +343,8 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   const [popupNotice, setPopupNotice] = useState('')
   const [currentUser, setCurrentUser] = useState(suppliedUser || null)
   const [services, setServices] = useState([])
+  const [pendingArchive, setPendingArchive] = useState(null)
+  const [archiveBusy, setArchiveBusy] = useState(false)
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -496,7 +498,7 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     setPageError('')
     try {
       const [serviceResult, propertyResult] = await Promise.all([
-        supabase.from('amenity_services').select('*').order('name'),
+        supabase.from('amenity_services').select('*').is('archived_at', null).order('name'),
         fetchAll(() => supabase
           .from('properties')
           .select('id, homeowner_name, block, lot_number, homeowner_status')
@@ -815,6 +817,30 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
     }
 
 
+  }
+
+  async function archiveService() {
+    const target = pendingArchive
+    if (!target || !canManageServices || archiveBusy) return
+    setArchiveBusy(true)
+    setPendingArchive(null)
+    setPageError('')
+    try {
+      const { data, error } = await supabase.rpc('archive_amenity_service', {
+        p_service_id: target.id,
+      })
+      if (error) throw error
+      if (!data?.id || data.id !== target.id || !data.archived_at || data.is_active) {
+        throw new Error('Removal could not be confirmed. Refresh before retrying.')
+      }
+      setServices((current) => current.filter((service) => service.id !== target.id))
+      notifySuccess(`${target.name} was removed from the catalog. Existing receipts were preserved.`)
+    } catch (error) {
+      await loadPage()
+      setPageError(`Service removal failed: ${error?.message || 'Connection failed.'}`)
+    } finally {
+      setArchiveBusy(false)
+    }
   }
 
   function finishBookingConfirmation(accepted) {
@@ -1338,6 +1364,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
                         Edit
                       </button>
                     )}
+                    {canManageServices && (
+                      <button
+                        type="button"
+                        className="service-remove-button"
+                        disabled={archiveBusy}
+                        onClick={() => setPendingArchive(service)}
+                        aria-label={`Delete ${service.name}`}
+                      >
+                        Delete
+                      </button>
+                    )}
                     {service.is_active && (
                       <button type="button" onClick={() => openPaymentForm(service)}>
                         Record payment
@@ -1828,6 +1865,17 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
         </div>
       )}
 
+      <ActionDialog
+        open={!!pendingArchive}
+        title="Delete Service?"
+        message={pendingArchive
+          ? `Remove “${pendingArchive.name}” from the service catalog? New payments will be disabled. Historical receipts and financial records will remain intact.`
+          : ''}
+        confirmLabel="Delete Service"
+        tone="danger"
+        onConfirm={() => { void archiveService() }}
+        onCancel={() => setPendingArchive(null)}
+      />
       <ActionDialog
         open={!!popupNotice}
         title="Pop-up Blocked"
