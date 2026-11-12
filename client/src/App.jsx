@@ -40,6 +40,7 @@ const GrievancesPage = lazy(() => import('./pages/GrievancesPage'))
 const TreasurerDashboard = lazy(
   () => import('./pages/TreasurerDashboard')
 )
+const BankDepositsPage = lazy(() => import('./pages/BankDepositsPage'))
 const TreasurerExpensesPage = lazy(
   () => import('./pages/TreasurerExpensesPage')
 )
@@ -387,6 +388,10 @@ function AppContent() {
               />
 
               {/* Shared management and financial pages */}
+              <Route
+                path="/bank-deposits"
+                element={guarded(['admin', 'treasurer', 'secretary'], <BankDepositsPage user={user} />)}
+              />
               <Route
                 path="/billing-audit"
                 element={guarded(
