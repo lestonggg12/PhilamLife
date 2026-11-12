@@ -24,6 +24,7 @@ export default function GrievanceCloudCreate({ onSaved }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const pendingId = useRef(null)
   const savingRef = useRef(false)
 
@@ -32,8 +33,15 @@ export default function GrievanceCloudCreate({ onSaved }) {
     setSuccess('')
   }
 
-  async function submit(event) {
+  function requestConfirmation(event) {
     event.preventDefault()
+    if (savingRef.current) return
+    setError('')
+    setSuccess('')
+    setConfirmOpen(true)
+  }
+
+  async function submitConfirmed() {
     if (savingRef.current) return
     savingRef.current = true
     setSaving(true)
@@ -50,6 +58,7 @@ export default function GrievanceCloudCreate({ onSaved }) {
       setDraft({ ...EMPTY })
       setNote('')
       setSuccess(`Shared case GR-${saved.case_number} saved successfully.`)
+      setConfirmOpen(false)
       onSaved?.()
     } catch (failure) {
       setError(`${failure?.message || 'The shared record could not be confirmed.'} If the connection dropped, check the shared cases preview before retrying.`)
@@ -66,7 +75,43 @@ export default function GrievanceCloudCreate({ onSaved }) {
       <h2 style={{ fontSize: '1.1rem', margin: '0 0 8px' }}>Pilot: record a new shared grievance</h2>
       <p style={{ margin: '0 0 12px' }}>New entries here are saved to Supabase only.
         Existing browser-stored complaints are not changed or imported.</p>
-      <form onSubmit={submit}>
+      {confirmOpen ? (
+        <div role="group" aria-label="Review grievance before saving" style={{
+          padding: 16, border: '1px solid #bdd9ec', borderRadius: 12,
+          background: '#f4f9fe',
+        }}>
+          <h3 style={{ margin: '0 0 8px', color: '#0f3f6a' }}>
+            Confirm grievance record
+          </h3>
+          <p style={{ margin: '0 0 12px' }}>
+            Please review these details. The grievance will be saved to the shared database
+            only after you select Confirm &amp; Save.
+          </p>
+          <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, 160px) minmax(0, 1fr)',
+            gap: '8px 12px', overflowWrap: 'anywhere', margin: '0 0 16px' }}>
+            <dt>Complaint title</dt><dd style={{ margin: 0 }}>{draft.title}</dd>
+            <dt>Category</dt><dd style={{ margin: 0 }}>{draft.category}</dd>
+            <dt>Person filing</dt><dd style={{ margin: 0 }}>{draft.filedBy}</dd>
+            <dt>Person concerned</dt><dd style={{ margin: 0 }}>{draft.concerns}</dd>
+            <dt>Location</dt><dd style={{ margin: 0 }}>{draft.location}</dd>
+            <dt>Filing note</dt><dd style={{ margin: 0 }}>{note}</dd>
+          </dl>
+          {error && <p role="alert" style={{ color: '#9f2222' }}>{error}</p>}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <button type="button" disabled={saving}
+              onClick={() => { setConfirmOpen(false); setError('') }}
+              style={{ ...inputStyle, width: 'auto', cursor: 'pointer' }}>
+              Go Back
+            </button>
+            <button type="button" disabled={saving} onClick={submitConfirmed}
+              style={{ padding: '11px 18px', background: '#1464a0',
+                color: '#fff', border: 0, borderRadius: 8, cursor: 'pointer' }}>
+              {saving ? 'Saving…' : 'Confirm & Save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+      <form onSubmit={requestConfirmation}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           <Field label="Complaint title *"><input style={inputStyle} required maxLength={160}
             value={draft.title} onChange={e => change('title', e.target.value)} /></Field>
@@ -94,12 +139,13 @@ export default function GrievanceCloudCreate({ onSaved }) {
             value={note} onChange={e => { setNote(e.target.value); setSuccess('') }} /></Field>
         </div>
         {error && <p role="alert" style={{ color: '#9f2222' }}>{error}</p>}
-        {success && <p role="status" style={{ color: '#14633e' }}>{success}</p>}
         <button type="submit" disabled={saving} style={{
           padding: '11px 18px', marginTop: 12, background: '#1464a0',
           color: '#fff', border: 0, borderRadius: 8, cursor: 'pointer',
-        }}>{saving ? 'Saving to shared database…' : 'Save new case to shared database'}</button>
+        }}>{saving ? 'Saving to shared database…' : 'Review & Save grievance'}</button>
       </form>
+      )}
+      {!confirmOpen && success && <p role="status" style={{ color: '#14633e' }}>{success}</p>}
     </section>
   )
 }
