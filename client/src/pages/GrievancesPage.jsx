@@ -51,6 +51,7 @@ export default function GrievancesPage() {
   const [handler, setHandler] = useState('All handlers')
   const [filter, setFilter] = useState('all')
   const [modal, setModal] = useState(null)
+  const [showCloudForm, setShowCloudForm] = useState(false)
   const [draft, setDraft] = useState(null)
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState('')
@@ -111,24 +112,31 @@ export default function GrievancesPage() {
 
 
   useEffect(() => {
-    document.body.style.overflow = modal ? 'hidden' : ''
+    document.body.style.overflow = modal || showCloudForm ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [modal])
+  }, [modal, showCloudForm])
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cases))
   }, [cases])
   useEffect(() => {
     const onKeyDown = (event) => {
-      if (event.key === '/' && !modal && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') { event.preventDefault(); document.querySelector('[data-grievance-search]')?.focus() }
+      if (event.key === '/' && !modal && !showCloudForm && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') { event.preventDefault(); document.querySelector('[data-grievance-search]')?.focus() }
+      if (event.key === 'Escape' && showCloudForm) setShowCloudForm(false)
       if (event.key === 'Escape' && modal && (modal.type === 'case' || modal.type === 'form')) closeModal()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [modal])
+  }, [modal, showCloudForm])
   useEffect(() => { if (!toast) return undefined; const timer = window.setTimeout(() => setToast(''), 2800); return () => window.clearTimeout(timer) }, [toast])
 
   function closeModal() { setModal(null); setDraft(null); setFormError(''); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
-  function openForm(record = null, trigger) { lastFocus.current = trigger || document.activeElement; setDraft(record ? { ...record } : { ...EMPTY_RECORD }); setFormError(''); setModal({ type: 'form', editing: Boolean(record) }) }
+  function openForm(record = null, trigger) {
+    if (!record) { setShowCloudForm(true); return }
+    lastFocus.current = trigger || document.activeElement
+    setDraft({ ...record })
+    setFormError('')
+    setModal({ type: 'form', editing: true })
+  }
   function openCase(record, trigger) { lastFocus.current = trigger || document.activeElement; setDraft({ ...record }); setFormError(''); setModal({ type: 'case', id: record.id }) }
   function updateDraft(key, value) { setDraft((current) => ({ ...current, [key]: value })) }
   function clearFilters() { setSearch(''); setCategory('All categories'); setHandler('All handlers'); setFilter('all') }
@@ -201,9 +209,6 @@ export default function GrievancesPage() {
             </>}
       </section>
     )}
-    {cloudCheck.state === 'ready' && (
-      <GrievanceCloudCreate onSaved={() => setCloudRefresh(value => value + 1)} />
-    )}
     <main className="grievance-app">
       <header className="grievance-hero"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p className="grievance-subtitle">Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-actions"><button className="button-outline" type="button" onClick={backUpLocalCases}>Back up cases</button><button className="button-outline" type="button" onClick={refresh} disabled={refreshing}><Icon name="refresh" size={16} />{refreshing ? 'Refreshing...' : 'Refresh'}</button><button className="button-primary" type="button" onClick={(event) => openForm(null, event.currentTarget)}><Icon name="plus" size={17} />Record grievance</button></div></header>
       <nav className="grievance-tabs" role="tablist" aria-label="Grievance views"><button type="button" role="tab" aria-selected={tab === 'register'} className={tab === 'register' ? 'is-active' : ''} onClick={() => setTab('register')}>Case register</button><button type="button" role="tab" aria-selected={tab === 'statement'} className={tab === 'statement' ? 'is-active' : ''} onClick={() => setTab('statement')}>Period statement</button></nav>
@@ -212,6 +217,20 @@ export default function GrievancesPage() {
         <section className="register-panel"><div className="status-chips" aria-label="Case status filters">{chips.map(([value, label, count]) => <button type="button" key={value} className={`${filter === value ? 'is-active' : ''} ${value === 'overdue' && filter === value ? 'is-danger' : ''}`} onClick={() => toggleFilter(value)} aria-pressed={filter === value}>{label}<span>{count}</span></button>)}</div><div className="filter-bar"><label className="search-field"><span className="sr-only">Search cases</span><Icon name="search" size={17} /><input data-grievance-search type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people, title, location or handler…" /><kbd>/</kbd></label><label><span className="sr-only">Category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option>All categories</option>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="sr-only">Handler</span><select value={handler} onChange={(event) => setHandler(event.target.value)}>{handlerOptions.map((item) => <option key={item}>{item}</option>)}</select></label>{hasFilters && <button className="clear-link" type="button" onClick={clearFilters}>Clear filters</button>}</div><div className="case-table" role="table" aria-label="Grievance cases"><div className="case-heading" role="row"><span>Case ID</span><span>Case / homeowner</span><span>Lot</span><span>Handler</span><span>Follow-up</span><span>Status</span><span /></div>{filtered.map((item) => <button className="case-row" role="row" type="button" key={item.id} onClick={(event) => openCase(item, event.currentTarget)}><span className="case-id"><strong>{item.id}</strong><small>{item.category}</small></span><span className="case-title"><strong>{item.title}</strong><small>Filed by {item.filedBy} <b>→</b> {item.concerns}</small></span><span data-label="Lot">{item.lot || '—'}</span><span data-label="Handler">{item.handler || '—'}</span><span data-label="Follow-up" className={`follow-up ${isOverdue(item) ? 'is-overdue' : isDueSoon(item) ? 'is-soon' : ''}`}>{isOverdue(item) && <Icon name="warning" size={14} />}{formatDate(item.followUp)}</span><span data-label="Status">{statusPill(item.status)}</span><span className="row-chevron"><Icon name="chevron" size={18} /></span></button>)}{!filtered.length && <EmptyState filtered={hasFilters} onClear={clearFilters} onRecord={(event) => openForm(null, event.currentTarget)} />}</div><footer className="table-footer"><span>Showing {filtered.length} of {cases.length} cases</span><span>Click a row to view or update</span></footer></section>
       </>}
     </main>
+    {showCloudForm && (
+      <Dialog label="Record a shared grievance" onClose={() => setShowCloudForm(false)}>
+        <div style={{ maxHeight: 'min(80vh, 740px)', overflowY: 'auto', padding: 14 }}>
+          {cloudCheck.state === 'ready' ? (
+            <GrievanceCloudCreate onSaved={() => setCloudRefresh(value => value + 1)} />
+          ) : (
+            <p role="alert">Shared grievance storage is not connected. Check the connection before recording a case.</p>
+          )}
+          <button type="button" className="button-outline" onClick={() => setShowCloudForm(false)}>
+            Close
+          </button>
+        </div>
+      </Dialog>
+    )}
     {modal?.type === 'case' && selectedCase && <CaseDialog draft={draft} setDraft={setDraft} onClose={closeModal} onEdit={() => { lastFocus.current = document.activeElement; setModal({ type: 'form', editing: true }) }} onSave={saveCaseUpdate} error={formError} />}
     {modal?.type === 'form' && draft && <FormDialog draft={draft} setDraft={setDraft} editing={modal.editing} onClose={closeModal} onSave={saveForm} error={formError} />}
     {toast && <div className="grievance-toast" role="status">{toast}</div>}
