@@ -111,67 +111,80 @@ END IF;
   RETURN v_row;
 END $fn$;
 
-CREATE OR REPLACE FUNCTION public.clear_bank_deposit(p_deposit_id uuid,p_bank_evidence text)
+
+-- Admin verifies actual bank clearance evidence.
+CREATE OR REPLACE FUNCTION public.clear_bank_deposit(
+  p_deposit_id uuid,
+  p_bank_evidence text
+)
 RETURNS public.bank_deposits
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $fn$
+DECLARE
+  v_row public.bank_deposits%ROWTYPE;
+  v_ref text := btrim(p_bank_evidence);
+BEGIN
+  IF auth.uid() IS NULL
+     OR public.current_user_role() IS DISTINCT FROM 'admin' THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '42501',
+      MESSAGE = 'Only an active Admin can verify deposit clearance.';
+  END IF;
+
+  IF v_ref IS NULL OR length(v_ref) NOT BETWEEN 5 AND 200 THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '22023',
+      MESSAGE = 'Enter a bank-statement evidence reference (5 to 200 characters).';
+  END IF;
+
+  SELECT * INTO v_row
+  FROM public.bank_deposits
+  WHERE id = p_deposit_id
+  FOR UPDATE;
+
+  IF NOT FOUND OR v_row.status <> 'pending' THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '22023',
+      MESSAGE = 'Only a pending deposit can be cleared.';
+  END IF;
+
+  UPDATE public.bank_deposits
+  SET status = 'cleared',
+      cleared_at = now(),
+      verified_by = auth.uid(),
+      verification_reference = v_ref
+  WHERE id = p_deposit_id
+  RETURNING * INTO v_row;
+
+  RETURN v_row;
+END;
+$fn$;
+
+-- Reconciliation stays disabled until receipts can be matched.
+CREATE OR REPLACE FUNCTION public.reconcile_bank_deposit(
+  p_deposit_id uuid,
+  p_note text
+)
+RETURNS public.bank_deposits
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
 AS $fn$
 BEGIN
   IF auth.uid() IS NULL
-     OR public.current_user_role() IS DISTINCT FROM 'treasurer'
-  THEN
+     OR public.current_user_role() IS DISTINCT FROM 'treasurer' THEN
     RAISE EXCEPTION USING
       ERRCODE = '42501',
       MESSAGE = 'Only an active Treasurer can reconcile deposits.';
   END IF;
 
-  -- Fail closed until deposit-to-receipt matching is implemented.
-  -- A reconciliation note alone is not proof of matching.
   RAISE EXCEPTION USING
     ERRCODE = '0A000',
-    MESSAGE =
-      'Bank reconciliation is not yet enabled. Deposit-to-receipt matching is required.';
+    MESSAGE = 'Bank reconciliation is not yet enabled. Deposit-to-receipt matching is required.';
 END;
 $fn$;
-
-DECLARE v_row public.bank_deposits%ROWTYPE; v_ref text := btrim(p_bank_evidence);
-BEGIN
-  IF auth.uid() IS NULL OR public.current_user_role() IS DISTINCT FROM 'admin' THEN
-    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Only an active Admin can verify deposit clearance.';
-  END IF;
-  IF v_ref IS NULL OR length(v_ref) NOT BETWEEN 5 AND 200 THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Enter a bank-statement evidence reference (5 to 200 characters).';
-  END IF;
-  SELECT * INTO v_row FROM public.bank_deposits WHERE id=p_deposit_id FOR UPDATE;
-  IF NOT FOUND OR v_row.status <> 'pending' THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Only a pending deposit can be cleared.';
-  END IF;
-  UPDATE public.bank_deposits
-  SET status='cleared', cleared_at=now(), verified_by=auth.uid(), verification_reference=v_ref
-  WHERE id=p_deposit_id RETURNING * INTO v_row;
-  RETURN v_row;
-END $fn$;
-
-CREATE OR REPLACE FUNCTION public.reconcile_bank_deposit(p_deposit_id uuid,p_note text)
-RETURNS public.bank_deposits
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
-AS $fn$
-DECLARE v_row public.bank_deposits%ROWTYPE; v_note text := btrim(p_note);
-BEGIN
-  IF auth.uid() IS NULL OR public.current_user_role() IS DISTINCT FROM 'treasurer' THEN
-    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Only an active Treasurer can finalize deposit reconciliation.';
-  END IF;
-  IF v_note IS NULL OR length(v_note) NOT BETWEEN 5 AND 500 THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Enter a reconciliation note (5 to 500 characters).';
-  END IF;
-  SELECT * INTO v_row FROM public.bank_deposits WHERE id=p_deposit_id FOR UPDATE;
-  IF NOT FOUND OR v_row.status <> 'cleared' THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Only an Admin-cleared deposit can be reconciled.';
-  END IF;
-  UPDATE public.bank_deposits
-    SET status='reconciled',reconciled_by=auth.uid(),reconciled_at=now(),reconciliation_note=v_note
-    WHERE id=p_deposit_id RETURNING * INTO v_row;
-  RETURN v_row;
-END $fn$;
 
 CREATE OR REPLACE FUNCTION public.void_pending_bank_deposit(p_deposit_id uuid,p_reason text)
 RETURNS public.bank_deposits
