@@ -18,7 +18,7 @@ const sidebar = readFileSync(
 )
 
 const migration = readFileSync(
-  new URL('../../../supabase/migrations/20261112090000_controlled_bank_deposit_workflow.sql', import.meta.url),
+  new URL('../../../supabase/migrations/20261112104953_controlled_bank_deposit_workflow.sql', import.meta.url),
   'utf8',
 )
 

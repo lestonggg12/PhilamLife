@@ -11,7 +11,7 @@ Prepared only. **NOT deployed to Supabase**, not committed to GitHub and not wir
 This is a proposed separation of duties, not a verified organizational approval policy. Obtain the client's approval before enabling live transactions.
 
 ## Database patch
-`supabase/migrations/20261112090000_controlled_bank_deposit_workflow.sql`
+`supabase/migrations/20261112104953_controlled_bank_deposit_workflow.sql`
 
 - Adds `deposit_funds` as an Admin-maintained fund registry and a FK from `bank_deposits.fund_id`.
 - Adds clearance, reconciliation and void evidence fields.
