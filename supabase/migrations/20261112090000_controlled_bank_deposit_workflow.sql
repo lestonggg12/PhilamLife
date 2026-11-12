@@ -83,6 +83,20 @@ BEGIN
   IF p_deposit_date IS NULL OR p_deposit_date > (now() AT TIME ZONE 'Asia/Manila')::date THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Deposit date cannot be in the future.';
   END IF;
+
+-- Prevent ordinary deposit entry into a closed accounting period.
+-- Historical corrections require a separately authorized workflow.
+IF EXISTS (
+  SELECT 1
+  FROM public.accounting_periods ap
+  WHERE lower(ap.status) IN ('closed', 'locked')
+    AND p_deposit_date BETWEEN ap.starts_on AND ap.ends_on
+) THEN
+  RAISE EXCEPTION USING
+    ERRCODE = '22023',
+    MESSAGE = 'Cannot record a bank deposit in a closed accounting period.';
+END IF;
+
   IF v_ref IS NULL OR length(v_ref) NOT BETWEEN 4 AND 100 THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Bank reference must have 4 to 100 characters.';
   END IF;

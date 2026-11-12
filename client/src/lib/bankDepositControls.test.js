@@ -70,3 +70,21 @@ describe('Bank deposit security checks', () => {
     )
   })
 })
+
+it('blocks deposits dated inside closed accounting periods', () => {
+  expect(migration).toContain(
+    'FROM public.accounting_periods ap',
+  )
+
+  expect(migration).toContain(
+    "lower(ap.status) IN ('closed', 'locked')",
+  )
+
+  expect(migration).toContain(
+    'p_deposit_date BETWEEN ap.starts_on AND ap.ends_on',
+  )
+
+  expect(migration).toContain(
+    'Cannot record a bank deposit in a closed accounting period.',
+  )
+})
