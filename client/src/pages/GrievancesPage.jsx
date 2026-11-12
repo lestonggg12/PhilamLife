@@ -55,6 +55,7 @@ export default function GrievancesPage() {
   const [toast, setToast] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [cloudCheck, setCloudCheck] = useState({ state: 'checking', count: null })
+  const [sharedCases, setSharedCases] = useState([])
   const lastFocus = useRef(null)
 
   const handlerOptions = useMemo(() => ['All handlers', ...new Set(cases.map((item) => item.handler).filter(Boolean))], [cases])
@@ -80,19 +81,32 @@ export default function GrievancesPage() {
   }, [cases])
   const selectedCase = modal?.type === 'case' ? cases.find((item) => item.id === modal.id) : null
 
-  // Read-only connectivity check; browser grievances are not uploaded, modified, or deleted.
+  // Read-only preview: local complaint records still live in browser storage.
   useEffect(() => {
     let active = true
-    supabase.from('grievance_cases').select('id', { count: 'exact', head: true })
-      .then(({ count, error }) => {
+    supabase.from('grievance_cases')
+      .select('id,case_number,title,status,category,complainant,filed_at', { count: 'exact' })
+      .order('filed_at', { ascending: false })
+      .limit(25)
+      .then(({ data, count, error }) => {
         if (!active) return
-        setCloudCheck(error || count == null
-          ? { state: 'error', count: null }
-          : { state: 'ready', count })
+        if (error || !Array.isArray(data)) {
+          setSharedCases([])
+          setCloudCheck({ state: 'error', count: null })
+        } else {
+          setSharedCases(data)
+          setCloudCheck({ state: 'ready', count: count ?? data.length })
+        }
       })
-      .catch(() => { if (active) setCloudCheck({ state: 'error', count: null }) })
+      .catch(() => {
+        if (active) {
+          setSharedCases([])
+          setCloudCheck({ state: 'error', count: null })
+        }
+      })
     return () => { active = false }
   }, [])
+
 
   useEffect(() => {
     document.body.style.overflow = modal ? 'hidden' : ''
@@ -163,10 +177,28 @@ export default function GrievancesPage() {
   return <>
     <style>{styles}</style>
     <p role="status" style={{ padding: '8px 12px', border: '1px solid #b8c7d8', borderRadius: 8 }}>
-      {cloudCheck.state === 'checking' ? 'Checking shared grievance storage…'
+      {cloudCheck.state === 'checking' ? 'Loading shared grievance cases…'
         : cloudCheck.state === 'error' ? 'Shared grievance storage unavailable. Browser records are unchanged.'
           : `Shared grievance storage connected: ${cloudCheck.count} case(s). Browser records are not migrated yet.`}
     </p>
+    {cloudCheck.state === 'ready' && (
+      <section aria-label="Shared grievance cases preview" style={{ padding: '8px 12px' }}>
+        <h2 style={{ fontSize: '1rem' }}>Shared cases (read-only preview)</h2>
+        {sharedCases.length === 0
+          ? <p>No shared grievance cases yet. Existing browser cases are still shown below.</p>
+          : <>
+              <p>Showing the latest {sharedCases.length} of {cloudCheck.count} shared cases. These cannot be edited here yet.</p>
+              <ul>
+                {sharedCases.map(item => (
+                  <li key={item.id}>
+                    <strong>{`GR-${item.case_number}: ${item.title}`}</strong>
+                    {' — '}{item.status}{' · '}{item.category}
+                  </li>
+                ))}
+              </ul>
+            </>}
+      </section>
+    )}
     <main className="grievance-app">
       <header className="grievance-hero"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p className="grievance-subtitle">Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-actions"><button className="button-outline" type="button" onClick={backUpLocalCases}>Back up cases</button><button className="button-outline" type="button" onClick={refresh} disabled={refreshing}><Icon name="refresh" size={16} />{refreshing ? 'Refreshing...' : 'Refresh'}</button><button className="button-primary" type="button" onClick={(event) => openForm(null, event.currentTarget)}><Icon name="plus" size={17} />Record grievance</button></div></header>
       <nav className="grievance-tabs" role="tablist" aria-label="Grievance views"><button type="button" role="tab" aria-selected={tab === 'register'} className={tab === 'register' ? 'is-active' : ''} onClick={() => setTab('register')}>Case register</button><button type="button" role="tab" aria-selected={tab === 'statement'} className={tab === 'statement' ? 'is-active' : ''} onClick={() => setTab('statement')}>Period statement</button></nav>
