@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
-const TODAY = '2026-11-08'
+// Resolve the date in the HOA timezone rather than freezing a past calendar date.
+// This is refreshed when the page is reloaded; live midnight rollover is a separate follow-up.
+const TODAY = (() => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const get = (type) => parts.find((part) => part.type === type)?.value
+  return `${get('year')}-${get('month')}-${get('day')}`
+})()
 const STORAGE_KEY = 'philamlife.grievances.panel.cases'
 const CATEGORIES = ['Noise', 'Parking', 'Pets', 'Maintenance', 'Neighbor dispute', 'Dues or payment dispute', 'Rule violation', 'Officer conduct', 'Other']
 const STATUSES = ['Open', 'In progress', 'Resolved']
