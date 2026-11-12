@@ -57,7 +57,6 @@ export default function TreasurerDashboard() {
     overdue: [],
     credits: null,
     adjustments: [],
-    deposits: [],
     allocationEvidenceGaps: null,
     periods: [],
   })
@@ -136,11 +135,6 @@ export default function TreasurerDashboard() {
   }, [finance, dashboardPeriod])
 
   const exceptions = useMemo(() => {
-    const unreconciledDeposits = finance.deposits.filter((row) => {
-      const status = String(row.status || row.reconciliation_status || '').toLowerCase()
-      return !['reconciled', 'cleared', 'completed', 'voided'].includes(status)
-    }).length
-
     // account_adjustments has no status column — the closest available signal
     // for "needs review" is a non-reversed adjustment with no approval reference on file.
     const unreferencedAdjustments = finance.adjustments.filter((row) => {
@@ -164,8 +158,8 @@ export default function TreasurerDashboard() {
         && (!row.ends_on || row.ends_on >= today)
     })
 
-    return { unreconciledDeposits, unreferencedAdjustments, currentPeriod }
-  }, [finance.adjustments, finance.deposits, finance.periods, dashboardPeriod])
+    return { unreferencedAdjustments, currentPeriod }
+  }, [finance.adjustments, finance.periods, dashboardPeriod])
 
   const recentActivity = useMemo(() => {
     const rows = []
@@ -269,12 +263,7 @@ export default function TreasurerDashboard() {
       title: loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${plural(exceptions.unreferencedAdjustments, 'adjustment')} without approval references`,
       detail: 'Review documentation for any unreferenced adjustments',
     },
-    {
-      key: 'deposits', tone: finance.deposits.length === 0 ? 'lo' : checkTone(exceptions.unreconciledDeposits, 'md'),
-      badge: loading ? '…' : dashboardUnavailable ? '!' : finance.deposits.length === 0 ? '–' : exceptions.unreconciledDeposits,
-      title: loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : finance.deposits.length === 0 ? 'No bank deposits recorded' : plural(exceptions.unreconciledDeposits, 'unreconciled deposit'),
-      detail: 'Match deposits with bank records',
-    },
+
   ]
   const periodNote = loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : exceptions.currentPeriod ? 'Accounting period open' : finance.periods.length === 0 ? 'Accounting periods not configured' : 'No open accounting period'
 

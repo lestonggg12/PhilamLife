@@ -14,7 +14,6 @@ import {
   ConciergeBell,
   WalletCards,
   BanknoteArrowUp,
-  Landmark,
   ChartPie,
   ReceiptText,
   MessageSquareWarning,
@@ -122,12 +121,6 @@ export default function Sidebar({ user, onLogout, open = false, onNavigate }) {
       path: "/expenses",
       icon: BanknoteArrowUp,
       roles: ["admin", "secretary", "treasurer"],
-    },
-    {
-      name: "Bank Deposits",
-      path: "/bank-deposits",
-      icon: Landmark,
-      roles: ["admin", "treasurer", "secretary"],
     },
     {
       name: "Reports",

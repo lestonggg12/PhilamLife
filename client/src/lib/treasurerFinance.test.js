@@ -82,13 +82,16 @@ describe('Treasurer financial reads', () => {
 
   it('loads verified zero balances as zero', async () => {
     const d = await loadTreasurerDashboard(client(), '2026-11-01')
-    expect(d.agingSummary.outstanding).toBe(0); expect(d.deposits).toEqual([])
+    expect(d.agingSummary.outstanding).toBe(0)
   })
-  it.each(['payments','expenses','service_transactions','monthly_collections','properties','property_overdue_summary','credit_liability_summary','account_adjustments','bank_deposits','accounting_periods'])('reports %s failures instead of empty clean results', async (table) => {
+  it.each(['payments','expenses','service_transactions','monthly_collections','properties','property_overdue_summary','credit_liability_summary','account_adjustments','accounting_periods'])('reports %s failures instead of empty clean results', async (table) => {
     await expect(loadTreasurerDashboard(client({ [table]: error }), '2026-11-01')).rejects.toThrow('Permission denied')
   })
+  it('does not read the removed bank-deposits source', async () => {
+    await expect(loadTreasurerDashboard(client({}, 'bank_deposits'), '2026-11-01')).resolves.toHaveProperty('payments')
+  })
   it('reports thrown connection failures', async () => {
-    await expect(loadTreasurerDashboard(client({}, 'bank_deposits'), '2026-11-01')).rejects.toThrow('Offline')
+    await expect(loadTreasurerDashboard(client({}, 'payments'), '2026-11-01')).rejects.toThrow('Offline')
   })
   it.each(['service_transactions','service_revenue_summary','service_balances'])('does not turn failed %s into zero revenue', async (table) => {
     await expect(loadServiceRevenue(client({ [table]: error }))).rejects.toThrow('Permission denied')

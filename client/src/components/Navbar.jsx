@@ -20,7 +20,6 @@ const PAGE_LABELS = {
   '/secretary/grievances': 'Grievances',
   '/treasurer/service-revenue': 'Amenity Revenue',
   '/payments': 'Payments',
-  '/bank-deposits': 'Bank Deposits',
   '/treasurer/expenses': 'Expenses',
   '/secretary/services': 'Services',
   '/reports': 'Reports',
