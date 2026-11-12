@@ -286,7 +286,13 @@ export default function LoginPage({ onAuthenticated }) {
 
           <div
             className="login-turnstile"
-            style={{ display: 'flex', justifyContent: 'center', minHeight: 65, marginTop: 12 }}
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              minHeight: 65,
+              marginTop: 6,
+              marginBottom: 18,
+            }}
           >
             <Turnstile
               ref={turnstileRef}
