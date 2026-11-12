@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { saveNewGrievanceToCloud, buildNewGrievanceDetails } from '../lib/grievanceCloud'
+import DateField, { todayKey } from './DateField'
 
 const CATEGORIES = ['Noise', 'Parking', 'Pets', 'Maintenance', 'Neighbor dispute',
   'Dues or payment dispute', 'Rule violation', 'Officer conduct', 'Other']
@@ -158,10 +159,10 @@ export default function GrievanceCloudCreate({ onSaved, onClose }) {
                 value={draft.location} onChange={e => update('location', e.target.value)} /></Field>
               <Field label="Assigned person or committee"><input maxLength={200}
                 value={draft.handler} onChange={e => update('handler', e.target.value)} /></Field>
-              <Field label="Incident date"><input type="date" value={draft.incidentDate}
-                onChange={e => update('incidentDate', e.target.value)} /></Field>
-              <Field label="Next follow-up date"><input type="date" value={draft.followUp}
-                onChange={e => update('followUp', e.target.value)} /></Field>
+              <Field label="Incident date"><DateField ariaLabel="Incident date" max={todayKey()} value={draft.incidentDate}
+                onChange={value => update('incidentDate', value)} /></Field>
+              <Field label="Next follow-up date"><DateField ariaLabel="Next follow-up date" value={draft.followUp}
+                onChange={value => update('followUp', value)} /></Field>
               <Field label="Description" required wide><textarea required rows={3} maxLength={6000}
                 value={draft.description} onChange={e => update('description', e.target.value)} /></Field>
               <Field label="Requested action" wide><textarea rows={3} maxLength={3000}
