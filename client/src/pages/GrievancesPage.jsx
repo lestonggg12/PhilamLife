@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { downloadGrievanceBackup } from '../lib/grievanceBackup'
 import { supabase } from '../lib/supabaseClient'
 import GrievanceCloudCreate from '../components/GrievanceCloudCreate'
+import GrievanceCloudReview from '../components/GrievanceCloudReview'
 import DateField from '../components/DateField'
 import { createPortal } from 'react-dom'
 
@@ -57,6 +58,7 @@ export default function GrievancesPage() {
   const [filter, setFilter] = useState('all')
   const [modal, setModal] = useState(null)
   const [showCloudForm, setShowCloudForm] = useState(false)
+  const [sharedReviewId, setSharedReviewId] = useState(null)
   const [draft, setDraft] = useState(null)
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState('')
@@ -78,7 +80,7 @@ export default function GrievancesPage() {
         location: item.location || '', lot: '', handler: item.assigned_handler || '',
         status: item.status, followUp: item.follow_up_date || '',
         filedDate: filed.length ? [part('year'), part('month'), part('day')].join('-') : '',
-        _shared: true,
+        _shared: true, _cloudId: item.id,
       }
     }) : []
     return [...cloud, ...cases]
@@ -150,9 +152,9 @@ export default function GrievancesPage() {
   }, [cloudRefresh])
 
   useEffect(() => {
-    document.body.style.overflow = modal || showCloudForm ? 'hidden' : ''
+    document.body.style.overflow = modal || showCloudForm || sharedReviewId ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [modal, showCloudForm])
+  }, [modal, showCloudForm, sharedReviewId])
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cases))
   }, [cases])
@@ -160,11 +162,12 @@ export default function GrievancesPage() {
     const onKeyDown = (event) => {
       if (event.key === '/' && !modal && !showCloudForm && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') { event.preventDefault(); document.querySelector('[data-grievance-search]')?.focus() }
       if (event.key === 'Escape' && showCloudForm) setShowCloudForm(false)
+      if (event.key === 'Escape' && sharedReviewId) { setSharedReviewId(null); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
       if (event.key === 'Escape' && modal && (modal.type === 'case' || modal.type === 'form')) closeModal()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [modal, showCloudForm])
+  }, [modal, showCloudForm, sharedReviewId])
   useEffect(() => { if (!toast) return undefined; const timer = window.setTimeout(() => setToast(''), 2800); return () => window.clearTimeout(timer) }, [toast])
 
   function closeModal() { setModal(null); setDraft(null); setFormError(''); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
@@ -175,7 +178,8 @@ export default function GrievancesPage() {
     setFormError('')
     setModal({ type: 'form', editing: true })
   }
-  function openCase(record, trigger) { if (record._shared) { setToast('Shared cases are read-only until cloud editing is enabled.'); return } lastFocus.current = trigger || document.activeElement; setDraft({ ...record }); setFormError(''); setModal({ type: 'case', id: record.id }) }
+  function openCase(record, trigger) { if (record._shared) { lastFocus.current = trigger || document.activeElement; setSharedReviewId(record._cloudId); return } lastFocus.current = trigger || document.activeElement; setDraft({ ...record }); setFormError(''); setModal({ type: 'case', id: record.id }) }
+  function closeSharedReview() { setSharedReviewId(null); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
   function updateDraft(key, value) { setDraft((current) => ({ ...current, [key]: value })) }
   function clearFilters() { setSearch(''); setCategory('All categories'); setHandler('All handlers'); setFilter('all') }
   function toggleFilter(value) { setFilter((current) => current === value ? 'all' : value) }
@@ -271,6 +275,11 @@ export default function GrievancesPage() {
               onClick={() => setShowCloudForm(false)}>Close</button></footer>
           </div>
         )}
+      </CloudGrievanceModal>
+    )}
+    {sharedReviewId && (
+      <CloudGrievanceModal label="Review shared grievance" onClose={closeSharedReview}>
+        <GrievanceCloudReview caseId={sharedReviewId} onClose={closeSharedReview} />
       </CloudGrievanceModal>
     )}
     {modal?.type === 'case' && selectedCase && <CaseDialog draft={draft} setDraft={setDraft} onClose={closeModal} onEdit={() => { lastFocus.current = document.activeElement; setModal({ type: 'form', editing: true }) }} onSave={saveCaseUpdate} error={formError} />}
