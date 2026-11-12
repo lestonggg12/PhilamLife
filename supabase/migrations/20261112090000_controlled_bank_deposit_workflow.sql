@@ -115,6 +115,24 @@ CREATE OR REPLACE FUNCTION public.clear_bank_deposit(p_deposit_id uuid,p_bank_ev
 RETURNS public.bank_deposits
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $fn$
+BEGIN
+  IF auth.uid() IS NULL
+     OR public.current_user_role() IS DISTINCT FROM 'treasurer'
+  THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '42501',
+      MESSAGE = 'Only an active Treasurer can reconcile deposits.';
+  END IF;
+
+  -- Fail closed until deposit-to-receipt matching is implemented.
+  -- A reconciliation note alone is not proof of matching.
+  RAISE EXCEPTION USING
+    ERRCODE = '0A000',
+    MESSAGE =
+      'Bank reconciliation is not yet enabled. Deposit-to-receipt matching is required.';
+END;
+$fn$;
+
 DECLARE v_row public.bank_deposits%ROWTYPE; v_ref text := btrim(p_bank_evidence);
 BEGIN
   IF auth.uid() IS NULL OR public.current_user_role() IS DISTINCT FROM 'admin' THEN

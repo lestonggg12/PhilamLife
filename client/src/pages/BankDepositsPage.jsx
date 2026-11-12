@@ -156,7 +156,11 @@ export default function BankDepositsPage({ user }) {
             <td>{money(row.amount)}</td><td>{row.status}</td>
             <td>
               {canAdmin && row.status === 'pending' && <><button disabled={busy} type="button" onClick={() => transition(row, 'clear')}>Verify clearance</button>{' '}<button disabled={busy} type="button" onClick={() => transition(row, 'void')}>Void</button></>}
-              {canTreasurer && row.status === 'cleared' && <button disabled={busy} type="button" onClick={() => transition(row, 'reconcile')}>Reconcile</button>}
+              {canTreasurer && row.status === 'cleared' && (
+  <span title="Receipt matching must be implemented and verified before reconciliation.">
+    Awaiting receipt matching
+  </span>
+)}
               {(role === 'secretary' || row.status === 'reconciled' || row.status === 'voided') && 'Read only'}
             </td>
           </tr>)}</tbody>
