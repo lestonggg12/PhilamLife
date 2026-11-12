@@ -115,7 +115,11 @@ export default function GrievanceCloudReview({ caseId, onClose, onSaved }) {
           .select('id,previous_status,status,note,recorded_at,recorded_by_name')
           .eq('case_id', caseId).order('recorded_at', { ascending: false })
         if (eventError) throw eventError
-        if (active) setResult({ state: 'ready', record, events: events || [], error: '' })
+        if (active) {
+          setResult({ state: 'ready', record, events: events || [], error: '' })
+          setChanges(editableFrom(record))
+          setEditing(true)
+        }
       } catch (error) {
         if (active) setResult({ state: 'error', record: null, events: [], error: error?.message || 'Unable to load grievance details.' })
       }
@@ -166,104 +170,62 @@ export default function GrievanceCloudReview({ caseId, onClose, onSaved }) {
   }
 
   const { state, record, events, error } = result
-  return <div className="gc-modal-content gcr-modal">
-    <header className="gc-header">
+  const statusTone = record && (CLOSED.includes(record.status) ? 'closed' : record.status === 'Received' ? 'open' : 'progress')
+  return <div className="gc-modal-content gcr-modal" data-layout="details-left-narrative-right">
+    <header className="gc-header gcr-detail-header">
       <div className="gc-header-copy">
-        <h2 ref={titleRef} tabIndex={-1}>Review shared grievance</h2>
-        <p>{editing ? 'Update status, follow-up and resolution details' : 'Shared case details and audit history'}</p>
+        <p className="gcr-kicker">{record ? `GR-${record.case_number} · ${record.category}` : 'Grievance case'}</p>
+        <h2 ref={titleRef} tabIndex={-1}>{record?.title || 'Case details'}</h2>
+        {record ? <div className="gcr-meta"><span className={`gcr-status gcr-status-${statusTone}`}>{record.status}</span><span>Filed {manilaDateTime(record.filed_at)} by {record.complainant || 'Not provided'}</span><span>Follow-up {dateOnly(record.follow_up_date)}</span></div> : <p>Case details and recorded history</p>}
       </div>
-      <button className="gc-icon-close" type="button" aria-label="Close" onClick={onClose} disabled={saving}>×</button>
+      <button className="gc-icon-close" type="button" aria-label="Close case" onClick={onClose} disabled={saving}>×</button>
     </header>
     <div className="gc-body gcr-body">
       {state === 'loading' && <p role="status" className="gcr-message">Loading case details and history…</p>}
       {state === 'error' && <p role="alert" className="gcr-error">{error}</p>}
       {saveNotice && <p className="gcr-notice" role="status">{saveNotice}</p>}
-      {state === 'ready' && record && <>
-        <div className="gcr-hero">
-          <span className="gcr-ref">GR-{record.case_number}</span>
-          <span className="gcr-status">{record.status}</span>
-          <h3>{record.title}</h3>
-          <p>{record.category}</p>
-        </div>
-        {editing && changes && <section className="gcr-section gcr-update-section" aria-label="Update shared grievance">
-          <h4>Update case</h4>
-          <p className="gcr-help">Changes are saved to the shared database with an audit entry. A note is required even for follow-up-only updates.</p>
-          <div className="gcr-update-grid">
-            <label>Status
-              <select value={changes.status} disabled={saving} onChange={e => setChanges(v => ({ ...v, status: e.target.value }))}>
-                {STATUSES.map(s => <option value={s} key={s}>{s}</option>)}
-              </select>
-            </label>
-            <label>Assigned person or committee
-              <input maxLength={200} disabled={saving} value={changes.assigned_handler} onChange={e => setChanges(v => ({ ...v, assigned_handler: e.target.value }))} />
-            </label>
-            <label>Next follow-up date
-              <input type="date" disabled={saving} value={changes.follow_up_date} onChange={e => setChanges(v => ({ ...v, follow_up_date: e.target.value }))} />
-            </label>
-            <label className="gcr-update-wide">Outcome {CLOSED.includes(changes.status) && <span className="gcr-required">(required to close)</span>}
-              <textarea rows={3} maxLength={4000} disabled={saving} value={changes.outcome} onChange={e => setChanges(v => ({ ...v, outcome: e.target.value }))} />
-            </label>
-            <label className="gcr-update-wide">Decision authority {['Resolved','Dismissed'].includes(changes.status) && <span className="gcr-required">(required)</span>}
-              <input maxLength={300} disabled={saving} value={changes.decision_authority} onChange={e => setChanges(v => ({ ...v, decision_authority: e.target.value }))} />
-            </label>
-            <label className="gcr-update-wide">Update note <span className="gcr-required">(required)</span>
-              <textarea rows={3} maxLength={4000} disabled={saving} value={changes.note} onChange={e => setChanges(v => ({ ...v, note: e.target.value }))} />
-            </label>
+      {state === 'ready' && record && <div className="gcr-detail-stack">
+        <div className="gcr-overview-columns">
+          <section className="gcr-card gcr-left-details" aria-label="Case details"><h3>Details</h3><Details rows={[
+            ['Filed by', record.complainant], ['Concerns', record.respondent],
+            ['Homeowner', record.homeowner_name], ['Block', record.block], ['Lot', record.lot_number],
+            ['Location', record.location], ['Handler', record.assigned_handler],
+            ['Incident date', dateOnly(record.incident_date)], ['Follow-up', dateOnly(record.follow_up_date)],
+            ['Filed (Manila)', manilaDateTime(record.filed_at)], ['Updated (Manila)', manilaDateTime(record.updated_at)],
+          ]} /></section>
+          <div className="gcr-narrative-column">
+            <section className="gcr-card" aria-label="What happened"><h3>What happened</h3><p className="gcr-prose">{record.description || 'No description recorded.'}</p></section>
+          <section className="gcr-card" aria-label="Requested action"><h3>Requested action</h3><p className="gcr-prose">{record.requested_action || 'No requested action recorded.'}</p></section>
+          {(record.outcome || record.decision_authority) && <section className="gcr-card" aria-label="Case outcome"><h3>Outcome</h3><p className="gcr-prose">{record.outcome || 'Not provided'}</p>{record.decision_authority && <p className="gcr-authority">Decision authority: {record.decision_authority}</p>}</section>}
+          {(record.rule_reference || record.evidence_notes) && <section className="gcr-card" aria-label="Supporting information"><h3>Supporting information</h3><Details rows={[
+            ['Rule reference', record.rule_reference], ['Evidence notes', record.evidence_notes],
+          ]} /></section>}
           </div>
-          {saveError && <p className="gcr-error" role="alert">{saveError}</p>}
-        </section>}
-        <section className="gcr-section" aria-label="Case details">
-          <h4>Case details</h4>
-          <Details rows={[
-            ['Person filing', record.complainant],
-            ['Person concerned', record.respondent],
-            ['Homeowner', record.homeowner_name],
-            ['Block', record.block],
-            ['Lot number', record.lot_number],
-            ['Location', record.location],
-            ['Assigned person or committee', record.assigned_handler],
-            ['Incident date', dateOnly(record.incident_date)],
-            ['Follow-up date', dateOnly(record.follow_up_date)],
-            ['Filed (Manila)', manilaDateTime(record.filed_at)],
-            ['Last updated (Manila)', manilaDateTime(record.updated_at)],
-          ]} />
-        </section>
-        <section className="gcr-section" aria-label="Complaint and action">
-          <h4>Complaint and action</h4>
-          <Details rows={[
-            ['Description', record.description],
-            ['Requested action', record.requested_action],
-            ['Rule reference', record.rule_reference],
-            ['Evidence notes', record.evidence_notes],
-            ['Outcome', record.outcome],
-            ['Decision authority', record.decision_authority],
-          ]} />
-        </section>
-        <section className="gcr-section" aria-label="Case history">
-          <h4>Case history <span>({events.length})</span></h4>
-          {events.length === 0 ? <p className="gcr-message">No history entries are available for this case.</p> :
-            <ol className="gcr-history">
-              {events.map(event => <li key={event.id}>
-                <div className="gcr-history-top">
-                  <strong>{event.status || 'Activity recorded'}</strong>
-                  <time>{manilaDateTime(event.recorded_at)}</time>
-                </div>
-                {event.previous_status && <p>Previous status: {event.previous_status}</p>}
-                {event.note && <p className="gcr-history-note">{event.note}</p>}
-                {event.recorded_by_name && <small>Recorded by {event.recorded_by_name}</small>}
-              </li>)}
-            </ol>}
-        </section>
-      </>}
+        </div>
+        <section className="gcr-card" aria-label="Case history"><h3>Case history <span className="gcr-count">{events.length}</span></h3>
+            {events.length === 0 ? <p className="gcr-message">No history entries are available for this case.</p> : <ol className="gcr-timeline">{events.map(event => <li key={event.id}>
+              <strong>{event.previous_status && event.previous_status !== event.status ? `${event.previous_status} → ${event.status}` : event.status || 'Activity recorded'}</strong>
+              <small>{manilaDateTime(event.recorded_at)}{event.recorded_by_name ? ` · ${event.recorded_by_name}` : ''}</small>
+              {event.note && <p>{event.note}</p>}
+            </li>)}</ol>}
+          </section>
+        <section className="gcr-card gcr-edit-card" aria-label="Update shared grievance"><h3>Update status</h3>
+            {editing && changes ? <>
+              <p className="gcr-help">Changes require an update note. Save when you are ready.</p>
+              <div className="gcr-edit-fields">
+                <label>Status<select value={changes.status} disabled={saving} onChange={e => setChanges(v => ({ ...v, status: e.target.value }))}>{STATUSES.map(status => <option value={status} key={status}>{status}</option>)}</select></label>
+                <label>Assigned person or committee<input maxLength={200} disabled={saving} value={changes.assigned_handler} onChange={e => setChanges(v => ({ ...v, assigned_handler: e.target.value }))} /></label>
+                <label>Next follow-up date<input type="date" disabled={saving} value={changes.follow_up_date} onChange={e => setChanges(v => ({ ...v, follow_up_date: e.target.value }))} /></label>
+                {(CLOSED.includes(changes.status) || changes.outcome) && <label>Outcome {CLOSED.includes(changes.status) && <span className="gcr-required">(required)</span>}<textarea rows={3} maxLength={4000} disabled={saving} value={changes.outcome} onChange={e => setChanges(v => ({ ...v, outcome: e.target.value }))} /></label>}
+                {(CLOSED.includes(changes.status) || changes.decision_authority) && <label>Decision authority {['Resolved', 'Dismissed'].includes(changes.status) && <span className="gcr-required">(required)</span>}<input maxLength={300} disabled={saving} value={changes.decision_authority} onChange={e => setChanges(v => ({ ...v, decision_authority: e.target.value }))} /></label>}
+                <label>Update note <span className="gcr-required">(required)</span><textarea rows={3} maxLength={4000} disabled={saving} value={changes.note} onChange={e => setChanges(v => ({ ...v, note: e.target.value }))} placeholder="Explain the status change or follow-up." /></label>
+              </div>
+              {saveError && <p className="gcr-error" role="alert">{saveError}</p>}
+              <button className="gcr-save-button" type="button" disabled={saving} onClick={saveUpdate}>{saving ? 'Saving…' : 'Save update'}</button>
+            </> : <><p className="gcr-help">Update the status, assignment or follow-up and record an audit note.</p><button className="gcr-save-button" type="button" onClick={() => { setChanges(editableFrom(record)); setSaveError(''); setSaveNotice(''); setEditing(true) }}>Update case</button></>}
+          </section>
+      </div>}
     </div>
-    <footer className="gc-footer">
-      {editing ? <>
-        <button className="gc-button gc-button-secondary" type="button" disabled={saving} onClick={() => { setEditing(false); setChanges(null); setSaveError('') }}>Cancel update</button>
-        <button className="gc-button gc-button-primary" type="button" disabled={saving} onClick={saveUpdate}>{saving ? 'Saving…' : 'Save update'}</button>
-      </> : <>
-        {state === 'ready' && record && <button className="gc-button gc-button-secondary" type="button" onClick={() => { setChanges(editableFrom(record)); setSaveError(''); setSaveNotice(''); setEditing(true) }}>Update case</button>}
-        <button className="gc-button gc-button-primary" type="button" onClick={onClose}>Close</button>
-      </>}
-    </footer>
+    <footer className="gc-footer gcr-footer"><small>Case details and audit history · Philippine time</small><div>{editing && <button className="gc-button gc-button-secondary" type="button" disabled={saving} onClick={() => { setChanges(editableFrom(record)); setSaveError(''); setEditing(false) }}>Cancel update</button>}<button className="gc-button gc-button-primary" type="button" onClick={onClose} disabled={saving}>Close case</button></div></footer>
   </div>
 }

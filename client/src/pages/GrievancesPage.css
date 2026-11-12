@@ -1,497 +1,2219 @@
-.grievances-page {
-  max-width: 1400px;
-  margin: 0 auto;
-  color: var(--text-dark);
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+.grievance-app {
+  --blue: #1464a0;
+  --dark: #0f3f6a;
+  --ink: #071e30;
+  --body: #2a5470;
+  --muted: #5a7a92;
+  --line: #d0e4f0;
+  --green: #1a8a60;
+  --amber: #d49206;
+  --red: #c0392b;
+  width: 100%;
+  min-height: 100%;
+  padding: 32px;
+  box-sizing: border-box;
+  color: var(--body);
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: linear-gradient(135deg, #e6f0fa, #f0f5fa);
 }
-
-.grievance-heading {
-  position: relative;
+.grievance-app *,
+.grievance-app *:before,
+.grievance-app *:after {
+  box-sizing: border-box;
+}
+.grievance-app button,
+.grievance-app input,
+.grievance-app select,
+.grievance-app textarea {
+  font: inherit;
+}
+.grievance-app button {
+  cursor: pointer;
+}
+.grievance-app button:focus-visible,
+.grievance-app input:focus-visible,
+.grievance-app select:focus-visible,
+.grievance-app textarea:focus-visible {
+  outline: 3px solid #1464a047;
+  outline-offset: 2px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 22px;
-  padding: 22px 24px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 24px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.4));
-  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
-  backdrop-filter: blur(22px) saturate(190%);
+  gap: 28px;
+  padding: 30px 34px;
+  border: 1px solid #bdd9ec;
+  border-radius: 28px;
+  background: linear-gradient(110deg, #fff 5%, #e3f0fd);
+  box-shadow: 0 18px 42px #0f3f6a1f;
 }
-
-.grievance-heading::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 58%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent);
-  content: '';
-  pointer-events: none;
-}
-
-.grievance-heading > * {
-  position: relative;
-  z-index: 1;
-}
-
-.grievance-heading h1 {
-  margin: 4px 0 8px;
-  font-size: 30px;
-}
-
-.grievance-heading p,
-.grievance-statement-heading p {
+:where(.grievance-app, .grievance-dialog-scope) .grievance-eyebrow,
+:where(.grievance-app, .grievance-dialog-scope) .drawer-kicker {
   margin: 0;
-  color: var(--text-muted);
-}
-
-.grievance-eyebrow {
-  color: var(--primary);
+  color: var(--blue);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
 }
-
-.grievance-buttons,
-.grievance-case-actions {
+:where(.grievance-app, .grievance-dialog-scope) .grievance-hero h1 {
+  margin: 5px 0;
+  color: var(--ink);
+  font-size: 34px;
+  line-height: 1.1;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-actions,
+:where(.grievance-app, .grievance-dialog-scope) .case-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 10px;
+  align-items: center;
 }
-
-.grievances-page button,
-.grievance-dialog button {
-  border: 1px solid #c5d8e7;
-  border-radius: 9px;
-  padding: 10px 15px;
-  background: #fff;
-  color: #145a87;
-  font: inherit;
-  font-weight: 650;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.grievances-page button:hover:not(:disabled),
-.grievance-dialog button:hover:not(:disabled) {
-  border-color: #8db9d6;
-  box-shadow: 0 5px 14px rgba(15, 63, 106, 0.1);
-}
-
-.grievances-page button:disabled,
-.grievance-dialog button:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-.grievances-page button.grievance-primary,
-.grievance-dialog button.grievance-primary,
-.grievance-dialog footer button[type='submit'].grievance-primary {
+:where(.grievance-app, .grievance-dialog-scope) .button-outline,
+:where(.grievance-app, .grievance-dialog-scope) .button-primary {
   display: inline-flex;
-  min-width: 154px;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #17669f;
-  background: #17669f;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #b9d1e2;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--dark);
+  font-weight: 600;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+:where(.grievance-app, .grievance-dialog-scope) .button-primary {
+  border-color: var(--blue);
+  background: var(--blue);
   color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  text-align: center;
-  text-shadow: none;
+  box-shadow: 0 8px 18px #1464a033;
 }
-
-.grievance-dialog button.button-cancel {
-  background: #fff;
-  color: #145a87;
+:where(.grievance-app, .grievance-dialog-scope) .button-outline:hover,
+:where(.grievance-app, .grievance-dialog-scope) .button-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px #0f3f6a24;
 }
-
-.grievance-panel {
-  padding: 22px;
-  border: 1px solid #d4e3ef;
-  border-radius: 16px;
-  background: #fff;
-}
-
-.grievance-tabs {
+:where(.grievance-app, .grievance-dialog-scope) .grievance-tabs {
   display: flex;
-  gap: 6px;
-  margin: 0 0 14px;
+  gap: 26px;
+  margin: 22px 4px 18px;
+  border-bottom: 1px solid #c7dce9;
 }
-
-.grievance-tabs button[aria-selected='true'] {
-  border-color: #88b8df;
-  background: #e7f2fb;
+:where(.grievance-app, .grievance-dialog-scope) .grievance-tabs button {
+  position: relative;
+  border: 0;
+  padding: 0 2px 12px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
 }
-
-.grievance-filters {
+:where(.grievance-app, .grievance-dialog-scope) .grievance-tabs button:after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--blue);
+  content: '';
+  transform: scaleX(0);
+  transition: transform 0.25s;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .grievance-tabs
+  button.is-active {
+  color: var(--blue);
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .grievance-tabs
+  button.is-active:after {
+  transform: scaleX(1);
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-stats {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+  margin-bottom: 18px;
 }
-
-.grievances-page label,
-.grievance-dialog label {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.grievances-page input,
-.grievances-page select,
-.grievance-dialog input,
-.grievance-dialog select,
-.grievance-dialog textarea {
-  box-sizing: border-box;
-  width: 100%;
+:where(.grievance-app, .grievance-dialog-scope) .stat-card {
   min-width: 0;
-  border: 1px solid #c8dbe9;
-  border-radius: 8px;
-  padding: 10px 12px;
+  padding: 18px 20px;
+  border: 1px solid #cfe2ee;
+  border-radius: 18px;
   background: #fff;
-  color: #173a52;
-  font: inherit;
-  font-size: 14px;
+  color: var(--body);
+  text-align: left;
+  box-shadow: 0 10px 24px #0f3f6a14;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
-
-.grievance-dialog textarea {
-  resize: vertical;
+:where(.grievance-app, .grievance-dialog-scope) .stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 30px #0f3f6a21;
 }
-
-.grievance-case {
+:where(.grievance-app, .grievance-dialog-scope) .stat-card.is-selected {
+  border: 2px solid var(--blue);
+  padding: 17px 19px;
+  box-shadow: 0 0 0 3px #1464a01a;
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: #e9f3fb;
+  color: var(--blue);
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-icon.amber {
+  background: #fff5da;
+  color: var(--amber);
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-icon.red {
+  background: #fff0ee;
+  color: var(--red);
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-icon.green {
+  background: #eaf7f0;
+  color: var(--green);
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-card strong {
+  display: block;
+  margin-top: 12px;
+  color: var(--ink);
+  font-size: 30px;
+  line-height: 1.1;
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-card .danger-number {
+  color: var(--red);
+}
+:where(.grievance-app, .grievance-dialog-scope) .stat-card small {
+  display: block;
+  min-height: 20px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .progress-track {
+  display: block;
+  height: 5px;
+  margin-top: 13px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e2eee8;
+}
+:where(.grievance-app, .grievance-dialog-scope) .progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+  transition: width 0.3s;
+}
+:where(.grievance-app, .grievance-dialog-scope) .register-panel {
+  overflow: hidden;
+  border: 1px solid #cfe2ee;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 28px #0f3f6a14;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 18px 20px 10px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid #cfe2ee;
+  border-radius: 99px;
+  background: #f7fbfe;
+  color: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-chips button span {
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 99px;
+  background: #e1edf5;
+  color: var(--dark);
+  font-size: 11px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-chips button.is-active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .status-chips
+  button.is-active
+  span {
+  background: #ffffff33;
+  color: #fff;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-chips button.is-danger {
+  border-color: var(--red);
+  background: var(--red);
+}
+:where(.grievance-app, .grievance-dialog-scope) .filter-bar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 180px 180px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px 16px;
+  background: #fffffff5;
+  border-bottom: 1px solid #e1edf4;
+}
+:where(.grievance-app, .grievance-dialog-scope) .filter-bar label {
+  min-width: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .filter-bar select,
+:where(.grievance-app, .grievance-dialog-scope) .search-field {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #c5dbe9;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--body);
+}
+:where(.grievance-app, .grievance-dialog-scope) .filter-bar select {
+  padding: 0 11px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .search-field {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px 0;
-  border-bottom: 1px solid #e1eaf1;
+  gap: 8px;
+  padding: 0 10px;
+  color: var(--blue);
 }
-
-.grievance-case > div {
+:where(.grievance-app, .grievance-dialog-scope) .search-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+}
+:where(.grievance-app, .grievance-dialog-scope) .search-field kbd {
+  padding: 2px 6px;
+  border: 1px solid #c5dbe9;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .clear-link {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-heading,
+:where(.grievance-app, .grievance-dialog-scope) .case-row {
+  display: grid;
+  grid-template-columns: 100px minmax(230px, 1.7fr) 100px 130px 125px 120px 24px;
+  gap: 14px;
+  align-items: center;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-heading {
+  padding: 13px 20px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-row {
+  position: relative;
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #e5eef4;
+  padding: 16px 20px;
+  background: #fff;
+  color: var(--body);
+  text-align: left;
+  transition:
+    background 0.2s,
+    padding-left 0.2s;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-row:before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--blue);
+  content: '';
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-row:hover {
+  padding-left: 24px;
+  background: #f6fbff;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-row:hover:before {
+  opacity: 1;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-row > span {
   min-width: 0;
 }
-
-.grievance-case h2 {
-  margin: 6px 0;
-  overflow-wrap: anywhere;
-  font-size: 16px;
-}
-
-.grievance-case p {
-  margin: 6px 0;
-  overflow-wrap: anywhere;
+:where(.grievance-app, .grievance-dialog-scope) .case-id strong,
+:where(.grievance-app, .grievance-dialog-scope) .case-title strong {
+  display: block;
+  color: var(--ink);
   font-size: 13px;
 }
-
-.grievance-case p span,
-.grievance-case small {
-  color: var(--text-muted);
-}
-
-.grievance-case small {
+:where(.grievance-app, .grievance-dialog-scope) .case-id small,
+:where(.grievance-app, .grievance-dialog-scope) .case-title small {
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
-
-.grievance-case-actions {
-  flex-shrink: 0;
-  justify-content: flex-end;
+:where(.grievance-app, .grievance-dialog-scope) .case-title small b {
+  color: #9ab4c6;
+  font-weight: 400;
 }
-
-.grievance-badge {
+:where(.grievance-app, .grievance-dialog-scope) .follow-up {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .is-overdue {
+  color: var(--red) !important;
+  font-weight: 700;
+}
+:where(.grievance-app, .grievance-dialog-scope) .follow-up.is-soon {
+  color: var(--amber);
+  font-weight: 700;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 9px;
-  border-radius: 6px;
-  background: #edf4f9;
+  border-radius: 99px;
+  background: #fff5da;
+  color: #916303;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-pill.in-progress {
+  background: #e8f1fb;
+  color: var(--blue);
+}
+:where(.grievance-app, .grievance-dialog-scope) .status-pill.resolved {
+  background: #e8f7ef;
+  color: var(--green);
+}
+:where(.grievance-app, .grievance-dialog-scope) .row-chevron {
+  color: #8caabd;
+  transition: transform 0.2s;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-row:hover .row-chevron {
+  transform: translateX(4px);
+}
+:where(.grievance-app, .grievance-dialog-scope) .table-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid #e5eef4;
+  color: var(--muted);
+  font-size: 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .empty-state,
+:where(.grievance-app, .grievance-dialog-scope) .statement-placeholder {
+  padding: 50px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+:where(.grievance-app, .grievance-dialog-scope) .empty-state h2,
+:where(.grievance-app, .grievance-dialog-scope) .statement-placeholder h2 {
+  margin: 14px 0 5px;
+  color: var(--ink);
+  font-size: 20px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .empty-state p,
+:where(.grievance-app, .grievance-dialog-scope) .statement-placeholder p {
+  margin: 0 auto 18px;
+  font-size: 13px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .statement-placeholder {
+  border: 1px solid #cfe2ee;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 28px #0f3f6a14;
+}
+:where(.grievance-app, .grievance-dialog-scope) .statement-icon {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 13px;
+  background: #e9f3fb;
+  color: var(--blue);
+}
+.modal-overlay.grievance-dialog-scope {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  background: #0f3f6a80;
+  backdrop-filter: blur(8px);
+  animation: fade-in 0.35s ease both;
+}
+:where(.grievance-app, .grievance-dialog-scope) .dialog {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid #c5dfed;
+  border-radius: 20px;
+  background: #edf6fd;
+  box-shadow: 0 24px 70px #071e3052;
+  animation: dialog-in 0.35s ease both;
+}
+:where(.grievance-app, .grievance-dialog-scope) .form-dialog {
+  width: min(780px, 100%);
+  background: #fff;
+}
+:where(.grievance-app, .grievance-dialog-scope) .dialog-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 26px 30px;
+  border-bottom: 1px solid #d5e6f0;
+  background: linear-gradient(120deg, #fff, #e6f3fd);
+}
+:where(.grievance-app, .grievance-dialog-scope) .dialog-top h2 {
+  margin: 6px 0 12px;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.2;
+}
+:where(.grievance-app, .grievance-dialog-scope) .icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid #c5dbe9;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--dark);
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .case-dialog-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  padding: 20px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .dialog-card {
+  margin-bottom: 16px;
+  padding: 18px;
+  border: 1px solid #d2e4ef;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 16px #0f3f6a0d;
+}
+:where(.grievance-app, .grievance-dialog-scope) .dialog-card h3 {
+  margin: 0 0 12px;
+  color: var(--dark);
+  font-size: 14px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .dialog-card p {
+  margin: 0;
+  color: var(--body);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+:where(.grievance-app, .grievance-dialog-scope) .segmented-status {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #edf5fa;
+}
+:where(.grievance-app, .grievance-dialog-scope) .segmented-status button {
+  padding: 9px 5px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 700;
 }
-
-.grievance-help {
-  color: #58758a;
-  font-size: 12px;
-  line-height: 1.6;
+:where(.grievance-app, .grievance-dialog-scope)
+  .segmented-status
+  button.is-active {
+  background: #fff;
+  color: var(--blue);
+  box-shadow: 0 2px 7px #0f3f6a1f;
 }
-
-.grievance-error {
-  padding: 12px;
-  border-radius: 8px;
-  background: #fff1f0;
-  color: #a82e2e;
+:where(.grievance-app, .grievance-dialog-scope)
+  .segmented-status
+  button.is-active.resolved {
+  color: var(--green);
 }
-
-.grievance-empty {
-  padding: 38px 10px;
-  color: #58758a;
-  text-align: center;
-}
-
-.grievance-empty h2 {
-  font-size: 18px;
-}
-
-.grievance-period {
+:where(.grievance-app, .grievance-dialog-scope) .form-field {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-
-.grievance-statement-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 22px;
-}
-
-.grievance-statement table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.grievance-statement th,
-.grievance-statement td {
-  padding: 12px;
-  border-bottom: 1px solid #e1eaf1;
-  text-align: left;
-}
-
-.grievance-statement th {
-  background: #edf5fb;
-}
-
-.grievance-statement th:last-child,
-.grievance-statement td:last-child {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.grievance-total {
-  background: #f0f6fa;
-  font-weight: 750;
-}
-
-.grievance-schedules {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  margin-top: 24px;
-}
-
-.grievance-schedule {
   min-width: 0;
-  padding: 16px;
-  border: 1px solid #d8e5ef;
-  border-radius: 10px;
+  flex-direction: column;
+  gap: 6px;
 }
-
-.grievance-schedule h3 {
-  margin: 0 0 12px;
-  font-size: 14px;
+:where(.grievance-app, .grievance-dialog-scope) .form-field span {
+  color: var(--body);
+  font-size: 12px;
+  font-weight: 700;
 }
-
-.grievance-schedule dl {
-  margin: 0;
+:where(.grievance-app, .grievance-dialog-scope) .form-field em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
 }
-
-.grievance-schedule dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 8px 0;
-  border-bottom: 1px solid #ecf1f5;
+:where(.grievance-app, .grievance-dialog-scope) .form-field input,
+:where(.grievance-app, .grievance-dialog-scope) .form-field select,
+:where(.grievance-app, .grievance-dialog-scope) .form-field textarea {
+  width: 100%;
+  border: 1px solid #c5dbe9;
+  border-radius: 9px;
+  padding: 10px 11px;
+  background: #fff;
+  color: var(--ink);
   font-size: 13px;
 }
-
-.grievance-schedule dt {
+:where(.grievance-app, .grievance-dialog-scope) .form-field textarea {
+  resize: vertical;
+}
+:where(.grievance-app, .grievance-dialog-scope) .details-list {
+  margin: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .details-list div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e1edf4;
+}
+:where(.grievance-app, .grievance-dialog-scope) .details-list dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .details-list dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
-
-.grievance-schedule dd {
-  margin: 0;
-  font-weight: 700;
+:where(.grievance-app, .grievance-dialog-scope) .timeline {
+  border-left: 2px solid #cce0ec;
+  padding-left: 17px;
 }
-
-.grievance-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 30px 16px;
-  overflow: auto;
-  background: rgba(15, 45, 68, 0.48);
-  backdrop-filter: blur(5px);
+:where(.grievance-app, .grievance-dialog-scope) .timeline article {
+  position: relative;
+  padding: 0 0 17px;
 }
-
-.grievance-dialog {
-  box-sizing: border-box;
-  width: min(800px, 100%);
-  max-height: calc(100dvh - 60px);
-  overflow: auto;
-  padding: 24px;
-  border-radius: 16px;
-  background: #fff;
-  color: #173a52;
+:where(.grievance-app, .grievance-dialog-scope) .timeline-dot {
+  position: absolute;
+  top: 3px;
+  left: -24px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px #cce0ec;
 }
-
-.grievance-dialog header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+:where(.grievance-app, .grievance-dialog-scope) .timeline strong,
+:where(.grievance-app, .grievance-dialog-scope) .timeline small,
+:where(.grievance-app, .grievance-dialog-scope) .timeline p {
+  display: block;
 }
-
-.grievance-dialog h2 {
-  margin: 4px 0;
+:where(.grievance-app, .grievance-dialog-scope) .timeline strong {
+  color: var(--ink);
+  font-size: 13px;
 }
-
-.grievance-dialog fieldset {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
+:where(.grievance-app, .grievance-dialog-scope) .timeline small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
 }
-
-.grievance-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 18px;
+:where(.grievance-app, .grievance-dialog-scope) .timeline p {
+  margin-top: 6px;
+  font-size: 12px;
 }
-
-.grievance-wide {
-  grid-column: 1 / -1;
-}
-
-.grievance-dialog details {
-  padding: 15px 0;
-  border-top: 1px solid #dfebf3;
-}
-
-.grievance-dialog summary {
-  margin-bottom: 15px;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.grievance-dialog footer {
+:where(.grievance-app, .grievance-dialog-scope) .dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 20px;
+  padding: 18px 30px;
+  border-top: 1px solid #d5e6f0;
 }
-
-.grievance-history {
-  margin-top: 22px;
-  padding-top: 12px;
-  border-top: 1px solid #d9e6ef;
-}
-
-.grievance-history article {
-  margin: 12px 0;
-  padding: 8px 12px;
-  overflow-wrap: anywhere;
-  border-left: 3px solid #c6dfef;
-  font-size: 13px;
-  white-space: pre-wrap;
-}
-
-.grievance-history small {
-  display: block;
-  margin-top: 5px;
-  color: #657f90;
-}
-
-.grievance-lot-picker {
-  position: relative;
-}
-
-.grievance-lot-options {
-  position: absolute;
-  top: 100%;
-  z-index: 5;
+:where(.grievance-app, .grievance-dialog-scope) .full-button {
   width: 100%;
-  max-height: 230px;
-  box-sizing: border-box;
-  overflow: auto;
-  padding: 8px;
-  border: 1px solid #c8dbe9;
-  background: #fff;
-  box-shadow: 0 8px 24px #14304b24;
 }
-
-.grievance-lot-options button {
-  display: block;
-  width: 100%;
-  margin: 2px 0;
-  border: 0;
-  text-align: left;
+:where(.grievance-app, .grievance-dialog-scope) .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 24px 30px;
 }
-
-.grievance-lot-options button:hover {
-  background: #edf5fb;
+:where(.grievance-app, .grievance-dialog-scope) .form-field.wide {
+  grid-column: 1/-1;
 }
-
-.grievance-dialog button.grievance-text-button {
-  padding: 5px 0;
-  border: 0;
+:where(.grievance-app, .grievance-dialog-scope) .form-error {
+  margin: 0 30px 16px;
+  padding: 10px 12px;
+  border: 1px solid #efc3bd;
+  border-radius: 9px;
+  background: #fff0ee;
+  color: var(--red);
   font-size: 12px;
 }
-
-@media (max-width: 700px) {
-  .grievance-heading,
-  .grievance-statement-heading {
-    align-items: flex-start;
-    flex-direction: column;
+:where(.grievance-app, .grievance-dialog-scope)
+  .form-dialog
+  form
+  > .dialog-footer {
+  padding-top: 0;
+  border-top: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-toast {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 70;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--dark);
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 12px 28px #0f3f6a40;
+  animation: toast-in 0.25s ease both;
+}
+:where(.grievance-app, .grievance-dialog-scope) .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
-
-  .grievance-heading {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 1050px) {
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-heading,
+  :where(.grievance-app, .grievance-dialog-scope) .case-row {
+    grid-template-columns: 90px minmax(200px, 1fr) 85px 110px 110px 105px 20px;
+    gap: 9px;
+  }
+}
+@media (max-width: 720px) {
+  .grievance-app {
     padding: 18px;
   }
-
-  .grievance-buttons {
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 24px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-subtitle {
+    font-size: 15px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-actions {
     width: 100%;
   }
-
-  .grievance-buttons button {
-    flex: 1 1 0;
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-actions button {
+    flex: 1;
   }
-
-  .grievance-panel {
+  :where(.grievance-app, .grievance-dialog-scope) .filter-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .search-field {
+    grid-column: 1/-1;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-heading {
+    display: none;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-row {
+    grid-template-columns: 1fr auto;
+    gap: 5px 12px;
     padding: 15px;
   }
-
-  .grievance-filters,
-  .grievance-form-grid,
-  .grievance-schedules {
+  :where(.grievance-app, .grievance-dialog-scope) .case-row:hover {
+    padding-left: 19px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(1) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(2) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-row > span:nth-child(3),
+  :where(.grievance-app, .grievance-dialog-scope) .case-row > span:nth-child(4),
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(5) {
+    grid-column: auto;
+    grid-row: 2;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(3):before {
+    content: 'Lot ';
+    font-weight: 700;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(4):before {
+    content: '· Handler ';
+    font-weight: 700;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(5):before {
+    content: '· Follow-up ';
+    font-weight: 700;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(6) {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(7) {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-title small {
+    display: none;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-id small {
+    display: inline;
+    margin-left: 6px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .table-footer {
+    flex-direction: column;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-dialog-grid {
     grid-template-columns: 1fr;
   }
-
-  .grievance-case {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
+  :where(.grievance-app, .grievance-dialog-scope) .dialog-top,
+  :where(.grievance-app, .grievance-dialog-scope) .drawer-body,
+  :where(.grievance-app, .grievance-dialog-scope) .dialog-footer,
+  :where(.grievance-app, .grievance-dialog-scope) .form-grid {
+    padding-right: 20px;
+    padding-left: 20px;
   }
-
-  .grievance-case-actions {
-    width: 100%;
-    justify-content: space-between;
+  :where(.grievance-app, .grievance-dialog-scope) .form-error {
+    margin-right: 20px;
+    margin-left: 20px;
   }
-
-  .grievance-overlay {
+}
+@media (max-width: 480px) {
+  .grievance-app {
     padding: 12px;
   }
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-hero h1 {
+    font-size: 29px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .grievance-stats {
+    grid-template-columns: 1fr;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .filter-bar {
+    grid-template-columns: 1fr;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .search-field {
+    grid-column: auto;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .status-chips {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .case-row > span:nth-child(3),
+  :where(.grievance-app, .grievance-dialog-scope) .case-row > span:nth-child(4),
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(5) {
+    font-size: 10px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .case-row
+    > span:nth-child(5) {
+    display: none;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .dialog-top h2 {
+    font-size: 23px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .dialog {
+    max-height: calc(100vh - 24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.grievance-app, .grievance-dialog-scope) *,
+  :where(.grievance-app, .grievance-dialog-scope) *:before,
+  :where(.grievance-app, .grievance-dialog-scope) *:after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+.grievance-app {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.grievance-app .grievance-hero {
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 24px 28px;
+}
+.grievance-app .grievance-hero > div:first-child {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+.grievance-app .grievance-actions {
+  flex: 1 1 410px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.grievance-app .grievance-actions button {
+  white-space: nowrap;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-cloud-info {
+  margin: 12px 0 18px;
+  display: grid;
+  gap: 8px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-cloud-status {
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid #bfd7e9;
+  border-radius: 11px;
+  background: #f5faff;
+  color: #345c79;
+  font-size: 14px;
+  line-height: 1.5;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-cloud-preview {
+  padding: 11px 14px;
+  border: 1px solid #cbdde9;
+  border-radius: 11px;
+  background: #fff;
+  font-size: 14px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .grievance-cloud-preview
+  summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+:where(.grievance-app, .grievance-dialog-scope) .grievance-cloud-preview ul {
+  padding-left: 20px;
+}
+@media (max-width: 900px) {
+  .grievance-app .grievance-actions {
+    justify-content: flex-start;
+    flex: 1 1 100%;
+  }
+}
+@media (max-width: 600px) {
+  .grievance-app .grievance-hero {
+    padding: 20px;
+  }
+  .grievance-app .grievance-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .grievance-app .grievance-actions button:last-child {
+    grid-column: 1/-1;
+  }
+  .grievance-app .grievance-actions button {
+    white-space: normal;
+  }
+}
+/* Cloud grievance modal only. Existing local grievance modals are unaffected. */
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 90dvh;
+  min-height: 0;
+  width: 100%;
+  background: #f8fbff;
+  color: #2a5470;
+  font-family: 'DM Sans', sans-serif;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content * {
+  box-sizing: border-box;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-header,
+:where(.grievance-app, .grievance-dialog-scope) .gc-footer {
+  flex: 0 0 auto;
+  background: #f8fbff;
+  padding: 16px 22px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 1px solid #d0e4f0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-header-copy {
+  min-width: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-header h2 {
+  margin: 0;
+  color: #071e30;
+  font-size: 22px;
+  line-height: 1.25;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-header p {
+  margin: 4px 0 0;
+  color: #5a7a92;
+  font-size: 13px;
+  line-height: 1.4;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-icon-close {
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid #c9dbe8;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f3f6a;
+  font-size: 27px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 22px;
+  overscroll-behavior: contain;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #d0e4f0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #345d78;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field--wide {
+  grid-column: 1/-1;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field input,
+:where(.grievance-app, .grievance-dialog-scope) .gc-field select,
+:where(.grievance-app, .grievance-dialog-scope) .gc-field textarea {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #a8bacb;
+  border-radius: 9px;
+  background: #fff;
+  color: #071e30;
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  outline-offset: 2px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field input,
+:where(.grievance-app, .grievance-dialog-scope) .gc-field select {
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field .tsr-date-trigger {
+  min-height: 44px;
+  height: 44px;
+  max-height: 44px;
+  border-color: #a8bacb;
+  border-radius: 9px;
+  font-size: 14px;
+  padding: 9px 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-field input:focus-visible,
+:where(.grievance-app, .grievance-dialog-scope) .gc-field select:focus-visible,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-field
+  textarea:focus-visible,
+:where(.grievance-app, .grievance-dialog-scope) .gc-button:focus-visible,
+:where(.grievance-app, .grievance-dialog-scope) .gc-icon-close:focus-visible {
+  outline: 3px solid #1464a055;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-button-primary {
+  border: 1px solid #1464a0;
+  background: #1464a0;
+  color: #fff;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-button-secondary {
+  border: 1px solid #b8d0e0;
+  background: #fff;
+  color: #0f3f6a;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-button:disabled,
+:where(.grievance-app, .grievance-dialog-scope) .gc-icon-close:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-error {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #e6a8a8;
+  border-radius: 10px;
+  background: #fff3f2;
+  color: #a12626;
+  line-height: 1.5;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-review-intro {
+  margin-top: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-summary {
+  display: grid;
+  grid-template-columns: minmax(110px, 190px) minmax(0, 1fr);
+  gap: 10px 16px;
+  overflow-wrap: anywhere;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-summary dt {
+  font-weight: 650;
+  color: #345d78;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-summary dd {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #071e30;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success {
+  text-align: center;
+  max-width: 660px;
+  margin: 0 auto;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: #e3f5eb;
+  color: #167247;
+  font-size: 32px;
+  font-weight: bold;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success h3 {
+  color: #071e30;
+  font-size: 24px;
+  margin: 14px 0 8px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success > p {
+  line-height: 1.55;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success .gc-summary {
+  text-align: left;
+  margin-top: 22px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #d0e4f0;
+  border-radius: 12px;
+}
+@media (max-width: 900px) {
+  :where(.grievance-app, .grievance-dialog-scope) .gc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 639px) {
+  :where(.grievance-app, .grievance-dialog-scope) .gc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-header,
+  :where(.grievance-app, .grievance-dialog-scope) .gc-footer {
+    padding: 12px 14px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-body {
+    padding: 14px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-header h2 {
+    font-size: 19px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-footer {
+    flex-wrap: wrap;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-footer .gc-button {
+    flex: 1 1 120px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-summary {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-summary dd {
+    margin-bottom: 10px;
+  }
+}
 
-  .grievance-dialog {
-    max-height: calc(100dvh - 24px);
+/* Secretary cloud grievance modal: consistent review and recorded steps. */
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content {
+  height: min(640px, 90dvh);
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-icon-close {
+  border: 0;
+  background: transparent;
+  color: #62788d;
+  border-radius: 10px;
+  font-size: 27px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-icon-close:hover:not(:disabled) {
+  background: #e9f1f9;
+  color: #304c65;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-review-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #bfd8ec;
+  border-radius: 12px;
+  background: #eaf4fd;
+  color: #315c7b;
+  line-height: 1.5;
+  font-size: 13px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-review-notice svg {
+  flex: 0 0 18px;
+  margin-top: 1px;
+  color: #1464a0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-detail-card {
+  overflow: hidden;
+  border: 1px solid #d0e4f0;
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-detail-list {
+  margin: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-detail-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 14px 18px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-detail-row
+  + .gc-detail-row {
+  border-top: 1px solid #e4edf5;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-detail-row dt {
+  color: #607b90;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-detail-row dd {
+  min-width: 0;
+  margin: 0;
+  color: #0f2a43;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-detail-row
+  dd.gc-not-provided {
+  color: #8195a5;
+  font-weight: 400;
+  font-style: italic;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success-icon {
+  width: 64px;
+  height: 64px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success h3 {
+  margin: 14px 0 8px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success h3:focus-visible {
+  outline: 2px solid #1464a0;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-success .gc-detail-card {
+  margin-top: 24px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-reference-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: #f6fbff;
+  border-bottom: 1px solid #d0e4f0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-reference-label {
+  color: #607b90;
+  font-size: 13px;
+  font-weight: 500;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-reference-badge {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 9px;
+  background: #e4f1fd;
+  color: #1464a0;
+  font-family:
+    ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-copy-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #c8d9e9;
+  border-radius: 9px;
+  background: #fff;
+  color: #1464a0;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-copy-button:focus-visible {
+  outline: 3px solid #1464a055;
+  outline-offset: 2px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-copy-button:hover {
+  background: #eef6fd;
+}
+@media (max-width: 639px) {
+  :where(.grievance-app, .grievance-dialog-scope) .gc-detail-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 12px 14px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-reference-row {
+    padding: 14px;
+  }
+}
+
+/* Approved compact cards and grouped record form. */
+/* Consistent portal chrome and a clearer case register. */
+.grievance-app.grievance-app {
+  padding: 0;
+  background: transparent;
+  max-width: none;
+  min-width: 0;
+  container: grievance-layout / inline-size;
+}
+.grievance-app .grievance-hero {
+  padding: 26px 30px;
+  border-radius: 26px;
+  border: 1px solid white;
+  background: linear-gradient(115deg, #fffffff2, #edf7ffed 65%, #c7e2fbed);
+  box-shadow: 0 12px 28px #1941651c;
+  gap: 22px;
+}
+.grievance-app .grievance-hero h1 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 33px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  margin: 7px 0 10px;
+}
+.grievance-app .grievance-eyebrow {
+  font:
+    750 10px 'IBM Plex Sans',
+    Arial,
+    sans-serif;
+  letter-spacing: 1.6px;
+}
+.grievance-app .grievance-subtitle {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #63839b;
+}
+.grievance-app .grievance-actions {
+  gap: 9px;
+}
+.grievance-app .grievance-actions button {
+  min-height: 42px;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.grievance-app .grievance-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.grievance-app .stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  min-width: 0;
+  min-height: 190px;
+  padding: 24px 25px;
+  border: 1px solid white;
+  border-radius: 25px;
+  background: linear-gradient(145deg, #fbfdff, #f2f8fd);
+  box-shadow: 0 10px 24px #19416512;
+}
+.grievance-app .stat-card.is-selected {
+  border-color: #91bbdc;
+  box-shadow:
+    0 0 0 2px #1769a610,
+    0 10px 24px #19416512;
+}
+.grievance-app .stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+}
+.grievance-app .stat-top > span:first-child {
+  font:
+    750 11px/1.5 'IBM Plex Sans',
+    Arial,
+    sans-serif;
+  color: #62839f;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.grievance-app .stat-icon {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: #e7f3fe;
+  color: #0870b8;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+.grievance-app .stat-icon.amber {
+  background: #fff2da;
+  color: #ad7918;
+}
+.grievance-app .stat-icon.red {
+  background: #ffebe6;
+  color: #bf4937;
+}
+.grievance-app .stat-icon.green {
+  background: #e2f3ec;
+  color: #168062;
+}
+.grievance-app .stat-card > strong {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 37px;
+  line-height: 1.2;
+  color: #102e43;
+  margin: 15px 0 8px;
+  letter-spacing: -0.5px;
+}
+.grievance-app .stat-card > strong.danger-number {
+  color: #ad4637;
+}
+.grievance-app .stat-card > small {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #6486a2;
+}
+.grievance-app .progress-track {
+  height: 5px;
+  border-radius: 8px;
+  background: #dfeaf3;
+  margin-top: 12px;
+}
+.grievance-app .grievance-tabs {
+  display: flex;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
+  background: #e6f1fb;
+  border: 1px solid #cddfec;
+  border-radius: 13px;
+  margin: 0 0 18px;
+}
+.grievance-app .grievance-tabs button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 12px;
+  color: #476b87;
+  background: transparent;
+}
+.grievance-app .grievance-tabs button::after {
+  content: none;
+}
+.grievance-app .grievance-tabs button.is-active {
+  background: #1769a6;
+  color: white;
+  box-shadow: 0 3px 7px #1769a61a;
+}
+.grievance-app .register-panel {
+  border: 1px solid white;
+  border-radius: 25px;
+  background: #ffffffed;
+  box-shadow: 0 12px 28px #19416512;
+  overflow: hidden;
+}
+.grievance-app .register-heading {
+  padding: 24px 25px 17px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.grievance-app .register-heading h2 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 23px;
+  color: #102b40;
+  margin: 0 0 7px;
+}
+.grievance-app .register-heading p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #68859c;
+  margin: 0;
+}
+.grievance-app .case-count {
+  border: 1px solid #d1e3ef;
+  background: #f4f9fe;
+  color: #5b7c96;
+  border-radius: 20px;
+  padding: 6px 10px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.grievance-app .status-chips {
+  padding: 0 25px 16px;
+  gap: 8px;
+  border: 0;
+  flex-wrap: wrap;
+}
+.grievance-app .status-chips button {
+  padding: 8px 12px;
+  border: 1px solid #d5e5f0;
+  border-radius: 10px;
+  background: #f7fbff;
+  font-size: 11px;
+  color: #50748f;
+}
+.grievance-app .status-chips button.is-active {
+  color: white;
+  background: #1769a6;
+  border-color: #1769a6;
+}
+.grievance-app .status-chips button.is-danger {
+  background: #b44b3b;
+  border-color: #b44b3b;
+}
+.grievance-app .filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 25px 20px;
+  border: 0;
+}
+.grievance-app .filter-bar label {
+  min-width: 0;
+}
+.grievance-app .filter-bar .search-field {
+  min-width: 0;
+  min-height: 44px;
+  border: 1.5px solid #78a9cf;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 5px #19416506;
+}
+.grievance-app .filter-bar input {
+  min-width: 0;
+  width: 100%;
+  font-size: 12px;
+}
+.grievance-app .filter-bar select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #c5dcec;
+  border-radius: 11px;
+  background: white;
+  font-size: 12px;
+  color: #416784;
+  padding: 10px 12px;
+}
+.grievance-app .case-table {
+  margin: 0 20px 4px;
+  border: 1px solid #d0e2ef;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.grievance-app .case-heading,
+.grievance-app .case-row {
+  display: grid;
+  grid-template-columns: minmax(78px, 0.85fr) minmax(0, 2.3fr) minmax(
+      65px,
+      0.7fr
+    ) minmax(0, 1.1fr) minmax(85px, 0.95fr) minmax(85px, 0.85fr) 18px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+.grievance-app .case-heading {
+  min-height: 58px;
+  padding: 17px 16px;
+  background: #12649f;
+  color: white;
+  border: 0;
+  font:
+    750 11px/1.5 'IBM Plex Sans',
+    Arial,
+    sans-serif;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.grievance-app .case-heading span {
+  color: white;
+}
+.grievance-app .case-row {
+  padding: 18px 16px;
+  min-height: 95px;
+  border: 0;
+  border-bottom: 1px solid #deebf4;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #3c607b;
+  text-align: left;
+}
+.grievance-app .case-row:nth-child(odd) {
+  background: #f7fbff;
+}
+.grievance-app .case-row:hover {
+  padding-left: 16px;
+  background: #eaf4ff;
+  transform: none;
+}
+.grievance-app .case-row:last-child {
+  border-bottom: 0;
+}
+.grievance-app .case-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.grievance-app .case-id strong {
+  font-size: 11px;
+  color: #1769a6;
+}
+.grievance-app .case-id small {
+  font-size: 10px;
+  color: #7b94a7;
+}
+.grievance-app .case-title strong {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #244a67;
+}
+.grievance-app .case-title small {
+  display: block;
+  font-size: 10px;
+  color: #7490a5;
+  margin-top: 6px;
+}
+.grievance-app .case-row .status-pill {
+  white-space: normal;
+  font-size: 10px;
+  padding: 5px 8px;
+}
+.grievance-app .table-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 25px;
+  color: #7892a6;
+  font-size: 11px;
+}
+@container grievance-layout (max-width:1000px) {
+  .grievance-app .grievance-hero {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .grievance-app .grievance-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grievance-app .filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grievance-app .filter-bar .search-field {
+    grid-column: 1/-1;
+  }
+}
+@container grievance-layout (max-width:800px) {
+  .grievance-app .case-table {
+    border: 0;
+    border-radius: 0;
+  }
+  .grievance-app .case-heading {
+    display: none;
+  }
+  .grievance-app .case-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 17px;
+    margin-bottom: 12px;
+    border: 1px solid #d5e6f2;
+    border-radius: 14px;
+  }
+  .grievance-app .case-row:hover {
+    padding-left: 17px;
+  }
+  .grievance-app .case-row > span:nth-child(n) {
+    grid-row: auto;
+    grid-column: auto;
+    display: block;
+    justify-self: stretch;
+  }
+  .grievance-app .case-row .case-title {
+    grid-column: 1/-1;
+  }
+  .grievance-app .case-row .case-title small {
+    display: block;
+  }
+  .grievance-app .case-row > span[data-label]::before {
+    display: block;
+    content: attr(data-label);
+    font-size: 9px;
+    text-transform: uppercase;
+    color: #8098aa;
+    margin-bottom: 5px;
+  }
+  .grievance-app .case-row .row-chevron {
+    display: none;
+  }
+}
+@container grievance-layout (max-width:520px) {
+  .grievance-app .grievance-stats {
+    grid-template-columns: 1fr;
+  }
+  .grievance-app .grievance-hero {
+    padding: 22px;
+  }
+  .grievance-app .grievance-actions {
+    width: 100%;
+  }
+  .grievance-app .grievance-actions button {
+    flex: 1 1 130px;
+  }
+  .grievance-app .register-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .grievance-app .filter-bar {
+    grid-template-columns: 1fr;
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+  .grievance-app .case-table {
+    margin-right: 14px;
+    margin-left: 14px;
+  }
+  .grievance-app .grievance-tabs {
+    width: 100%;
+  }
+  .grievance-app .grievance-tabs button {
+    flex: 1;
+  }
+  .grievance-app .table-footer {
+    flex-direction: column;
+  }
+}
+
+/* Compact cards, matching the established portal layout. */
+.grievance-app .stat-card {
+  min-height: 145px;
+  padding: 18px 21px;
+  border-radius: 22px;
+}
+.grievance-app .stat-top {
+  min-height: 32px;
+}
+.grievance-app .stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+.grievance-app .stat-card > strong {
+  font-size: 30px;
+  margin: 11px 0 5px;
+}
+.grievance-app .stat-card > small {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.grievance-app .progress-track {
+  margin-top: 9px;
+  height: 4px;
+}
+/* The header and footer stay in view while the form body scrolls. */
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content.gc-modal-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: min(760px, 90dvh);
+  max-height: 90dvh;
+  width: 100%;
+  background: #f8fbfe;
+  border-radius: 22px;
+  overflow: hidden;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-header {
+  flex-shrink: 0;
+  padding: 21px 25px;
+  background: white;
+  border-bottom: 1px solid #d8e6f0;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-header
+  h2 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 27px;
+  color: #102b40;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-header p {
+  font-size: 12px;
+  color: #708a9f;
+  margin-top: 7px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-form {
+  display: grid;
+  grid-template-columns: 165px minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-section-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  top: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-section-nav
+  button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  padding: 10px 8px;
+  border-radius: 10px;
+  color: #52758f;
+  font:
+    600 11px 'IBM Plex Sans',
+    Arial,
+    sans-serif;
+  cursor: pointer;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-section-nav
+  button:hover,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-section-nav
+  button:focus-visible {
+  background: #e7f2fc;
+  border-color: #c6dded;
+  color: #1769a6;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-section-nav
+  button
+  > span {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #e4eef7;
+  color: #1769a6;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  min-width: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-form-section {
+  border: 1px solid #d7e6f1;
+  border-radius: 15px;
+  background: white;
+  padding: 19px;
+  scroll-margin-top: 8px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-form-section
+  h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  color: #214d6d;
+  font:
+    700 14px 'IBM Plex Sans',
+    Arial,
+    sans-serif;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-form-section
+  h3
+  > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: #1769a6;
+  background: #e6f2fc;
+  font-size: 11px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-form-section
+  > p {
+  margin: 9px 0 17px;
+  color: #7990a3;
+  font-size: 11px;
+  line-height: 1.6;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-field {
+  min-width: 0;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field--wide {
+  grid-column: 1/-1;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  > span {
+  font-size: 11px;
+  color: #355b77;
+  font-weight: 650;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  input,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  select,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  textarea {
+  min-width: 0;
+  width: 100%;
+  font:
+    400 12px/1.6 'IBM Plex Sans',
+    Arial,
+    sans-serif;
+  border: 1px solid #c6ddeb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  box-shadow: none;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  input,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  select {
+  min-height: 41px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  textarea {
+  resize: vertical;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  input:focus,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  textarea:focus,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  select:focus {
+  outline: 3px solid #1769a615;
+  border-color: #589acb;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  input::placeholder,
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-field
+  textarea::placeholder {
+  color: #95a7b5;
+}
+:where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #d8e6f0;
+  padding: 16px 25px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-footer
+  .gc-button {
+  min-height: 41px;
+  padding: 10px 17px;
+  border-radius: 11px;
+  font-size: 12px;
+}
+:where(.grievance-app, .grievance-dialog-scope)
+  .gc-modal-content
+  .gc-footer
+  .gc-button-primary {
+  background: #1769a6;
+  color: white;
+  border-color: #1769a6;
+}
+@media (max-width: 700px) {
+  :where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .gc-modal-content
+    .gc-section-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .gc-modal-content
+    .gc-section-nav
+    button {
+    padding: 7px;
+    font-size: 10px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-body {
+    padding: 15px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .gc-modal-content
+    .gc-form-section {
+    padding: 16px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-header {
     padding: 18px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .gc-modal-content
+    .gc-header
+    h2 {
+    font-size: 24px;
+  }
+}
+@media (max-width: 500px) {
+  :where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .gc-modal-content
+    .gc-field--wide {
+    grid-column: auto;
+  }
+  :where(.grievance-app, .grievance-dialog-scope) .gc-modal-content .gc-footer {
+    padding: 13px 16px;
+  }
+  :where(.grievance-app, .grievance-dialog-scope)
+    .gc-modal-content
+    .gc-footer
+    .gc-button {
+    flex: 1;
   }
 }
