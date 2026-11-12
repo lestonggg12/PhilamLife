@@ -1,0 +1,38 @@
+.gps-page {border:1px solid #cfe2ee;border-radius:18px;background:#fff;box-shadow:0 12px 28px #0f3f6a14;overflow:hidden;color:#20394c}
+.gps-header {padding:24px 26px;background:linear-gradient(110deg,#fff,#e8f4fc);border-bottom:1px solid #dbe9f2}
+.gps-header h2 {margin:5px 0 7px;font-size:24px;line-height:1.2;color:#173f60}
+.gps-header p {margin:0;color:#5f798d;line-height:1.55;font-size:14px}
+.gps-header .gps-eyebrow {color:#1464a0;text-transform:uppercase;letter-spacing:1px;font-size:11px;font-weight:700}
+.gps-controls {display:flex;flex-wrap:wrap;gap:12px;align-items:end;padding:20px 26px;border-bottom:1px solid #e3eef4}
+.gps-date {display:flex;flex-direction:column;gap:7px;width:190px;max-width:100%;min-width:0}
+.gps-date label {font-weight:700;font-size:12px;color:#516f82}
+.gps-date .tsr-date {width:100%}
+.gps-controls button.gps-primary,.gps-controls button.gps-secondary {height:42px;min-height:42px;padding:8px 15px;border-radius:10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.gps-controls .gps-primary {background:#1464a0;border:1px solid #1464a0;color:#fff}
+.gps-controls .gps-secondary {background:#fff;border:1px solid #bed7e7;color:#1464a0}
+.gps-controls button:disabled {opacity:.52;cursor:not-allowed}
+.gps-controls button:focus-visible {outline:3px solid #1464a055;outline-offset:2px}
+.gps-message {margin:20px 26px;color:#5c7487;line-height:1.6;font-size:14px}
+.gps-error {margin:16px 26px;padding:12px 14px;border:1px solid #e8b8b3;border-radius:10px;background:#fff2f1;color:#9d3026;font-size:13px;line-height:1.5}
+.gps-results {padding:22px 26px 28px}
+.gps-result-heading {display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
+.gps-result-heading h3 {font-size:18px;margin:0 0 5px;color:#153d5c}
+.gps-result-heading p {font-size:12px;margin:0;color:#607b90}
+.gps-reconciled {border-radius:99px;border:1px solid #b7ddc8;background:#eaf7ef;color:#237449;font-weight:700;font-size:12px;padding:7px 12px}
+.gps-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:22px}
+.gps-metrics>div {border:1px solid #d5e5ef;border-radius:13px;background:#f7fbff;padding:15px}
+.gps-metrics span {font-size:12px;display:block;color:#637d91}
+.gps-metrics strong {font-size:27px;display:block;color:#164d77;margin-top:7px;font-variant-numeric:tabular-nums}
+.gps-panel {border:1px solid #d7e6ef;border-radius:13px;overflow:hidden;background:#fff;min-width:0;margin-bottom:16px}
+.gps-panel h3 {margin:0;background:#f1f8fd;border-bottom:1px solid #d7e6ef;padding:14px 16px;color:#174f78;font-size:14px}
+.gps-table-wrap {overflow-x:auto}
+.gps-table-wrap table {border-collapse:collapse;width:100%;font-size:13px}
+.gps-table-wrap th,.gps-table-wrap td {border-bottom:1px solid #e5edf3;padding:10px 15px;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.gps-table-wrap thead th {font-size:11px;color:#617e90;text-transform:uppercase;letter-spacing:.6px}
+.gps-table-wrap tbody th {font-weight:500;color:#29475c}
+.gps-table-wrap td:last-child,.gps-table-wrap th:last-child {text-align:right;font-variant-numeric:tabular-nums;width:90px}
+.gps-table-wrap tr:last-child>th,.gps-table-wrap tr:last-child>td {border-bottom:0}
+.gps-breakdowns {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+.gps-note {margin:10px 0 0;color:#617d90;line-height:1.6;font-size:12px}
+@media(max-width:760px) {.gps-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.gps-breakdowns{grid-template-columns:1fr}.gps-header,.gps-results{padding:19px}.gps-controls{padding:17px 19px}.gps-date{width:calc(50% - 6px)}}
+@media(max-width:440px) {.gps-controls{gap:10px}.gps-date{width:100%}.gps-controls button.gps-primary,.gps-controls button.gps-secondary{flex:1}.gps-metrics{gap:8px}.gps-metrics>div{padding:12px}}
