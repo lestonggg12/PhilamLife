@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { downloadGrievanceBackup } from '../lib/grievanceBackup'
+import { supabase } from '../lib/supabaseClient'
 
 // Resolve the date in the HOA timezone rather than freezing a past calendar date.
 // This is refreshed when the page is reloaded; live midnight rollover is a separate follow-up.
@@ -53,6 +54,7 @@ export default function GrievancesPage() {
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [cloudCheck, setCloudCheck] = useState({ state: 'checking', count: null })
   const lastFocus = useRef(null)
 
   const handlerOptions = useMemo(() => ['All handlers', ...new Set(cases.map((item) => item.handler).filter(Boolean))], [cases])
@@ -77,6 +79,20 @@ export default function GrievancesPage() {
     return { total: cases.length, filed: cases.filter((item) => item.filedDate?.slice(0, 7) === TODAY.slice(0, 7)).length, active: active.length, progress: cases.filter((item) => item.status === 'In progress').length, open: cases.filter((item) => item.status === 'Open').length, due: due.length, oldest, resolved: resolved.length, rate: cases.length ? Math.round((resolved.length / cases.length) * 100) : 0 }
   }, [cases])
   const selectedCase = modal?.type === 'case' ? cases.find((item) => item.id === modal.id) : null
+
+  // Read-only connectivity check; browser grievances are not uploaded, modified, or deleted.
+  useEffect(() => {
+    let active = true
+    supabase.from('grievance_cases').select('id', { count: 'exact', head: true })
+      .then(({ count, error }) => {
+        if (!active) return
+        setCloudCheck(error || count == null
+          ? { state: 'error', count: null }
+          : { state: 'ready', count })
+      })
+      .catch(() => { if (active) setCloudCheck({ state: 'error', count: null }) })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     document.body.style.overflow = modal ? 'hidden' : ''
@@ -146,6 +162,11 @@ export default function GrievancesPage() {
   const chips = [['all', 'All', chipCounts.all], ['open', 'Open', chipCounts.open], ['progress', 'In progress', chipCounts.progress], ['resolved', 'Resolved', chipCounts.resolved], ['overdue', 'Follow-up due', chipCounts.overdue]]
   return <>
     <style>{styles}</style>
+    <p role="status" style={{ padding: '8px 12px', border: '1px solid #b8c7d8', borderRadius: 8 }}>
+      {cloudCheck.state === 'checking' ? 'Checking shared grievance storage…'
+        : cloudCheck.state === 'error' ? 'Shared grievance storage unavailable. Browser records are unchanged.'
+          : `Shared grievance storage connected: ${cloudCheck.count} case(s). Browser records are not migrated yet.`}
+    </p>
     <main className="grievance-app">
       <header className="grievance-hero"><div><p className="grievance-eyebrow">Secretary workspace</p><h1>Grievances</h1><p className="grievance-subtitle">Record complaints, follow their progress and prepare period statements.</p></div><div className="grievance-actions"><button className="button-outline" type="button" onClick={backUpLocalCases}>Back up cases</button><button className="button-outline" type="button" onClick={refresh} disabled={refreshing}><Icon name="refresh" size={16} />{refreshing ? 'Refreshing...' : 'Refresh'}</button><button className="button-primary" type="button" onClick={(event) => openForm(null, event.currentTarget)}><Icon name="plus" size={17} />Record grievance</button></div></header>
       <nav className="grievance-tabs" role="tablist" aria-label="Grievance views"><button type="button" role="tab" aria-selected={tab === 'register'} className={tab === 'register' ? 'is-active' : ''} onClick={() => setTab('register')}>Case register</button><button type="button" role="tab" aria-selected={tab === 'statement'} className={tab === 'statement' ? 'is-active' : ''} onClick={() => setTab('statement')}>Period statement</button></nav>
