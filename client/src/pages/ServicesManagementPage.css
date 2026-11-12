@@ -434,6 +434,24 @@ S
   background: var(--primary-dark);
 }
 
+.service-card-actions button.service-remove-button,
+.service-card-actions button.service-remove-button:last-child:not(:first-child) {
+  border-color: #b42332;
+  color: #b42332;
+  background: #fff;
+  box-shadow: none;
+}
+
+.service-card-actions button.service-remove-button:hover,
+.service-card-actions button.service-remove-button:last-child:not(:first-child):hover {
+  background: #fff0f1;
+}
+
+.service-card-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ---------- Filters + table ---------- */
 
 .services-filters input,
