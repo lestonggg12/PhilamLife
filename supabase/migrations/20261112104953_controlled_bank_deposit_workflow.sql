@@ -34,16 +34,16 @@ ALTER TABLE public.bank_deposits
       AND verification_reference IS NULL AND reconciled_by IS NULL
       AND reconciled_at IS NULL AND voided_by IS NULL AND voided_at IS NULL)
     OR (status = 'cleared' AND cleared_at IS NOT NULL AND verified_by IS NOT NULL
-      AND length(btrim(verification_reference)) >= 5 AND reconciled_at IS NULL
+      AND verification_reference IS NOT NULL AND length(btrim(verification_reference)) >= 5 AND reconciled_at IS NULL
       AND reconciled_by IS NULL AND voided_at IS NULL)
     OR (status = 'reconciled' AND cleared_at IS NOT NULL AND verified_by IS NOT NULL
-      AND length(btrim(verification_reference)) >= 5 AND reconciled_at IS NOT NULL
-      AND reconciled_by IS NOT NULL AND length(btrim(reconciliation_note)) >= 5
+      AND verification_reference IS NOT NULL AND length(btrim(verification_reference)) >= 5 AND reconciled_at IS NOT NULL
+      AND reconciled_by IS NOT NULL AND reconciliation_note IS NOT NULL AND length(btrim(reconciliation_note)) >= 5
       AND voided_at IS NULL)
     OR (status = 'voided' AND cleared_at IS NULL AND verified_by IS NULL
       AND reconciled_at IS NULL AND reconciled_by IS NULL
       AND voided_at IS NOT NULL AND voided_by IS NOT NULL
-      AND length(btrim(void_reason)) >= 5)
+      AND void_reason IS NOT NULL AND length(btrim(void_reason)) >= 5)
   );
 
 -- Use only checked SECURITY DEFINER operations; table remains read-only via API.

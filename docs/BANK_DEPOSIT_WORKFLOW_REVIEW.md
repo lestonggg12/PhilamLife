@@ -1,7 +1,7 @@
 # Bank deposit workflow foundation — proposed patch
 
 ## Status
-Prepared only. **NOT deployed to Supabase**, not committed to GitHub and not wired to a production UI. Review and test in a disposable staging Supabase project first. The repository has a `bank_deposits` table with no corresponding fund registry, no application write policy and no deposit-recording frontend screen. Live deposits: 0 at inspection.
+Installed in the connected **mock-data Supabase project** as migration `20261112104953` (`controlled_bank_deposit_workflow`). The frontend and migration are committed on `feature/bank-deposit-controls`, awaiting merge review. Database-level rollback tests passed for mock Admin fund creation and clearance, Treasurer deposit recording, Secretary/Treasurer authorization denials, and blocked final reconciliation. These checks did not create permanent deposits or funds. Browser-session and end-to-end collection matching tests remain incomplete. Final reconciliation is intentionally disabled pending auditable receipt-to-deposit matching.
 
 ## Roles (proposed control policy)
 - **Admin** creates valid funds; verifies bank clearance against an independent bank-statement reference; may void an *uncleared* deposit with a reason.
@@ -19,12 +19,12 @@ This is a proposed separation of duties, not a verified organizational approval 
 - Existing `audit_extra_bank_deposits` AFTER triggers log deposits and status changes; the fund-registration RPC calls required audit logging directly.
 - Does **not** transfer funds, reconcile actual bank statements automatically, touch payment balances, or backfill legacy payment allocations.
 
-## Before production deployment
-1. Confirm authorization matrix with client (who verifies clearance and who reconciles).
-2. Exercise Admin, Treasurer, Secretary, inactive and anon role tests **in staging**; verify successful pending -> cleared -> reconciled and declined invalid transitions.
-3. Inspect triggers and audit logs in staging; test duplicate reference, invalid fund/date/amount, concurrent requests, and rollback on audit failure.
-4. Build and test a suitable UI for Admin fund configuration, Treasurer deposit entry, Admin statement verification, and Treasurer reconciliation. No production user can use this SQL on its own without the UI.
-5. Run migration with the normal Supabase migration workflow, and recheck advisors. Never manually invent bank statements or recreate historical allocations.
+## Remaining validation before enabling reconciliation or merging
+1. Confirm the proposed Admin/Treasurer/Secretary authorization matrix with the client.
+2. Run authenticated browser-session tests for all three roles, including inactive accounts, duplicate references, invalid amounts, and denied operations.
+3. Implement auditable receipt-to-deposit matching, including prevention of duplicate use of receipts and exact amount validation; do not enable the final reconciliation RPC before this exists.
+4. Verify audit logs and account-period protections using mock data and review GitHub CI results.
+5. Do not rerun the already applied migration. Review any future schema changes separately before merging PR #4.
 
-## Applying patch to repo
-From your actual PhilamLife repository on D: (`git rev-parse --show-toplevel`), run `git apply --check <patchfile>` then `git apply <patchfile>`. Do not apply the database migration to production until the prerequisites above are met.
+## Applying this repository correction
+From the PhilamLife repository root on `feature/bank-deposit-controls`, run `git apply --check <patchfile>` then `git apply <patchfile>`. This updates tracked files only; it does not execute SQL or alter deployed data.
