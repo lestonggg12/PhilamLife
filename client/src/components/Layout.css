@@ -173,3 +173,25 @@
     padding-top: 16px;
   }
 }
+/* Secretary: use the shared page-content top spacing only. */
+.layout[data-role="secretary"]
+.page-content > .motion-page-enter > :is(
+  .sec-secretary-dashboard,
+  .activity-log-page,
+  .cal-page,
+  .contact-page,
+  .homeowners-page,
+  .overdue-page,
+  .doc-library,
+  .ledger-page,
+  .billing-audit-page,
+  .payments-page,
+  .official-receipts-page,
+  .services-page,
+  .grievance-app,
+  .reports-page,
+  .tex-page
+) {
+  padding-top: 0;
+  margin-top: 0;
+}

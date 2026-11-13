@@ -1,3 +1,4 @@
+import { ReceiptText } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import DateField from '../components/DateField'
 import {
@@ -816,20 +817,23 @@ export default function OfficialReceiptsPage({ user }) {
   return (
     <div className="official-receipts-page">
       <header className="official-receipts-header">
-        <div className="official-receipts-header-content">
-          <p className="official-receipts-eyebrow">
-            Finance Receipts Workspace
-          </p>
-
-          <h1>
-            Official Receipts
-          </h1>
-
-          <p>
-            Find, review, and reprint
-            regular-payment and service-payment
-            receipts.
-          </p>
+        <div className="official-header-heading">
+          <span className="official-header-icon" aria-hidden="true"><ReceiptText size={28} strokeWidth={1.8} /></span>
+          <div className="official-receipts-header-content">
+            <p className="official-receipts-eyebrow">
+              Finance Receipts Workspace
+            </p>
+  
+            <h1>
+              Official Receipts
+            </h1>
+  
+            <p>
+              Find, review, and reprint
+              regular-payment and service-payment
+              receipts.
+            </p>
+          </div>
         </div>
 
         <div
@@ -887,104 +891,84 @@ export default function OfficialReceiptsPage({ user }) {
         aria-busy={loading || (!summary && !summaryError)}
       >
         <article>
-          <span
+          <div className="official-stat-top"><span className="official-stat-label">Total Receipts</span><span
             className="
               official-summary-icon
               official-summary-all
             "
           >
             <FileText size={20} />
-          </span>
-
-          <div>
-            <small>Total Receipts</small>
-
-            <strong>
+          </span></div>
+          <strong>
               {summaryTotals
                 ? summaryTotals.total.toLocaleString(
                     'en-PH',
                   )
                 : '—'}
             </strong>
-
-            <p>
+          <p>
               {summaryLabel}
               {summaryTotals?.voidedCount > 0 && ` · ${summaryTotals.voidedCount} voided not counted`}
             </p>
-          </div>
+          <div className="official-stat-footer"><span aria-hidden="true" />Non-voided receipt records</div>
         </article>
 
         <article>
-          <span
+          <div className="official-stat-top"><span className="official-stat-label">Regular Payments</span><span
             className="
               official-summary-icon
               official-summary-payment
             "
           >
             <CreditCard size={20} />
-          </span>
-
-          <div>
-            <small>Regular Payments</small>
-
-            <strong>
+          </span></div>
+          <strong>
               {summaryTotals
                 ? summaryTotals.paymentCount.toLocaleString(
                     'en-PH',
                   )
                 : '—'}
             </strong>
-
-            <p>Dues and other payments</p>
-          </div>
+          <p>Dues and other payments</p>
+          <div className="official-stat-footer"><span aria-hidden="true" />Homeowner payment receipts</div>
         </article>
 
         <article>
-          <span
+          <div className="official-stat-top"><span className="official-stat-label">Service Payments</span><span
             className="
               official-summary-icon
               official-summary-service
             "
           >
             <FileText size={20} />
-          </span>
-
-          <div>
-            <small>Service Payments</small>
-
-            <strong>
+          </span></div>
+          <strong>
               {summaryTotals
                 ? summaryTotals.serviceCount.toLocaleString(
                     'en-PH',
                   )
                 : '—'}
             </strong>
-
-            <p>Amenity transactions</p>
-          </div>
+          <p>Amenity transactions</p>
+          <div className="official-stat-footer"><span aria-hidden="true" />Service payment receipts</div>
         </article>
 
         <article>
-          <span
+          <div className="official-stat-top"><span className="official-stat-label">Total Collected</span><span
             className="
               official-summary-icon
               official-summary-total
             "
           >
             <CreditCard size={20} />
-          </span>
-
-          <div>
-            <small>Total Collected</small>
-
-            <strong className="official-summary-money">
+          </span></div>
+          <strong className="official-summary-money">
               {summaryTotals
                 ? peso.format(summaryTotals.collected)
                 : '—'}
             </strong>
-
-            <p>Excludes voided receipts</p>
-          </div>
+          <p>Excludes voided receipts</p>
+          <div className="official-stat-footer"><span aria-hidden="true" />Homeowner and service payments</div>
         </article>
       </section>
 
@@ -1202,13 +1186,7 @@ export default function OfficialReceiptsPage({ user }) {
       })()}
 
       {voidTarget && (voidTarget.type === 'service' ? (
-        <ServiceVoidDialog receipt={voidTarget.raw || {
-          id: voidTarget.sourceId,
-          receipt_number: voidTarget.receiptNumber,
-          customer_name: voidTarget.payer,
-          service_name: voidTarget.description,
-          amount_paid: voidTarget.amount,
-        }}
+        <ServiceVoidDialog receipt={voidTarget.raw || { id: voidTarget.sourceId, receipt_number: voidTarget.receiptNumber }}
           onClose={() => setVoidTarget(null)}
           onVoided={() => { setVoidTarget(null); setReloadTick((tick) => tick + 1) }} />
       ) : role === 'secretary' && (

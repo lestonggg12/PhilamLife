@@ -1,3 +1,4 @@
+import { LayoutDashboard } from 'lucide-react'
 import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
 import { isVerifiedDashboardSnapshot } from '../lib/dashboardSnapshot'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -148,12 +149,15 @@ export default function SecretaryDashboard() {
   return (
     <div className="sec-secretary-dashboard">
       <header className="sec-page-header">
-        <div className="sec-header-content">
-          <p className="sec-eyebrow">Secretary workspace</p>
-          <h1 className="sec-page-title">Secretary Dashboard</h1>
-          <p className="sec-page-subtitle">
-            Manage homeowner records, collections, services, and receipts.
-          </p>
+        <div className="sec-header-heading">
+          <span className="sec-header-icon" aria-hidden="true"><LayoutDashboard size={28} strokeWidth={1.8} /></span>
+          <div className="sec-header-content">
+            <p className="sec-eyebrow">Secretary workspace</p>
+            <h1 className="sec-page-title">Secretary Dashboard</h1>
+            <p className="sec-page-subtitle">
+              Manage homeowner records, collections, services, and receipts.
+            </p>
+          </div>
         </div>
 
         <button
@@ -180,7 +184,8 @@ export default function SecretaryDashboard() {
           <strong className="sec-stat-value">
             {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : !hasLoaded ? 'Unavailable' : activeProperties.length.toLocaleString('en-PH')}
           </strong>
-          <p className="sec-stat-footer">All active property accounts, including homeowners and lot owners</p>
+          <p className="sec-stat-description">All active property accounts, including homeowners and lot owners</p>
+          <div className="sec-stat-footer"><span className="sec-stat-dot" aria-hidden="true" />Registered active properties</div>
         </article>
 
         <article className="sec-stat-card">
@@ -193,10 +198,11 @@ export default function SecretaryDashboard() {
           <strong className="sec-stat-value sec-stat-currency">
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(summary.monthlyCollections)}
           </strong>
-          <p className="sec-stat-footer">
+          <p className="sec-stat-description">
             {summary.receiptsThisMonth} receipt
             {summary.receiptsThisMonth === 1 ? '' : 's'} for association dues
           </p>
+          <div className="sec-stat-footer"><span className="sec-stat-dot" aria-hidden="true" />Association dues receipts only</div>
         </article>
 
         <article className="sec-stat-card">
@@ -209,7 +215,8 @@ export default function SecretaryDashboard() {
           <strong className="sec-stat-value sec-stat-currency">
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : peso.format(summary.yearlyCollections)}
           </strong>
-          <p className="sec-stat-footer">All homeowner cash receipts this calendar year, including dues, balance payments and fees</p>
+          <p className="sec-stat-description">All homeowner cash receipts this calendar year, including dues, balance payments and fees</p>
+          <div className="sec-stat-footer"><span className="sec-stat-dot" aria-hidden="true" />Homeowner cash receipts</div>
         </article>
 
         <article className="sec-stat-card">
@@ -222,7 +229,8 @@ export default function SecretaryDashboard() {
           <strong className="sec-stat-value">
             {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : dashboardUnavailable ? 'Unavailable' : summary.outstandingAccounts.toLocaleString('en-PH')}
           </strong>
-          <p className="sec-stat-footer">Accounts with a remaining balance</p>
+          <p className="sec-stat-description">Accounts with a remaining balance</p>
+          <div className="sec-stat-footer"><span className="sec-stat-dot" aria-hidden="true" />Accounts requiring follow-up</div>
         </article>
       </section>
 

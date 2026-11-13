@@ -1,3 +1,4 @@
+import { ConciergeBell } from 'lucide-react'
 import { notifySuccess } from '../lib/actionFeedback'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import DateField from '../components/DateField'
@@ -1153,10 +1154,13 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
   return (
     <div className="services-page">
       <header className="services-header">
-        <div>
-          <p className="services-eyebrow">Secretary workspace</p>
-          <h1>Services Management</h1>
-          <p>Manage village amenities, process service payments, and issue receipts.</p>
+        <div className="services-header-heading">
+          <span className="services-header-icon" aria-hidden="true"><ConciergeBell size={28} strokeWidth={1.8} /></span>
+          <div className="services-header-copy">
+            <p className="services-eyebrow">Secretary workspace</p>
+            <h1>Services Management</h1>
+            <p>Manage village amenities, process service payments, and issue receipts.</p>
+          </div>
         </div>
 
         <div className="services-header-actions">
@@ -1257,28 +1261,28 @@ export default function ServicesManagementPage({ user: suppliedUser }) {
 
       <section className="services-summary" aria-label="Service summaries" aria-busy={loading}>
         <article>
-          <span className="services-summary-icon" aria-hidden="true"><CheckCircle size={17} /></span>
-          <span>Active Services</span>
+          <div className="services-stat-top"><span className="services-stat-label">Active Services</span><span className="services-summary-icon" aria-hidden="true"><CheckCircle size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : pageError ? 'Unavailable' : summary.activeServices}</strong>
           <small>Available village amenities</small>
+          <div className="services-stat-footer"><span aria-hidden="true" />Active amenity offerings</div>
         </article>
         <article>
-          <span className="services-summary-icon" aria-hidden="true"><CreditCard size={17} /></span>
-          <span>Transactions This Month</span>
+          <div className="services-stat-top"><span className="services-stat-label">Transactions This Month</span><span className="services-summary-icon" aria-hidden="true"><CreditCard size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.monthlyTransactions}</strong>
           <small>Service payments recorded</small>
+          <div className="services-stat-footer"><span aria-hidden="true" />Recorded service transactions</div>
         </article>
         <article>
-          <span className="services-summary-icon" aria-hidden="true"><RefreshCw size={17} /></span>
-          <span>Collections This Month</span>
+          <div className="services-stat-top"><span className="services-stat-label">Collections This Month</span><span className="services-summary-icon" aria-hidden="true"><RefreshCw size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : statsError ? 'Unavailable' : peso.format(summary.monthlyCollections)}</strong>
           <small>Based on Manila time</small>
+          <div className="services-stat-footer"><span aria-hidden="true" />Recorded service cash receipts</div>
         </article>
         <article>
-          <span className="services-summary-icon" aria-hidden="true"><FileText size={17} /></span>
-          <span>Receipts Issued</span>
+          <div className="services-stat-top"><span className="services-stat-label">Receipts Issued</span><span className="services-summary-icon" aria-hidden="true"><FileText size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : statsError ? 'Unavailable' : summary.receipts}</strong>
           <small>Permanent service records</small>
+          <div className="services-stat-footer"><span aria-hidden="true" />Issued service receipt records</div>
         </article>
       </section>
 

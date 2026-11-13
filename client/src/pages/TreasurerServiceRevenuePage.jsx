@@ -1,4 +1,4 @@
-import { Eye, Ban } from 'lucide-react'
+import { Eye, Ban, HandCoins } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, DollarSign, TrendingUp, Clock, Search, RefreshCw } from '../components/Icons'
 import { supabase } from '../lib/supabaseClient'
@@ -166,12 +166,15 @@ export default function TreasurerServiceRevenuePage() {
   return (
     <div className="tsr-page">
       <div className="tsr-page-header">
-        <div>
-          <p className="tsr-eyebrow">Treasurer workspace</p>
-          <h1 className="tsr-page-title">Amenity & Service Revenue</h1>
-          <p className="tsr-page-subtitle">
-            Review income collected from bookable amenities and services.
-          </p>
+        <div className="tsr-header-heading">
+          <span className="tsr-header-icon" aria-hidden="true"><HandCoins size={28} strokeWidth={1.8} /></span>
+          <div className="tsr-header-copy">
+            <p className="tsr-eyebrow">Treasurer workspace</p>
+            <h1 className="tsr-page-title">Amenity & Service Revenue</h1>
+            <p className="tsr-page-subtitle">
+              Review income collected from bookable amenities and services.
+            </p>
+          </div>
         </div>
 
         <button
@@ -200,6 +203,7 @@ export default function TreasurerServiceRevenuePage() {
             </div>
           </div>
           <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.collectedThisMonth)}</h3><p className="tsr-stat-caption">Active receipts · current month</p>
+        <div className="tsr-stat-footer"><span aria-hidden="true" />Recorded current-month receipts</div>
         </div>
 
         <div className="tsr-stat-card">
@@ -210,6 +214,7 @@ export default function TreasurerServiceRevenuePage() {
             </div>
           </div>
           <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalCollected)}</h3><p className="tsr-stat-caption">Active receipts across all dates</p>
+        <div className="tsr-stat-footer"><span aria-hidden="true" />Non-voided service receipts</div>
         </div>
 
         <div className="tsr-stat-card">
@@ -220,6 +225,7 @@ export default function TreasurerServiceRevenuePage() {
             </div>
           </div>
           <h3 className="tsr-stat-value">{loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.outstanding)}</h3><p className="tsr-stat-caption">Remaining balances across all dates</p>
+        <div className="tsr-stat-footer"><span aria-hidden="true" />Unpaid service balances</div>
         </div>
 
         <div className="tsr-stat-card">
@@ -253,6 +259,7 @@ export default function TreasurerServiceRevenuePage() {
               )}
             </p>
           )}
+        <div className="tsr-stat-footer"><span aria-hidden="true" />Highest recorded service collections</div>
         </div>
       </div>
 

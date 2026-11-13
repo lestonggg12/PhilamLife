@@ -1,3 +1,4 @@
+import { Landmark } from 'lucide-react'
 import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
 import { isVerifiedDashboardSnapshot } from '../lib/dashboardSnapshot'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -57,7 +58,7 @@ export default function TreasurerDashboard() {
     overdue: [],
     credits: null,
     adjustments: [],
-    allocationAudit: null,
+    allocationEvidenceGaps: null,
     periods: [],
   })
   const [loading, setLoading] = useState(true)
@@ -235,8 +236,7 @@ export default function TreasurerDashboard() {
   const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
   const countBadge = (count) => (loading ? '…' : dashboardUnavailable ? '!' : count)
   const checkTone = (count, level) => (loading || dashboardUnavailable ? 'lo' : count > 0 ? level : 'ok')
-  const allocationAudit = finance.allocationAudit
-  const allocationReview = allocationAudit?.review_required ?? null
+  const allocationGaps = finance.allocationEvidenceGaps
   const checks = [
     {
       key: 'overdue', to: '/overdue-accounts', tone: checkTone(summary.overdueAccounts, 'hi'), badge: countBadge(summary.overdueAccounts),
@@ -244,18 +244,23 @@ export default function TreasurerDashboard() {
       detail: loading ? 'Checking collections…' : dashboardUnavailable ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`,
     },
     {
-      key: 'allocation',
-      tone: checkTone(allocationReview ?? 0, 'md'),
-      badge: loading ? '…' : dashboardUnavailable || allocationReview == null ? '!' : allocationReview,
-      title: loading
-        ? 'Checking…'
-        : dashboardUnavailable || allocationReview == null
-          ? 'Allocation check unavailable'
-          : `${plural(allocationReview, 'payment')} require evidence review`,
-      detail: allocationAudit
-        ? `${allocationAudit.synthetic_fixture} marked synthetic test receipts; ${allocationAudit.system_snapshot} with consistent system application snapshots. Historical records are preserved; these categories do not imply missing cash.`
-        : 'Unable to classify payment allocation evidence. Refresh or check database permissions.',
-    },
+  key: 'allocation',
+  tone: checkTone(allocationGaps ?? 0, 'md'),
+  badge: loading
+    ? '…'
+    : dashboardUnavailable || allocationGaps == null
+      ? '!'
+      : allocationGaps,
+  title: loading
+    ? 'Checking…'
+    : dashboardUnavailable || allocationGaps == null
+      ? 'Allocation check unavailable'
+      : `${plural(allocationGaps, 'payment')} without explicit charge links`,
+  detail:
+    'Historical payment records may lack bill-level allocation links. ' +
+    'This does not mean cash or payments are missing. ' +
+    'Review receipts and supporting records before assigning charges.',
+},
     {
       key: 'adjustments', tone: checkTone(exceptions.unreferencedAdjustments, 'md'), badge: countBadge(exceptions.unreferencedAdjustments),
       title: loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${plural(exceptions.unreferencedAdjustments, 'adjustment')} without approval references`,
@@ -268,16 +273,19 @@ export default function TreasurerDashboard() {
   return (
     <main className="treasurer-dashboard">
       <header className="treasurer-hero">
-        <div className="td-hero-main">
-          <span className="treasurer-eyebrow">Finance control center</span>
-          <h1>Treasurer Dashboard</h1>
-          <div className="td-hero-meta">
-            <span className="td-month">{monthLabel}</span>
-            <span className="td-sep" aria-hidden="true" />
-            <span className="td-updated" role="status">{loading ? 'Refreshing…' : updatedAt ? `Updated ${organization.formatDate(updatedAt, { withTime: true })}` : ''}</span>
-            <button type="button" className="td-refresh" onClick={() => loadDashboard(dashboardPeriod)} disabled={loading} aria-label="Refresh data" title="Refresh data">
-              <RefreshCw size={15} className={loading ? 'treas-spin-icon' : ''} />
-            </button>
+        <div className="td-header-heading">
+          <span className="td-header-icon" aria-hidden="true"><Landmark size={28} strokeWidth={1.8} /></span>
+          <div className="td-hero-main">
+            <span className="treasurer-eyebrow">Finance control center</span>
+            <h1>Treasurer Dashboard</h1>
+            <div className="td-hero-meta">
+              <span className="td-month">{monthLabel}</span>
+              <span className="td-sep" aria-hidden="true" />
+              <span className="td-updated" role="status">{loading ? 'Refreshing…' : updatedAt ? `Updated ${organization.formatDate(updatedAt, { withTime: true })}` : ''}</span>
+              <button type="button" className="td-refresh" onClick={() => loadDashboard(dashboardPeriod)} disabled={loading} aria-label="Refresh data" title="Refresh data">
+                <RefreshCw size={15} className={loading ? 'treas-spin-icon' : ''} />
+              </button>
+            </div>
           </div>
         </div>
         <div className="td-hero-actions">
@@ -306,23 +314,27 @@ export default function TreasurerDashboard() {
           <strong>{show(totalCollections)}</strong>
           <small>{note('Dues and services this month')}</small>
           <div className="td-meter" aria-hidden="true"><i className="dues" style={{ width: `${duesShare * 100}%` }} /><i className="services" style={{ width: `${totalCollections > 0 ? (1 - duesShare) * 100 : 0}%` }} /></div>
+          <div className="td-stat-footer"><span aria-hidden="true" />Homeowner and service receipts</div>
         </article>
         <article className="treasurer-stat-card">
           <div className="treasurer-stat-heading"><span>Recorded expenses</span><span className="td-icon"><DollarSign size={16} /></span></div>
           <strong>{show(summary.expensesThisMonth)}</strong>
           <small>{note('Active expenses dated this month')}</small>
           <div className="td-meter" aria-hidden="true"><i className="expense" style={{ width: `${expenseRatio}%` }} /></div>
+          <div className="td-stat-footer"><span aria-hidden="true" />Recorded operating expenses</div>
         </article>
         <article className={`treasurer-stat-card ${summary.netThisMonth < 0 ? 'is-negative' : 'is-positive'}`}>
           <div className="treasurer-stat-heading"><span>Net recorded activity</span><span className="td-icon"><TrendingUp size={16} /></span></div>
           <strong>{show(summary.netThisMonth)}</strong>
           <small>{note(totalCollections > 0 ? `Expenses are ${expenseRatio.toFixed(1)}% of collections` : 'Collections + services − dated expenses')}</small>
+          <div className="td-stat-footer"><span aria-hidden="true" />Collections less dated expenses</div>
         </article>
         <article className="treasurer-stat-card">
           <div className="treasurer-stat-heading"><span>Outstanding receivables</span><span className="td-icon"><FileText size={16} /></span></div>
           <strong>{show(summary.outstanding)}</strong>
           <small>{note(`${peso.format(summary.overdue)} past due · ${plural(summary.overdueAccounts, 'account')}`)}</small>
           {!loading && !dashboardUnavailable && summary.outstanding > 0 && <span className="td-tag">{overduePercent}% overdue</span>}
+          <div className="td-stat-footer"><span aria-hidden="true" />Recorded property balances</div>
         </article>
       </section>
 
