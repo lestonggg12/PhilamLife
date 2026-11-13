@@ -392,199 +392,133 @@ const initials = (name) =>
     .map((word) => word[0].toUpperCase())
     .join('') || 'S'
 
-// Centered details dialog. Browses the same filtered list as the page (Newer / Older, arrow keys).
+const DETAIL_LABELS = {
+  property_classification: 'Account classification', effective_from: 'Effective date', effective_date: 'Effective date',
+  annual_rate: 'Annual penalty rate', late_penalty_rate: 'Annual penalty rate',
+  price_per_sqm: 'Association dues rate per sqm', homeowner_name: 'Homeowner name',
+  homeowner_status: 'Residency status', contact_phone: 'Phone number', contact_email: 'Email address',
+  billing_day: 'Billing day', due_day: 'Payment deadline day', grace_period_days: 'Grace period days',
+  late_penalty_first_after_months: 'Months before first annual penalty', require_strong_password: 'Strong passwords',
+  session_timeout: 'Session timeout (minutes)', hoa_name: 'Association name', lot_size_sqm: 'Lot size (sqm)',
+}
+const missingDetailValue = value => /^(?:\(empty\)|empty|null|undefined|not recorded)?$/i.test(String(value ?? '').trim())
+function detailKey(label) {
+  const key = label.trim().toLowerCase().replace(/[\s/]+/g, '_')
+  return ({ account_classification: 'property_classification', property_type: 'property_classification', annual_penalty_rate: 'annual_rate', effective_date: 'effective_from' })[key] || key
+}
+function detailValue(key, value) {
+  const text = String(value ?? '').trim()
+  if (missingDetailValue(text)) return null
+  if (['annual_rate', 'late_penalty_rate'].includes(key) && /^-?\d+(?:\.\d+)?$/.test(text)) {
+    const rate = Number(text)
+    if (Number.isFinite(rate)) return new Intl.NumberFormat('en-PH', { style: 'percent', maximumFractionDigits: 4 }).format(rate)
+  }
+  if (/date|effective|_on$/.test(key) && /^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const date = new Date(`${text}T00:00:00Z`)
+    if (Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === text) return new Intl.DateTimeFormat('en-PH', { timeZone: 'UTC', dateStyle: 'long' }).format(date)
+  }
+  if (key === 'price_per_sqm' && /^\d+(?:\.\d+)?$/.test(text) && Number.isFinite(Number(text))) return `${peso.format(Number(text))} / sqm`
+  if (['property_classification', 'homeowner_status'].includes(key)) return ({ homeowner: 'Homeowner', lot_owner: 'Lot owner', active: 'Active', moved: 'Moved out', transferred: 'Transferred', unclassified: 'Unclassified' })[text] || text
+  if (text === 'true') return 'Enabled'
+  if (text === 'false') return 'Disabled'
+  return text
+}
+
+// Presentation only: no database values or original audit strings are changed.
+export function activityDetailView(log) {
+  const original = activityDisplay(log)
+  const display = { ...original, ...staffActivityCopy(log, original, log.staffContext) }
+  const source = original.raw.replace(/â€”/g, ' — ').replace(/â†’/g, ' → ')
+  const changes = []
+  // Field-name/value records emitted by the existing audit triggers. A semicolon
+  // inside a free-text value is ambiguous: leave that record in the raw fallback.
+  for (const match of source.matchAll(/(?:^|;\s*| — )([a-zA-Z][a-zA-Z0-9_ /()-]*):\s*([^;]*?)\s*(?:→|->)\s*([^;]*)(?=;|$)/g)) {
+    const key = detailKey(match[1])
+    if (/→|->/.test(match[2]) || /→|->/.test(match[3])) continue
+    changes.push({ key, label: DETAIL_LABELS[key] || match[1].trim().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()), before: detailValue(key, match[2]), after: detailValue(key, match[3]) })
+  }
+  const action = display.action || staffActionLabel(log.action)
+  const classification = changes.find(change => change.key === 'property_classification')
+  const rate = changes.find(change => ['annual_rate', 'late_penalty_rate'].includes(change.key))
+  const effective = changes.find(change => ['effective_from', 'effective_date'].includes(change.key))
+  const newRule = /Penalty Rate Rule Created/i.test(log.action || '') && changes.length > 0 && changes.every(change => change.before === null)
+  let summary = display.text || original.text || 'No additional description was recorded.'
+  if (changes.length) summary = changes.map(change => `${change.label}: ${change.before ?? 'Not set'} → ${change.after ?? 'Not set'}.`).join(' ')
+  if (newRule && rate?.after) summary = `Scheduled a ${rate.after} annual penalty rate${classification?.after ? ` for ${classification.after.toLowerCase()} accounts` : ''}${effective?.after ? `, effective ${effective.after}` : ''}.`
+  const subject = display.subject || ''
+  return {
+    ...display, title: action, changes, summary,
+    subtitle: newRule && classification?.after ? `New rule for ${classification.after.toLowerCase()} accounts` : subject && subject !== original.raw && subject.length <= 100 && !subject.includes('→') ? subject : 'Review this activity and its recorded details.',
+    rawDetails: JSON.stringify({ id: log.id, action: log.action, target: log.target, description: log.description, created_at: log.created_at, user_id: log.user_id, from_archive: Boolean(log.from_archive) }, null, 2),
+  }
+}
+
+// Browses the same filtered list; preserves keyboard navigation and original data.
 function ActivityModal({ logs, id, onChange, onClose }) {
   const dialogRef = useRef(null)
-  const index = logs.findIndex((log) => log.id === id)
+  const bodyRef = useRef(null)
+  const index = logs.findIndex(log => log.id === id)
   const log = logs[index]
   useEffect(() => {
     const previous = document.activeElement
     const overflow = document.documentElement.style.overflow
+    const root = document.getElementById('root')
+    const wasInert = root?.inert
     document.documentElement.style.overflow = 'hidden'
-    dialogRef.current?.focus({ preventScroll: true })
+    if (root) root.inert = true
+    dialogRef.current?.querySelector('button')?.focus({ preventScroll: true })
     return () => {
       document.documentElement.style.overflow = overflow
+      if (root) root.inert = wasInert
       const trigger = document.querySelector(`[data-expand-id="${CSS.escape(String(id))}"]`) || previous
       trigger?.focus?.({ preventScroll: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  useEffect(() => { if (!log) onClose() }, [log, onClose])
   useEffect(() => {
-    if (!log) onClose()
-  }, [log, onClose])
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    dialog.parentElement.scrollTop = 0
-    if (!dialog.contains(document.activeElement)) dialog.focus({ preventScroll: true })
+    if (bodyRef.current) bodyRef.current.scrollTop = 0
+    dialogRef.current?.querySelectorAll('details[open]').forEach(node => { node.open = false })
   }, [id])
   if (!log) return null
-  const go = (direction) => {
-    const next = logs[index + direction]
-    if (next) onChange(next.id)
-  }
+  const display = activityDetailView(log)
+  const time = new Date(log.created_at)
+  const validTime = Number.isFinite(time.getTime())
+  const go = direction => { const next = logs[index + direction]; if (next) onChange(next.id) }
   function keys(event) {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      onClose()
-    } else if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      go(-1)
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      go(1)
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
+    else if (['ArrowLeft', 'ArrowRight'].includes(event.key) && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName) && !event.target.isContentEditable && !event.target.closest('pre')) {
+      event.preventDefault(); go(event.key === 'ArrowLeft' ? -1 : 1)
     } else if (event.key === 'Tab') {
-      const nodes = [...dialogRef.current.querySelectorAll('button:not(:disabled)')]
-      if (!nodes.length) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
-      if (
-        event.shiftKey &&
-        (document.activeElement === first || document.activeElement === dialogRef.current)
-      ) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
+      const nodes = [...dialogRef.current.querySelectorAll('button:not(:disabled),summary,a[href],[tabindex="0"]')].filter(node => !node.closest('details:not([open])') || node.tagName === 'SUMMARY')
+      const first = nodes[0], last = nodes[nodes.length - 1]
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
   }
-  const original = activityDisplay(log)
-  const display = { ...original, ...staffActivityCopy(log, original, log.staffContext) }
-  const time = new Date(log.created_at)
-
   return createPortal(
-    <div
-      className="al-modal-layer"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <div
-        ref={dialogRef}
-        className={`al-modal ${display.status || ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="al-modal-title"
-        tabIndex={-1}
-        onKeyDown={keys}
-      >
-        <div className="al-m-inner">
-          <div className="al-m-head">
-            <span className="al-m-badge">
-              {actionIcon(log.action)}
-              {display.action}
-            </span>
-            <button type="button" className="al-m-close" onClick={onClose} aria-label="Close details">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
+    <div className="al-modal-layer al-detail-layer" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
+      <div ref={dialogRef} className={`al-modal al-detail-v2 ${display.status || ''}`} role="dialog" aria-modal="true" aria-labelledby="al-modal-title" aria-describedby="al-detail-subtitle" tabIndex={-1} onKeyDown={keys}>
+        <header className="al-v2-head">
+          <div className="al-v2-heading"><span className="al-v2-icon" aria-hidden="true">{actionIcon(log.action)}</span><div><p className="al-v2-eyebrow">Activity details{log.from_archive ? ' · Archived record' : ''}</p><h2 id="al-modal-title">{display.title}</h2><p id="al-detail-subtitle" className="al-v2-subtitle">{display.subtitle}</p></div></div>
+          <button type="button" className="al-v2-close" onClick={onClose} aria-label="Close details"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+        </header>
+        <div className="al-v2-body" ref={bodyRef}>
+          {display.status && <p className={`al-v2-banner ${display.status}`} role="note">{display.status === 'failed' ? 'This event failed. Review the recorded details below.' : 'This activity cancelled or removed a record. Review the recorded details below.'}</p>}
+          <div className="al-v2-meta">
+            <div className="al-v2-meta-item"><span className="al-v2-avatar" aria-hidden="true">{initials(log.user)}</span><div><span className="al-v2-label">Recorded by</span><strong>{log.user || 'Staff name unavailable'}</strong><small>{log.role ? log.role.charAt(0).toUpperCase() + log.role.slice(1) : 'Role not recorded'}</small></div></div>
+            <div className="al-v2-meta-item"><span className="al-v2-meta-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 11h18" /></svg></span><div><span className="al-v2-label">Recorded on · Philippine time</span><strong>{validTime ? `${new Intl.DateTimeFormat('en-PH', { timeZone: ZONE, month: 'short', day: 'numeric', year: 'numeric' }).format(time)} · ${timeFormat.format(time)}` : 'Date not recorded'}</strong></div></div>
           </div>
-          {display.status === 'failed' && (
-            <div className="al-m-banner failed" role="note">
-              This event failed.
-            </div>
-          )}
-          {display.status === 'warning' && (
-            <div className="al-m-banner warning" role="note">
-              This action cancelled a transaction, deleted a document or removed a record. See the explanation below.
-            </div>
-          )}
-          <div className="al-m-titlerow">
-            <div>
-              <h2 id="al-modal-title" className="al-m-subject">
-                {display.subject}
-              </h2>
-            </div>
-            {display.amount !== null && <div className="al-m-amount">{peso.format(display.amount)}</div>}
-          </div>
-          <div className="al-m-grid">
-            <div className="al-m-card">
-              <span className="al-m-label">Done by</span>
-              <div className="al-m-who">
-                <span className="al-m-avatar" aria-hidden="true">
-                  {initials(log.user)}
-                </span>
-                <div>
-                  <strong>{log.user}</strong>
-                  <small>{log.role ? log.role.charAt(0).toUpperCase() + log.role.slice(1) : 'Role not recorded'}</small>
-                </div>
-              </div>
-            </div>
-            <div className="al-m-card">
-              <span className="al-m-label">When</span>
-              <strong>{timeFormat.format(time)}</strong>
-              <small>{dateFull.format(time)}</small>
-              {log.from_archive && <small>Archived record</small>}
-            </div>
-
-          </div>
-          <div className="al-m-section">
-            <h3>What happened</h3>
-            <p className="al-m-text">{display.text || 'Unknown record'}</p>
-          </div>
-
-          <div className="al-m-foot">
-            <button type="button" className="al-m-nav" onClick={() => go(-1)} disabled={index === 0}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M15 6l-6 6 6 6" />
-              </svg>
-              Newer
-            </button>
-            <span className="al-m-count" aria-live="polite">
-              {index + 1} of {logs.length}
-              <small>Use ← → to browse, Esc to close</small>
-            </span>
-            <button
-              type="button"
-              className="al-m-nav"
-              onClick={() => go(1)}
-              disabled={index === logs.length - 1}
-            >
-              Older
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </button>
-          </div>
+          {display.amount !== null && <div className="al-v2-amount"><span>Recorded amount</span><strong>{peso.format(display.amount)}</strong></div>}
+          <div className="al-v2-summary"><span aria-hidden="true">ⓘ</span><p>{display.summary}</p></div>
+          {display.changes.length > 0 && <section aria-labelledby="al-change-title"><div className="al-v2-section-head"><h3 id="al-change-title">What changed</h3><span>{display.changes.length} {display.changes.length === 1 ? 'field' : 'fields'}</span></div><div className="al-v2-table-wrap"><table className="al-v2-table"><thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>{display.changes.map((change, i) => <tr key={`${change.key}-${i}`}><th scope="row">{change.label}</th><td>{change.before === null ? <span className="al-v2-unset">Not set</span> : change.before}</td><td>{change.after === null ? <span className="al-v2-unset">Not set</span> : change.after}</td></tr>)}</tbody></table></div><p className="al-v2-clarifier">“Not set” means the activity record contains no value for that field.</p></section>}
         </div>
+        <footer className="al-v2-foot"><button type="button" className="al-m-nav" onClick={() => go(-1)} disabled={index === 0}>← Newer</button><span className="al-v2-position" aria-live="polite">{index + 1} of {logs.length}<small>← → Browse · Esc Close</small></span><button type="button" className="al-m-nav" onClick={() => go(1)} disabled={index === logs.length - 1}>Older →</button></footer>
       </div>
-    </div>,
-    document.body,
+    </div>, document.body,
   )
 }
+
 
 export default function ActivityLogPage() {
   const [today, setToday] = useState(dateKey())
