@@ -1202,7 +1202,13 @@ export default function OfficialReceiptsPage({ user }) {
       })()}
 
       {voidTarget && (voidTarget.type === 'service' ? (
-        <ServiceVoidDialog receipt={voidTarget.raw || { id: voidTarget.sourceId, receipt_number: voidTarget.receiptNumber }}
+        <ServiceVoidDialog receipt={voidTarget.raw || {
+          id: voidTarget.sourceId,
+          receipt_number: voidTarget.receiptNumber,
+          customer_name: voidTarget.payer,
+          service_name: voidTarget.description,
+          amount_paid: voidTarget.amount,
+        }}
           onClose={() => setVoidTarget(null)}
           onVoided={() => { setVoidTarget(null); setReloadTick((tick) => tick + 1) }} />
       ) : role === 'secretary' && (
