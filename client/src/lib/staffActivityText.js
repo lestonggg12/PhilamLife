@@ -54,8 +54,9 @@ function friendlyValue(key, value) {
  return names[text] || text
 }
 function penaltyRateDescription(source, action) {
+ const normalized = String(source).replace(/\(empty\)/gi, 'not recorded')
  const fields = Object.fromEntries(
-  [...source.matchAll(/(property_classification|Effective date|Annual penalty rate):\s*([^;]*?)\s*(?:→|->)\s*([^;]*)(?=;|$)/gi)]
+  [...normalized.matchAll(/(property_classification|Effective date|Annual penalty rate):\s*([^;]*?)\s*(?:→|->)\s*([^;]*)(?=;|$)/gi)]
    .map((match) => [match[1].toLowerCase(), { before: match[2].trim(), after: match[3].trim() }])
  )
  const classification = fields.property_classification?.after
@@ -121,6 +122,13 @@ export function staffActivityCopy(log, legacy = {}, context = {}) {
  const parts=source.split(/\s+—\s+/)
  let text='',subject='',match
  const label=staffActionLabel(action)
+ // Handle stored penalty-rate audit descriptions directly. Their action names
+ // can vary between historic records, but the visible text uses this format.
+ // This changes presentation only; the original audit record is untouched.
+ if (/^Penalty Rate (?:Rule|Override)\s*#/i.test(source)) {
+  const readable = penaltyRateDescription(source, action)
+  if (readable) return { action:label,subject:readable.subject,detail:readable.text,text:readable.text }
+ }
  if (/^(Payment Recorded|Payment Voided)$/.test(action) && /^OR-|^MOCK/i.test(parts[0] || '') && parts.length>=3) {
   subject=parts[0]
   text=action==='Payment Recorded' ? `Received ${parts[2]} from ${parts[1]}. Receipt: ${parts[0]}.`
