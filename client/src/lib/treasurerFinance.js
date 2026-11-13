@@ -80,12 +80,24 @@ export function summarizeTreasurerMonth(monthly, expenses, monthStart) {
   }
 }
 
-async function countAllocationEvidenceGaps(client) {
+async function loadAllocationAudit(client) {
   try {
-    const { count, error } = await client.from('payment_allocation_gaps')
-      .select('payment_id', { count: 'exact', head: true })
-      .eq('allocation_status', 'allocation_evidence_missing')
-    return !error && Number.isSafeInteger(count) && count >= 0 ? count : null
+    const { data, error } = await client.from('payment_allocation_audit_summary')
+      .select('review_required, synthetic_fixture, system_snapshot, total_flagged')
+      .maybeSingle()
+
+    if (error || !data) return null
+
+    const keys = ['review_required', 'synthetic_fixture', 'system_snapshot', 'total_flagged']
+    if (!keys.every((key) => Number.isSafeInteger(data[key]) && data[key] >= 0)) {
+      return null
+    }
+
+    if (data.review_required + data.synthetic_fixture + data.system_snapshot !== data.total_flagged) {
+      return null
+    }
+
+    return data
   } catch {
     return null
   }
@@ -96,7 +108,7 @@ export async function loadTreasurerDashboard(client, monthStart) {
     const query = client.from(table).select('*')
     return order ? query.order(order, { ascending: false }) : query
   }, options))
-  const [payments, expenses, services, monthly, properties, overdue, credits, adjustments, periods, allocationEvidenceGaps] = await Promise.all([
+  const [payments, expenses, services, monthly, properties, overdue, credits, adjustments, periods, allocationAudit] = await Promise.all([
     read('Recent payments', () => client.from('payments').select('*').neq('status', 'Voided').order('paid_at', { ascending: false }).limit(8)),
     all('expenses', 'expense_date'),
     read('Recent services', () => client.from('service_transactions').select('*').not('payment_status', 'ilike', 'voided').order('paid_at', { ascending: false }).limit(8)),
@@ -104,13 +116,13 @@ export async function loadTreasurerDashboard(client, monthStart) {
     all('properties', 'homeowner_name'), all('property_overdue_summary', 'property_id', { tiebreaker: null }),
     read('Advance credits', () => client.from('credit_liability_summary').select('*').maybeSingle()),
     all('account_adjustments', 'created_at'), all('accounting_periods', 'starts_on'),
-    countAllocationEvidenceGaps(client),
+    loadAllocationAudit(client),
   ])
   if (monthly) { cents(monthly.dues_collected, 'Monthly collections'); cents(monthly.service_collected, 'Monthly services') }
   for (const expense of expenses || []) cents(expense.amount, 'Expense amount')
   if (!credits) throw fail('Advance credits', 'summary is unavailable')
   cents(credits.active_credit_total, 'Advance credits')
-  return { payments: payments || [], expenses: expenses || [], services: services || [], monthly, properties: properties || [], overdue: overdue || [], credits, adjustments: adjustments || [], periods: periods || [], allocationEvidenceGaps, agingSummary: summarizeAging(properties || [], overdue || []) }
+  return { payments: payments || [], expenses: expenses || [], services: services || [], monthly, properties: properties || [], overdue: overdue || [], credits, adjustments: adjustments || [], periods: periods || [], allocationAudit, agingSummary: summarizeAging(properties || [], overdue || []) }
 }
 
 export async function loadServiceRevenue(client, { fromDate = '', toDate = '' } = {}) {

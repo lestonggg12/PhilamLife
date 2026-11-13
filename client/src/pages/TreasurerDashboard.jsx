@@ -57,7 +57,7 @@ export default function TreasurerDashboard() {
     overdue: [],
     credits: null,
     adjustments: [],
-    allocationEvidenceGaps: null,
+    allocationAudit: null,
     periods: [],
   })
   const [loading, setLoading] = useState(true)
@@ -235,7 +235,8 @@ export default function TreasurerDashboard() {
   const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
   const countBadge = (count) => (loading ? '…' : dashboardUnavailable ? '!' : count)
   const checkTone = (count, level) => (loading || dashboardUnavailable ? 'lo' : count > 0 ? level : 'ok')
-  const allocationGaps = finance.allocationEvidenceGaps
+  const allocationAudit = finance.allocationAudit
+  const allocationReview = allocationAudit?.review_required ?? null
   const checks = [
     {
       key: 'overdue', to: '/overdue-accounts', tone: checkTone(summary.overdueAccounts, 'hi'), badge: countBadge(summary.overdueAccounts),
@@ -243,23 +244,18 @@ export default function TreasurerDashboard() {
       detail: loading ? 'Checking collections…' : dashboardUnavailable ? 'Collection totals could not be verified' : `${peso.format(summary.overdue)} needs collection follow-up`,
     },
     {
-  key: 'allocation',
-  tone: checkTone(allocationGaps ?? 0, 'md'),
-  badge: loading
-    ? '…'
-    : dashboardUnavailable || allocationGaps == null
-      ? '!'
-      : allocationGaps,
-  title: loading
-    ? 'Checking…'
-    : dashboardUnavailable || allocationGaps == null
-      ? 'Allocation check unavailable'
-      : `${plural(allocationGaps, 'payment')} without explicit charge links`,
-  detail:
-    'Historical payment records may lack bill-level allocation links. ' +
-    'This does not mean cash or payments are missing. ' +
-    'Review receipts and supporting records before assigning charges.',
-},
+      key: 'allocation',
+      tone: checkTone(allocationReview ?? 0, 'md'),
+      badge: loading ? '…' : dashboardUnavailable || allocationReview == null ? '!' : allocationReview,
+      title: loading
+        ? 'Checking…'
+        : dashboardUnavailable || allocationReview == null
+          ? 'Allocation check unavailable'
+          : `${plural(allocationReview, 'payment')} require evidence review`,
+      detail: allocationAudit
+        ? `${allocationAudit.synthetic_fixture} marked synthetic test receipts; ${allocationAudit.system_snapshot} with consistent system application snapshots. Historical records are preserved; these categories do not imply missing cash.`
+        : 'Unable to classify payment allocation evidence. Refresh or check database permissions.',
+    },
     {
       key: 'adjustments', tone: checkTone(exceptions.unreferencedAdjustments, 'md'), badge: countBadge(exceptions.unreferencedAdjustments),
       title: loading ? 'Checking…' : dashboardUnavailable ? 'Unavailable' : `${plural(exceptions.unreferencedAdjustments, 'adjustment')} without approval references`,

@@ -16,7 +16,7 @@ export default function ActivityArchiveStatus({onChanged}){
  }
  async function prepare(){setBusy(true);try{const{error}=await supabase.rpc('prepare_activity_archives');if(error)throw error;await refresh()}catch(e){setError(e.message||'Archive storage could not be checked.')}finally{setBusy(false)}}
  return <section className="activity-archive-status" aria-label="Activity history preservation">
- <div><strong>{status?.enabled?'Verified activity archiving enabled':'Activity history preservation'}</strong><p>{status?.enabled?'The current and previous calendar months stay here. Choose an older month to search verified archives.':'Original activity remains in the database until verified archiving is enabled.'}</p>
+ <div><strong>{status?.enabled?'Verified activity archiving enabled':'Activity history preservation'}</strong><p>{status?.enabled?'The current month and previous 12 complete months stay here. Choose an older month to search verified archives.':'Original activity remains in the database until verified archiving is enabled.'}</p>
  {status&&<small>{Number(status.archived_records||0).toLocaleString('en-PH')} archived records · {Number(status.pending_records||0).toLocaleString('en-PH')} older records awaiting archive</small>}
  {status?.last_error&&<p role="status">{errors[status.last_error]||'An archive transfer needs another attempt. Unconfirmed original records were retained.'}</p>}
  {error&&<p role="alert">{error}</p>}</div>
