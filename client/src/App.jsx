@@ -9,7 +9,7 @@ import {
 
 import { supabase, clearRememberMePreference, rememberedDevice } from './lib/supabaseClient'
 import { watchRememberedDevice } from './lib/rememberDevice'
-import { normalizeRole, normalizeProfileRole } from './lib/profileRole'
+import { normalizeRole, normalizeProfileRole, isActiveStaffProfile } from './lib/profileRole'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import SessionSecurity from './components/SessionSecurity'
@@ -164,7 +164,7 @@ function AppContent() {
           if (error) {
             console.error('Unable to restore the user profile:', error)
             await supabase.auth.signOut()
-          } else if (profile?.is_active === false) {
+          } else if (!isActiveStaffProfile(profile)) {
             await supabase.auth.signOut()
           } else if (profile && isMounted) {
             if (rememberedDevice.hasExpired()) { await expireRememberedSession(); return }
