@@ -1,90 +1,44 @@
-
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const page = readFileSync(
-  new URL('../pages/BankDepositsPage.jsx', import.meta.url),
-  'utf8',
-)
+const read = (path) =>
+  readFileSync(new URL(path, import.meta.url), 'utf8')
 
-const app = readFileSync(
-  new URL('../App.jsx', import.meta.url),
-  'utf8',
-)
+const app = read('../App.jsx')
+const sidebar = read('../components/Sidebar.jsx')
+const migration = read('../../../supabase/migrations/20261113070156_disable_retired_bank_deposit_access.sql')
 
-const sidebar = readFileSync(
-  new URL('../components/Sidebar.jsx', import.meta.url),
-  'utf8',
-)
-
-const migration = readFileSync(
-  new URL('../../../supabase/migrations/20261112104953_controlled_bank_deposit_workflow.sql', import.meta.url),
-  'utf8',
-)
-
-describe('Bank deposit security checks', () => {
-  it('protects the deposit route for staff', () => {
-    expect(app).toContain('/bank-deposits')
-    expect(app).toMatch(
-      /guarded\(\s*\['admin',\s*'treasurer',\s*'secretary'\]/,
-    )
-    expect(sidebar).toContain('/bank-deposits')
+describe('Retired Bank Deposits security', () => {
+  it('removes the retired page and route', () => {
+    expect(app).not.toContain('BankDepositsPage')
+    expect(app).not.toContain('path="/bank-deposits"')
+    expect(sidebar).not.toContain('/bank-deposits')
   })
 
-  it('separates Admin and Treasurer actions', () => {
-    expect(page).toContain("role === 'admin'")
-    expect(page).toContain("role === 'treasurer'")
-    expect(page).toContain('ready && canAdmin')
-    expect(page).toContain('ready && canTreasurer')
-    expect(page).toContain("role === 'secretary'")
-  })
-
-  it('uses controlled deposit functions', () => {
+  it('revokes execution of all seven retired bank functions', () => {
     const functions = [
       'create_deposit_fund',
       'record_bank_deposit',
+      'link_bank_deposit_receipt',
+      'unlink_bank_deposit_receipt',
       'clear_bank_deposit',
       'reconcile_bank_deposit',
       'void_pending_bank_deposit',
     ]
 
     for (const name of functions) {
-      expect(page).toContain(name)
-      expect(migration).toContain(`public.${name}`)
+      expect(migration).toMatch(
+        new RegExp(`REVOKE EXECUTE ON FUNCTION\\s+public\\.${name}\\(`, 'i'),
+      )
     }
 
-    expect(page).not.toMatch(
-      /from\(['"]bank_deposits['"]\)\s*\.\s*(?:insert|update|delete|upsert)\s*\(/,
-    )
+    expect(migration.match(/FROM PUBLIC, authenticated;/g))
+      .toHaveLength(functions.length)
   })
 
-  it('contains database security controls', () => {
-    expect(migration).toContain(
-      'REVOKE INSERT, UPDATE, DELETE ON public.bank_deposits',
-    )
-    expect(migration).toContain(
-      'FOREIGN KEY (fund_id) REFERENCES public.deposit_funds(id)',
-    )
-    expect(migration).toContain(
-      'bank_deposit_status_evidence_check',
-    )
+  it('does not delete historical database tables', () => {
+    expect(migration).not.toMatch(/\bDROP\s+TABLE\b/i)
+    expect(migration).not.toMatch(/\bTRUNCATE\b/i)
+    expect(migration).not.toMatch(/\bDELETE\s+FROM\b/i)
   })
-})
-
-it('blocks deposits dated inside closed accounting periods', () => {
-  expect(migration).toContain(
-    'FROM public.accounting_periods ap',
-  )
-
-  expect(migration).toContain(
-    "lower(ap.status) IN ('closed', 'locked')",
-  )
-
-  expect(migration).toContain(
-    'p_deposit_date BETWEEN ap.starts_on AND ap.ends_on',
-  )
-
-  expect(migration).toContain(
-    'Cannot record a bank deposit in a closed accounting period.',
-  )
 })
