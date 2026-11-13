@@ -3,10 +3,10 @@ begin;
 create function pg_temp.check(ok boolean,label text)returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'FAIL: %',label;end if;end$$;
 insert into public.profiles values('00000000-0000-0000-0000-000000000001','admin',true,'Test Admin','test@example.com'),('00000000-0000-0000-0000-000000000002','secretary',true,'Test Secretary','secretary@example.com');
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',true);
-select pg_temp.check(activity_archive_private.cutoff('2027-01-01T00:00:00+08')='2026-12-01T00:00:00+08','January retains December and January');
-select pg_temp.check(activity_archive_private.cutoff('2026-12-01T00:00:00+08')='2026-11-01T00:00:00+08','December retains November and December');
-select pg_temp.check(activity_archive_private.cutoff('2027-01-31T16:00:00Z')='2027-01-01T00:00:00+08','month rollover uses Manila even on the previous UTC date');
-select pg_temp.check(activity_archive_private.cutoff('2028-03-01T00:00:00+08')='2028-02-01T00:00:00+08','leap February is retained correctly');
+select pg_temp.check(activity_archive_private.cutoff('2027-01-01T00:00:00+08')='2026-01-01T00:00:00+08','January retains twelve complete months');
+select pg_temp.check(activity_archive_private.cutoff('2026-12-01T00:00:00+08')='2025-12-01T00:00:00+08','December retains twelve complete months');
+select pg_temp.check(activity_archive_private.cutoff('2027-01-31T16:00:00Z')='2026-02-01T00:00:00+08','month rollover uses Manila time');
+select pg_temp.check(activity_archive_private.cutoff('2028-03-01T00:00:00+08')='2027-03-01T00:00:00+08','leap year cutoff retains twelve months');
 select pg_temp.check(not has_function_privilege('authenticated','public.activity_archive_finish(uuid,uuid,text,text,integer)','execute'),'browser cannot finalize or delete source logs');
 select pg_temp.check(not has_function_privilege('authenticated','public.activity_archive_claim()','execute'),'browser cannot claim raw snapshots');
 select pg_temp.check(not has_function_privilege('anon','public.activity_archive_auth(text)','execute'),'anonymous caller cannot validate scheduler credentials');
@@ -16,7 +16,7 @@ select pg_temp.check(public.activity_archive_auth((select secret from vault.secr
 insert into public.activity_log(id,user_id,action,target,created_at) values
  (1001,auth.uid(),'Settings Updated',repeat('Full text; ',90)||'KEEP-END',activity_archive_private.cutoff()-interval '1 day'),
  (1002,auth.uid(),'Payment Voided','Receipt cancelled; reason retained',activity_archive_private.cutoff()-interval '2 days'),
- (1003,auth.uid(),'Payment Recorded','Previous month must stay live',activity_archive_private.cutoff()),
+ (1003,auth.uid(),'Payment Recorded','Oldest retained month must stay live',activity_archive_private.cutoff()),
  (1004,auth.uid(),'Receipt Viewed','Current month must stay live',now());
 select pg_temp.check(public.activity_archive_claim()->>'state'='disabled','no archiving before activation');
 do $$begin begin perform public.set_activity_archive_enabled(true,1);raise exception 'Readiness should block';exception when raise_exception then if sqlerrm='Readiness should block' then raise;end if;end;end$$;
@@ -54,7 +54,7 @@ do $$declare b jsonb;begin select result into b from batch;
 end$$;
 select pg_temp.check((select public.activity_archive_finish((result->'manifest'->>'id')::uuid,(result->>'lease')::uuid,result->'manifest'->>'raw_sha256',repeat('a',64),128)=2 from renewed),'verified finalization removes exactly its two old source rows');
 select pg_temp.check((select count(*)=0 from public.activity_log where id in(1001,1002)),'only verified source rows removed');
-select pg_temp.check((select count(*)=2 from public.activity_log where id in(1003,1004)),'current and previous month preserved');
+select pg_temp.check((select count(*)=2 from public.activity_log where id in(1003,1004)),'retained activity remains live');
 select pg_temp.check((select count(*)=1 from public.activity_log_archives where state='complete' and row_count=2),'permanent complete manifest retained');
 select pg_temp.check((select payload is null and source_ids is null from activity_archive_private.work where id),'transient snapshot released after completion');
 set local role authenticated;
