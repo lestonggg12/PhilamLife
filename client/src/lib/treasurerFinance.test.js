@@ -34,11 +34,19 @@ describe('Treasurer financial reads', () => {
     expect(result.monthly).toBeNull()
   })
 
-  it('distinguishes flagged receipt allocations from an unavailable check', async () => {
-    const known = await loadTreasurerDashboard(client({ payment_allocation_gaps: { count: 17 } }), '2026-11-01')
-    const unavailable = await loadTreasurerDashboard(client({ payment_allocation_gaps: error }), '2026-11-01')
-    expect(known.allocationEvidenceGaps).toBe(17)
-    expect(unavailable.allocationEvidenceGaps).toBeNull()
+  it('separates review-required receipts from fixtures and snapshots', async () => {
+    const summary = { review_required: 5, synthetic_fixture: 723, system_snapshot: 5, total_flagged: 733 }
+    const known = await loadTreasurerDashboard(client({ payment_allocation_audit_summary: summary }), '2026-11-01')
+    const unavailable = await loadTreasurerDashboard(client({ payment_allocation_audit_summary: error }), '2026-11-01')
+
+    expect(known.allocationAudit).toEqual(summary)
+    expect(unavailable.allocationAudit).toBeNull()
+  })
+
+  it('rejects inconsistent allocation audit summaries', async () => {
+    const invalid = { review_required: 0, synthetic_fixture: 723, system_snapshot: 5, total_flagged: 733 }
+    const result = await loadTreasurerDashboard(client({ payment_allocation_audit_summary: invalid }), '2026-11-01')
+    expect(result.allocationAudit).toBeNull()
   })
 
   it('filters voided service activity case-insensitively', async () => {
