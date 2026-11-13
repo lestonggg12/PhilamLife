@@ -1,6 +1,6 @@
 import { notifySuccess } from '../lib/actionFeedback'
 import { financialSubmissionIntent, assertFinancialSubmissionMatches, requireUnchangedFinancialAttempt } from '../lib/financialSubmissionIntegrity'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { findActivePaymentLot, paymentLotFields } from '../lib/paymentLotPrefill'
@@ -185,131 +185,75 @@ function monthCells(cursor) {
   })
 }
 
-/**
- * Date-range picker body: quick presets on the left, a range calendar on the right.
- * The page owns the open/close animation; this component only reports a choice.
- */
-function PaymentDateRange({
-  from, to, preset, todayKey, activeDateKeys, onViewMonthChange, onApply, onCancel, formatLabel,
-}) {
+/** Compact floating picker; the existing page still owns date queries and presets. */
+function PaymentDateRange({ from, to, preset, todayKey, activeDateKeys, onViewMonthChange, onApply, onCancel, formatLabel }) {
   const presets = useMemo(() => paymentPresets(todayKey), [todayKey])
   const [cursor, setCursor] = useState(() => monthStart(to > todayKey ? todayKey : to))
   const [draft, setDraft] = useState({ from, to, preset })
   const [selectRange, setSelectRange] = useState(false)
-
-  // Ask the page for just this month's "has payments" dots.
+  const monthChangeRef = useRef(onViewMonthChange)
+  monthChangeRef.current = onViewMonthChange
   useEffect(() => {
-    if (onViewMonthChange) onViewMonthChange(Number(cursor.slice(0, 4)), Number(cursor.slice(5, 7)) - 1)
+    monthChangeRef.current?.(Number(cursor.slice(0, 4)), Number(cursor.slice(5, 7)) - 1)
   }, [cursor])
-
   const picking = draft.to === null
   const low = picking ? draft.from : draft.from <= draft.to ? draft.from : draft.to
   const high = picking ? draft.from : draft.from <= draft.to ? draft.to : draft.from
-  const atCurrentMonth = cursor.slice(0, 7) >= todayKey.slice(0, 7)
-
+  const invalid = !draft.from || !draft.to || draft.from > draft.to || draft.to > todayKey
   function pickCell(key) {
-    // A calendar day selects that day immediately. Range selection is opt-in.
-    if (!selectRange) {
-      onApply(key, key, 'custom')
-    } else if (picking) {
+    if (!selectRange) onApply(key, key, 'custom')
+    else if (picking) {
       const [start, end] = key < draft.from ? [key, draft.from] : [draft.from, key]
       setDraft({ from: start, to: end, preset: 'custom' })
-    } else {
-      setDraft({ from: key, to: null, preset: 'custom' })
-    }
+    } else setDraft({ from: key, to: null, preset: 'custom' })
   }
-
-  const summary = selectRange
-    ? (picking ? 'Pick an end date' : formatLabel(low, high, draft.preset))
-    : 'Click any day to view its receipts'
-
   return (
-    <div className="payments-range" role="dialog" aria-label="Choose payment dates">
-      <div className="payments-range-presets">
+    <div id="payments-date-dialog" className="payments-range" role="dialog" aria-label="Choose payment dates">
+      <aside className="payments-range-presets">
         <h3>Quick select</h3>
-        {presets.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-pressed={draft.preset === item.id}
-            onClick={() => onApply(item.from, item.to, item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
+        {presets.map(item => <button key={item.id} type="button" aria-pressed={draft.preset === item.id} onClick={() => onApply(item.from, item.to, item.id)}>{item.label}</button>)}
+        <div className="payments-range-month"><label>Activity month<input type="month" value={cursor.slice(0, 7)} max={todayKey.slice(0, 7)} onChange={event => { if (event.target.value && event.target.value <= todayKey.slice(0, 7)) setCursor(`${event.target.value}-01`) }} /></label><button type="button" onClick={() => onApply(monthStart(cursor), monthEnd(cursor) > todayKey ? todayKey : monthEnd(cursor), 'custom')}>View month</button></div>
+      </aside>
       <div className="payments-range-calendar">
-        <div className="payments-range-nav">
-          <button type="button" aria-label="Previous month" onClick={() => setCursor(shiftMonth(cursor, -1))}>‹</button>
-          <strong>{MONTH_FORMAT.format(toDate(cursor))}</strong>
-          <button type="button" aria-label="Next month" disabled={atCurrentMonth} onClick={() => setCursor(shiftMonth(cursor, 1))}>›</button>
-        </div>
-
-        <div className="payments-range-weekdays" aria-hidden="true">
-          {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
-        </div>
-
-        <div className="payments-range-grid">
-          {monthCells(cursor).map((cell) => {
-            const edge = cell.key === low || cell.key === high
-            const classes = [
-              cell.outside ? 'is-outside' : '',
-              cell.key >= low && cell.key <= high ? 'is-in-range' : '',
-              edge ? 'is-edge' : '',
-              cell.key === todayKey ? 'is-today' : '',
-              activeDateKeys?.has(cell.key) ? 'has-payments' : '',
-            ].filter(Boolean).join(' ')
-            return (
-              <button
-                key={cell.key}
-                type="button"
-                className={classes}
-                disabled={cell.key > todayKey}
-                aria-pressed={edge}
-                aria-label={cell.key}
-                onClick={() => pickCell(cell.key)}
-              >
-                {cell.day}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="payments-range-legend">
-          <span><i /> Has payments</span>
-          <label className="payments-range-mode">
-            <input
-              type="checkbox"
-              checked={selectRange}
-              onChange={(event) => {
-                setSelectRange(event.target.checked)
-                setDraft({ from, to, preset })
-              }}
-            />
-            Select a date range
-          </label>
-        </div>
+        <nav className="payments-range-nav" aria-label="Calendar month"><button type="button" aria-label="Previous month" onClick={() => setCursor(shiftMonth(cursor, -1))}>‹</button><strong>{MONTH_FORMAT.format(toDate(cursor))}</strong><button type="button" aria-label="Next month" disabled={cursor.slice(0, 7) >= todayKey.slice(0, 7)} onClick={() => setCursor(shiftMonth(cursor, 1))}>›</button></nav>
+        <div className="payments-range-weekdays" aria-hidden="true">{WEEKDAYS.map(day => <span key={day}>{day}</span>)}</div>
+        <div className="payments-range-grid">{monthCells(cursor).map(cell => {
+          const edge = cell.key === low || cell.key === high
+          return <button key={cell.key} type="button" className={[cell.outside ? 'is-outside' : '', cell.key >= low && cell.key <= high ? 'is-in-range' : '', edge ? 'is-edge' : '', cell.key === todayKey ? 'is-today' : '', activeDateKeys?.has(cell.key) ? 'has-payments' : ''].filter(Boolean).join(' ')} disabled={cell.key > todayKey} aria-pressed={edge} aria-label={cell.key} onClick={() => pickCell(cell.key)}>{cell.day}</button>
+        })}</div>
+        <div className="payments-range-legend"><span><i aria-hidden="true" /> Has payments</span><label className="payments-range-mode"><input type="checkbox" checked={selectRange} onChange={event => { setSelectRange(event.target.checked); setDraft({ from, to, preset }) }} />Select a date range</label></div>
+        {selectRange && <div className="payments-range-inputs"><label>From<input type="date" value={draft.from || ''} max={todayKey} onChange={event => setDraft({ ...draft, from: event.target.value, preset: 'custom' })} /></label><label>Through<input type="date" value={draft.to || ''} min={draft.from || undefined} max={todayKey} onChange={event => setDraft({ ...draft, to: event.target.value, preset: 'custom' })} /></label></div>}
       </div>
-
-      <div className="payments-range-foot">
-        <span>{summary}</span>
-        <div>
-          <button type="button" className="payments-secondary" onClick={onCancel}>Close</button>
-          {selectRange && (
-            <button
-              type="button"
-              className="payments-primary"
-              disabled={picking}
-              onClick={() => onApply(low, high, 'custom')}
-            >
-              Apply range
-            </button>
-          )}
-        </div>
-      </div>
+      <footer className="payments-range-foot"><span aria-live="polite">{selectRange ? picking ? 'Pick an end date.' : invalid ? 'Choose dates in order, through today.' : formatLabel(low, high, draft.preset) : 'Click a day to view its receipts.'}</span><div><button type="button" className="payments-secondary" onClick={onCancel}>Close</button>{selectRange && <button type="button" className="payments-primary" disabled={picking || invalid} onClick={() => onApply(low, high, 'custom')}>Apply range</button>}</div></footer>
     </div>
   )
+}
+
+// Portal avoids clipping by glass cards and the portal's scrolling content area.
+function PaymentCalendarFloat({ anchorRef, panelRef, visible, children }) {
+  const [position, setPosition] = useState({ visibility: 'hidden' })
+  useLayoutEffect(() => {
+    function place() {
+      const anchor = anchorRef.current?.getBoundingClientRect()
+      const panel = panelRef.current
+      if (!anchor || !panel) return
+      const width = Math.min(500, window.innerWidth - 24)
+      const below = window.innerHeight - anchor.bottom - 20
+      const above = anchor.top - 20
+      const height = panel.scrollHeight || 420
+      const flip = below < Math.min(height, 300) && above > below
+      const available = Math.max(100, Math.min(window.innerHeight - 24, flip ? above : below))
+      setPosition({ width, left: Math.max(12, Math.min(anchor.right - width, window.innerWidth - width - 12)), top: flip ? Math.max(12, anchor.top - Math.min(height, available) - 8) : Math.max(12, Math.min(anchor.bottom + 8, window.innerHeight - Math.min(height, available) - 12)), maxHeight: available })
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    if (panelRef.current) observer.observe(panelRef.current)
+    window.addEventListener('resize', place)
+    document.addEventListener('scroll', place, true)
+    return () => { observer.disconnect(); window.removeEventListener('resize', place); document.removeEventListener('scroll', place, true) }
+  }, [anchorRef, panelRef])
+  useEffect(() => { panelRef.current?.querySelector('button')?.focus({ preventScroll: true }) }, [panelRef])
+  return createPortal(<div ref={panelRef} style={position} className={`payments-calendar-animation payments-calendar-floating ${visible ? 'is-visible' : ''}`}>{children}</div>, document.body)
 }
 
 /* ---------- Payment details pop-up (opens when a row is clicked) ---------- */
@@ -596,6 +540,7 @@ export default function PaymentsPage({ user: suppliedUser }) {
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         calendar.hide()
+        calendarAnchorRef.current?.querySelector('.payments-day-label-btn')?.focus({ preventScroll: true })
       }
     }
 
@@ -973,6 +918,8 @@ const canOfferAnnualDiscount =
     return () => { cancelled = true }
   }, [summaryRange.from, summaryRange.to, reloadTick])
 
+  useEffect(() => { if (searching) calendar.hide() }, [searching])
+
   // Calendar dots: asked for one month at a time, only when the calendar shows it.
   const loadedMonthsRef = useRef(new Set())
 
@@ -1205,6 +1152,7 @@ function selectHomeowner(property) {
   function applyDateRange(from, to, preset) {
     setRange({ from, to, preset })
     calendar.hide()
+    calendarAnchorRef.current?.querySelector('.payments-day-label-btn')?.focus({ preventScroll: true })
   }
 
   function goToToday() {
@@ -1903,6 +1851,7 @@ function selectHomeowner(property) {
                 type="button"
                 className={`payments-day-label-btn ${calendar.open ? 'is-open' : ''}`}
                 onClick={calendar.toggle}
+                aria-controls={calendar.mounted ? 'payments-date-dialog' : undefined}
                 aria-expanded={calendar.open}
                 aria-haspopup="dialog"
                 aria-label="Choose dates"
@@ -1937,10 +1886,7 @@ function selectHomeowner(property) {
         </div>
 
         {calendar.mounted && !searching && (
-          <div
-            ref={calendarPanelRef}
-            className={`payments-calendar-animation payments-calendar-in-flow ${calendar.visible ? 'is-visible' : ''}`}
-          >
+          <PaymentCalendarFloat anchorRef={calendarAnchorRef} panelRef={calendarPanelRef} visible={calendar.visible}>
             <PaymentDateRange
               from={range.from}
               to={range.to}
@@ -1949,10 +1895,10 @@ function selectHomeowner(property) {
               activeDateKeys={activeDateKeys}
               onViewMonthChange={loadActiveDays}
               onApply={applyDateRange}
-              onCancel={calendar.hide}
+              onCancel={() => { calendar.hide(); calendarAnchorRef.current?.querySelector('.payments-day-label-btn')?.focus({ preventScroll: true }) }}
               formatLabel={rangeLabel}
             />
-          </div>
+          </PaymentCalendarFloat>
         )}
 
         <div className="payments-history-wrap">
