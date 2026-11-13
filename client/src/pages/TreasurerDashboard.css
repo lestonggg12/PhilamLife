@@ -563,3 +563,32 @@
  .treasurer-dashboard .td-header-icon svg { width:25px;height:25px; }
  .treasurer-dashboard .td-hero-actions { width:100%; }
 }
+
+/* Liquid-glass panels over the existing blue dashboard backdrop. */
+.treasurer-dashboard .treasurer-panel {
+ position:relative;isolation:isolate;
+ background:radial-gradient(ellipse at 92% 90%,rgba(150,205,248,.26),transparent 65%),linear-gradient(145deg,rgba(255,255,255,.72),rgba(236,247,255,.48));
+ border:1px solid rgba(255,255,255,.88);border-radius:24px;
+ box-shadow:0 0 0 1px rgba(93,145,185,.19),0 3px 9px rgba(34,83,121,.10),0 20px 42px -24px rgba(22,65,101,.33),inset 0 1px 0 rgba(255,255,255,.96),inset 0 -1px 0 rgba(255,255,255,.4);
+ backdrop-filter:blur(24px) saturate(170%);-webkit-backdrop-filter:blur(24px) saturate(170%);
+}
+.treasurer-dashboard .treasurer-panel::before {
+ content:'';position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+ background:linear-gradient(160deg,rgba(255,255,255,.62),transparent 42%,rgba(173,217,250,.12));
+}
+.treasurer-dashboard .treasurer-panel-heading { border-bottom-color:rgba(159,194,222,.28);background:linear-gradient(110deg,rgba(255,255,255,.2),rgba(223,241,255,.16));border-radius:23px 23px 0 0; }
+.treasurer-dashboard .treasurer-panel-heading h2 { color:#173b53; }
+.treasurer-dashboard .td-sub,.treasurer-dashboard .treasurer-activity-row small { color:#4e718b; }
+.treasurer-dashboard .td-chip { background:linear-gradient(145deg,rgba(255,255,255,.72),rgba(230,244,255,.44));border-color:rgba(255,255,255,.88);box-shadow:0 14px 30px -23px #17456855,inset 0 1px 0 #ffffffee;backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%); }
+.treasurer-dashboard .td-net { background:linear-gradient(120deg,rgba(255,255,255,.67),rgba(218,240,255,.45));border:1px solid #ffffffc9;box-shadow:inset 0 1px 0 #ffffffd9; }
+.treasurer-dashboard .td-track { background:rgba(182,213,236,.4);box-shadow:inset 0 1px 2px #194d7110; }
+.treasurer-dashboard .td-seg { background:rgba(221,236,248,.65);border:1px solid #ffffff9e;box-shadow:inset 0 1px 2px #3968860d; }
+.treasurer-dashboard .td-seg button[aria-pressed=true] { background:rgba(255,255,255,.9);color:#1464a0;box-shadow:0 3px 10px -4px #194d7140,inset 0 1px 0 #fff; }
+.treasurer-dashboard .td-check { background:linear-gradient(145deg,rgba(255,255,255,.73),rgba(241,249,255,.5));border:1px solid rgba(255,255,255,.88);box-shadow:0 6px 14px -11px #17456844,inset 0 1px 0 #ffffffc9; }
+.treasurer-dashboard .treasurer-activity-row { border-bottom-color:rgba(158,193,218,.26); }
+.treasurer-dashboard .treasurer-activity-row:hover { background:rgba(255,255,255,.26); }
+.treasurer-dashboard .td-donut svg { filter:drop-shadow(0 6px 7px rgba(36,89,128,.12)); }
+.treasurer-dashboard .td-donut .track { stroke:rgba(188,216,236,.55); }
+.treasurer-dashboard .td-aging-row { border-bottom-color:rgba(158,193,218,.26); }
+@supports not (backdrop-filter:blur(1px)) { .treasurer-dashboard .treasurer-panel { background:linear-gradient(145deg,#f8fcff,#e7f3fd); } }
+
