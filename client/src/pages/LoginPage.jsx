@@ -4,7 +4,7 @@ import { Turnstile } from '@marsidev/react-turnstile';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { setRememberMePreference, clearRememberMePreference, supabase } from '../lib/supabaseClient';
-import { normalizeProfileRole } from '../lib/profileRole';
+import { normalizeProfileRole, isActiveStaffProfile } from '../lib/profileRole';
 import { useOrganization } from '../context/OrganizationContext';
 
 const VALID_ROLES = ['Admin', 'Secretary', 'Treasurer'];
@@ -138,6 +138,15 @@ export default function LoginPage({ onAuthenticated }) {
         await cancelSignIn();
         resetCaptcha();
         setError('Account exists but has no profile. Contact an admin.');
+        setLoading(false);
+        return;
+      }
+
+      // Fail closed even if an Auth ban and profile state become inconsistent.
+      if (!isActiveStaffProfile(profile)) {
+        await cancelSignIn();
+        resetCaptcha();
+        setError('This staff account is inactive or unauthorized. Contact an admin.');
         setLoading(false);
         return;
       }

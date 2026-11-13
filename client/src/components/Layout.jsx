@@ -3,20 +3,12 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
-import ActionDialog from './ActionDialog'
-import { useOrganization } from '../context/OrganizationContext'
-import useSessionTimeout from '../hooks/useSessionTimeout'
 import './Layout.css'
 
 export default function Layout({ user, onLogout }) {
-  const { organization } = useOrganization()
   const location = useLocation()
-  const [timedOut, setTimedOut] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
-  const handleTimeout = useCallback(() => {
-    void onLogout()
-  }, [onLogout])
 
   const toggleNav = useCallback(() => {
     setNavOpen((open) => !open)
@@ -26,10 +18,6 @@ export default function Layout({ user, onLogout }) {
     setNavOpen(false)
   }, [])
 
-  useSessionTimeout(
-    organization.sessionTimeoutMinutes,
-    handleTimeout
-  )
 
   // Close the drawer after navigating.
   useEffect(() => {
@@ -79,15 +67,6 @@ export default function Layout({ user, onLogout }) {
           aria-hidden="true"
         />
 
-        <ActionDialog
-          open={timedOut}
-          title="Signed Out"
-          message="You've been signed out due to inactivity. Please sign in again."
-          onConfirm={() => {
-            setTimedOut(false)
-            onLogout()
-          }}
-        />
 
         <div className="page-content">
           {/* State-only replacements must preserve page state, including payment prefill. */}
