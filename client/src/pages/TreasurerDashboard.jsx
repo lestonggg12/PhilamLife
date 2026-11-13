@@ -207,6 +207,8 @@ export default function TreasurerDashboard() {
 
   const totalCollections = summary.collectedThisMonth + summary.servicesThisMonth
   const duesShare = totalCollections > 0 ? summary.collectedThisMonth / totalCollections : 0
+  const duesPercentageLabel = `${(duesShare * 100).toFixed(2)}%`
+  const servicePercentageLabel = `${(totalCollections > 0 ? (summary.servicesThisMonth / totalCollections) * 100 : 0).toFixed(2)}%`
   const percent = (part, whole) => (whole > 0 ? Math.min(100, Math.max(0, (part / whole) * 100)) : 0)
   const flowScale = Math.max(totalCollections, summary.expensesThisMonth)
   const overduePercent = Math.round(percent(summary.overdue, summary.outstanding))
@@ -399,7 +401,7 @@ export default function TreasurerDashboard() {
           <div className="treasurer-panel-heading"><div><h2>Where collections come from</h2><p className="td-sub">Current month · active receipts</p></div></div>
           <div className="td-panel-body td-donut-body">
             <div className="td-donut">
-              <svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label={loading ? 'Loading collection mix' : dashboardUnavailable ? 'Collection mix unavailable' : totalCollections > 0 ? `Dues and payments ${Math.round(duesShare * 100)} percent, service receipts ${100 - Math.round(duesShare * 100)} percent` : 'No collections recorded'}>
+              <svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label={loading ? 'Loading collection mix' : dashboardUnavailable ? 'Collection mix unavailable' : totalCollections > 0 ? `Dues and payments ${duesPercentageLabel}, service receipts ${servicePercentageLabel}` : 'No collections recorded'}>
                 <circle className="track" cx="75" cy="75" r={DONUT_RADIUS} />
                 {!loading && !dashboardUnavailable && totalCollections > 0 && <>
                   <circle className="dues" cx="75" cy="75" r={DONUT_RADIUS} strokeDasharray={`${Math.max(duesArc - gap, 0)} ${circumference}`} />
@@ -410,8 +412,8 @@ export default function TreasurerDashboard() {
             </div>
             <div className="td-donut-total" aria-live="polite"><small>Total collected</small><strong>{loading ? '…' : dashboardUnavailable ? '—' : peso.format(totalCollections)}</strong></div>
             <div className="td-legend">
-              <div><span className="td-dot dues">Dues &amp; payments</span><b>{loading || dashboardUnavailable ? '—' : `${Math.round(duesShare * 100)}%`}</b></div>
-              <div><span className="td-dot services">Service receipts</span><b>{loading || dashboardUnavailable ? '—' : `${totalCollections > 0 ? 100 - Math.round(duesShare * 100) : 0}%`}</b></div>
+              <div><span className="td-dot dues">Dues &amp; payments</span><b>{loading || dashboardUnavailable ? '—' : duesPercentageLabel}</b></div>
+              <div><span className="td-dot services">Service receipts</span><b>{loading || dashboardUnavailable ? '—' : servicePercentageLabel}</b></div>
             </div>
           </div>
         </article>
