@@ -9,7 +9,6 @@ import {
   Users,
   Home,
   DollarSign,
-  TrendingUp,
   Lock,
   HardDrive,
   BarChart3,
@@ -282,10 +281,20 @@ export default function AdminDashboard() {
           datasets: [
             {
               type: 'bar',
-              label: 'Association dues collected',
+              label: 'Homeowner collections',
               data: collectionsByMonth.values,
-              backgroundColor: 'rgba(20,100,160,0.65)',
-              borderColor: 'rgba(20,100,160,0.90)',
+              backgroundColor: (context) => {
+                const { ctx, chartArea } = context.chart
+                if (!chartArea) return '#3b8ec5'
+                const fill = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+                fill.addColorStop(0, '#55a6df')
+                fill.addColorStop(1, '#176ca6')
+                return fill
+              },
+              maxBarThickness: 46,
+              categoryPercentage: 0.68,
+              barPercentage: 0.8,
+              borderColor: '#2c7eb8',
               borderWidth: 1.5,
               borderRadius: 8,
               borderSkipped: false,
@@ -295,8 +304,8 @@ export default function AdminDashboard() {
               type: 'line',
               label: 'Current monthly dues target',
               data: collectionsByMonth.labels.map(() => monthlyDuesTarget),
-              borderColor: 'rgba(7,30,48,0.55)',
-              borderDash: [6, 5],
+              borderColor: '#7e9bb1',
+              borderDash: [5, 5],
               borderWidth: 2,
               pointRadius: 0,
               pointHoverRadius: 0,
@@ -308,6 +317,7 @@ export default function AdminDashboard() {
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
@@ -330,18 +340,21 @@ export default function AdminDashboard() {
               grid: { display: false },
               border: { display: false },
               ticks: {
-                color: '#2a5470',
-                font: { size: 12.5, weight: '600' },
+                color: '#557890',
+                font: { size: 11, weight: '600' },
+                maxRotation: 0,
               },
             },
             y: {
               beginAtZero: true,
-              grid: { color: 'rgba(255,255,255,0.55)' },
+              grid: { color: '#e7eff6', drawTicks: false },
               border: { display: false },
               ticks: {
-                color: '#2a5470',
-                font: { size: 11.5, weight: '500' },
-                callback: (value) => `₱${(value / 1000).toLocaleString('en-PH')}k`,
+                color: '#7490a5',
+                font: { size: 10, weight: '500' },
+                maxTicksLimit: 5,
+                padding: 10,
+                callback: (value) => value >= 1000000 ? `₱${(value / 1000000).toLocaleString('en-PH', { maximumFractionDigits: 1 })}m` : value >= 1000 ? `₱${(value / 1000).toLocaleString('en-PH', { maximumFractionDigits: 0 })}k` : `₱${value}`,
               },
             },
           },
@@ -362,14 +375,14 @@ export default function AdminDashboard() {
               backgroundColor: ACCOUNT_STATUS_ITEMS.map((item) => item.color),
               borderColor: 'rgba(255,255,255,0.90)',
               borderWidth: 3,
-              hoverOffset: 8,
+              hoverOffset: 4,
             },
           ],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '72%',
+          cutout: '76%',
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -420,40 +433,38 @@ export default function AdminDashboard() {
 
   const systemStats = [
     {
-      label: 'ACTIVE PROPERTY ACCOUNTS',
+      label: 'Active property accounts',
       value: dashboardUnavailable ? '—' : accountStatus.total.toLocaleString('en-PH'),
-      footer: dashboardUnavailable ? 'Data not verified' : `${activeOwners.toLocaleString('en-PH')} registered owners`,
-      trend: null,
-      icon: Users,
+      description: dashboardUnavailable ? 'Data not verified' : 'Registered property accounts',
+      footer: dashboardUnavailable ? 'Refresh to verify account records' : `${activeOwners.toLocaleString('en-PH')} registered owners`,
+      icon: Home,
       tone: 'blue',
     },
     {
-      label: `HOMEOWNER COLLECTIONS ${currentMonthLabel.split(' ')[0]?.toUpperCase() || ''}`,
+      label: 'Homeowner collections',
       value: dashboardUnavailable ? '—' : peso.format(collectedThisMonth),
       fitAmount: true,
-      footer: dashboardUnavailable ? 'Data not verified' : `${currentMonthCollection.receipts} homeowner receipt${currentMonthCollection.receipts === 1 ? '' : 's'}${servicesThisMonth > 0 ? ` · Services separately: ${peso.format(servicesThisMonth)}` : ''}`,
-      trend: dashboardUnavailable || collectedTrendPercent === null
-        ? null
-        : `${collectedTrendPercent >= 0 ? '+' : ''}${collectedTrendPercent.toFixed(1)}% vs full ${sixMonths.at(-2)?.label || 'prior month'}`,
+      description: dashboardUnavailable ? 'Data not verified' : `${currentMonthCollection.receipts} receipt${currentMonthCollection.receipts === 1 ? '' : 's'} · ${currentMonthLabel}`,
+      footer: dashboardUnavailable ? 'Refresh to verify collections' : servicesThisMonth > 0 ? `Services separately: ${peso.format(servicesThisMonth)}` : 'Homeowner dues and payments only',
       icon: DollarSign,
       tone: 'green',
     },
     {
-      label: 'OVERDUE ACCOUNTS',
+      label: 'Overdue accounts',
       value: dashboardUnavailable || overdueSummary.reviewCount ? '—' : overdueSummary.overdueCount.toLocaleString('en-PH'),
-      footer: dashboardUnavailable ? 'Data not verified'
+      description: dashboardUnavailable ? 'Data not verified' : overdueSummary.reviewCount ? 'Aging review required' : 'Accounts requiring follow-up',
+      footer: dashboardUnavailable ? 'Refresh to verify overdue accounts'
         : overdueSummary.reviewCount ? `${overdueSummary.reviewCount} account(s) need aging review`
           : `${peso.format(overdueSummary.overdueBalance)} past due`,
-      trend: null,
       icon: AlertCircle,
       tone: 'red',
     },
     {
-      label: 'ACTIVE USERS',
+      label: 'Active users',
       value: dashboardUnavailable ? '—' : activeUserCount.toLocaleString('en-PH'),
-      footer: dashboardUnavailable ? '' : (activeRoleLabels.join(', ') || 'No active accounts'),
-      trend: null,
-      icon: Zap,
+      description: dashboardUnavailable ? 'Data not verified' : 'Staff using the system',
+      footer: dashboardUnavailable ? 'Refresh to verify active users' : (activeRoleLabels.join(' · ') || 'No active accounts'),
+      icon: Users,
       tone: 'navy',
     },
   ]
@@ -512,21 +523,36 @@ export default function AdminDashboard() {
 
   return (
     <div className="dash-admin-dashboard">
-      <div className="dash-page-header">
-        <div className="dash-page-header-copy">
-          <p className="dash-eyebrow">Admin workspace</p>
-          <h1 className="dash-page-title">Admin Dashboard</h1>
-          <p className="dash-page-subtitle">
-            Manage users, homeowner records, finances, and system operations.
-          </p>
+      <header className="dash-page-header">
+        <div className="dash-header-intro">
+          <span className="dash-header-icon" aria-hidden="true">
+            <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="4" rx="1.4"/><rect x="14" y="11" width="7" height="10" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/></svg>
+          </span>
+          <div className="dash-page-header-copy">
+            <p className="dash-eyebrow">Admin workspace</p>
+            <h1 className="dash-page-title">Admin Dashboard</h1>
+            <p className="dash-page-subtitle">Manage users, homeowner records, finances, and system operations.</p>
+          </div>
         </div>
-      </div>
+        <div className="dash-header-actions">
+          <button type="button" className={`dash-refresh-button${loading ? ' is-refreshing' : ''}`}
+            disabled={loading} aria-label="Refresh dashboard data" onClick={() => {
+              const period = manilaMonthKey()
+              setDashboardPeriod(period)
+              void loadDashboard(period)
+            }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg>
+            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
+          <DashboardClock />
+        </div>
+      </header>
 
       {pageError && <p className="dash-page-error">{pageError}</p>}
 
       <div className="dash-stats-grid">
         {systemStats.map((stat) => (
-          <div key={stat.label} className="dash-stat-card">
+          <article key={stat.label} className={`dash-stat-card dash-stat-${stat.tone}`}>
             <div className="dash-stat-top">
               <div className="dash-stat-label">{stat.label}</div>
               <div className={`dash-stat-icon-box tone-${stat.tone}`}>
@@ -536,16 +562,9 @@ export default function AdminDashboard() {
             {stat.fitAmount
               ? <AutoFitAmount className="dash-stat-value" value={stat.value} />
               : <div className="dash-stat-value">{stat.value}</div>}
-            <div className="dash-stat-footer">
-              <span>{stat.footer}</span>
-            </div>
-            {stat.trend && (
-              <div className={`dash-stat-trend ${stat.trend.startsWith('-') ? 'down' : 'up'}`}>
-                <TrendingUp size={13} />
-                <span>{stat.trend}</span>
-              </div>
-            )}
-          </div>
+            <p className="dash-stat-description">{stat.description}</p>
+            <div className="dash-stat-footer"><span className="dash-stat-dot" aria-hidden="true"/><span>{stat.footer}</span></div>
+          </article>
         ))}
       </div>
 
@@ -555,25 +574,21 @@ export default function AdminDashboard() {
       </div>
 
       <div className="dash-charts-grid">
-        <div className="dash-chart-card">
-          <h3 className="dash-chart-title">Association Dues Collected</h3>
-          <p className="dash-chart-subtitle">{dashboardUnavailable ? 'Reporting data unavailable' : monthRangeLabel}</p>
-          {!dashboardUnavailable && monthlyDuesTarget > 0 && (
-            <div className="dash-date-badge dash-target-badge">
-              Current target {peso.format(monthlyDuesTarget)} / mo
-            </div>
-          )}
-          {!dashboardUnavailable && monthlyDuesTarget == null && (
-            <p className="dash-chart-subtitle">Monthly target unavailable. Check lot dues settings.</p>
-          )}
-          <canvas ref={barChartRef} height="130" style={{ visibility: dashboardUnavailable ? 'hidden' : 'visible' }} />
-        </div>
+        <section className="dash-chart-card dash-collection-card">
+          <header className="dash-chart-heading">
+            <div><span className="dash-chart-kicker">Collections trend</span><h3 className="dash-chart-title">Homeowner collections</h3><p className="dash-chart-subtitle">{dashboardUnavailable ? 'Reporting data unavailable' : monthRangeLabel}</p></div>
+            {!dashboardUnavailable && monthlyDuesTarget > 0 && <span className="dash-target-badge">Current dues target<strong>{peso.format(monthlyDuesTarget)} / mo</strong></span>}
+          </header>
+          {!dashboardUnavailable && monthlyDuesTarget == null && <p className="dash-chart-subtitle">Monthly target unavailable. Check lot dues settings.</p>}
+          <div className="dash-bar-plot"><canvas ref={barChartRef} style={{ visibility: dashboardUnavailable ? 'hidden' : 'visible' }} aria-label="Homeowner collections over the last six months" role="img" /></div>
+          <div className="dash-chart-key"><span><i className="dash-key-bar"/>Homeowner receipts</span>{monthlyDuesTarget != null && <span><i className="dash-key-target"/>Current dues target</span>}</div>
+        </section>
 
-        <div className="dash-chart-card">
-          <h3 className="dash-chart-title">Account Balance Status</h3>
+        <section className="dash-chart-card dash-balance-card">
+          <header className="dash-chart-heading"><div><span className="dash-chart-kicker">Property accounts</span><h3 className="dash-chart-title">Account balance status</h3>
           <p className="dash-chart-subtitle">
             {dashboardUnavailable ? <Skeleton variant="rect" width="120px" height="1em" /> : `${accountStatus.total.toLocaleString('en-PH')} total properties`}
-          </p>
+          </p></div><span className="dash-chart-period">Balance mix</span></header>
           <div className="dash-donut-container">
             <div className="dash-donut-canvas">
               <canvas ref={donutChartRef} style={{ visibility: dashboardUnavailable ? 'hidden' : 'visible' }} />
@@ -600,18 +615,17 @@ export default function AdminDashboard() {
                       style={{ background: item.color }}
                     />
                     <div className="dash-legend-text">
-                      <div className="dash-legend-status">{item.label}</div>
-                      <div className="dash-legend-count">
-                        {dashboardUnavailable ? '—' : value}{' '}
-                        <span>{dashboardUnavailable ? '—' : `${percent}%`}</span>
-                      </div>
+                      <div className="dash-legend-heading"><span className="dash-legend-status">{item.label}</span><span className="dash-legend-percent">{dashboardUnavailable ? '—' : value > 0 && percent === 0 ? '<1%' : `${percent}%`}</span></div>
+                      <div className="dash-legend-count">{dashboardUnavailable ? '—' : value.toLocaleString('en-PH')} properties</div>
+                      <div className="dash-legend-track" aria-hidden="true"><span style={{ width: `${dashboardUnavailable || !accountStatus.total ? 0 : value / accountStatus.total * 100}%`, backgroundColor: item.color }}/></div>
                     </div>
                   </div>
                 )
               })}
             </div>
           </div>
-        </div>
+          <p className="dash-balance-note">Distribution based on recorded property balances.</p>
+        </section>
       </div>
 
       <div className="dash-quick-actions">
@@ -737,4 +751,24 @@ export default function AdminDashboard() {
       </div>
     </div>
   )
+}
+
+
+function DashboardClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const update = () => setNow(new Date())
+    const interval = window.setInterval(update, 15000)
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', update)
+    }
+  }, [])
+  const time = new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: true }).format(now)
+  return <div className="dash-header-clock" aria-label="Current Philippine date and time">
+    <time className="dash-clock-time" dateTime={now.toISOString()}>{time}</time>
+    <time className="dash-clock-date" dateTime={now.toISOString()}>{dashboardDateFormatter.format(now)}</time>
+    <span className="dash-clock-zone">Philippine time</span>
+  </div>
 }

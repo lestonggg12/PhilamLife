@@ -3,11 +3,12 @@
 .activity-log-page {
   width: auto;
   min-width: 0;
+  padding-top: 22px;
   color: var(--text-dark);
   font-family: var(--font-body);
   --al-columns: minmax(140px, 0.8fr) 220px minmax(0, 2fr) 104px 80px 28px;
   --al-sticky-top: 0px;
-}
+} 
 
 .activity-log-page * {
   box-sizing: border-box;
