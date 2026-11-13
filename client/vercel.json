@@ -1,68 +1,87 @@
 {
-  "headers": [
-    {
-      "source": "/((?!(?:assets|api|icons)(?:/|$)|.*\\.[^/]+$).*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache" }
-      ]
-    },
-    {
-      "source": "/index.html",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache" }
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
-    },
-    {
-      "source": "/manifest.webmanifest",
-      "headers": [
-        { "key": "Content-Type", "value": "application/manifest+json" },
-        { "key": "Cache-Control", "value": "no-cache" }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=63072000; includeSubDomains"
-        },
-        {
-          "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com; frame-src 'self' blob: https://*.supabase.co https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-        }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/((?!(?:assets|api|icons)(?:/|$)|.*\\.[^/]+$).*)",
-      "destination": "/index.html"
-    }
-  ]
+    "headers":  [
+                    {
+                        "source":  "/((?!(?:assets|api|icons)(?:/|$)|.*\\.[^/]+$).*)",
+                        "headers":  [
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache"
+                                        }
+                                    ]
+                    },
+                    {
+                        "source":  "/index.html",
+                        "headers":  [
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache"
+                                        }
+                                    ]
+                    },
+                    {
+                        "source":  "/sw.js",
+                        "headers":  [
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache, no-store, must-revalidate"
+                                        }
+                                    ]
+                    },
+                    {
+                        "source":  "/manifest.webmanifest",
+                        "headers":  [
+                                        {
+                                            "key":  "Content-Type",
+                                            "value":  "application/manifest+json"
+                                        },
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache"
+                                        }
+                                    ]
+                    },
+                    {
+                        "source":  "/(.*)",
+                        "headers":  [
+                                        {
+                                            "key":  "X-Content-Type-Options",
+                                            "value":  "nosniff"
+                                        },
+                                        {
+                                            "key":  "X-Frame-Options",
+                                            "value":  "DENY"
+                                        },
+                                        {
+                                            "key":  "Referrer-Policy",
+                                            "value":  "strict-origin-when-cross-origin"
+                                        },
+                                        {
+                                            "key":  "Permissions-Policy",
+                                            "value":  "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+                                        },
+                                        {
+                                            "key":  "Strict-Transport-Security",
+                                            "value":  "max-age=63072000; includeSubDomains"
+                                        },
+                                        {
+                                            "key":  "Cross-Origin-Opener-Policy",
+                                            "value":  "same-origin"
+                                        },
+                                        {
+                                            "key":  "Content-Security-Policy",
+                                            "value":  "default-src \u0027self\u0027; script-src \u0027self\u0027 https://challenges.cloudflare.com; style-src \u0027self\u0027 \u0027unsafe-inline\u0027 https://fonts.googleapis.com; font-src \u0027self\u0027 https://fonts.gstatic.com data:; img-src \u0027self\u0027 data: blob: https://*.supabase.co; connect-src \u0027self\u0027 https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com; frame-src \u0027self\u0027 blob: https://*.supabase.co https://challenges.cloudflare.com; worker-src \u0027self\u0027 blob:; object-src \u0027none\u0027; base-uri \u0027self\u0027; form-action \u0027self\u0027; frame-ancestors \u0027none\u0027"
+                                        },
+                                        {
+                                            "key":  "X-Robots-Tag",
+                                            "value":  "noindex, nofollow, noarchive, nosnippet"
+                                        }
+                                    ]
+                    }
+                ],
+    "rewrites":  [
+                     {
+                         "source":  "/((?!(?:assets|api|icons)(?:/|$)|.*\\.[^/]+$).*)",
+                         "destination":  "/index.html"
+                     }
+                 ]
 }
