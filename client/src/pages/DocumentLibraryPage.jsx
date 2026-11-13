@@ -3,7 +3,7 @@ import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import './DocumentLibraryPage.css'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, FileText as DocumentIcon, HardDrive, Tags, Trash2 as DocumentTrashIcon } from 'lucide-react'
 import Skeleton from '../components/skeleton/Skeleton'
 import {
   Download,
@@ -557,24 +557,28 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
 
       <section className="doc-summary" aria-label="Document summaries" aria-busy={loading || refreshing}>
         <article className="doc-summary-item">
-          <span>Available documents</span>
+          <div className="doc-stat-top"><span className="doc-stat-label">Available documents</span><span className="doc-stat-icon" aria-hidden="true"><DocumentIcon size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : hasSnapshot ? availableDocuments.length : '—'}</strong>
           <small>of {documents.length} in the library</small>
+          <div className="doc-stat-footer"><span aria-hidden="true" />Documents available to download</div>
         </article>
         <article className="doc-summary-item">
-          <span>Available file size</span>
+          <div className="doc-stat-top"><span className="doc-stat-label">Available file size</span><span className="doc-stat-icon" aria-hidden="true"><HardDrive size={17} /></span></div>
           <strong>{hasSnapshot ? formatFileSize(filteredTotalSize) : '—'}</strong>
           <small>Total of the files shown</small>
+          <div className="doc-stat-footer"><span aria-hidden="true" />Size of matching document records</div>
         </article>
         <article className="doc-summary-item">
-          <span>Categories in view</span>
+          <div className="doc-stat-top"><span className="doc-stat-label">Categories in view</span><span className="doc-stat-icon" aria-hidden="true"><Tags size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : hasSnapshot ? filteredCategoryCount : '—'}</strong>
           <small>of {new Set(documents.map(document => document.category)).size} in use</small>
+          <div className="doc-stat-footer"><span aria-hidden="true" />Categories in matching documents</div>
         </article>
         <article className={`doc-summary-item${filteredPendingCount > 0 ? ' doc-summary-warn' : ''}`}>
-          <span>Deletion pending</span>
+          <div className="doc-stat-top"><span className="doc-stat-label">Deletion pending</span><span className="doc-stat-icon" aria-hidden="true"><DocumentTrashIcon size={17} /></span></div>
           <strong>{loading ? <Skeleton variant="rect" width="36px" height="1.2em" /> : hasSnapshot ? filteredPendingCount : '—'}</strong>
           <small>Waiting for storage cleanup</small>
+          <div className="doc-stat-footer"><span aria-hidden="true" />Pending document cleanup</div>
         </article>
       </section>
 

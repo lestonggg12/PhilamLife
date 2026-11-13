@@ -466,15 +466,16 @@ const actorName =
       {pageError && <p className="load-error" role="alert">{pageError}</p>}
       <section className="stats" aria-label="Totals for matching accounts">
         {[
-          { label: 'Total billed', value: filteredTotals?.totalDue, icon: BookOpen, note: 'Adjusted posted charges and positive opening balances' },
-          { label: 'Total collected', value: filteredTotals?.totalPaid, icon: ArrowDownLeft, note: 'Recorded HOA payments for matching lots' },
-          { label: 'Outstanding', value: filteredTotals?.totalBalance, icon: ClockAlert, note: 'Amount still owed by matching accounts' },
-          { label: 'Available credit', value: filteredTotals?.totalCredit, icon: WalletCards, note: 'Available for future bills on matching lots' },
-        ].map(({ label, value, icon: Icon, note }) => (
+          { label: 'Total billed', value: filteredTotals?.totalDue, icon: BookOpen, note: 'Adjusted posted charges and positive opening balances', footer: 'Recorded account assessments' },
+          { label: 'Total collected', value: filteredTotals?.totalPaid, icon: ArrowDownLeft, note: 'Recorded HOA payments for matching lots', footer: 'Payments for matching accounts' },
+          { label: 'Outstanding', value: filteredTotals?.totalBalance, icon: ClockAlert, note: 'Amount still owed by matching accounts', footer: 'Account balance summary' },
+          { label: 'Available credit', value: filteredTotals?.totalCredit, icon: WalletCards, note: 'Available for future bills on matching lots', footer: 'Credit is not new cash received' },
+        ].map(({ label, value, icon: Icon, note, footer }) => (
           <div className="stat" key={label}>
             <div className="stat-top"><span className="label">{label}</span><span className="stat-icon"><Icon size={18} aria-hidden="true" /></span></div>
             <strong className="ledger-summary-value">{loading ? 'Loading…' : !ledgerVerified || pageError || !filteredTotals ? 'Unavailable' : peso.format(value)}</strong>
             <small>{note}</small>
+            <div className="ledger-stat-footer"><span aria-hidden="true" />{footer}</div>
           </div>
         ))}
       </section>

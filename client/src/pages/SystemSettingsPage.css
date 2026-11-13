@@ -810,3 +810,34 @@
 .ss-export-scope span { padding: 4px 8px; border: 1px solid #d8e8f4; border-radius: 7px; background: #f5faff; color: #426b87; font-size: 11px; }
 @container settings-workspace (max-width:900px) { .ss-page .ss-header { padding: 25px 26px; gap: 20px; } .ss-page .ss-header-actions { width: 100%; justify-content: flex-start; } .ss-page .ss-header-actions button { flex: 0 1 auto; } }
 @container settings-workspace (max-width:600px) { .ss-page .ss-header { padding: 22px 20px; border-radius: 24px; gap: 18px; } .ss-page .ss-header-intro { flex-basis: 100%; gap: 13px; align-items: flex-start; } .ss-page .ss-header-icon { width: 48px; height: 48px; flex-basis: 48px; border-radius: 15px; } .ss-page .ss-header-icon svg { width: 23px; height: 23px; } .ss-page .ss-header h1 { font-size: 31px; } .ss-page .ss-header p { font-size: 12px; } .ss-page .ss-header-eyebrow { font-size: 10px; } .ss-page .ss-header-actions button { flex: 1; min-height: 43px; padding: 10px 13px; font-size: 12px; border-radius: 11px; } }
+.ss-page .ss-stat-row {
+  gap: 14px;
+}
+
+.ss-page .ss-stat-card {
+  padding: 16px 18px;
+  gap: 7px;
+  border-radius: 20px;
+  grid-template-columns: minmax(0, 1fr) 34px;
+}
+
+.ss-page .ss-stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.ss-page .ss-stat-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ss-page .ss-stat-card strong {
+  font-size: 25px;
+  line-height: 1.15;
+}
+
+.ss-page .ss-stat-card small {
+  font-size: 12px;
+  line-height: 1.4;
+}

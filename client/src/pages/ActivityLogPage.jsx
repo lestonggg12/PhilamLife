@@ -833,19 +833,15 @@ export default function ActivityLogPage() {
   return (
     <div className="activity-log-page" style={{ '--al-toolbar-height': `${toolbarHeight}px` }}>
       <header className="al-header">
-  <div className="al-header-heading">
-    <span className="al-header-icon" aria-hidden="true">
-      <Activity size={28} strokeWidth={1.8} />
-    </span>
-
-    <div className="al-header-copy">
-      <h1>Activity Log</h1>
-      <p>Search and review system activity across your team.</p>
-    </div>
-  </div>
-
-  <HeaderClock />
-</header>
+        <div className="al-header-heading">
+          <span className="al-header-icon" aria-hidden="true"><Activity size={28} /></span>
+          <div className="al-header-copy">
+            <h1>Activity Log</h1>
+            <p>Search and review system activity across your team.</p>
+          </div>
+        </div>
+        <HeaderClock />
+      </header>
       <ActivityArchiveStatus onChanged={() => setRevision((value) => value + 1)} />
       <section className="al-stats-grid" aria-label="Activity summaries" aria-busy={loading}>
         <article className="al-stat-card">
@@ -857,6 +853,7 @@ export default function ActivityLogPage() {
           </div>
           <strong>{summariesAvailable ? activityStats.total.toLocaleString('en-PH') : '—'}</strong>
           <small>Matching the current filters</small>
+          <div className="al-stat-footer"><span aria-hidden="true" />Events matching current filters</div>
         </article>
         <article className="al-stat-card">
           <div className="al-stat-top">
@@ -867,6 +864,7 @@ export default function ActivityLogPage() {
           </div>
           <strong className="al-stat-value-text">{summariesAvailable ? activityStats.mostActive : '—'}</strong>
           <small>Events in the selected range</small>
+          <div className="al-stat-footer"><span aria-hidden="true" />User with the most matching events</div>
         </article>
         <article className="al-stat-card">
           <div className="al-stat-top">
@@ -877,6 +875,7 @@ export default function ActivityLogPage() {
           </div>
           <strong className="al-stat-value-text">{summariesAvailable ? activityStats.topAction : '—'}</strong>
           <small>Most common recorded action</small>
+          <div className="al-stat-footer"><span aria-hidden="true" />Most frequent matching action</div>
         </article>
         <article className="al-stat-card">
           <div className="al-stat-top">
@@ -887,6 +886,7 @@ export default function ActivityLogPage() {
           </div>
           <strong>{summariesAvailable ? activityStats.payments.toLocaleString('en-PH') : '—'}</strong>
           <small>Regular and service payments recorded</small>
+          <div className="al-stat-footer"><span aria-hidden="true" />Recorded payment activity</div>
         </article>
       </section>
       <section className="al-toolbar" ref={toolbarRef} aria-label="Activity controls">

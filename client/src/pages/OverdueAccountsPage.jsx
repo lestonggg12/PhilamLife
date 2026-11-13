@@ -618,6 +618,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong className="red">{kpiValue(loading, filtered.length, '42px')}</strong>
           <small>of {scopeCount} {movedScope ? 'moved lots with a balance' : 'active lots'}</small>
+          <div className="od-kpi-footer"><span aria-hidden="true" />Accounts matching current filters</div>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -628,6 +629,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong>{kpiValue(loading, organization.formatMoney(filteredSummary.overdueBalance), '86px')}</strong>
           <small>{agingFilter === 'All' ? 'Past due on matching lots' : `Past due in ${agingFilter}`}</small>
+          <div className="od-kpi-footer"><span aria-hidden="true" />Based on unpaid-item due dates</div>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -638,6 +640,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong>{kpiValue(loading, organization.formatMoney(filteredSummary.currentPortion), '86px')}</strong>
           <small>Not yet due on matching lots</small>
+          <div className="od-kpi-footer"><span aria-hidden="true" />Amounts not yet past due</div>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -654,11 +657,17 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             )}
           </strong>
           <small>Across all matching lots</small>
+          <div className="od-kpi-footer"><span aria-hidden="true" />Recorded collection activity</div>
         </article>
       </section>
 
       {!loading && !movedScope && summary.overdueCount > 0 && (
-        <section className="od-tiers" aria-label="Filter by age of unpaid items. Lots can have items in more than one age range.">
+        <section className="od-aging-panel" aria-labelledby="od-aging-title">
+          <div className="od-aging-heading">
+            <h2 id="od-aging-title">Overdue aging</h2>
+            <p>Select an age range to filter accounts. A lot may have unpaid items in more than one range.</p>
+          </div>
+          <div className="od-tiers" role="group" aria-label="Filter by age of unpaid items">
           {AGING_TIERS.map((tier, index) => (
             <button
               key={tier}
@@ -681,6 +690,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               </div>
             </button>
           ))}
+        </div>
         </section>
       )}
 

@@ -431,26 +431,30 @@ export default function ReportsPage({ user: suppliedUser }) {
         <article className="reports-stat-card">
           <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
           <span className="reports-stat-label">Total revenue</span>
-          <strong>{report ? money(kpis.totalIncome) : '—'}</strong>
+          <strong>{report ? money(kpis.totalIncome).replace(/^PHP\s*/, '₱') : '—'}</strong>
           <small>{monthLabel}</small>
+          <div className="reports-stat-footer"><span aria-hidden="true" />Recorded income</div>
         </article>
         <article className="reports-stat-card">
           <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
           <span className="reports-stat-label">Disbursements</span>
-          <strong>{report ? money(kpis.totalExpenses) : '—'}</strong>
+          <strong>{report ? money(kpis.totalExpenses).replace(/^PHP\s*/, '₱') : '—'}</strong>
           <small>{monthLabel}</small>
+          <div className="reports-stat-footer"><span aria-hidden="true" />Recorded expenses</div>
         </article>
         <article className="reports-stat-card">
           <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
           <span className="reports-stat-label">Net result</span>
-          <strong>{report ? money(Math.abs(kpis.netIncome)) : '—'}</strong>
+          <strong>{report ? money(Math.abs(kpis.netIncome)).replace(/^PHP\s*/, '₱') : '—'}</strong>
           <small>{report ? (kpis.netIncome >= 0 ? 'Surplus' : 'Deficit') : 'Verified monthly total'}</small>
+          <div className="reports-stat-footer"><span aria-hidden="true" />Income less disbursements</div>
         </article>
         <article className="reports-stat-card">
           <span className="reports-stat-icon" aria-hidden="true"><ReportsIcon /></span>
           <span className="reports-stat-label">Outstanding balances</span>
-          <strong>{report ? money(kpis.totalOutstanding) : '—'}</strong>
+          <strong>{report ? money(kpis.totalOutstanding).replace(/^PHP\s*/, '₱') : '—'}</strong>
           <small>{monthLabel}</small>
+          <div className="reports-stat-footer"><span aria-hidden="true" />Account balance summary</div>
         </article>
       </section>
 

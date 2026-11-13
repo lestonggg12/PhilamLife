@@ -326,3 +326,74 @@
   .reports-page .reports-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
   .reports-page .reports-header-actions { width: 100%; }
 }
+
+/* Admin Dashboard stats styling, limited to on-screen summary cards. */
+@media screen {
+ .reports-page { container: reports-dashboard-stats / inline-size; }
+ .reports-page .reports-stat-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:17px; align-items:stretch; }
+ .reports-page .reports-stat-card { --stat-accent:#287fae; display:grid; grid-template-columns:minmax(0,1fr) 35px; grid-template-rows:36px auto auto 1fr; column-gap:12px; row-gap:0; min-width:0; min-height:0; height:auto; padding:21px 23px 18px; border:1px solid #ffffffed; border-radius:22px; background:linear-gradient(150deg,#ffffffee,#f0f7fe); box-shadow:0 12px 28px -16px #17456835; overflow:hidden; font-family:'Segoe UI',Arial,sans-serif; backdrop-filter:none; -webkit-backdrop-filter:none; }
+ .reports-page .reports-stat-card::before { display:none; }
+ .reports-page .reports-stat-card:hover { transform:none; box-shadow:0 12px 28px -16px #17456835; }
+ .reports-page .reports-stat-label { grid-column:1;grid-row:1;align-self:center;min-width:0;max-width:none;margin:0;color:#456b85;font:700 12px/1.5 'Segoe UI',Arial,sans-serif;letter-spacing:.3px; }
+ .reports-page .reports-stat-icon { position:static;grid-column:2;grid-row:1;display:grid;place-items:center;width:35px;height:35px;margin:0;border:0;border-radius:11px;background:#e8f2fb;color:var(--stat-accent);box-shadow:none; }
+ .reports-page .reports-stat-icon svg { width:19px;height:19px; }
+ .reports-page .reports-stat-card strong { grid-column:1/-1;grid-row:2;display:block;margin:15px 0 6px;color:#14334a;font:600 clamp(27px,2.3vw,36px)/1.2 Georgia,serif;letter-spacing:-.7px;overflow-wrap:anywhere;white-space:normal;font-variant-numeric:tabular-nums; }
+ .reports-page .reports-stat-card small { grid-column:1/-1;grid-row:3;display:block;margin:0;color:#527791;font:400 13px/1.65 'Segoe UI',Arial,sans-serif; }
+ .reports-page .reports-stat-footer { grid-column:1/-1;grid-row:4;display:flex;align-items:center;align-self:end;gap:7px;margin:12px 0 0;padding-top:11px;border-top:1px solid #dce8f2;color:#54758d;font:400 11px/1.6 'Segoe UI',Arial,sans-serif; }
+ .reports-page .reports-stat-footer>span { display:block;width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:var(--stat-accent); }
+ .reports-page .reports-stat-card:nth-child(2) { --stat-accent:#168461; }
+ .reports-page .reports-stat-card:nth-child(2) .reports-stat-icon { background:#e8f5ef; }
+ .reports-page .reports-stat-card:nth-child(3) { --stat-accent:#c48739; }
+ .reports-page .reports-stat-card:nth-child(3) .reports-stat-icon { background:#fff3e4; }
+ .reports-page .reports-stat-card:nth-child(4) { --stat-accent:#6b79b4; }
+ .reports-page .reports-stat-card:nth-child(4) .reports-stat-icon { background:#eef0fb; }
+}
+@container reports-dashboard-stats (max-width:1150px) { .reports-page .reports-stat-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container reports-dashboard-stats (max-width:600px) { .reports-page .reports-stat-row { grid-template-columns:minmax(0,1fr); } }
+@media screen {
+  .reports-page .reports-stat-row {
+    gap: 14px;
+  }
+
+  .reports-page .reports-stat-card {
+    padding: 16px 18px 14px;
+    border-radius: 20px;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    grid-template-rows: 32px auto auto 1fr;
+  }
+
+  .reports-page .reports-stat-label {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .reports-page .reports-stat-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .reports-page .reports-stat-icon svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .reports-page .reports-stat-card strong {
+    margin: 10px 0 4px;
+    font-size: clamp(23px, 1.8vw, 28px);
+    line-height: 1.15;
+    letter-spacing: -0.4px;
+  }
+
+  .reports-page .reports-stat-card small {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .reports-page .reports-stat-footer {
+    margin-top: 9px;
+    padding-top: 8px;
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+}

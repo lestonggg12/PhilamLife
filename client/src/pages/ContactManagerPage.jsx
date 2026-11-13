@@ -616,6 +616,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           </div>
           <strong>{statusCount('all')}</strong>
           <small>All property accounts</small>
+          <div className="contact-summary-footer"><span aria-hidden="true" />View all lot accounts</div>
         </button>
         <button
           type="button"
@@ -631,6 +632,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           </div>
           <strong>{statusCount('active')}</strong>
           <small>Active property accounts</small>
+          <div className="contact-summary-footer"><span aria-hidden="true" />View active accounts</div>
         </button>
         <button
           type="button"
@@ -646,6 +648,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           </div>
           <strong>{statusCount('moved')}</strong>
           <small>Lot accounts marked as moved</small>
+          <div className="contact-summary-footer"><span aria-hidden="true" />View moved accounts</div>
         </button>
         <button
           type="button"
@@ -661,6 +664,7 @@ export default function ContactManagerPage({ user: suppliedUser }) {
           </div>
           <strong>{statusCount('transferred')}</strong>
           <small>Former accounts after a transfer</small>
+          <div className="contact-summary-footer"><span aria-hidden="true" />View transferred accounts</div>
         </button>
       </div>
 

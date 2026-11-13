@@ -774,15 +774,16 @@ export default function EventCalendarPage({ user: suppliedUser }) {
 
       <section className="cal-summary" aria-label="Event summaries" aria-busy={loading || refreshing}>
         {[
-          ['Events This Month', calendarStats.thisMonth, 'Month view', 'cal-stat-blue'],
-          ['Upcoming Next 7 Days', calendarStats.upcoming, 'Scheduled events', 'cal-stat-green'],
-          ["Today's Events", calendarStats.today, 'Events on the current date', 'cal-stat-warning'],
-          ['Completed', calendarStats.completed, 'Past events', 'cal-stat-muted'],
-        ].map(([label, value, footer, tone]) => (
+          ['Events This Month', calendarStats.thisMonth, 'Month view', 'cal-stat-blue', 'Events in the selected month'],
+          ['Upcoming Next 7 Days', calendarStats.upcoming, 'Scheduled events', 'cal-stat-green', 'Next seven days'],
+          ["Today's Events", calendarStats.today, 'Events on the current date', 'cal-stat-warning', 'Current calendar date'],
+          ['Completed', calendarStats.completed, 'Past events', 'cal-stat-muted', 'Events with past dates'],
+        ].map(([label, value, footer, tone, detail]) => (
           <article className="cal-stat-card" key={label}>
             <div className="cal-stat-top"><span>{label}</span><span className={`cal-stat-icon ${tone}`}><Clock size={18} /></span></div>
             <strong>{loading || refreshing ? '—' : loadError ? 'Unavailable' : value.toLocaleString('en-PH')}</strong>
             <small>{footer}</small>
+            <div className="cal-stat-footer"><span aria-hidden="true" />{detail}</div>
           </article>
         ))}
       </section>

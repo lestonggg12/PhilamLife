@@ -604,6 +604,7 @@ const isReadOnly = !canRecordExpenses
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalSelectedMonth)}
           </h3>
           <small>Selected month operating expenses</small>
+          <div className="tex-stat-footer"><span aria-hidden="true" />Voided expenses excluded</div>
         </div>
 
         <div className="tex-stat-card">
@@ -613,6 +614,7 @@ const isReadOnly = !canRecordExpenses
             {loading ? <Skeleton variant="rect" width="86px" height="1.2em" /> : pageError ? 'Unavailable' : peso.format(summary.totalAllTime)}
           </h3>
           <small>All recorded expenses</small>
+          <div className="tex-stat-footer"><span aria-hidden="true" />Voided expenses excluded</div>
         </div>
 
         <div className="tex-stat-card">
@@ -624,6 +626,7 @@ const isReadOnly = !canRecordExpenses
             {loading ? <Skeleton variant="rect" width="42px" height="1.2em" /> : pageError ? 'Unavailable' : summary.count}
           </h3>
           <small>Entries in the selected month</small>
+          <div className="tex-stat-footer"><span aria-hidden="true" />Selected-month records</div>
         </div>
 
         <div className="tex-stat-card">
@@ -635,6 +638,7 @@ const isReadOnly = !canRecordExpenses
               : summary.topCategory.name}
           </h3>
           <small>Highest selected-month category</small>
+          <div className="tex-stat-footer"><span aria-hidden="true" />Based on selected-month expenses</div>
         </div>
       </div>
 

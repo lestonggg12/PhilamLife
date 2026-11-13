@@ -997,26 +997,31 @@ useEffect(() => {
           <div className="homeowners-stat-top"><span>Active lots</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
           <strong>{directoryCount(activeLotCount)}</strong>
           <small>Current property accounts</small>
+          <div className="homeowners-stat-footer"><span aria-hidden="true" />Active property records</div>
         </article>
         <article className="homeowners-stat-card">
           <div className="homeowners-stat-top"><span>Unique owners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
           <strong>{directoryCount(homeownerStats.uniqueOwners)}</strong>
           <small>Linked owners across active lots</small>
+          <div className="homeowners-stat-footer"><span aria-hidden="true" />Owners linked to active lots</div>
         </article>
         <article className="homeowners-stat-card">
           <div className="homeowners-stat-top"><span>Vacant lots</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><Home size={18} /></span></div>
           <strong>{directoryCount(homeownerStats.vacantLots)}</strong>
           <small>Active lots classified as Lot Owner</small>
+          <div className="homeowners-stat-footer"><span aria-hidden="true" />Lot Owner classification</div>
         </article>
         <article className="homeowners-stat-card">
           <div className="homeowners-stat-top"><span>Lots with balance</span><span className="homeowners-stat-icon homeowners-stat-icon-warning"><CreditCard size={18} /></span></div>
           <strong>{directoryCount(homeownerStats.withBalance)}</strong>
           <small>Accounts with a balance due</small>
+          <div className="homeowners-stat-footer"><span aria-hidden="true" />Recorded balance above zero</div>
         </article>
         <article className="homeowners-stat-card">
           <div className="homeowners-stat-top"><span>Lots with no balance due</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><FileText size={18} /></span></div>
           <strong>{directoryCount(homeownerStats.noBalanceDue)}</strong>
           <small>Zero balance or advance credit</small>
+          <div className="homeowners-stat-footer"><span aria-hidden="true" />Includes accounts with advance credit</div>
         </article>
       </section>
 
