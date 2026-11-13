@@ -21,6 +21,7 @@ import {
   reportText,
 } from '../lib/monthlyReportData'
 import './ReportsPage.css'
+import { FileText } from 'lucide-react'
 import DateField from '../components/DateField'
 import { Link } from 'react-router-dom'
 
@@ -405,7 +406,7 @@ export default function ReportsPage({ user: suppliedUser }) {
     <div className="reports-page">
       <header className="reports-header no-print">
         <div className="reports-header-main">
-          <div className="reports-header-icon"><ReportsIcon /></div>
+          <div className="reports-header-icon" aria-hidden="true"><FileText size={28} strokeWidth={1.8} /></div>
           <div className="reports-header-text">
             <span className="reports-header-eyebrow">Finance Workspace</span>
             <h1>Monthly Management Report</h1>

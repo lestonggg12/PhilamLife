@@ -1016,3 +1016,15 @@
   border-color: #12588d;
   font-weight: 750;
 }
+/* Matching module header tile and Dashboard display font. */
+.ledger-page.ledger-redesign .hero { flex-wrap: wrap; }
+.ledger-page.ledger-redesign .hero-title { min-width: 0; flex: 1 1 320px; gap: 18px; }
+.ledger-page.ledger-redesign .ledger-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.ledger-page.ledger-redesign .hero h1 { font-family: var(--font-display, Georgia, serif); font-weight: 600; }
+.ledger-page.ledger-redesign .hero-mark { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.ledger-page.ledger-redesign .hero-mark svg { display: block; }
+.ledger-page.ledger-redesign .hero > .button { flex-shrink: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .ledger-page.ledger-redesign .hero-title { flex-basis: 100%; gap: 12px; }
+  .ledger-page.ledger-redesign .hero-mark { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+}

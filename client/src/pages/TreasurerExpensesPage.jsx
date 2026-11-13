@@ -13,6 +13,7 @@ import DateField from '../components/DateField'
 import Select from '../components/Select'
 import { useOrganization } from '../context/OrganizationContext'
 import './TreasurerExpenses.css'
+import { ReceiptText } from 'lucide-react'
 import Skeleton from '../components/skeleton/Skeleton'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -560,14 +561,19 @@ const isReadOnly = !canRecordExpenses
   return (
     <div className="tex-page">
       <div className="tex-page-header">
-        <div>
-          <h1 className="tex-page-title">Expenses</h1>
-
-          <p className="tex-page-subtitle">
-            {isReadOnly
-              ? 'View and track association operating expenses.'
-              : 'Record and track association operating expenses.'}
-          </p>
+        <div className="tex-header-heading">
+          <span className="tex-header-icon" aria-hidden="true">
+            <ReceiptText size={28} strokeWidth={1.8} />
+          </span>
+          <div className="tex-header-copy">
+            <h1 className="tex-page-title">Expenses</h1>
+  
+            <p className="tex-page-subtitle">
+              {isReadOnly
+                ? 'View and track association operating expenses.'
+                : 'Record and track association operating expenses.'}
+            </p>
+          </div>
         </div>
 
         {canRecordExpenses && (

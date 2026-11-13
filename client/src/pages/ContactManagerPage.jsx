@@ -23,6 +23,7 @@ import {
 } from '../lib/contactManager'
 import useContactDialog from './useContactDialog'
 import './ContactManagerPage.css'
+import { ContactRound } from 'lucide-react'
 import Skeleton from '../components/skeleton/Skeleton'
 
 const EMPTY_FORM = {
@@ -576,10 +577,15 @@ export default function ContactManagerPage({ user: suppliedUser }) {
   return (
     <div className="contact-page">
       <div className="contact-header">
-        <div>
-          <p className="contact-eyebrow">Homeowner contacts</p>
-          <h1>Contact Manager</h1>
-          <p>Homeowner directory and contact information.</p>
+        <div className="contact-header-heading">
+          <span className="contact-header-icon" aria-hidden="true">
+            <ContactRound size={28} strokeWidth={1.8} />
+          </span>
+          <div className="contact-header-copy">
+            <p className="contact-eyebrow">Homeowner contacts</p>
+            <h1>Contact Manager</h1>
+            <p>Homeowner directory and contact information.</p>
+          </div>
         </div>
 
         <div className="contact-header-actions">

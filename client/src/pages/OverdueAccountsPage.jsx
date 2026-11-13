@@ -590,12 +590,17 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   return (
     <div className="overdue-page">
       <header className="od-header">
-        <div>
-          <p className="od-eyebrow">Collections</p>
-          <h1>Overdue Accounts</h1>
-          <p>
-            Aging uses each unpaid item’s due date. Monthly dues use day {penaltySettings.dueDay} with a {penaltySettings.gracePeriodDays}-day grace period. Only posted penalties are included. A lot can have unpaid items in more than one age range.
-          </p>
+        <div className="od-header-heading">
+          <span className="od-header-icon" aria-hidden="true">
+            <AlertCircle size={28} />
+          </span>
+          <div className="od-header-copy">
+            <p className="od-eyebrow">Collections</p>
+            <h1>Overdue Accounts</h1>
+            <p>
+              Aging uses each unpaid item’s due date. Monthly dues use day {penaltySettings.dueDay} with a {penaltySettings.gracePeriodDays}-day grace period. Only posted penalties are included. A lot can have unpaid items in more than one age range.
+            </p>
+          </div>
         </div>
         <button type="button" className="od-btn" onClick={() => loadData(true)} disabled={refreshing}>
           <RefreshCw size={16} />

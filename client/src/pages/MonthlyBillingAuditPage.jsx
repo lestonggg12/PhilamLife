@@ -5,6 +5,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { groupMonthlyBillingAudit, summarizeMonthlyBillingAudit } from '../lib/monthlyBillingAudit'
 import DateField from '../components/DateField'
 import './MonthlyBillingAuditPage.css'
+import { ClipboardCheck } from 'lucide-react'
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 const monthNow = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).format(new Date()).replace(/^(\d{4})-(\d{2}).*/, '$1-$2')
@@ -78,10 +79,15 @@ export default function MonthlyBillingAuditPage() {
 
   return <main className="billing-audit-page">
     <header className="billing-audit-header">
-      <div>
-        <div className="billing-audit-eyebrow">FINANCE / READ-ONLY REPORT</div>
-        <h1>Monthly Billing Audit</h1>
-        <p>Review monthly dues assessments and any documented advance-credit or unpaid adjustments. This is an audit trail, not a payments or balances report.</p>
+      <div className="billing-audit-header-heading">
+        <span className="billing-audit-header-icon" aria-hidden="true">
+          <ClipboardCheck size={28} strokeWidth={1.8} />
+        </span>
+        <div className="billing-audit-header-copy">
+          <div className="billing-audit-eyebrow">FINANCE / READ-ONLY REPORT</div>
+          <h1>Monthly Billing Audit</h1>
+          <p>Review monthly dues assessments and any documented advance-credit or unpaid adjustments. This is an audit trail, not a payments or balances report.</p>
+        </div>
       </div>
       <div className="billing-audit-header-actions">
         <div className="billing-audit-month-field">

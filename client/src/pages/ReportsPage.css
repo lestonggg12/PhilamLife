@@ -310,3 +310,19 @@
     background: transparent;
   }
 }
+/* App header only: report document and export styles remain independent. */
+@media screen {
+  .reports-page { background: transparent; }
+  .reports-page .reports-header-main { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+  .reports-page .reports-header-text { min-width: 0; overflow-wrap: anywhere; }
+  .reports-page .reports-header-text h1 { font-family: var(--font-display, Georgia, serif); font-weight: 600; font-size: 30px; color: var(--text-dark, #071e30); }
+  .reports-page .reports-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+  .reports-page .reports-header-icon svg { display: block; width: 28px; height: 28px; }
+  .reports-page .reports-header-actions { min-width: 0; max-width: 100%; flex-shrink: 1; }
+  .reports-page .reports-header-actions > * { min-width: 0; max-width: 100%; }
+}
+@media screen and (max-width: 600px) {
+  .reports-page .reports-header-main { flex: 0 1 auto; width: 100%; gap: 12px; }
+  .reports-page .reports-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+  .reports-page .reports-header-actions { width: 100%; }
+}

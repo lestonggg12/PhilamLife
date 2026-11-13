@@ -865,3 +865,16 @@
   }
 }
 .tex-page .tex-void-details { display: block; margin-top: 4px; font-size: 0.78rem; overflow-wrap: anywhere; }
+
+/* Matching module header tile and Dashboard display font. */
+.tex-page .tex-page-header { flex-wrap: wrap; }
+.tex-page .tex-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+.tex-page .tex-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.tex-page .tex-header-copy .tex-page-title { font-family: var(--font-display, Georgia, serif); }
+.tex-page .tex-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.tex-page .tex-header-icon svg { display: block; }
+.tex-page .tex-page-header > .tex-add-btn { flex-shrink: 0; max-width: 100%; white-space: normal; }
+@media (max-width: 600px) {
+  .tex-page .tex-header-heading { flex-basis: 100%; gap: 12px; }
+  .tex-page .tex-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+}

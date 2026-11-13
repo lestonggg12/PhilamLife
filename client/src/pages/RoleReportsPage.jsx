@@ -6,6 +6,7 @@ import { secretaryRoleReport, treasurerRoleReport } from '../lib/roleReportData'
 import DateField from '../components/DateField'
 import Skeleton from '../components/skeleton/Skeleton'
 import './ReportsPage.css'
+import { FileText } from 'lucide-react'
 
 const currentMonth = () => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).formatToParts(new Date())
@@ -112,7 +113,7 @@ export default function RoleReportsPage({ user, reportRole }) {
   }
   return <div className="reports-page">
     <header className="reports-header no-print">
-      <div className="reports-header-main"><div className="reports-header-text">
+      <div className="reports-header-main"><div className="reports-header-icon" aria-hidden="true"><FileText size={28} strokeWidth={1.8} /></div><div className="reports-header-text">
         <span className="reports-header-eyebrow">{reportRole === 'secretary' ? 'Secretary Workspace' : 'Finance Workspace'}</span>
         <h1>{reportRole === 'secretary' ? 'Monthly Secretary Report' : 'Monthly Treasurer Report'}</h1>
         <p>Administrative &amp; Record-Keeping or Financial &amp; Fiduciary report, with the same official layout and print styling as the Admin report.</p>

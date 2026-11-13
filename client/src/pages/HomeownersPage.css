@@ -122,7 +122,8 @@
   letter-spacing: -0.01em;
 }
 
-.homeowners-header > div > p:last-child {
+.homeowners-header > div > p:last-child,
+.homeowners-header .homeowners-header-copy > p:last-child {
   margin: 5px 0 0;
   color: #648096;
   font-size: 14px;
@@ -2398,4 +2399,19 @@
 }
 @media (max-width: 600px) {
   .homeowner-history-month-picker { width: 100%; margin-left: 0; }
+}
+
+/* Matching module header icon and display font. */
+.homeowners-page .homeowners-header { flex-wrap: wrap; }
+.homeowners-page .homeowners-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+.homeowners-page .homeowners-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.homeowners-page .homeowners-header-copy h1 { margin: 0; font-family: var(--font-display); }
+.homeowners-page .homeowners-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.homeowners-page .homeowners-header-icon svg { display: block; stroke-width: 1.8; }
+.homeowners-page .hod-header-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
+.homeowners-page .hod-header-actions button { max-width: 100%; white-space: normal; }
+@media (max-width: 600px) {
+  .homeowners-page .homeowners-header-heading { flex-basis: 100%; gap: 12px; }
+  .homeowners-page .homeowners-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+  .homeowners-page .hod-header-actions { width: 100%; }
 }

@@ -949,10 +949,15 @@ useEffect(() => {
   return (
     <div className="homeowners-page">
       <header className="homeowners-header">
-        <div>
-          <p className="homeowners-eyebrow">Homeowner records</p>
-          <h1>Homeowners</h1>
-          <p>Search for a homeowner to view their profile, property, balances, and complete payment history.</p>
+        <div className="homeowners-header-heading">
+          <span className="homeowners-header-icon" aria-hidden="true">
+            <Home size={28} />
+          </span>
+          <div className="homeowners-header-copy">
+            <p className="homeowners-eyebrow">Homeowner records</p>
+            <h1>Homeowners</h1>
+            <p>Search for a homeowner to view their profile, property, balances, and complete payment history.</p>
+          </div>
         </div>
         <div className="hod-header-actions">
           {canManageHomeowners && (

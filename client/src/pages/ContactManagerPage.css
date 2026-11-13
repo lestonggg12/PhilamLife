@@ -1853,3 +1853,16 @@
     padding: 14px;
   }
 }
+/* Header icon tile shared visually with Activity Log and Calendar. */
+.contact-page .contact-header { flex-wrap: wrap; }
+.contact-page .contact-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+.contact-page .contact-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.contact-page .contact-header-copy h1 { margin: 0; font-family: var(--font-display); }
+.contact-page .contact-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.contact-page .contact-header-icon svg { display: block; }
+.contact-page .contact-header-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .contact-page .contact-header-heading { flex-basis: 100%; gap: 12px; }
+  .contact-page .contact-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+  .contact-page .contact-header-actions { width: 100%; }
+}

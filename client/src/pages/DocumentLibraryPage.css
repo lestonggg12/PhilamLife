@@ -906,3 +906,17 @@
     justify-content: center;
   }
 }
+/* Module header icon tile, matching Activity Log and Calendar. */
+.doc-library .doc-header { flex-wrap: wrap; align-items: center; }
+.doc-library .doc-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+.doc-library .doc-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.doc-library .doc-header-copy h1 { font-family: var(--font-display); }
+.doc-library .doc-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.doc-library .doc-header-icon svg { display: block; }
+.doc-library .doc-header-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
+.doc-library .doc-header-actions button { max-width: 100%; white-space: normal; }
+@media (max-width: 600px) {
+  .doc-library .doc-header-heading { flex-basis: 100%; gap: 12px; }
+  .doc-library .doc-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+  .doc-library .doc-header-actions { width: 100%; }
+}

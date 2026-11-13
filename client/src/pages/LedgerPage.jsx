@@ -451,8 +451,8 @@ const actorName =
     <div className="ledger-page ledger-redesign">
       <section className="hero">
         <div className="hero-title">
-          <div className="hero-mark"><BookOpen size={24} aria-hidden="true" /></div>
-          <div>
+          <div className="hero-mark" aria-hidden="true"><BookOpen size={28} strokeWidth={1.8} /></div>
+          <div className="ledger-header-copy">
             <div className="eyebrow">{(role || 'staff').toUpperCase()} WORKSPACE</div>
             <h1>Homeowner ledger</h1>
             <p className="muted">Find an account, review its balance, and open its statement.</p>

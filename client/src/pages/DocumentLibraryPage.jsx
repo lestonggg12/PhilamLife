@@ -3,6 +3,7 @@ import { useSuccessNotice } from '../lib/useSuccessNotice'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import './DocumentLibraryPage.css'
+import { FolderOpen } from 'lucide-react'
 import Skeleton from '../components/skeleton/Skeleton'
 import {
   Download,
@@ -517,12 +518,17 @@ export default function DocumentLibraryPage({ user: suppliedUser }) {
   return (
     <div className="doc-library">
       <header className="doc-header">
-        <div>
-          <p className="doc-eyebrow">
-            {canUploadDocuments ? 'Secretary workspace' : 'Document access'}
-          </p>
-          <h1>Document Library</h1>
-          <p className="doc-lede">Store and download official HOA documents securely.</p>
+        <div className="doc-header-heading">
+          <span className="doc-header-icon" aria-hidden="true">
+            <FolderOpen size={28} strokeWidth={1.8} />
+          </span>
+          <div className="doc-header-copy">
+            <p className="doc-eyebrow">
+              {canUploadDocuments ? 'Secretary workspace' : 'Document access'}
+            </p>
+            <h1>Document Library</h1>
+            <p className="doc-lede">Store and download official HOA documents securely.</p>
+          </div>
         </div>
 
         <div className="doc-header-actions">

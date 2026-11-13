@@ -1358,3 +1358,16 @@
     animation: none;
   }
 }
+/* Calendar header icon and matching display font. */
+.cal-page .cal-header { flex-wrap: wrap; }
+.cal-page .cal-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+.cal-page .cal-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.cal-page .cal-header-copy h1 { margin: 0; font-family: var(--font-display); }
+.cal-page .cal-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.cal-page .cal-header-icon svg { display: block; }
+.cal-page .cal-header-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .cal-page .cal-header-heading { flex-basis: 100%; gap: 12px; }
+  .cal-page .cal-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+  .cal-page .cal-header-actions { width: 100%; }
+}

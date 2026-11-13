@@ -1099,3 +1099,15 @@
   height: 44px;
   padding: 0 40px;
 }
+/* Module header: matching icon tile and Dashboard display font. */
+.overdue-page .od-header { flex-wrap: wrap; align-items: center; }
+.overdue-page .od-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
+.overdue-page .od-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.overdue-page .od-header-copy h1 { font-family: var(--font-display); }
+.overdue-page .od-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.overdue-page .od-header-icon svg { display: block; stroke-width: 1.8; }
+.overdue-page .od-header > .od-btn { flex-shrink: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .overdue-page .od-header-heading { flex-basis: 100%; gap: 12px; }
+  .overdue-page .od-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+}

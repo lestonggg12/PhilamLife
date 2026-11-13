@@ -833,12 +833,19 @@ export default function ActivityLogPage() {
   return (
     <div className="activity-log-page" style={{ '--al-toolbar-height': `${toolbarHeight}px` }}>
       <header className="al-header">
-        <div>
-          <h1>Activity Log</h1>
-          <p>Search and review system activity across your team.</p>
-        </div>
-        <HeaderClock />
-      </header>
+  <div className="al-header-heading">
+    <span className="al-header-icon" aria-hidden="true">
+      <Activity size={28} strokeWidth={1.8} />
+    </span>
+
+    <div className="al-header-copy">
+      <h1>Activity Log</h1>
+      <p>Search and review system activity across your team.</p>
+    </div>
+  </div>
+
+  <HeaderClock />
+</header>
       <ActivityArchiveStatus onChanged={() => setRevision((value) => value + 1)} />
       <section className="al-stats-grid" aria-label="Activity summaries" aria-busy={loading}>
         <article className="al-stat-card">

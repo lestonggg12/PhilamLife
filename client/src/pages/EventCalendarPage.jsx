@@ -17,6 +17,7 @@ import ActionDialog from '../components/ActionDialog'
 import Skeleton from '../components/skeleton/Skeleton'
 import useAnimatedPopover from '../hooks/useAnimatedPopover'
 import './EventCalendarPage.css'
+import { CalendarDays } from 'lucide-react'
 
 const EMPTY_FORM = {
   title: '',
@@ -736,10 +737,15 @@ export default function EventCalendarPage({ user: suppliedUser }) {
   return (
     <div className="cal-page">
       <header className="cal-header">
-        <div>
-          <p className="cal-eyebrow">{canManageEvents ? 'Secretary workspace' : 'Community calendar'}</p>
-          <h1>Event Calendar</h1>
-          <p>{canManageEvents ? 'Schedule and manage community meetings and events.' : 'View community meetings and events. Calendar changes are managed by the Secretary.'}</p>
+        <div className="cal-header-heading">
+          <span className="cal-header-icon" aria-hidden="true">
+            <CalendarDays size={28} strokeWidth={1.8} />
+          </span>
+          <div className="cal-header-copy">
+            <p className="cal-eyebrow">{canManageEvents ? 'Secretary workspace' : 'Community calendar'}</p>
+            <h1>Event Calendar</h1>
+            <p>{canManageEvents ? 'Schedule and manage community meetings and events.' : 'View community meetings and events. Calendar changes are managed by the Secretary.'}</p>
+          </div>
         </div>
 
         <div className="cal-header-actions">

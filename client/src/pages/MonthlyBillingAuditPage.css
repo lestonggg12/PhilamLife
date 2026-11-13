@@ -674,3 +674,15 @@
     white-space: normal;
   }
 }
+
+/* Matching module header icon and Dashboard display font. */
+.billing-audit-page .billing-audit-header { align-items: center; }
+.billing-audit-page .billing-audit-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.billing-audit-page .billing-audit-header-copy { min-width: 0; overflow-wrap: anywhere; }
+.billing-audit-page .billing-audit-header-copy h1 { font-family: var(--font-display, Georgia, serif); font-weight: 600; }
+.billing-audit-page .billing-audit-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
+.billing-audit-page .billing-audit-header-icon svg { display: block; }
+@container monthly-billing (max-width: 600px) {
+  .billing-audit-page .billing-audit-header-heading { gap: 12px; }
+  .billing-audit-page .billing-audit-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+}
