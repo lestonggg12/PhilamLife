@@ -53,6 +53,27 @@ function friendlyValue(key, value) {
  const names={true:'on',false:'off',active:'active',moved:'moved out',transferred:'ownership transferred',lot_owner:'lot owner',homeowner:'homeowner',unclassified:'not yet classified'}
  return names[text] || text
 }
+function penaltyRateDescription(source, action) {
+ const fields = Object.fromEntries(
+  [...source.matchAll(/(property_classification|Effective date|Annual penalty rate):\s*([^;]*?)\s*(?:→|->)\s*([^;]*)(?=;|$)/gi)]
+   .map((match) => [match[1].toLowerCase(), { before: match[2].trim(), after: match[3].trim() }])
+ )
+ const classification = fields.property_classification?.after
+ const date = fields['effective date']?.after
+ const rate = fields['annual penalty rate']?.after
+ if (!classification || !date || !rate || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Number(rate))) return null
+ const property = friendlyValue('property_classification', classification)
+ const beforeRate = fields['annual penalty rate'].before
+ const isNew = !beforeRate || /^(empty|null|not recorded)$/i.test(beforeRate)
+ const previous = isNew ? '' : friendlyValue('annual_rate', beforeRate)
+ const next = friendlyValue('annual_rate', rate)
+ const when = staffDate(date)
+ const subject = action === 'Penalty Rate Rule Created' ? 'Annual penalty rate scheduled' : 'Annual penalty rate updated'
+ const text = isNew
+  ? `Set the annual penalty rate for ${property} properties to ${next}, effective ${when}.`
+  : `Changed the annual penalty rate for ${property} properties from ${previous} to ${next}, effective ${when}.`
+ return { subject, text }
+}
 function stripInternal(text) {
  return String(text || '')
   .replace(/â€”/g,' — ').replace(/â†’/g,' → ')
@@ -114,6 +135,9 @@ export function staffActivityCopy(log, legacy = {}, context = {}) {
  } else if ((match=/^Year (\d{4}) \/ (.+?):\s*(.*?)\s*->\s*([\d.]+) PHP; reason:\s*(.*)$/i.exec(source)) && action==='Expense Budget Approved') {
   subject=`${match[2]} budget for ${match[1]}`
   text=`Approved ${displayMoney(match[4])} for ${match[2].toLowerCase()} expenses in ${match[1]}.${/not recorded/i.test(match[3]) ? ' No budget had been recorded before this approval.' : ` The previous budget was ${displayMoney(match[3])}.`} Reason: ${match[5]}.`
+ } else if (/^(Penalty Rate Rule Created|Penalty Rate Override Created)$/.test(action)) {
+  const readable = penaltyRateDescription(source, action)
+  if (readable) { subject=readable.subject; text=readable.text }
  } else if (action==='Settings Updated') {
   subject='System settings'
   text=changeSentences(source)
