@@ -1,0 +1,38 @@
+.sh-dashboard { display: grid; gap: 20px; }
+.sh-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sh-heading h2 { margin: 0 0 4px; font-size: 1.4rem; }
+.sh-heading p, .sh-capacity-card p { margin: 0; color: var(--text-secondary, #64748b); }
+.sh-heading button { padding: 10px 16px; border: 1px solid #94a3b8; border-radius: 9px; background: transparent; color: inherit; cursor: pointer; }
+.sh-heading button:disabled { opacity: .6; cursor: wait; }
+.sh-capacity-grid, .sh-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sh-capacity-card, .sh-detail, .sh-metric-grid article { border: 1px solid var(--border-color, #dce2e8); border-radius: 14px; padding: 20px; background: var(--card-bg, transparent); }
+.sh-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 18px; }
+.sh-card-top h3, .sh-detail h3 { margin: 0; font-size: 1rem; }
+.sh-capacity-card > strong { display: block; margin-bottom: 8px; font-size: clamp(1.4rem, 3vw, 2rem); font-variant-numeric: tabular-nums; }
+.sh-capacity-card p { min-height: 42px; font-size: .9rem; }
+.sh-meter { height: 12px; background: #e2e8f0; border-radius: 12px; overflow: hidden; margin: 16px 0 8px; }
+.sh-meter-fill { height: 100%; background: #16866a; transition: width .2s; }
+.sh-meter-fill.sh-watch { background: #b28b20; }
+.sh-meter-fill.sh-warning { background: #d97706; }
+.sh-meter-fill.sh-critical { background: #dc2626; }
+.sh-status { border-radius: 20px; font-size: .73rem; text-transform: capitalize; padding: 4px 8px; background: #e2e8f0; color: #334155; }
+.sh-status.sh-healthy { background: #dcfce7; color: #166534; }
+.sh-status.sh-watch, .sh-status.sh-warning { background: #fef3c7; color: #92400e; }
+.sh-status.sh-critical { background: #fee2e2; color: #991b1b; }
+.sh-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.sh-metric-grid article { display: grid; gap: 9px; }
+.sh-metric-grid article span { color: var(--text-secondary, #64748b); font-size: .85rem; }
+.sh-metric-grid article strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.sh-detail p { margin: 12px 0; }
+.sh-detail small, .sh-footnote, .sh-capacity-card small { color: var(--text-secondary, #64748b); font-size: .8rem; }
+.sh-detail ul { margin: 12px 0 0; padding: 0; list-style: none; }
+.sh-detail li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-color, #e2e8f0); }
+.sh-detail li span { overflow-wrap: anywhere; }
+.sh-error { border: 1px solid #fca5a5; padding: 12px; border-radius: 8px; color: #b91c1c; }
+@media (max-width: 800px) {
+  .sh-capacity-grid, .sh-detail-grid { grid-template-columns: 1fr; }
+  .sh-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .sh-metric-grid { grid-template-columns: 1fr; }
+}

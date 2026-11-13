@@ -11,6 +11,7 @@ import './SystemSettingsPage.css'
 import PricePerSqmForm from '../components/PricePerSqmForm'
 import LatePenaltySettings from '../components/LatePenaltySettings'
 import ExpenseBudgetSettings from '../components/ExpenseBudgetSettings'
+import StorageHealthDashboard from '../components/StorageHealthDashboard'
 import Skeleton from '../components/skeleton/Skeleton'
 
 const EXPORTS = [
@@ -50,6 +51,7 @@ function Icon({ name, size = 18 }) {
     budget: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 14h10" /></>,
     security: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
     backup: <><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></>,
+    health: <><path d="M3 12h4l3-6 4 12 3-6h4" /></>,
     download: <><path d="M12 3v12m-4-4 4 4 4-4" /><path d="M5 19h14" /></>,
     check: <path d="m5 12 4 4L19 6" />,
   }
@@ -128,6 +130,7 @@ export default function SystemSettingsPage({ user }) {
     ['budget', 'Expense Budgets'],
     ['security', 'Security'],
     ['backup', 'Backup & Data'],
+    ['health', 'Storage & Health'],
   ], [])
 
   useEffect(() => {
@@ -442,6 +445,8 @@ export default function SystemSettingsPage({ user }) {
           {history.length ? <div className="ss-history">{history.map((item, index) => <div key={`${item.at}-${index}`}><span className="ss-history-icon"><Icon name="check" /></span><div><strong>{item.label}</strong><p>{organization.formatDate(item.at, { withTime: true })} · {item.by}</p></div><span>{item.filename}</span></div>)}</div> : <div className="ss-empty">No exports downloaded from this browser yet.</div>}
         </SettingsCard>
       </div>}
+
+      {activeTab === 'health' && <StorageHealthDashboard />}
 
       {!!dirtyCount && <div className="ss-save-bar" role="status">
         <span><strong>{dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}</strong><small>Organization, billing, regional and security preferences. Dues and penalties save separately.</small></span>
