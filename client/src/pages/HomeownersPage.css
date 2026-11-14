@@ -44,10 +44,16 @@
   padding: 22px 24px;
   border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 24px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0.4)
+  );
   -webkit-backdrop-filter: blur(22px) saturate(190%);
   backdrop-filter: blur(22px) saturate(190%);
-  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08);
+  box-shadow:
+    0 22px 44px -18px rgba(15, 63, 106, 0.28),
+    0 2px 10px rgba(20, 100, 160, 0.08);
   overflow: hidden;
 }
 
@@ -57,7 +63,11 @@
   inset: 0 auto auto 0;
   width: 100%;
   height: 58%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0) 100%
+  );
   pointer-events: none;
 }
 
@@ -77,33 +87,99 @@
   overflow: hidden;
   min-width: 0;
   padding: 16px 18px;
-  border: 1px solid rgba(255,255,255,.75);
+  border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 22px;
-  background: linear-gradient(160deg, rgba(255,255,255,.62), rgba(255,255,255,.40));
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0.4)
+  );
   -webkit-backdrop-filter: blur(22px) saturate(190%);
   backdrop-filter: blur(22px) saturate(190%);
-  box-shadow: 0 22px 44px -18px rgba(15,63,106,.28), 0 2px 10px rgba(20,100,160,.08);
-  transition: transform .2s ease, box-shadow .2s ease;
+  box-shadow:
+    0 22px 44px -18px rgba(15, 63, 106, 0.28),
+    0 2px 10px rgba(20, 100, 160, 0.08);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.homeowners-stat-card::before { content: ''; position: absolute; inset: 0 0 auto; height: 45%; background: linear-gradient(180deg, rgba(255,255,255,.55), transparent); pointer-events: none; }
-.homeowners-stat-card:hover { transform: translateY(-2px); box-shadow: 0 26px 48px -18px rgba(15,63,106,.34), 0 2px 10px rgba(20,100,160,.1); }
-.homeowners-stat-card > * { position: relative; z-index: 1; }
-.homeowners-stat-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.homeowners-stat-top > span:first-child { color: var(--text-muted); font: 700 11px/1.4 var(--font-body); letter-spacing: .08em; text-transform: uppercase; }
-.homeowners-stat-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border: 1px solid rgba(255,255,255,.7); border-radius: 11px; background: rgba(255,255,255,.5); box-shadow: inset 0 1px 1px rgba(255,255,255,.9), 0 4px 10px -4px rgba(15,63,106,.25); }
-.homeowners-stat-icon-blue { color: var(--primary); }
-.homeowners-stat-icon-green { color: var(--success); }
-.homeowners-stat-icon-warning { color: var(--warning); }
-.homeowners-stat-card strong { display: block; margin-top: 10px; color: var(--text-dark); font: 600 28px/1.15 var(--font-display); font-variant-numeric: tabular-nums; }
-.homeowners-stat-card small { display: block; margin-top: 6px; color: var(--text-muted); font: 13px/1.4 var(--font-body); }
+.homeowners-stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent);
+  pointer-events: none;
+}
+.homeowners-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 26px 48px -18px rgba(15, 63, 106, 0.34),
+    0 2px 10px rgba(20, 100, 160, 0.1);
+}
+.homeowners-stat-card > * {
+  position: relative;
+  z-index: 1;
+}
+.homeowners-stat-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.homeowners-stat-top > span:first-child {
+  color: var(--text-muted);
+  font: 700 11px/1.4 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.homeowners-stat-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 4px 10px -4px rgba(15, 63, 106, 0.25);
+}
+.homeowners-stat-icon-blue {
+  color: var(--primary);
+}
+.homeowners-stat-icon-green {
+  color: var(--success);
+}
+.homeowners-stat-icon-warning {
+  color: var(--warning);
+}
+.homeowners-stat-card strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-dark);
+  font: 600 28px/1.15 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.homeowners-stat-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font: 13px/1.4 var(--font-body);
+}
 
 @media (max-width: 1024px) {
-  .homeowners-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .homeowners-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 600px) {
-  .homeowners-stat-grid { grid-template-columns: 1fr; }
+  .homeowners-stat-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .homeowners-eyebrow {
@@ -142,8 +218,11 @@
   background: #fff;
   color: var(--ho-blue);
   font-weight: 700;
-  transition: border-color var(--ho-ease), background var(--ho-ease),
-    box-shadow var(--ho-ease), transform var(--ho-ease);
+  transition:
+    border-color var(--ho-ease),
+    background var(--ho-ease),
+    box-shadow var(--ho-ease),
+    transform var(--ho-ease);
 }
 
 .homeowners-refresh:hover:not(:disabled),
@@ -227,7 +306,10 @@
 
 .homeowners-finder-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(145px, 180px) minmax(160px, 190px);
+  grid-template-columns: minmax(0, 1fr) minmax(145px, 180px) minmax(
+      160px,
+      190px
+    );
   align-items: end;
   gap: 12px;
   padding: 12px 18px 18px;
@@ -275,7 +357,9 @@
   border-radius: 9px;
   background: #fff;
   color: #29495f;
-  transition: border-color var(--ho-ease), box-shadow var(--ho-ease);
+  transition:
+    border-color var(--ho-ease),
+    box-shadow var(--ho-ease);
 }
 
 .homeowners-search {
@@ -344,7 +428,9 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  transition: background var(--ho-ease), border-color var(--ho-ease);
+  transition:
+    background var(--ho-ease),
+    border-color var(--ho-ease);
 }
 
 .homeowner-directory-card:hover {
@@ -579,12 +665,21 @@
   padding: 18px 16px;
   border: 1px solid var(--ho-border);
   border-radius: 22px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.40));
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0.4)
+  );
   -webkit-backdrop-filter: blur(22px) saturate(190%);
   backdrop-filter: blur(22px) saturate(190%);
   overflow: hidden;
-  box-shadow: 0 22px 44px -18px rgba(15, 63, 106, 0.28), 0 2px 10px rgba(20, 100, 160, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9);
-  transition: box-shadow var(--ho-ease), transform var(--ho-ease);
+  box-shadow:
+    0 22px 44px -18px rgba(15, 63, 106, 0.28),
+    0 2px 10px rgba(20, 100, 160, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  transition:
+    box-shadow var(--ho-ease),
+    transform var(--ho-ease);
 }
 
 .homeowner-summary-grid article::before {
@@ -594,17 +689,28 @@
   left: 0;
   width: 100%;
   height: 55%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0)
+  );
   opacity: 1;
   pointer-events: none;
 }
 
 .homeowner-summary-grid article.has-balance::before {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(180, 59, 45, 0.08));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55),
+    rgba(180, 59, 45, 0.08)
+  );
 }
 
 .homeowner-summary-grid article:hover {
-  box-shadow: 0 26px 48px -20px rgba(15, 63, 106, 0.34), 0 4px 14px rgba(20, 100, 160, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 26px 48px -20px rgba(15, 63, 106, 0.34),
+    0 4px 14px rgba(20, 100, 160, 0.12),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
   transform: translateY(-3px);
 }
 
@@ -684,8 +790,12 @@
 }
 
 @keyframes ho-overlay-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes ho-modal-in {
@@ -727,7 +837,9 @@
   font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
-  transition: background var(--ho-ease), color var(--ho-ease);
+  transition:
+    background var(--ho-ease),
+    color var(--ho-ease);
 }
 
 .homeowner-tracker-close:hover {
@@ -903,7 +1015,9 @@
   color: #64788a;
   font-size: 0.82rem;
   font-weight: 750;
-  transition: color var(--ho-ease), border-color var(--ho-ease);
+  transition:
+    color var(--ho-ease),
+    border-color var(--ho-ease);
 }
 
 .homeowner-tabs button:hover,
@@ -924,7 +1038,9 @@
   border-radius: 999px;
   background: #e8f1f8;
   font-size: 0.68rem;
-  transition: background var(--ho-ease), color var(--ho-ease);
+  transition:
+    background var(--ho-ease),
+    color var(--ho-ease);
 }
 
 .homeowner-tabs button.is-active span {
@@ -1350,16 +1466,43 @@
   }
 }
 /* Receipts table: column widths, right-aligned money, credit balance */
-.homeowner-history-table th:nth-child(1), .homeowner-history-table td:nth-child(1) { width: 12%; }
-.homeowner-history-table th:nth-child(2), .homeowner-history-table td:nth-child(2) { width: 13%; white-space: nowrap; }
-.homeowner-history-table th:nth-child(3), .homeowner-history-table td:nth-child(3) { width: 15%; }
-.homeowner-history-table th:nth-child(4), .homeowner-history-table td:nth-child(4) { width: 16%; }
-.homeowner-history-table th:nth-child(5), .homeowner-history-table td:nth-child(5) { width: 8%; }
-.homeowner-history-table th:nth-child(6), .homeowner-history-table td:nth-child(6) { width: 12%; }
-.homeowner-history-table th:nth-child(7), .homeowner-history-table td:nth-child(7) { width: 13%; }
-.homeowner-history-table th:nth-child(8), .homeowner-history-table td:nth-child(8) { width: 11%; }
+.homeowner-history-table th:nth-child(1),
+.homeowner-history-table td:nth-child(1) {
+  width: 12%;
+}
+.homeowner-history-table th:nth-child(2),
+.homeowner-history-table td:nth-child(2) {
+  width: 13%;
+  white-space: nowrap;
+}
+.homeowner-history-table th:nth-child(3),
+.homeowner-history-table td:nth-child(3) {
+  width: 15%;
+}
+.homeowner-history-table th:nth-child(4),
+.homeowner-history-table td:nth-child(4) {
+  width: 16%;
+}
+.homeowner-history-table th:nth-child(5),
+.homeowner-history-table td:nth-child(5) {
+  width: 8%;
+}
 .homeowner-history-table th:nth-child(6),
-.homeowner-history-table th:nth-child(7) { text-align: right; }
+.homeowner-history-table td:nth-child(6) {
+  width: 12%;
+}
+.homeowner-history-table th:nth-child(7),
+.homeowner-history-table td:nth-child(7) {
+  width: 13%;
+}
+.homeowner-history-table th:nth-child(8),
+.homeowner-history-table td:nth-child(8) {
+  width: 11%;
+}
+.homeowner-history-table th:nth-child(6),
+.homeowner-history-table th:nth-child(7) {
+  text-align: right;
+}
 
 .homeowner-credit {
   color: var(--ho-green) !important;
@@ -1369,15 +1512,42 @@
   white-space: nowrap;
 }
 /* Void payment from the homeowner profile */
-.homeowner-history-table th:nth-child(1), .homeowner-history-table td:nth-child(1) { width: 11%; }
-.homeowner-history-table th:nth-child(2), .homeowner-history-table td:nth-child(2) { width: 12%; }
-.homeowner-history-table th:nth-child(3), .homeowner-history-table td:nth-child(3) { width: 14%; }
-.homeowner-history-table th:nth-child(4), .homeowner-history-table td:nth-child(4) { width: 14%; }
-.homeowner-history-table th:nth-child(5), .homeowner-history-table td:nth-child(5) { width: 8%; }
-.homeowner-history-table th:nth-child(6), .homeowner-history-table td:nth-child(6) { width: 12%; }
-.homeowner-history-table th:nth-child(7), .homeowner-history-table td:nth-child(7) { width: 12%; }
-.homeowner-history-table th:nth-child(8), .homeowner-history-table td:nth-child(8) { width: 10%; }
-.homeowner-history-table th:nth-child(9), .homeowner-history-table td:nth-child(9) { width: 7%; }
+.homeowner-history-table th:nth-child(1),
+.homeowner-history-table td:nth-child(1) {
+  width: 11%;
+}
+.homeowner-history-table th:nth-child(2),
+.homeowner-history-table td:nth-child(2) {
+  width: 12%;
+}
+.homeowner-history-table th:nth-child(3),
+.homeowner-history-table td:nth-child(3) {
+  width: 14%;
+}
+.homeowner-history-table th:nth-child(4),
+.homeowner-history-table td:nth-child(4) {
+  width: 14%;
+}
+.homeowner-history-table th:nth-child(5),
+.homeowner-history-table td:nth-child(5) {
+  width: 8%;
+}
+.homeowner-history-table th:nth-child(6),
+.homeowner-history-table td:nth-child(6) {
+  width: 12%;
+}
+.homeowner-history-table th:nth-child(7),
+.homeowner-history-table td:nth-child(7) {
+  width: 12%;
+}
+.homeowner-history-table th:nth-child(8),
+.homeowner-history-table td:nth-child(8) {
+  width: 10%;
+}
+.homeowner-history-table th:nth-child(9),
+.homeowner-history-table td:nth-child(9) {
+  width: 7%;
+}
 
 .homeowner-void-link {
   padding: 4px 10px;
@@ -1391,7 +1561,9 @@
   cursor: pointer;
 }
 
-.homeowner-void-link:hover { background: #fdecea; }
+.homeowner-void-link:hover {
+  background: #fdecea;
+}
 
 .homeowner-void-overlay {
   position: fixed;
@@ -1427,8 +1599,16 @@
   font-weight: 700;
 }
 
-.homeowner-void-dialog h2 { margin: 0 0 6px; font-size: 1.3rem; }
-.homeowner-void-dialog p { margin: 0 0 14px; color: #526b7d; font-size: 0.9rem; line-height: 1.45; }
+.homeowner-void-dialog h2 {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+}
+.homeowner-void-dialog p {
+  margin: 0 0 14px;
+  color: #526b7d;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
 
 .homeowner-void-dialog label {
   display: flex;
@@ -1447,9 +1627,17 @@
   resize: vertical;
 }
 
-.homeowner-void-dialog .homeowner-void-error { margin: 10px 0 0; color: #b3261e; font-weight: 600; }
+.homeowner-void-dialog .homeowner-void-error {
+  margin: 10px 0 0;
+  color: #b3261e;
+  font-weight: 600;
+}
 
-.homeowner-void-actions { display: flex; gap: 10px; margin-top: 18px; }
+.homeowner-void-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
 
 .homeowner-void-actions button {
   flex: 1;
@@ -1468,7 +1656,6 @@
   background: #b3261e;
   color: #fff;
 }
-
 
 /* ==========================================================================
    HOD-PATCH: Manage Blocks / Add-Edit Homeowner dialogs and the extra buttons on
@@ -2127,8 +2314,12 @@
 }
 
 @keyframes homeowner-breakdown-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes homeowner-breakdown-rise-in {
@@ -2174,36 +2365,143 @@
 }
 
 /* Month details inside Payment Tracker */
-.homeowner-tracker-row.is-expanded { background: #f0f7fd; }
-.homeowner-tracker-month-button {
-  display: inline-flex; align-items: center; gap: 7px; padding: 2px 0;
-  border: 0; background: transparent; color: #195b8f; font: inherit;
-  cursor: pointer; text-align: left;
+.homeowner-tracker-row.is-expanded {
+  background: #f0f7fd;
 }
-.homeowner-tracker-month-button:hover strong { text-decoration: underline; }
-.homeowner-tracker-month-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; border-radius: 3px; }
-.homeowner-tracker-month-button > span:first-child { font-size: 0.95rem; }
-.homeowner-tracker-click-hint { color: #647f92; font-size: 0.65rem; }
-.homeowner-tracker-detail-row > td { padding: 0 !important; background: #f7fbff; }
-.homeowner-tracker-month-details { padding: 16px; border-top: 2px solid #bdd7ee; }
-.homeowner-tracker-detail-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; color: #183a59; }
-.homeowner-tracker-detail-heading > span { color: #5f7486; font-weight: 600; }
-.homeowner-tracker-detail-scroll { max-width: 100%; overflow-x: auto; }
-.homeowner-tracker-detail-table { width: 100%; min-width: 750px; border-collapse: collapse; }
-.homeowner-tracker-detail-table th { padding: 9px; background: #e4f0fa; color: #365670; text-align: left; font-size: 0.68rem; }
-.homeowner-tracker-detail-table td { padding: 9px; border-bottom: 1px solid #dbe7f0; vertical-align: top; font-size: 0.73rem; }
-.homeowner-tracker-detail-totals { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: flex-end; padding: 12px 4px 4px; font-size: 0.75rem; }
-.homeowner-tracker-detail-totals > span:last-child { color: #155e95; }
-.homeowner-tracker-detail-empty { margin: 0 0 12px; padding: 12px; border-radius: 8px; background: #edf3f8; color: #405f74; line-height: 1.5; }
-.homeowner-tracker-detail-disclaimer { margin: 10px 0 0; color: #60788b; font-size: 0.7rem; line-height: 1.5; }
-@media (max-width: 620px) { .homeowner-tracker-click-hint { display: none; } .homeowner-tracker-month-details { padding: 12px; } }
+.homeowner-tracker-month-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: #195b8f;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.homeowner-tracker-month-button:hover strong {
+  text-decoration: underline;
+}
+.homeowner-tracker-month-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.homeowner-tracker-month-button > span:first-child {
+  font-size: 0.95rem;
+}
+.homeowner-tracker-click-hint {
+  color: #647f92;
+  font-size: 0.65rem;
+}
+.homeowner-tracker-detail-row > td {
+  padding: 0 !important;
+  background: #f7fbff;
+}
+.homeowner-tracker-month-details {
+  padding: 16px;
+  border-top: 2px solid #bdd7ee;
+}
+.homeowner-tracker-detail-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  color: #183a59;
+}
+.homeowner-tracker-detail-heading > span {
+  color: #5f7486;
+  font-weight: 600;
+}
+.homeowner-tracker-detail-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.homeowner-tracker-detail-table {
+  width: 100%;
+  min-width: 750px;
+  border-collapse: collapse;
+}
+.homeowner-tracker-detail-table th {
+  padding: 9px;
+  background: #e4f0fa;
+  color: #365670;
+  text-align: left;
+  font-size: 0.68rem;
+}
+.homeowner-tracker-detail-table td {
+  padding: 9px;
+  border-bottom: 1px solid #dbe7f0;
+  vertical-align: top;
+  font-size: 0.73rem;
+}
+.homeowner-tracker-detail-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  justify-content: flex-end;
+  padding: 12px 4px 4px;
+  font-size: 0.75rem;
+}
+.homeowner-tracker-detail-totals > span:last-child {
+  color: #155e95;
+}
+.homeowner-tracker-detail-empty {
+  margin: 0 0 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #edf3f8;
+  color: #405f74;
+  line-height: 1.5;
+}
+.homeowner-tracker-detail-disclaimer {
+  margin: 10px 0 0;
+  color: #60788b;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+@media (max-width: 620px) {
+  .homeowner-tracker-click-hint {
+    display: none;
+  }
+  .homeowner-tracker-month-details {
+    padding: 12px;
+  }
+}
 
 /* Printable month-detail action: compact and deliberately understated. */
-.homeowner-tracker-detail-heading > div { display: flex; flex-direction: column; gap: 3px; }
-.homeowner-tracker-detail-count { color: #5f7486; font-weight: 600; font-size: 0.72rem; }
-.homeowner-tracker-month-print { align-self: flex-start; padding: 7px 11px; border: 1px solid #c4d2dd; border-radius: 5px; background: #fff; color: #23415d; font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
-.homeowner-tracker-month-print:hover { background: #edf3f8; border-color: #8faabb; }
-.homeowner-tracker-month-print:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.homeowner-tracker-detail-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.homeowner-tracker-detail-count {
+  color: #5f7486;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+.homeowner-tracker-month-print {
+  align-self: flex-start;
+  padding: 7px 11px;
+  border: 1px solid #c4d2dd;
+  border-radius: 5px;
+  background: #fff;
+  color: #23415d;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.homeowner-tracker-month-print:hover {
+  background: #edf3f8;
+  border-color: #8faabb;
+}
+.homeowner-tracker-month-print:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
 
 /* Floating payment month detail dialog */
 /* Payment Tracker month dialog only. Portaled to document.body. */
@@ -2238,13 +2536,20 @@
   border: 1px solid #d7e1ec;
   border-radius: 14px;
   background: #fff;
-  box-shadow: 0 16px 48px rgba(8, 24, 40, 0.20);
+  box-shadow: 0 16px 48px rgba(8, 24, 40, 0.2);
   color: var(--md-ink);
   font-family: inherit;
   outline: none;
 }
-.homeowner-month-dialog *, .homeowner-month-dialog *::before, .homeowner-month-dialog *::after { box-sizing: border-box; }
-.homeowner-month-dialog:focus-visible { outline: 2px solid var(--md-brand); outline-offset: 2px; }
+.homeowner-month-dialog *,
+.homeowner-month-dialog *::before,
+.homeowner-month-dialog *::after {
+  box-sizing: border-box;
+}
+.homeowner-month-dialog:focus-visible {
+  outline: 2px solid var(--md-brand);
+  outline-offset: 2px;
+}
 .homeowner-month-dialog-header {
   display: flex;
   flex: 0 0 auto;
@@ -2255,9 +2560,27 @@
   border-bottom: 1px solid var(--md-line);
   background: #fff;
 }
-.homeowner-month-eyebrow { margin: 0; color: var(--md-muted); font-size: 11px; font-weight: 700; line-height: 1.3; letter-spacing: .08em; }
-.homeowner-month-dialog-header h2 { margin: 4px 0; color: var(--md-ink); font-size: 20px; font-weight: 700; line-height: 1.2; }
-.homeowner-month-dialog-header p:last-child { margin: 0; color: var(--md-muted); font-size: 14px; line-height: 1.3; }
+.homeowner-month-eyebrow {
+  margin: 0;
+  color: var(--md-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+}
+.homeowner-month-dialog-header h2 {
+  margin: 4px 0;
+  color: var(--md-ink);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.homeowner-month-dialog-header p:last-child {
+  margin: 0;
+  color: var(--md-muted);
+  font-size: 14px;
+  line-height: 1.3;
+}
 .homeowner-month-close-icon {
   display: grid;
   flex: 0 0 36px;
@@ -2273,7 +2596,9 @@
   line-height: 1;
   cursor: pointer;
 }
-.homeowner-month-close-icon:hover { background: var(--md-soft); }
+.homeowner-month-close-icon:hover {
+  background: var(--md-soft);
+}
 .homeowner-month-dialog-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -2289,67 +2614,323 @@
   border-radius: 10px;
   background: #fff;
 }
-.homeowner-month-summary > div { display: flex; flex-direction: column; min-width: 0; gap: 2px; padding: 10px 16px; }
-.homeowner-month-summary > div + div { border-left: 1px solid var(--md-line); }
-.homeowner-month-summary > div > span { color: var(--md-muted); font-size: 12px; font-weight: 600; line-height: 1.3; }
-.homeowner-month-summary strong { color: var(--md-ink); font-size: 18px; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; }
-.homeowner-month-pill { display: inline-flex; align-items: center; max-width: 100%; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.25; white-space: nowrap; color: #607282; background: var(--md-slate-tint); }
-.homeowner-month-pill.is-paid { color: var(--md-green); background: var(--md-green-tint); }
-.homeowner-month-pill.is-partial { color: var(--md-amber); background: var(--md-amber-tint); }
-.homeowner-month-pill.is-recorded, .homeowner-month-pill.is-dues { color: var(--md-brand); background: #e9f3fb; }
-.homeowner-month-pill.is-empty, .homeowner-month-pill.is-neutral { color: #607282; background: var(--md-slate-tint); }
-.homeowner-month-pill.is-services { color: #6652a8; background: #eeeafc; }
-.homeowner-month-pill.is-other { color: var(--md-amber); background: var(--md-amber-tint); }
-.homeowner-month-pill.is-voided { color: #a7392b; background: #fde9e6; }
-.homeowner-month-transaction-section { margin-top: 20px; }
-.homeowner-month-section-title { margin: 0 0 8px; color: var(--md-ink); font-size: 15px; font-weight: 700; line-height: 1.3; }
-.homeowner-month-table-scroll { overflow-x: auto; border: 1px solid var(--md-line); border-radius: 8px; }
-.homeowner-month-table { width: 100%; min-width: 620px; table-layout: fixed; border-collapse: collapse; }
-.homeowner-month-table th { padding: 10px 16px; border-bottom: 1px solid var(--md-line); background: var(--md-soft); color: var(--md-ink); font-size: 12px; font-weight: 700; line-height: 1.3; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
-.homeowner-month-table td { padding: 14px 16px; border-bottom: 1px solid var(--md-line); background: #fff; color: var(--md-ink); font-size: 14px; line-height: 1.5; vertical-align: middle; overflow-wrap: anywhere; }
-.homeowner-month-table tbody tr:last-child td { border-bottom: 0; }
-.homeowner-month-table th:nth-child(1) { width: 17%; }
-.homeowner-month-table th:nth-child(2) { width: 31%; }
-.homeowner-month-table th:nth-child(3) { width: 20%; }
-.homeowner-month-table th:nth-child(4) { width: 15%; }
-.homeowner-month-table th:nth-child(5) { width: 17%; }
-.homeowner-month-table th:last-child, .homeowner-month-table td:last-child { text-align: right; }
-.homeowner-month-table td:last-child { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.homeowner-month-date-main, .homeowner-month-description-main, .homeowner-month-receipt-main { display: block; font-size: 14px; font-weight: 500; line-height: 1.4; }
-.homeowner-month-date-main, .homeowner-month-receipt-main { white-space: nowrap; overflow-wrap: normal; }
-.homeowner-month-date-sub, .homeowner-month-receipt-sub { display: block; margin-top: 4px; color: var(--md-muted); font-size: 12px; font-weight: 400; line-height: 1.35; }
-.homeowner-month-category-pill { margin-top: 6px; }
-.homeowner-month-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 300px; align-items: start; gap: 24px; margin-top: 20px; }
-.homeowner-month-clarification { margin: 0; color: var(--md-muted); font-size: 13px; font-weight: 400; line-height: 1.55; }
-.homeowner-month-totals { width: 100%; margin: 0; }
-.homeowner-month-totals > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px dotted var(--md-line); font-size: 14px; line-height: 1.3; }
-.homeowner-month-totals span { color: var(--md-muted); }
-.homeowner-month-totals strong { color: var(--md-ink); font-size: 14px; font-weight: 700; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
-.homeowner-month-totals strong.is-zero { color: var(--md-muted); font-weight: 400; }
-.homeowner-month-totals > .homeowner-month-grand-total { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--md-ink); border-bottom: 0; }
-.homeowner-month-grand-total span { color: var(--md-ink); font-size: 14px; font-weight: 700; }
-.homeowner-month-grand-total strong { color: var(--md-brand-dark); font-size: 17px; font-weight: 800; }
-.homeowner-month-empty { margin: 0; padding: 20px; border: 1px dashed var(--md-line); border-radius: 8px; background: var(--md-soft); color: var(--md-muted); font-size: 14px; line-height: 1.45; }
-.homeowner-month-dialog-footer { display: flex; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 24px; border-top: 1px solid var(--md-line); background: #fff; }
-.homeowner-month-dialog-footer button { flex: 0 0 auto; height: 38px; padding: 0 16px; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 650; line-height: 1.3; white-space: nowrap; cursor: pointer; }
-.homeowner-month-action-secondary { color: var(--md-ink); border: 1px solid var(--md-line); background: #fff; }
-.homeowner-month-action-secondary:hover { background: var(--md-soft); }
-.homeowner-month-action-print { color: #fff; border: 1px solid var(--md-brand); background: var(--md-brand); }
-.homeowner-month-action-print:hover { background: var(--md-brand-dark); border-color: var(--md-brand-dark); }
-.homeowner-month-dialog button:focus-visible, .homeowner-month-table-scroll:focus-visible { outline: 2px solid var(--md-brand); outline-offset: 2px; }
-@media (max-width: 650px) {
-  .homeowner-month-overlay { padding: 24px; }
-  .homeowner-month-dialog-header { padding: 16px; }
-  .homeowner-month-dialog-body { padding: 16px; }
-  .homeowner-month-summary { grid-template-columns: 1fr; }
-  .homeowner-month-summary > div + div { border-left: 0; border-top: 1px solid var(--md-line); }
-  .homeowner-month-bottom { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .homeowner-month-totals { order: -1; }
-  .homeowner-month-dialog-footer { flex-wrap: wrap; padding: 12px 16px; }
-  .homeowner-month-dialog-footer button { flex: 1 1 auto; }
+.homeowner-month-summary > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  padding: 10px 16px;
 }
-@media (prefers-reduced-motion: reduce) { .homeowner-month-dialog { animation: none !important; transition: none !important; } }
-@media print { .homeowner-month-overlay { display: none !important; } }
+.homeowner-month-summary > div + div {
+  border-left: 1px solid var(--md-line);
+}
+.homeowner-month-summary > div > span {
+  color: var(--md-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.homeowner-month-summary strong {
+  color: var(--md-ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.homeowner-month-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: #607282;
+  background: var(--md-slate-tint);
+}
+.homeowner-month-pill.is-paid {
+  color: var(--md-green);
+  background: var(--md-green-tint);
+}
+.homeowner-month-pill.is-partial {
+  color: var(--md-amber);
+  background: var(--md-amber-tint);
+}
+.homeowner-month-pill.is-recorded,
+.homeowner-month-pill.is-dues {
+  color: var(--md-brand);
+  background: #e9f3fb;
+}
+.homeowner-month-pill.is-empty,
+.homeowner-month-pill.is-neutral {
+  color: #607282;
+  background: var(--md-slate-tint);
+}
+.homeowner-month-pill.is-services {
+  color: #6652a8;
+  background: #eeeafc;
+}
+.homeowner-month-pill.is-other {
+  color: var(--md-amber);
+  background: var(--md-amber-tint);
+}
+.homeowner-month-pill.is-voided {
+  color: #a7392b;
+  background: #fde9e6;
+}
+.homeowner-month-transaction-section {
+  margin-top: 20px;
+}
+.homeowner-month-section-title {
+  margin: 0 0 8px;
+  color: var(--md-ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.homeowner-month-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--md-line);
+  border-radius: 8px;
+}
+.homeowner-month-table {
+  width: 100%;
+  min-width: 620px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.homeowner-month-table th {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--md-line);
+  background: var(--md-soft);
+  color: var(--md-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.homeowner-month-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--md-line);
+  background: #fff;
+  color: var(--md-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.homeowner-month-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.homeowner-month-table th:nth-child(1) {
+  width: 17%;
+}
+.homeowner-month-table th:nth-child(2) {
+  width: 31%;
+}
+.homeowner-month-table th:nth-child(3) {
+  width: 20%;
+}
+.homeowner-month-table th:nth-child(4) {
+  width: 15%;
+}
+.homeowner-month-table th:nth-child(5) {
+  width: 17%;
+}
+.homeowner-month-table th:last-child,
+.homeowner-month-table td:last-child {
+  text-align: right;
+}
+.homeowner-month-table td:last-child {
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.homeowner-month-date-main,
+.homeowner-month-description-main,
+.homeowner-month-receipt-main {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.homeowner-month-date-main,
+.homeowner-month-receipt-main {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.homeowner-month-date-sub,
+.homeowner-month-receipt-sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--md-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+.homeowner-month-category-pill {
+  margin-top: 6px;
+}
+.homeowner-month-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: 24px;
+  margin-top: 20px;
+}
+.homeowner-month-clarification {
+  margin: 0;
+  color: var(--md-muted);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+.homeowner-month-totals {
+  width: 100%;
+  margin: 0;
+}
+.homeowner-month-totals > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--md-line);
+  font-size: 14px;
+  line-height: 1.3;
+}
+.homeowner-month-totals span {
+  color: var(--md-muted);
+}
+.homeowner-month-totals strong {
+  color: var(--md-ink);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.homeowner-month-totals strong.is-zero {
+  color: var(--md-muted);
+  font-weight: 400;
+}
+.homeowner-month-totals > .homeowner-month-grand-total {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--md-ink);
+  border-bottom: 0;
+}
+.homeowner-month-grand-total span {
+  color: var(--md-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.homeowner-month-grand-total strong {
+  color: var(--md-brand-dark);
+  font-size: 17px;
+  font-weight: 800;
+}
+.homeowner-month-empty {
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed var(--md-line);
+  border-radius: 8px;
+  background: var(--md-soft);
+  color: var(--md-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.homeowner-month-dialog-footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--md-line);
+  background: #fff;
+}
+.homeowner-month-dialog-footer button {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.homeowner-month-action-secondary {
+  color: var(--md-ink);
+  border: 1px solid var(--md-line);
+  background: #fff;
+}
+.homeowner-month-action-secondary:hover {
+  background: var(--md-soft);
+}
+.homeowner-month-action-print {
+  color: #fff;
+  border: 1px solid var(--md-brand);
+  background: var(--md-brand);
+}
+.homeowner-month-action-print:hover {
+  background: var(--md-brand-dark);
+  border-color: var(--md-brand-dark);
+}
+.homeowner-month-dialog button:focus-visible,
+.homeowner-month-table-scroll:focus-visible {
+  outline: 2px solid var(--md-brand);
+  outline-offset: 2px;
+}
+@media (max-width: 650px) {
+  .homeowner-month-overlay {
+    padding: 24px;
+  }
+  .homeowner-month-dialog-header {
+    padding: 16px;
+  }
+  .homeowner-month-dialog-body {
+    padding: 16px;
+  }
+  .homeowner-month-summary {
+    grid-template-columns: 1fr;
+  }
+  .homeowner-month-summary > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--md-line);
+  }
+  .homeowner-month-bottom {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .homeowner-month-totals {
+    order: -1;
+  }
+  .homeowner-month-dialog-footer {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+  .homeowner-month-dialog-footer button {
+    flex: 1 1 auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .homeowner-month-dialog {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media print {
+  .homeowner-month-overlay {
+    display: none !important;
+  }
+}
 
 /* Recent Payment Activity: compact, accessible receipt actions. */
 .homeowner-history-actions {
@@ -2374,8 +2955,13 @@
   font-weight: 700;
   cursor: pointer;
 }
-.homeowner-receipt-view-link:hover:not(:disabled) { background: #e5f3fd; }
-.homeowner-receipt-view-link:disabled { opacity: 0.55; cursor: wait; }
+.homeowner-receipt-view-link:hover:not(:disabled) {
+  background: #e5f3fd;
+}
+.homeowner-receipt-view-link:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
 .homeowner-receipt-view-link:focus-visible,
 .homeowner-history-actions .homeowner-void-link:focus-visible {
   outline: 2px solid #1464a0;
@@ -2398,48 +2984,2140 @@
   font-weight: 700;
 }
 @media (max-width: 600px) {
-  .homeowner-history-month-picker { width: 100%; margin-left: 0; }
+  .homeowner-history-month-picker {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 /* Matching module header icon and display font. */
-.homeowners-page .homeowners-header { flex-wrap: wrap; }
-.homeowners-page .homeowners-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
-.homeowners-page .homeowners-header-copy { min-width: 0; overflow-wrap: anywhere; }
-.homeowners-page .homeowners-header-copy h1 { margin: 0; font-family: var(--font-display); }
-.homeowners-page .homeowners-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
-.homeowners-page .homeowners-header-icon svg { display: block; stroke-width: 1.8; }
-.homeowners-page .hod-header-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
-.homeowners-page .hod-header-actions button { max-width: 100%; white-space: normal; }
+.homeowners-page .homeowners-header {
+  flex-wrap: wrap;
+}
+.homeowners-page .homeowners-header-heading {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.homeowners-page .homeowners-header-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.homeowners-page .homeowners-header-copy h1 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+.homeowners-page .homeowners-header-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+  color: #fff;
+  background: linear-gradient(135deg, #176ba2, #128b89);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 18px;
+  box-shadow: 0 10px 22px rgba(17, 91, 128, 0.2);
+}
+.homeowners-page .homeowners-header-icon svg {
+  display: block;
+  stroke-width: 1.8;
+}
+.homeowners-page .hod-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.homeowners-page .hod-header-actions button {
+  max-width: 100%;
+  white-space: normal;
+}
 @media (max-width: 600px) {
-  .homeowners-page .homeowners-header-heading { flex-basis: 100%; gap: 12px; }
-  .homeowners-page .homeowners-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
-  .homeowners-page .hod-header-actions { width: 100%; }
+  .homeowners-page .homeowners-header-heading {
+    flex-basis: 100%;
+    gap: 12px;
+  }
+  .homeowners-page .homeowners-header-icon {
+    flex-basis: 48px;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+  .homeowners-page .hod-header-actions {
+    width: 100%;
+  }
 }
 
 /* Compact Admin Dashboard-style homeowner summaries. */
 
-.homeowners-page { container:homeowners-summary-layout/inline-size; }
-.homeowners-page .homeowners-stat-grid { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:stretch;margin:20px 0; }
-.homeowners-page .homeowners-stat-card { --stat-accent:#287fae;display:flex;flex-direction:column;min-width:0;padding:16px 18px 14px;border:1px solid #ffffffed;border-radius:20px;background:linear-gradient(150deg,#ffffffee,#f0f7fe);box-shadow:0 12px 28px -16px #17456835;font-family:'Segoe UI',Arial,sans-serif; }
-.homeowners-page .homeowners-stat-top { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px; }
-.homeowners-page .homeowners-stat-top > span:first-child { min-width:0;color:#456b85;font:700 11px/1.4 'Segoe UI',Arial,sans-serif;letter-spacing:.3px; }
-.homeowners-page .homeowners-stat-icon { display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border:0;border-radius:9px;background:#e8f2fb;color:var(--stat-accent);box-shadow:none; }
-.homeowners-page .homeowners-stat-icon svg { width:17px;height:17px; }
-.homeowners-page .homeowners-stat-card strong { display:block;margin:10px 0 4px;color:#14334a;font:600 clamp(23px,1.8vw,28px)/1.15 Georgia,serif;letter-spacing:-.4px;white-space:normal;overflow-wrap:anywhere;font-variant-numeric:tabular-nums; }
-.homeowners-page .homeowners-stat-card small { display:block;margin:0 0 9px;color:#527791;font:400 12px/1.45 'Segoe UI',Arial,sans-serif; }
-.homeowners-page .homeowners-stat-footer { display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:8px;border-top:1px solid #dce8f2;color:#54758d;font:400 10.5px/1.4 'Segoe UI',Arial,sans-serif; }
-.homeowners-page .homeowners-stat-footer>span { display:block;width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:var(--stat-accent); }
-.homeowners-page .homeowners-stat-card:nth-child(2) { --stat-accent:#168461; }
-.homeowners-page .homeowners-stat-card:nth-child(2) .homeowners-stat-icon { background:#e8f5ef; }
-.homeowners-page .homeowners-stat-card:nth-child(3) { --stat-accent:#c48739; }
-.homeowners-page .homeowners-stat-card:nth-child(3) .homeowners-stat-icon { background:#fff3e4; }
-.homeowners-page .homeowners-stat-card:nth-child(4) { --stat-accent:#6b79b4; }
-.homeowners-page .homeowners-stat-card:nth-child(4) .homeowners-stat-icon { background:#eef0fb; }
-@container homeowners-summary-layout (max-width:1150px) { .homeowners-page .homeowners-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@container homeowners-summary-layout (max-width:600px) { .homeowners-page .homeowners-stat-grid { grid-template-columns:minmax(0,1fr); } }
+.homeowners-page {
+  container: homeowners-summary-layout/inline-size;
+}
+.homeowners-page .homeowners-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+  margin: 20px 0;
+}
+.homeowners-page .homeowners-stat-card {
+  --stat-accent: #287fae;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px 18px 14px;
+  border: 1px solid #ffffffed;
+  border-radius: 20px;
+  background: linear-gradient(150deg, #ffffffee, #f0f7fe);
+  box-shadow: 0 12px 28px -16px #17456835;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+.homeowners-page .homeowners-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+.homeowners-page .homeowners-stat-top > span:first-child {
+  min-width: 0;
+  color: #456b85;
+  font:
+    700 11px/1.4 'Segoe UI',
+    Arial,
+    sans-serif;
+  letter-spacing: 0.3px;
+}
+.homeowners-page .homeowners-stat-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: #e8f2fb;
+  color: var(--stat-accent);
+  box-shadow: none;
+}
+.homeowners-page .homeowners-stat-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.homeowners-page .homeowners-stat-card strong {
+  display: block;
+  margin: 10px 0 4px;
+  color: #14334a;
+  font:
+    600 clamp(23px, 1.8vw, 28px)/1.15 Georgia,
+    serif;
+  letter-spacing: -0.4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.homeowners-page .homeowners-stat-card small {
+  display: block;
+  margin: 0 0 9px;
+  color: #527791;
+  font:
+    400 12px/1.45 'Segoe UI',
+    Arial,
+    sans-serif;
+}
+.homeowners-page .homeowners-stat-footer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #dce8f2;
+  color: #54758d;
+  font:
+    400 10.5px/1.4 'Segoe UI',
+    Arial,
+    sans-serif;
+}
+.homeowners-page .homeowners-stat-footer > span {
+  display: block;
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--stat-accent);
+}
+.homeowners-page .homeowners-stat-card:nth-child(2) {
+  --stat-accent: #168461;
+}
+.homeowners-page .homeowners-stat-card:nth-child(2) .homeowners-stat-icon {
+  background: #e8f5ef;
+}
+.homeowners-page .homeowners-stat-card:nth-child(3) {
+  --stat-accent: #c48739;
+}
+.homeowners-page .homeowners-stat-card:nth-child(3) .homeowners-stat-icon {
+  background: #fff3e4;
+}
+.homeowners-page .homeowners-stat-card:nth-child(4) {
+  --stat-accent: #6b79b4;
+}
+.homeowners-page .homeowners-stat-card:nth-child(4) .homeowners-stat-icon {
+  background: #eef0fb;
+}
+@container homeowners-summary-layout (max-width:1150px) {
+  .homeowners-page .homeowners-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container homeowners-summary-layout (max-width:600px) {
+  .homeowners-page .homeowners-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
-.homeowners-page .homeowners-stat-card::before { display:none; }
-.homeowners-page .homeowners-stat-card:hover { transform:none;box-shadow:0 12px 28px -16px #17456835; }
-.homeowners-page .homeowners-stat-card .homeowners-stat-icon { color:var(--stat-accent); }
-.homeowners-page .homeowners-stat-card:nth-child(5) { --stat-accent:#168461; }
-.homeowners-page .homeowners-stat-card:nth-child(5) .homeowners-stat-icon { background:#e8f5ef; }
+.homeowners-page .homeowners-stat-card::before {
+  display: none;
+}
+.homeowners-page .homeowners-stat-card:hover {
+  transform: none;
+  box-shadow: 0 12px 28px -16px #17456835;
+}
+.homeowners-page .homeowners-stat-card .homeowners-stat-icon {
+  color: var(--stat-accent);
+}
+.homeowners-page .homeowners-stat-card:nth-child(5) {
+  --stat-accent: #168461;
+}
+.homeowners-page .homeowners-stat-card:nth-child(5) .homeowners-stat-icon {
+  background: #e8f5ef;
+}
+
+/* Approved property directory panel only. */
+
+.homeowners-page .homeowners-finder {
+  padding: 22px 24px 20px;
+  border-radius: 22px;
+  border: 1px solid #fffffff5;
+  background:
+    radial-gradient(ellipse at 100% 0, #bbddf73d, transparent 60%),
+    linear-gradient(130deg, #fffffff7, #f3f9ffee);
+  box-shadow:
+    0 0 0 1px #8db1cd2e,
+    0 16px 34px -25px #1f4f7452;
+  overflow: visible;
+}
+.hpf-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 19px;
+}
+.hpf-heading > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.hpf-icon {
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+  border: 1px solid #d4e8f7;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #edf7ff, #dcefff);
+  color: #176ba2;
+  box-shadow: inset 0 1px 0 white;
+}
+.hpf-heading p {
+  margin: 0 0 3px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: #64849d;
+}
+.hpf-heading h2 {
+  margin: 0;
+  color: #21465f;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.hpf-heading small {
+  display: block;
+  margin-top: 5px;
+  color: #7891a4;
+  font-size: 11px;
+}
+.hpf-heading-right {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+.hpf-heading-right > span {
+  padding: 6px 10px;
+  border: 1px solid #cfe2f1;
+  border-radius: 99px;
+  background: #ffffffcc;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #547b96;
+  white-space: nowrap;
+}
+.hpf-heading-right > button {
+  padding: 5px 7px;
+  border: 0;
+  background: transparent;
+  color: #397ba7;
+  font-size: 10.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.homeowners-page .hpf-controls {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) 210px 220px;
+  gap: 16px;
+  align-items: end;
+  padding: 14px 16px;
+  border: 1px solid #dceaf5;
+  border-radius: 15px;
+  background: linear-gradient(115deg, #ebf6ffcc, #f4f9ffb8);
+  box-shadow: inset 0 1px 0 #ffffffc9;
+}
+.hpf-controls > label {
+  display: block;
+  min-width: 0;
+}
+.hpf-controls > label > span {
+  display: block;
+  color: #52748e;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 0 0 6px;
+}
+.hpf-search-label > div {
+  position: relative;
+}
+.hpf-search-label > div > svg {
+  position: absolute;
+  left: 12px;
+  top: 14px;
+  color: #4e85ac;
+  pointer-events: none;
+}
+.homeowners-page .hpf-controls .homeowners-search {
+  width: 100%;
+  height: 44px;
+  font-size: 12.5px;
+  border: 1px solid #b8d4e9;
+  border-radius: 10px;
+  padding: 10px 12px 10px 37px;
+  background: #fff;
+  color: #214960;
+  box-shadow: 0 3px 8px -5px #2f60823b;
+}
+.hpf-controls .sel-trigger {
+  height: 44px;
+  min-height: 44px;
+  font-size: 11.5px;
+  border: 1px solid #c9dfef;
+  border-radius: 10px;
+  background: #ffffffeb;
+  color: #456d89;
+}
+.hpf-suggestions {
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid #e0ebf4;
+}
+.hpf-suggestion-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.hpf-suggestion-heading h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #355f7c;
+}
+.hpf-suggestion-heading > span {
+  font-size: 10.5px;
+  color: #66849b;
+}
+.hpf-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.hpf-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid #bad5eacc;
+  border-radius: 14px;
+  color: #15364d;
+  background:
+    radial-gradient(ellipse at 100% 100%, #a4d0f24d, transparent 65%),
+    linear-gradient(125deg, #fffffffa, #f1f9fffa 45%, #cde5fbf0);
+  box-shadow:
+    inset 0 1px 0 #fffffff2,
+    0 10px 24px -18px #1e537c6b;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.hpf-card:hover {
+  border-color: #8ebddd;
+  background: linear-gradient(125deg, #fff, #edf7ff 42%, #c4e1fa);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 7px 22px -13px #176ba266;
+}
+.hpf-card[aria-pressed='true'] {
+  border-color: #398abd;
+  background: linear-gradient(125deg, #fafdff, #e1f1ff 45%, #badcf7);
+}
+.hpf-card-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.hpf-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 33px;
+  width: 33px;
+  height: 33px;
+  border: 1px solid #fffffff5;
+  border-radius: 10px;
+  background: #ffffffc7;
+  color: #246b9b;
+  font-size: 11px;
+  font-weight: 750;
+}
+.hpf-card-top > span:last-child {
+  min-width: 0;
+}
+.hpf-card strong {
+  color: #173d55;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.hpf-card small {
+  display: block;
+  color: #52758f;
+  font-size: 10.5px;
+  margin-top: 3px;
+}
+.hpf-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid #83b1d440;
+  color: #426d8b;
+  font-size: 10.5px;
+}
+.hpf-card-bottom strong {
+  color: #176ba2;
+}
+.hpf-card-bottom > span:last-child {
+  font-size: 18px;
+}
+.hpf-hint {
+  margin: 12px 0 0;
+  color: #6a859a;
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.hpf-empty {
+  padding: 20px;
+  text-align: center;
+  border: 1px dashed #c9deed;
+  border-radius: 12px;
+  color: #648198;
+  font-size: 12px;
+}
+.hpf-card:focus-visible {
+  outline: 3px solid #74add5;
+  outline-offset: 2px;
+}
+@container homeowners-summary-layout (max-width:1150px) {
+  .hpf-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .homeowners-page .hpf-controls {
+    grid-template-columns: minmax(220px, 1fr) 175px 180px;
+    gap: 12px;
+  }
+}
+@container homeowners-summary-layout (max-width:850px) {
+  .homeowners-page .hpf-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hpf-controls > label:first-child {
+    grid-column: 1/-1;
+  }
+  .hpf-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container homeowners-summary-layout (max-width:600px) {
+  .homeowners-page .homeowners-finder {
+    padding: 18px 16px;
+  }
+  .hpf-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .hpf-heading h2 {
+    font-size: 17px;
+  }
+  .hpf-heading-right {
+    margin-left: 55px;
+  }
+  .homeowners-page .hpf-controls {
+    padding: 12px;
+    gap: 11px;
+  }
+  .hpf-suggestion-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .hpf-cards {
+    grid-template-columns: 1fr;
+  }
+  .hpf-card {
+    padding: 12px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .hpf-card-bottom {
+    padding: 0;
+    border: 0;
+    flex-shrink: 0;
+  }
+  .hpf-card-bottom > span:last-child {
+    margin-left: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hpf-card {
+    transition: none;
+  }
+}
+.hpf-controls > label > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hpf-controls > label > span svg {
+  color: #7196b0;
+  flex-shrink: 0;
+}
+
+/* Four-section homeowner profile modal, matching the approved HTML. */
+.hpm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(22, 57, 83, 0.38);
+  backdrop-filter: blur(7px);
+}
+.hpm-dialog {
+  container: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(1100px, 100%);
+  height: min(750px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 24px;
+  background: #f6fbff;
+  box-shadow:
+    0 0 0 1px rgba(118, 163, 196, 0.22),
+    0 28px 85px rgba(14, 46, 71, 0.3);
+  overflow: hidden;
+  font-family: var(--font-body, 'Segoe UI', Arial, sans-serif);
+  color: #15364d;
+}
+.hpm-dialog [hidden] {
+  display: none !important;
+}
+.hpm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 19px 24px;
+  background: linear-gradient(115deg, #fff, #edf7ff 62%, #d2e9ff);
+  border-bottom: 1px solid #d4e6f4;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 4;
+}
+.hpm-dialog .homeowner-profile-hero {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.hpm-dialog .homeowner-profile-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #176ba2, #148d8b);
+  font-size: 16px;
+  color: white;
+}
+.hpm-dialog .homeowner-profile-identity {
+  min-width: 0;
+}
+.hpm-dialog .homeowner-profile-identity h2 {
+  font:
+    600 27px/1.2 Georgia,
+    serif;
+  color: #173d55;
+  overflow-wrap: anywhere;
+}
+.hpm-dialog .homeowner-profile-identity p {
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.hpm-dialog .homeowner-profile-meta {
+  font-size: 10px;
+  gap: 10px;
+}
+.hpm-dialog .homeowner-profile-meta span:not(:first-child) {
+  display: none;
+}
+.hpm-dialog .homeowner-profile-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 0;
+}
+.hpm-dialog .homeowner-profile-actions button {
+  font-size: 10.5px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+.hpm-dialog .homeowner-actions-popover {
+  z-index: 50;
+}
+.hpm-close {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #c9dff0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #bc4c40;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.hpm-dialog .hpm-nav {
+  display: flex;
+  gap: 6px;
+  padding: 9px 24px;
+  border-bottom: 1px solid #d2e5f3;
+  background: #fafdff;
+  flex-shrink: 0;
+}
+.hpm-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 39px;
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: transparent;
+  color: #5c7e97;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hpm-nav button[aria-selected='true'] {
+  background: linear-gradient(115deg, #e3f1fd, #d9ecfc);
+  color: #176ba2;
+  border-color: #bdd9ed;
+  box-shadow: inset 0 1px 0 white;
+}
+.hpm-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px;
+  scrollbar-gutter: stable;
+}
+.hpm-pane-intro {
+  margin: 0 0 16px;
+}
+.hpm-pane-intro h3 {
+  margin: 0;
+  font:
+    600 22px/1.2 Georgia,
+    serif;
+  color: #21475f;
+}
+.hpm-pane-intro p {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: #718b9f;
+}
+.hpm-dialog .homeowner-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+.hpm-dialog .homeowner-summary-grid > article {
+  min-width: 0;
+  min-height: 109px;
+  padding: 15px 17px;
+  border: 1px solid #d3e5f3;
+  border-radius: 14px;
+  background: linear-gradient(130deg, #fff, #e7f3ff);
+  box-shadow: none;
+}
+.hpm-dialog
+  .homeowner-summary-grid
+  > article
+  > span:not(.homeowner-summary-icon) {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.hpm-dialog .homeowner-summary-grid strong {
+  font:
+    600 27px/1.2 Georgia,
+    serif;
+  margin: 8px 0 4px;
+  color: #173d55;
+}
+.hpm-dialog .homeowner-summary-grid small {
+  font-size: 10px;
+  line-height: 1.5;
+}
+.hpm-dialog .homeowner-summary-icon {
+  display: none;
+}
+.hpm-latest {
+  border: 1px solid #d4e6f3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.74);
+  margin-bottom: 15px;
+}
+.hpm-latest > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #e1edf5;
+}
+.hpm-latest h3 {
+  margin: 0;
+  font-size: 12px;
+  color: #365f7b;
+}
+.hpm-latest button {
+  border: 0;
+  background: transparent;
+  color: #176ba2;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+.hpm-latest > p {
+  padding: 12px 16px;
+  color: #7590a4;
+  font-size: 11px;
+}
+.hpm-latest .hpm-latest-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid #e5eef5;
+}
+.hpm-latest-row > svg {
+  color: #4080aa;
+  flex-shrink: 0;
+}
+.hpm-latest-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.hpm-latest-row strong {
+  display: block;
+  font-size: 11px;
+  color: #325e7b;
+}
+.hpm-latest-row small {
+  display: block;
+  font-size: 10px;
+  color: #7a92a4;
+  margin-top: 2px;
+}
+.hpm-latest-row > span {
+  font-size: 12px;
+  font-weight: 650;
+  color: #237a59;
+  white-space: nowrap;
+}
+.hpm-analytics {
+  border: 1px solid #d5e6f2;
+  border-radius: 12px;
+  background: #eef7fd;
+}
+.hpm-analytics > summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  color: #406b88;
+  font-size: 11px;
+  font-weight: 600;
+}
+.hpm-analytics > summary small {
+  margin-left: 10px;
+  font-size: 10px;
+  font-weight: 400;
+  color: #7a94a7;
+}
+.hpm-dialog .hpm-analytics .homeowner-payment-analytics {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #dceaf4;
+  border-radius: 0;
+  background: transparent;
+}
+.hpm-dialog .homeowner-overview-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.hpm-dialog .homeowner-info-card {
+  padding: 16px;
+  border: 1px solid #d5e5f2;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.73);
+  box-shadow: none;
+}
+.hpm-dialog .homeowner-info-card h3 {
+  font-size: 13px;
+}
+.hpm-dialog .homeowner-info-card p {
+  font-size: 10.5px;
+}
+.hpm-dialog .homeowner-history-card {
+  padding: 16px;
+  border: 1px solid #d5e5f2;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.73);
+  box-shadow: none;
+}
+.hpm-dialog .homeowner-history-table {
+  min-width: 850px;
+  font-size: 11px;
+}
+.hpm-dialog .homeowner-history-table thead th {
+  background: #176ba2;
+  color: white;
+  font-size: 9px;
+  padding: 11px 12px;
+}
+.hpm-dialog .homeowner-history-table td {
+  padding: 11px 12px;
+  font-size: 10.5px;
+}
+.hpm-dialog .homeowner-tabs {
+  gap: 3px;
+  background: #edf5fb;
+  padding: 5px;
+  border: 1px solid #d2e4f2;
+  border-radius: 12px;
+  overflow: auto;
+  flex-wrap: nowrap;
+}
+.hpm-dialog .homeowner-tabs button {
+  font-size: 10px;
+  padding: 8px 7px;
+  white-space: nowrap;
+}
+.hpm-dialog .homeowner-tabs button.is-active {
+  background: white;
+  color: #176ba2;
+  border: 1px solid #c8dfef;
+  box-shadow: 0 2px 5px rgba(49, 92, 120, 0.13);
+}
+.hpm-dialog .hpm-tracker-inline {
+  position: static;
+  inset: auto;
+  display: block;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  backdrop-filter: none;
+  z-index: auto;
+}
+.hpm-dialog .homeowner-payment-tracker {
+  position: static;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #d5e5f2;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.73);
+  box-shadow: none;
+  overflow: visible;
+}
+.hpm-dialog .homeowner-tracker-close {
+  display: none;
+}
+.hpm-dialog .homeowner-tracker-table {
+  min-width: 760px;
+}
+.hpm-dialog .homeowner-tracker-table th {
+  font-size: 9px;
+  background: #176ba2;
+  color: white;
+}
+.hpm-dialog .homeowner-tracker-table td {
+  font-size: 10.5px;
+}
+.hpm-tracker-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 13px 2px 0;
+  color: #64839b;
+  font-size: 10.5px;
+}
+.hpm-tracker-pagination nav {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.hpm-tracker-pagination button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #c8dfee;
+  border-radius: 8px;
+  background: #fff;
+  color: #176ba2;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hpm-tracker-pagination button[aria-current='page'] {
+  background: #176ba2;
+  border-color: #176ba2;
+  color: white;
+}
+.hpm-dialog button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.hpm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-shrink: 0;
+  padding: 12px 24px;
+  border-top: 1px solid #d9e8f3;
+  background: rgba(255, 255, 255, 0.91);
+}
+.hpm-footer span {
+  color: #718a9d;
+  font-size: 10.5px;
+}
+.hpm-footer button {
+  min-height: 36px;
+  padding: 8px 20px;
+  border: 1px solid #176ba2;
+  border-radius: 10px;
+  background: #176ba2;
+  color: white;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.hpm-dialog :is(button, input, summary):focus-visible {
+  outline: 3px solid #74add5;
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .hpm-overlay {
+    padding: 12px;
+  }
+  .hpm-dialog {
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 19px;
+  }
+  .hpm-header {
+    flex-wrap: wrap;
+    padding: 16px;
+    padding-right: 52px;
+  }
+  .hpm-close {
+    position: absolute;
+    top: 16px;
+    right: 14px;
+  }
+  .hpm-dialog .homeowner-profile-actions {
+    flex-basis: 100%;
+    padding-left: 58px;
+  }
+  .hpm-dialog .homeowner-profile-hero {
+    flex-basis: 100%;
+  }
+  .hpm-dialog .homeowner-profile-identity h2 {
+    font-size: 23px;
+  }
+  .hpm-dialog .hpm-nav {
+    padding: 8px 12px;
+    gap: 3px;
+  }
+  .hpm-nav button {
+    gap: 5px;
+    font-size: 11px;
+    padding: 7px;
+  }
+  .hpm-body {
+    padding: 17px 16px;
+  }
+  .hpm-dialog .homeowner-summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .hpm-dialog .homeowner-summary-grid > article {
+    padding: 12px;
+  }
+  .hpm-dialog .homeowner-summary-grid strong {
+    font-size: 23px;
+  }
+  .hpm-dialog .homeowner-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .hpm-footer {
+    padding: 11px 16px;
+  }
+  .hpm-tracker-pagination nav {
+    width: 100%;
+    justify-content: center;
+  }
+  .hpm-latest .hpm-latest-row {
+    flex-wrap: wrap;
+  }
+  .hpm-analytics > summary small {
+    display: block;
+    margin: 4px 0 0 15px;
+  }
+}
+@media print {
+  .hpm-overlay {
+    position: static;
+    display: block;
+    padding: 0;
+    background: white;
+    backdrop-filter: none;
+  }
+  .hpm-dialog {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+  }
+  .hpm-body {
+    overflow: visible;
+  }
+  .hpm-nav,
+  .hpm-close,
+  .hpm-footer,
+  .homeowner-profile-actions {
+    display: none !important;
+  }
+}
+/* Existing receipt dialogs must sit above the new parent profile modal. */
+.hpm-overlay ~ .rcpt-backdrop {
+  z-index: 1150;
+}
+
+/* Isolate the modal from HomeownerProfileRefresh.css page-only overrides. */
+.hpm-dialog {
+  --ho-blue: #1464a0;
+  --ho-blue-dark: #0f3f6a;
+  --ho-blue-tint: #e9f3fb;
+  --ho-border: #d5e5f2;
+  --ho-red: #b43b2d;
+  --ho-red-tint: #fde9e6;
+  --ho-green: #16704e;
+  --ho-green-tint: #e1f5eb;
+  --ho-amber: #95620a;
+  --ho-amber-tint: #fff0d5;
+  --ho-slate: #718597;
+  --ho-ink: #14354c;
+  --ho-space-1: 4px;
+  --ho-space-2: 8px;
+  --ho-space-3: 12px;
+  --ho-space-4: 16px;
+  --ho-space-5: 24px;
+  --ho-space-6: 32px;
+  --ho-radius: 10px;
+  --ho-radius-lg: 14px;
+  --ho-ease: 160ms ease;
+  --profile-line: #d5e5f2;
+  --profile-ink: #21475f;
+  --profile-muted: #64839b;
+  --profile-soft: #f3f9fe;
+}
+.hpm-dialog .hpm-header {
+  min-height: 0;
+  padding: 19px 24px;
+  align-items: center;
+}
+.hpm-dialog .homeowner-profile-hero {
+  padding: 0;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.hpm-dialog .homeowner-profile-avatar {
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 6px 16px rgba(23, 107, 162, 0.15);
+}
+.hpm-dialog .homeowner-profile-title-row {
+  margin: 0;
+  gap: 6px;
+}
+.hpm-dialog .homeowner-profile-identity p {
+  margin: 0 0 4px;
+  color: #176ba2;
+  font-weight: 700;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.hpm-dialog .homeowner-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.hpm-dialog .homeowner-profile-identity h2 {
+  margin: 0;
+  font:
+    600 27px/1.2 Georgia,
+    serif;
+}
+.hpm-dialog .homeowner-profile-meta {
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.hpm-dialog .homeowner-profile-meta svg {
+  width: 13px;
+  height: 13px;
+}
+.hpm-dialog .homeowner-account-badge {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+.hpm-body {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+.hpm-body > [role='tabpanel'] {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-anchor: none;
+}
+.hpm-dialog .homeowner-summary-grid {
+  padding: 0;
+  min-height: 0;
+  margin: 0 0 18px;
+}
+.hpm-dialog .homeowner-summary-grid > article {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 109px;
+  padding: 15px 17px;
+  border: 1px solid #d3e5f3;
+  border-radius: 14px;
+  background: linear-gradient(130deg, #fff, #e7f3ff);
+  box-shadow: none;
+  transform: none;
+  backdrop-filter: none;
+}
+.hpm-dialog .homeowner-summary-grid > article::before,
+.hpm-dialog .homeowner-summary-grid > article::after {
+  display: none;
+}
+.hpm-dialog .homeowner-summary-grid > article:hover {
+  transform: none;
+  box-shadow: none;
+}
+.hpm-dialog
+  .homeowner-summary-grid
+  > article
+  > span:not(.homeowner-summary-icon) {
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #587b97;
+  line-height: 1.45;
+}
+.hpm-dialog .homeowner-summary-grid strong {
+  margin: 7px 0 4px;
+  font:
+    600 27px/1.2 Georgia,
+    serif;
+  letter-spacing: 0;
+}
+.hpm-dialog .homeowner-summary-grid small {
+  font-size: 10px;
+  color: #66859c;
+  line-height: 1.5;
+}
+.hpm-dialog .homeowner-overview-grid {
+  padding: 0;
+  margin: 0 0 15px;
+  gap: 12px;
+}
+.hpm-dialog .homeowner-info-card {
+  padding: 16px;
+  margin: 0;
+  border: 1px solid #d5e5f2;
+  border-radius: 14px;
+  background: #ffffffba;
+  box-shadow: none;
+}
+.hpm-dialog .homeowner-info-card dl {
+  margin: 13px 0 0;
+  gap: 0;
+}
+.hpm-dialog .homeowner-info-card dl > div {
+  padding: 10px 0;
+  border-bottom: 1px solid #e4edf4;
+  gap: 14px;
+}
+.hpm-dialog .homeowner-info-card dl > div:last-child {
+  border: 0;
+}
+.hpm-dialog .homeowner-info-card dt {
+  color: #718ca0;
+  font-size: 11px;
+}
+.hpm-dialog .homeowner-info-card dd {
+  color: #315a76;
+  font-size: 11px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.hpm-dialog .homeowner-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 5px;
+  margin: 0 0 15px;
+  border: 1px solid #d2e4f2;
+  border-radius: 12px;
+  background: #edf5fb;
+  overflow: auto;
+}
+.hpm-dialog .homeowner-tabs button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #3c6784;
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.hpm-dialog .homeowner-tabs button.is-active {
+  background: #fff;
+  color: #176ba2;
+  border: 1px solid #c8dfef;
+  box-shadow: 0 2px 5px #315c7820;
+}
+.hpm-dialog .homeowner-tabs button span {
+  height: auto;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: #cfe3f3;
+  color: #476d88;
+  font-size: 9px;
+}
+.hpm-dialog .homeowner-tabs button.is-active span {
+  background: #ddecf8;
+  color: #527791;
+}
+.hpm-dialog .homeowner-history-card {
+  padding: 16px;
+  margin: 0;
+  border: 1px solid #d5e5f2;
+  border-radius: 14px;
+  background: #ffffffba;
+  box-shadow: none;
+}
+.hpm-dialog .homeowner-section-heading {
+  margin: 0 0 13px;
+  gap: 10px;
+  align-items: center;
+}
+.hpm-dialog .homeowner-section-heading > div {
+  min-width: 0;
+  flex: 1;
+}
+.hpm-dialog .homeowner-section-heading h3 {
+  font-size: 13px;
+  color: #244c67;
+}
+.hpm-dialog .homeowner-section-heading p {
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: #67869d;
+  max-width: none;
+}
+.hpm-dialog .homeowner-history-month-picker {
+  flex: 0 0 140px;
+  margin-left: auto;
+  font-size: 9px;
+  color: #66869d;
+}
+.hpm-dialog .homeowner-history-month-picker .df-trigger {
+  min-height: 30px;
+  font-size: 11px;
+}
+.hpm-dialog .homeowner-history-table-wrap {
+  margin: 0;
+  border: 1px solid #cfe2f1;
+  border-radius: 10px;
+  overflow: auto;
+}
+.hpm-dialog .homeowner-history-table {
+  width: 100%;
+  min-width: 840px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.hpm-dialog .homeowner-history-table thead th {
+  padding: 11px 12px;
+  border: 0;
+  background: #176ba2;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(1) {
+  width: 20%;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(2) {
+  width: 26%;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(3) {
+  width: 10%;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(4) {
+  width: 12%;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(5) {
+  width: 15%;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(6) {
+  width: 10%;
+}
+.hpm-dialog .homeowner-history-table th:nth-child(7) {
+  width: 7%;
+}
+.hpm-dialog .homeowner-history-table tbody td {
+  padding: 11px 12px;
+  border: 0;
+  border-bottom: 1px solid #dfebf5;
+  color: #456d88;
+  font-size: 10.5px;
+  vertical-align: middle;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.hpm-dialog .homeowner-history-table tbody tr:nth-child(even) {
+  background: #f2f8fe;
+}
+.hpm-dialog .homeowner-history-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.hpm-dialog .homeowner-history-table td strong {
+  font-size: 10.5px;
+  color: #2c5977;
+  font-weight: 650;
+}
+.hpm-dialog .homeowner-history-table td small {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  color: #7892a5;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.hpm-dialog .homeowner-history-table td:nth-child(4),
+.hpm-dialog .homeowner-history-table td:nth-child(5) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.hpm-dialog .homeowner-history-table td.homeowner-credit {
+  color: #16704e;
+}
+.hpm-dialog .homeowner-history-table .homeowner-category,
+.hpm-dialog .homeowner-history-table .homeowner-payment-status {
+  font-size: 9px;
+  line-height: 1.5;
+  padding: 4px 7px;
+  border-radius: 7px;
+  white-space: normal;
+}
+.hpm-dialog .homeowner-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hpm-dialog .homeowner-history-actions button {
+  padding: 5px 7px;
+  border: 1px solid #bdd9ed;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 10px;
+  color: #176ba2;
+}
+.hpm-cctv {
+  padding: 0;
+  border: 1px solid #d5e5f2;
+  border-radius: 12px;
+  background: #f2f8fd;
+  margin: 0 0 15px;
+  overflow: hidden;
+}
+.hpm-cctv > summary {
+  padding: 12px 15px;
+  font-size: 11px;
+  color: #436b86;
+  cursor: pointer;
+}
+.hpm-cctv > summary small {
+  margin-left: 10px;
+  font-size: 9px;
+  color: #708b9f;
+}
+.hpm-cctv .cctv-compensation {
+  margin: 0;
+  box-shadow: none;
+  border: 0;
+  border-top: 1px solid #d5e5f2;
+}
+@media (max-width: 700px) {
+  .hpm-dialog .hpm-header {
+    padding: 16px 52px 16px 16px;
+  }
+  .hpm-dialog .homeowner-profile-identity h2 {
+    font-size: 23px;
+  }
+  .hpm-dialog .homeowner-summary-grid > article {
+    padding: 12px;
+  }
+  .hpm-dialog .homeowner-summary-grid strong {
+    font-size: 23px;
+  }
+  .hpm-dialog .homeowner-section-heading {
+    flex-wrap: wrap;
+  }
+  .hpm-dialog .homeowner-history-month-picker {
+    flex-basis: 100%;
+    margin: 2px 0 0;
+  }
+  .hpm-cctv > summary small {
+    display: block;
+    margin: 4px 0 0 15px;
+  }
+}
+.hpm-cctv > .cctv-card {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #d5e5f2;
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
+  width: 100%;
+}
+
+/* Payment-tracker month view: fixed summary and tabs, one scrolling pane. */
+.homeowner-month-dialog.hpm-month-v2 {
+  display: flex;
+  flex-direction: column;
+  width: min(1000px, 100%);
+  height: min(690px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: 22px;
+  background: #f6fbff;
+  box-shadow: 0 24px 75px rgba(12, 47, 76, 0.3);
+  overflow: hidden;
+  color: #15364d;
+  font-family: var(--font-body, 'Segoe UI', Arial, sans-serif);
+}
+.hpm-month-v2 [hidden] {
+  display: none !important;
+}
+.hpm-month-v2 .homeowner-month-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  padding: 20px 24px;
+  background: linear-gradient(115deg, #fff, #edf7ff 62%, #d2e9ff);
+  border-bottom: 1px solid #d5e6f3;
+}
+.hpm-month-v2 .homeowner-month-eyebrow {
+  margin: 0 0 5px;
+  color: #56809d;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.hpm-month-v2 .homeowner-month-dialog-header h2 {
+  margin: 0;
+  font:
+    600 26px/1.2 Georgia,
+    serif;
+  color: #21475f;
+}
+.hpm-month-v2 .homeowner-month-dialog-header p:last-child {
+  margin: 6px 0 0;
+  color: #6b889e;
+  font-size: 11px;
+}
+.hpm-month-v2 .homeowner-month-close-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 1px solid #c9dff0;
+  border-radius: 10px;
+  background: #ffffffcc;
+  color: #bc4c40;
+  font-size: 22px;
+  line-height: 1;
+}
+.hpm-month-v2 .homeowner-month-summary {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 10px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 14px 24px;
+  background: #f8fcff;
+  border: 0;
+  border-bottom: 1px solid #dce9f3;
+  border-radius: 0;
+}
+.hpm-month-v2 .homeowner-month-summary > div {
+  padding: 11px 14px;
+  border: 1px solid #d6e7f4;
+  border-radius: 12px;
+  background: linear-gradient(125deg, #fff, #eaf5ff);
+  min-width: 0;
+}
+.hpm-month-v2 .homeowner-month-summary > div:first-child {
+  order: 3;
+}
+.hpm-month-v2 .homeowner-month-summary > div:nth-child(2) {
+  order: 2;
+}
+.hpm-month-v2 .homeowner-month-summary > div:nth-child(3) {
+  order: 1;
+}
+.hpm-month-v2 .homeowner-month-summary > div > span {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #68879e;
+  font-weight: 650;
+}
+.hpm-month-v2 .homeowner-month-summary strong {
+  display: block;
+  margin: 5px 0 0;
+  font:
+    600 23px/1.2 Georgia,
+    serif;
+  color: #214d69;
+}
+.hpm-month-v2 .homeowner-month-summary .homeowner-month-pill {
+  font: 650 10px/1.4 var(--font-body, Arial, sans-serif);
+  padding: 4px 7px;
+  white-space: normal;
+}
+.hpm-month-nav {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 24px;
+  border-bottom: 1px solid #d4e6f3;
+  background: #fafdff;
+}
+.hpm-month-nav > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #65859c;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hpm-month-nav > button[aria-selected='true'] {
+  color: #176ba2;
+  background: linear-gradient(115deg, #e3f1fd, #d9ecfc);
+  border-color: #bdd9ed;
+  box-shadow: inset 0 1px 0 #fff;
+}
+.hpm-month-v2 .homeowner-month-dialog-body {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none;
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+  padding: 18px 24px;
+  max-height: none;
+}
+.hpm-month-v2 [role='tabpanel'] {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.hpm-month-v2 .homeowner-month-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  max-width: none;
+}
+.hpm-month-v2 .homeowner-month-totals > div {
+  display: block;
+  padding: 11px 13px;
+  border: 1px solid #d5e6f3;
+  border-radius: 11px;
+  background: #ffffffbd;
+}
+.hpm-month-v2 .homeowner-month-totals span {
+  font-size: 10px;
+  color: #6d8a9e;
+}
+.hpm-month-v2 .homeowner-month-totals strong {
+  display: block;
+  margin-top: 5px;
+  color: #2d5c7b;
+  font-size: 15px;
+  font-weight: 650;
+}
+.hpm-month-v2 .homeowner-month-grand-total {
+  display: none;
+}
+.hpm-month-v2 .homeowner-month-section-title {
+  margin: 0 0 11px;
+  font-size: 12px;
+  color: #355f7c;
+  font-weight: 650;
+}
+.hpm-month-v2 .homeowner-month-table-scroll {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #d1e4f2;
+  border-radius: 12px;
+  background: white;
+}
+.hpm-month-v2 .homeowner-month-table {
+  width: 100%;
+  min-width: 680px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.hpm-month-v2 .homeowner-month-table th {
+  position: static;
+  padding: 11px 12px;
+  border: 0;
+  background: #176ba2;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  text-align: left;
+}
+.hpm-month-v2 .homeowner-month-table th:nth-child(1) {
+  width: 16%;
+}
+.hpm-month-v2 .homeowner-month-table th:nth-child(2) {
+  width: 30%;
+}
+.hpm-month-v2 .homeowner-month-table th:nth-child(3) {
+  width: 23%;
+}
+.hpm-month-v2 .homeowner-month-table th:nth-child(4) {
+  width: 15%;
+}
+.hpm-month-v2 .homeowner-month-table th:nth-child(5) {
+  width: 16%;
+  text-align: right;
+}
+.hpm-month-v2 .homeowner-month-table td {
+  padding: 13px 12px;
+  border: 0;
+  border-bottom: 1px solid #dfebf5;
+  font-size: 11px;
+  line-height: 1.6;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.hpm-month-v2 .homeowner-month-table tr:last-child td {
+  border-bottom: 0;
+}
+.hpm-month-v2 .homeowner-month-table tbody tr:nth-child(even) {
+  background: #f3f9fe;
+}
+.hpm-month-v2 .homeowner-month-date-main,
+.hpm-month-v2 .homeowner-month-receipt-main {
+  font-size: 11px;
+  font-weight: 650;
+  color: #355f7b;
+}
+.hpm-month-v2 .homeowner-month-date-sub,
+.hpm-month-v2 .homeowner-month-receipt-sub {
+  font-size: 10px;
+  color: #7a94a7;
+}
+.hpm-month-v2 .homeowner-month-description-main {
+  font-size: 11px;
+  color: #456f8b;
+  white-space: normal;
+}
+.hpm-month-v2 .homeowner-month-pill {
+  font-size: 9px;
+  line-height: 1.5;
+  padding: 3px 6px;
+}
+.hpm-month-v2 .homeowner-month-table .homeowner-number {
+  text-align: right;
+  font-size: 12px;
+  color: #237a59;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.hpm-month-v2 .homeowner-month-empty {
+  margin: 0;
+  padding: 24px 18px;
+  border: 1px solid #d4e6f3;
+  border-radius: 12px;
+  background: #fff;
+  color: #6f8da2;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.hpm-month-explainer {
+  margin-top: 14px;
+  padding: 0;
+  border: 1px solid #d5e6f3;
+  border-radius: 10px;
+  background: #eef7fd;
+}
+.hpm-month-explainer > summary {
+  padding: 10px 13px;
+  font-size: 10px;
+  color: #547a96;
+  cursor: pointer;
+}
+.hpm-month-explainer .homeowner-month-clarification {
+  padding: 0 13px 12px;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #6c8a9f;
+}
+.hpm-month-intro {
+  margin: 0 0 15px;
+}
+.hpm-month-intro h3 {
+  margin: 0;
+  font:
+    600 21px/1.2 Georgia,
+    serif;
+  color: #254d68;
+}
+.hpm-month-intro p {
+  margin: 5px 0 0;
+  font-size: 10.5px;
+  color: #748fa2;
+  line-height: 1.6;
+}
+.hpm-month-billing > section {
+  margin-top: 0 !important;
+  padding: 15px;
+  border: 1px solid #d4e6f3;
+  border-radius: 12px;
+  background: #ffffffba;
+}
+.hpm-month-billing h3 {
+  font-size: 12px;
+  color: #355e79;
+  margin: 0 0 7px;
+}
+.hpm-month-billing h4 {
+  font-size: 11px;
+  color: #3c6783;
+  margin: 18px 0 7px;
+}
+.hpm-month-billing p {
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: #7591a4;
+  margin: 7px 0;
+}
+.hpm-month-billing ul {
+  margin: 9px 0;
+  padding-left: 18px;
+  color: #527a96;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.hpm-month-billing > section > p:nth-of-type(2),
+.hpm-month-billing > section > div > p:last-child {
+  padding: 12px;
+  border: 1px solid #dceaf5;
+  border-radius: 9px;
+  background: #f2f8fd;
+}
+.hpm-month-v2 .account-activity {
+  margin: 0;
+  padding: 15px;
+  border: 1px solid #d4e6f3;
+  border-radius: 12px;
+  background: #ffffffba;
+}
+.hpm-month-v2 .account-activity h3 {
+  font:
+    600 21px Georgia,
+    serif;
+  color: #254d68;
+}
+.hpm-month-v2 .account-activity p {
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.hpm-month-v2 .account-activity-note {
+  padding: 10px 12px;
+  border: 1px solid #dceaf4;
+  border-radius: 9px;
+  background: #f2f8fd;
+}
+.hpm-month-v2 .account-activity-empty {
+  padding: 20px;
+  font-size: 11px;
+}
+.hpm-month-v2 .homeowner-month-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 12px 24px;
+  border-top: 1px solid #d5e6f3;
+  background: #fffffff0;
+}
+.hpm-month-v2 .homeowner-month-dialog-footer > small {
+  margin-right: auto;
+  font-size: 10px;
+  color: #7a94a7;
+}
+.hpm-month-v2 .homeowner-month-dialog-footer button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+.hpm-month-v2 :is(button, summary):focus-visible {
+  outline: 3px solid #74add5;
+  outline-offset: 2px;
+}
+.hpm-dialog .hpm-nav button {
+  font-size: 11px;
+  gap: 6px;
+  padding: 9px 7px;
+}
+.hpm-activity-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+.hpm-activity-toolbar .hpm-pane-intro {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+}
+.hpm-activity-toolbar > label {
+  display: block;
+  font-size: 10px;
+  color: #69889f;
+  min-width: 145px;
+}
+.hpm-activity-toolbar > button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #c9deee;
+  border-radius: 8px;
+  background: #fff;
+  color: #176ba2;
+  font-size: 10.5px;
+  align-self: flex-end;
+  cursor: pointer;
+}
+#hpm-pane-activity .account-activity {
+  margin: 0;
+  border: 1px solid #d4e6f3;
+  border-radius: 14px;
+  background: #ffffffbd;
+}
+@media (max-width: 600px) {
+  .homeowner-month-dialog.hpm-month-v2 {
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 18px;
+  }
+  .hpm-month-v2 .homeowner-month-dialog-header {
+    padding: 16px;
+  }
+  .hpm-month-v2 .homeowner-month-dialog-header h2 {
+    font-size: 22px;
+  }
+  .hpm-month-v2 .homeowner-month-summary {
+    padding: 11px 16px;
+    gap: 6px;
+    grid-template-columns: 1.2fr 0.7fr 1fr;
+  }
+  .hpm-month-v2 .homeowner-month-summary > div {
+    padding: 9px;
+  }
+  .hpm-month-v2 .homeowner-month-summary > div > span {
+    font-size: 8px;
+  }
+  .hpm-month-v2 .homeowner-month-summary strong {
+    font-size: 19px;
+  }
+  .hpm-month-v2 .homeowner-month-summary .homeowner-month-pill {
+    font-size: 9px;
+    padding: 3px 5px;
+  }
+  .hpm-month-nav {
+    padding: 7px 12px;
+    gap: 3px;
+  }
+  .hpm-month-nav > button {
+    font-size: 10px;
+    padding: 7px 5px;
+    gap: 5px;
+  }
+  .hpm-month-v2 .homeowner-month-dialog-body {
+    padding: 15px 16px;
+  }
+  .hpm-month-v2 .homeowner-month-totals {
+    gap: 7px;
+  }
+  .hpm-month-v2 .homeowner-month-totals > div {
+    padding: 10px;
+  }
+  .hpm-month-v2 .homeowner-month-totals strong {
+    font-size: 13px;
+  }
+  .hpm-month-v2 .homeowner-month-totals span {
+    font-size: 9px;
+  }
+  .hpm-month-v2 .homeowner-month-dialog-footer {
+    padding: 11px 16px;
+    flex-wrap: wrap;
+  }
+  .hpm-month-v2 .homeowner-month-dialog-footer > small {
+    flex-basis: 100%;
+    font-size: 9px;
+  }
+  .hpm-dialog .hpm-nav {
+    overflow: auto;
+  }
+  .hpm-dialog .hpm-nav button {
+    flex: 0 0 auto;
+    min-width: 82px;
+    white-space: nowrap;
+    font-size: 10px;
+  }
+  .hpm-activity-toolbar {
+    gap: 9px;
+  }
+  .hpm-activity-toolbar .hpm-pane-intro {
+    flex-basis: 100%;
+  }
+}
+
+/* Four monthly payment totals on a single row. */
+.hpm-month-v2 .homeowner-month-totals {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:stretch;
+}
+.hpm-month-v2 .homeowner-month-totals>.homeowner-month-grand-total {
+  display:block;
+  border:1px solid #bcd9ef;
+  background:linear-gradient(125deg,#edf7ff,#dcefff);
+}
+.hpm-month-v2 .homeowner-month-totals>div { min-width:0 }
+.hpm-month-v2 .homeowner-month-totals>div>span { display:block;white-space:nowrap }
+.hpm-month-v2 .homeowner-month-totals>div>strong { display:block;white-space:nowrap }
+@media(max-width:600px) {
+  .hpm-month-v2 .homeowner-month-totals {
+    grid-template-columns:repeat(4,minmax(130px,1fr));
+    overflow-x:auto;
+    padding-bottom:5px;
+  }
+}
+
+/* Spacious Manage menu; keep action rows separate from header-button styles. */
+.hpm-dialog .homeowner-actions-popover {
+  width:280px;
+  min-width:250px;
+  max-width:calc(100vw - 40px);
+  display:grid;
+  gap:4px;
+  padding:10px;
+  margin-top:8px;
+  border:1px solid #cbdfee;
+  border-radius:15px;
+  background:rgba(252,254,255,.98);
+  box-shadow:0 0 0 1px rgba(255,255,255,.85),0 16px 36px -12px rgba(23,65,96,.28);
+  max-height:min(440px,calc(100dvh - 180px));
+  overflow-y:auto;
+}
+.hpm-dialog .homeowner-profile-actions .homeowner-actions-popover button {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  min-height:44px;
+  margin:0;
+  padding:12px 14px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:#315b77;
+  box-shadow:none;
+  font-size:13px;
+  font-weight:500;
+  line-height:1.5;
+  text-align:left;
+  white-space:normal;
+}
+.hpm-dialog .homeowner-profile-actions .homeowner-actions-popover button:hover {
+  border:0;
+  background:#eaf4fc;
+  color:#176ba2;
+  box-shadow:none;
+}
+.hpm-dialog .homeowner-profile-actions .homeowner-actions-popover button:focus-visible {
+  outline:2px solid #78add2;
+  outline-offset:-2px;
+  background:#eaf4fc;
+}
