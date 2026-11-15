@@ -24,6 +24,7 @@ import { fetchAll } from "../lib/fetchAll";
 import {
   groupMonthlyBillingAudit,
   summarizeMonthlyBillingAudit,
+  buildCurrentDuesPeriodQuery,
 } from "../lib/monthlyBillingAudit";
 import "./MonthlyBillingAuditPage.css";
 
@@ -59,7 +60,7 @@ const billingEvidenceFor = (row) =>
   row.voided_at
     ? ["Voided", "voided"]
     : !row.hasEvidence
-      ? ["No linked detail", "unknown"]
+      ? ["Missing", "unknown"]
       : row.fullyCovered
         ? ["Covered by credit", "covered"]
         : row.unpaidAdded > 0
@@ -210,6 +211,7 @@ export default function MonthlyBillingAuditPage() {
     error: "",
     rows: [],
     report: null,
+    currentDuesError: "",
   });
   const recordsRef = useRef(null);
   const searchRef = useRef(null);
@@ -233,7 +235,14 @@ export default function MonthlyBillingAuditPage() {
   }
   useEffect(() => {
     let cancelled = false;
-    setData({ scope, loading: true, error: "", rows: [], report: null });
+    setData({
+      scope,
+      loading: true,
+      error: "",
+      rows: [],
+      report: null,
+      currentDuesError: "",
+    });
     async function load() {
       const start = `${year}-01-01`,
         end = `${Number(year) + 1}-01-01`;
@@ -263,19 +272,14 @@ export default function MonthlyBillingAuditPage() {
           : query.eq("payload->>billing_month", `${month}-01`);
       });
       if (activity.error) throw activity.error;
-      const chargeIds = (charges.data || []).map((charge) => charge.id);
-      const balanceItems = chargeIds.length
-        ? await fetchAll(
-            () =>
-              supabase
-                .from("property_balance_items")
-                .select("kind,ref_id,unpaid")
-                .eq("kind", "dues")
-                .in("ref_id", chargeIds)
-                .order("ref_id"),
-            { tiebreaker: "ref_id" },
-          )
-        : { data: [], error: null };
+      const balanceItems = await fetchAll(
+        () =>
+          buildCurrentDuesPeriodQuery(
+            supabase.from("property_balance_items"),
+            { view, month, year },
+          ).order("ref_id"),
+        { tiebreaker: "ref_id" },
+      );
       let report = null;
       if (view === "month") {
         const latest = await supabase
@@ -302,6 +306,9 @@ export default function MonthlyBillingAuditPage() {
             balanceItems.error ? null : balanceItems.data || [],
           ),
           report,
+          currentDuesError: balanceItems.error
+            ? `Current dues could not be verified: ${balanceItems.error.message || "Please retry."}`
+            : "",
         });
     }
     void load().catch((error) => {
@@ -312,6 +319,7 @@ export default function MonthlyBillingAuditPage() {
           error: error?.message || "Billing audit unavailable.",
           rows: [],
           report: null,
+          currentDuesError: "",
         });
     });
     return () => {
@@ -708,11 +716,8 @@ export default function MonthlyBillingAuditPage() {
                   "No matching completion notification is available. It may be missing, expired, or inaccessible; this does not mean billing failed. An authorized administrator can check the scheduled job logs."
                 )}
                 <p>
-                  Only recorded charges are assessed here. Credit used and new
-                  unpaid are verified subsets with saved linked evidence;
-                  missing evidence is not zero. Current unpaid is a separate
-                  live ledger position and does not allocate later payments to
-                  this historical charge.
+                  Dues assessed is what was billed. Current dues is what remains
+                  unpaid now. Billing evidence is the historical processing record.
                 </p>
               </div>
             )}
@@ -961,17 +966,29 @@ export default function MonthlyBillingAuditPage() {
                   ))}
                 </div>
               </div>
+              {data.currentDuesError && (
+                <div className="ba-current-dues-warning" role="alert">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <p>
+                    <strong>Current dues are unavailable.</strong> {data.currentDuesError}
+                  </p>
+                  <button
+                    type="button"
+                    className="ba-button"
+                    onClick={() => setRevision((value) => value + 1)}
+                  >
+                    <RefreshCw size={15} />
+                    Retry
+                  </button>
+                </div>
+              )}
               <div className="ba-table-wrap">
-                <table className="ba-table">
+                <table className="ba-table ba-records-table">
                   <thead>
                     <tr>
                       {sortHead("name", "Account")}
-                      <th scope="col">Class</th>
                       {sortHead("due", "Dues assessed", true)}
-                      {sortHead("credit", "Credit used", true)}
-                      {sortHead("unpaid", "New unpaid", true)}
-                      {sortHead("currentUnpaid", "Current unpaid", true)}
-                      {sortHead("currentPosition", "Current position")}
+                      {sortHead("currentUnpaid", "Current dues", true)}
                       {sortHead("evidence", "Billing evidence")}
                       <th scope="col">
                         <span className="ba-sr-only">Details</span>
@@ -993,13 +1010,8 @@ export default function MonthlyBillingAuditPage() {
                           </button>
                           <small>
                             Block {row.properties?.block ?? "—"} · Lot{" "}
-                            {row.properties?.lot_number ?? "—"} ·{" "}
-                            <code title={String(row.id)}>
-                              #{String(row.id).slice(0, 8)}
-                            </code>
+                            {row.properties?.lot_number ?? "—"}
                           </small>
-                        </td>
-                        <td data-label="Class">
                           <span className="ba-class">{classFor(row)}</span>
                         </td>
                         <td
@@ -1008,21 +1020,13 @@ export default function MonthlyBillingAuditPage() {
                         >
                           {peso.format(Number(row.amount))}
                         </td>
-                        <td data-label="Credit used" className="ba-number">
-                          <Amount value={row.creditUsed} tone="ba-positive" />
-                        </td>
-                        <td data-label="New unpaid" className="ba-number">
-                          <Amount value={row.unpaidAdded} tone="ba-unpaid" />
-                        </td>
-                        <td data-label="Current unpaid" className="ba-number">
+                        <td data-label="Current dues" className="ba-number ba-current-dues">
                           <Amount
                             value={row.currentUnpaid}
                             tone="ba-unpaid"
                             missingText="Unavailable"
                             missingTitle="No verified live dues ledger item is available for this charge; this does not mean zero"
                           />
-                        </td>
-                        <td data-label="Current position">
                           <span className={`ba-status ba-status-${currentPositionFor(row)[1]}`}>
                             {currentPositionFor(row)[0]}
                           </span>

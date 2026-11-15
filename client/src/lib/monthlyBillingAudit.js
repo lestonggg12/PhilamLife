@@ -1,5 +1,16 @@
 // Display-only interpretation of authoritative charge rows and saved audit events.
 // Never invent historical credit transfers or count credit use as received cash.
+export function buildCurrentDuesPeriodQuery(query, { view, month, year }) {
+  const scoped = query
+    .select('kind,category,ref_id,unpaid')
+    .eq('kind', 'dues')
+    .eq('category', 'Association Dues')
+
+  return view === 'year'
+    ? scoped.gte('item_date', `${year}-01-01`).lt('item_date', `${Number(year) + 1}-01-01`)
+    : scoped.eq('item_date', `${month}-01`)
+}
+
 export function groupMonthlyBillingAudit(charges, events, balanceItems = null) {
   const evidence = new Map()
   for (const event of events || []) {
@@ -14,10 +25,11 @@ export function groupMonthlyBillingAudit(charges, events, balanceItems = null) {
   const currentSettlementAvailable = Array.isArray(balanceItems)
   const currentUnpaidByCharge = new Map()
   for (const item of balanceItems || []) {
-    if (item?.kind !== 'dues') continue
+    if (item?.kind !== 'dues' || item?.category !== 'Association Dues') continue
     const refId = String(item.ref_id || '')
+    if (!refId || item.unpaid == null || item.unpaid === '') continue
     const unpaid = Number(item.unpaid)
-    if (!refId || !Number.isFinite(unpaid)) continue
+    if (!Number.isFinite(unpaid)) continue
     currentUnpaidByCharge.set(refId, unpaid)
   }
   return (charges || []).map(charge => {
