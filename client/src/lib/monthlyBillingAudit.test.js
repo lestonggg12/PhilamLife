@@ -10,7 +10,7 @@ describe('monthly billing audit evidence is read-only', () => {
     ], [{ kind: 'dues', category: 'Association Dues', ref_id: 'a', unpaid: 25 }])
     expect(rows[0].creditUsed).toBe(75)
     expect(rows[0].unpaidAdded).toBe(25)
-    expect(summarizeMonthlyBillingAudit(rows)).toMatchObject({ assessed: 100, verifiedCredit: 75, verifiedUnpaid: 25, withCredit: 1, increasedDue: 1 })
+    expect(summarizeMonthlyBillingAudit(rows)).toMatchObject({ accountsBilled: 1, assessed: 100, verifiedCredit: 75, verifiedUnpaid: 25, withCredit: 1, increasedDue: 1, applied: 1, needsReview: null })
   })
   it('marks fully prepaid bills correctly', () => {
     const [row] = groupMonthlyBillingAudit([bill('b')], [
@@ -48,6 +48,19 @@ describe('monthly billing audit evidence is read-only', () => {
   it('never counts voided charges toward financial totals', () => {
     const [row] = groupMonthlyBillingAudit([{ ...bill('void'), voided_at: '2026-12-04' }], [])
     expect(summarizeMonthlyBillingAudit([row]).assessed).toBe(0)
+  })
+  it('counts distinct nonvoided property accounts while retaining each valid charge in assessed totals', () => {
+    const rows = groupMonthlyBillingAudit([
+      { ...bill('first', 100), property_id: 7 },
+      { ...bill('second', 50), property_id: 7 },
+      { ...bill('voided', 99), property_id: 8, voided_at: '2026-11-02' },
+    ], [])
+    expect(summarizeMonthlyBillingAudit(rows)).toMatchObject({ accountsBilled: 1, assessed: 150, applied: 1 })
+  })
+  it('does not create a needs-review discrepancy from missing historical evidence or unavailable balances', () => {
+    const [row] = groupMonthlyBillingAudit([bill('unverified')], [], null)
+    expect(row).toMatchObject({ billingStatus: 'applied', previousBalance: null, balanceAfterBilling: null })
+    expect(summarizeMonthlyBillingAudit([row]).needsReview).toBeNull()
   })
   it('does not associate unrelated audit events with a charge', () => {
     const [row] = groupMonthlyBillingAudit([bill('a')], [{ kind: 'penalty_applied', payload: { source_id: 'a' } }])

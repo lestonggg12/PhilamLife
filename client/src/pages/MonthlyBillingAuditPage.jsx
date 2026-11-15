@@ -66,6 +66,8 @@ const billingEvidenceFor = (row) =>
         : row.unpaidAdded > 0
           ? ["Unpaid portion added", "unpaid"]
           : ["Recorded", "recorded"];
+const billingStatusFor = (row) =>
+  row.voided_at ? ["Voided", "voided"] : ["Applied", "recorded"];
 const currentPositionFor = (row) =>
   !row.hasCurrentSettlement
     ? ["Unavailable", "unknown"]
@@ -84,6 +86,9 @@ const matchesFilter = (row, filter) =>
   (filter === "credit" && row.creditUsed > 0) ||
   (filter === "unpaid" && row.unpaidAdded > 0) ||
   (filter === "covered" && row.fullyCovered) ||
+  (filter === "applied" && row.billingStatus === "applied" && !row.voided_at) ||
+  (filter === "review" && row.billingStatus === "needs-review") ||
+  (filter === "voided" && Boolean(row.voided_at)) ||
   (filter === "unknown" && !row.hasEvidence);
 const csvCell = (value) => {
   const text = String(value ?? "");
@@ -93,6 +98,9 @@ const csvCell = (value) => {
 function BillingEvidence({ row }) {
   const [label, tone] = billingEvidenceFor(row);
   return <span className={`ba-status ba-status-${tone}`}>{label}</span>;
+}
+function HistoricalAmount({ value, title = "No authoritative historical billing balance was recorded for this charge." }) {
+  return value == null ? <span className="ba-historical-missing" title={title}>—</span> : <span>{peso.format(value)}</span>;
 }
 function Amount({
   value,
@@ -250,7 +258,7 @@ export default function MonthlyBillingAuditPage() {
         let query = supabase
           .from("property_charges")
           .select(
-            "id,property_id,billing_month,amount,description,created_at,created_by_name,voided_at,properties!inner(homeowner_name,block,lot_number,property_classification)",
+            "id,property_id,billing_month,amount,description,created_at,voided_at,properties(id,homeowner_name,block,lot_number,property_classification,current_balance)",
           )
           .eq("charge_type", "Association Dues");
         query =
@@ -377,9 +385,9 @@ export default function MonthlyBillingAuditPage() {
         due: Number(row.amount),
         credit: row.creditUsed ?? -Infinity,
         unpaid: row.unpaidAdded ?? -Infinity,
-        currentUnpaid: row.currentUnpaid ?? -Infinity,
-        currentPosition: currentPositionFor(row)[0],
-        evidence: billingEvidenceFor(row)[0],
+        previousBalance: row.previousBalance ?? -Infinity,
+        balanceAfter: row.balanceAfterBilling ?? -Infinity,
+        status: billingStatusFor(row)[0],
       })[sort.key];
     return [...result].sort((a, b) => {
       const av = value(a),
@@ -425,46 +433,32 @@ export default function MonthlyBillingAuditPage() {
     1,
     ...months.map((item) => Math.max(item.assessed, item.verifiedUnpaid)),
   );
-  const evidenceCount = Math.max(0, totals.billed - totals.unknown);
-  const missingEvidence = totals.unknown > 0;
-  const noVerifiedEvidence = totals.billed > 0 && totals.unknown === totals.billed;
   const kpis = [
     [
-      "Total billed",
-      peso.format(totals.assessed),
-      "Assessed, not collected",
-      BookOpen,
-      "hero",
-    ],
-    [
-      view === "year" ? "Months billed" : "Charges",
-      view === "year" ? `${billedMonths} of 12` : count(totals.billed),
-      view === "year" ? "Months with active charges" : "Non-voided dues",
+      "Accounts billed",
+      count(totals.accountsBilled),
+      "Distinct accounts with nonvoided Association Dues",
       view === "year" ? CalendarDays : FileText,
-      "hero",
-    ],
-    [
-      "Credit used",
-      noVerifiedEvidence ? "—" : peso.format(totals.verifiedCredit),
-      missingEvidence
-        ? `Verified amount only; ${count(totals.unknown)} charges lack detail`
-        : "Verified advance balance applied",
-      ArrowDownLeft,
       "",
     ],
     [
-      "Unpaid portion",
-      noVerifiedEvidence ? "—" : peso.format(totals.verifiedUnpaid),
-      missingEvidence
-        ? `Verified amount only; ${count(totals.unknown)} charges lack detail`
-        : "Verified amount added at billing",
-      Clock3,
+      "Total dues assessed",
+      peso.format(totals.assessed),
+      "Billed amount; not cash collected",
+      ClipboardCheck,
       "",
     ],
     [
-      "No linked detail",
-      count(totals.unknown),
-      `${count(evidenceCount)} of ${count(totals.billed)} have detail`,
+      "Applied",
+      count(totals.applied),
+      "Accounts with a valid recorded monthly dues charge",
+      CheckCircle2,
+      "",
+    ],
+    [
+      "Needs review",
+      totals.needsReview == null ? "Not verified" : count(totals.needsReview),
+      "Only confirmed reconciliation discrepancies are counted",
       AlertTriangle,
       "flag",
     ],
@@ -511,30 +505,30 @@ export default function MonthlyBillingAuditPage() {
     const values = [
       [
         "Account",
-        "Block",
-        "Lot",
-        "Class",
+        "Previous balance",
+        "Monthly dues",
+        "Balance after billing",
+        "Billing status",
+        "Property ID",
         "Charge ID",
         "Billing month",
-        "Dues assessed",
+        "Current account balance",
         "Credit used",
         "New unpaid",
-        "Current unpaid",
-        "Current position",
-        "Billing evidence",
+        "Historical evidence status",
       ],
       ...rows.map((row) => [
         nameFor(row),
-        row.properties?.block,
-        row.properties?.lot_number,
-        classFor(row),
+        row.previousBalance,
+        row.amount,
+        row.balanceAfterBilling,
+        billingStatusFor(row)[0],
+        row.property_id,
         row.id,
         row.billing_month,
-        row.amount,
+        row.properties?.current_balance,
         row.creditUsed,
         row.unpaidAdded,
-        row.currentUnpaid,
-        currentPositionFor(row)[0],
         billingEvidenceFor(row)[0],
       ]),
     ];
@@ -733,18 +727,6 @@ export default function MonthlyBillingAuditPage() {
                 </div>
                 <strong>{value}</strong>
                 <p>{note}</p>
-                {type === "flag" && (
-                  <div
-                    className="ba-meter"
-                    aria-label={`${evidenceCount} of ${totals.billed} active charges have linked detail`}
-                  >
-                    <i
-                      style={{
-                        width: `${totals.billed ? (evidenceCount / totals.billed) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                )}
               </article>
             ))}
           </section>
@@ -891,82 +873,41 @@ export default function MonthlyBillingAuditPage() {
               aria-label="Billing charge records"
             >
               <div className="ba-record-tools">
-                <div className="ba-record-heading">
+                <div className="ba-record-heading ba-record-heading-primary">
                   <div>
                     <h2>Billing records</h2>
-                    <p>
-                      {count(rows.length)} matching charges · {PER_PAGE} per
-                      page · {monthLabel(month)}
-                    </p>
+                    <p>{monthLabel(month)} � {count(rows.length)} matching records</p>
                   </div>
-                  <div className="ba-tools">
-                    <label className="ba-search">
-                      <Search size={18} aria-hidden="true" />
-                      <input
-                        ref={searchRef}
-                        aria-label="Search account"
-                        type="search"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Name, block, lot or ID"
-                      />
-                      <kbd aria-hidden="true">/</kbd>
-                    </label>
-                    <div
-                      className="ba-segment ba-density"
-                      role="group"
-                      aria-label="Row density"
-                    >
-                      <button
-                        type="button"
-                        aria-pressed={!compact}
-                        onClick={() => setCompact(false)}
-                      >
-                        Comfortable
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={compact}
-                        onClick={() => setCompact(true)}
-                      >
-                        Compact
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className="ba-button"
-                      disabled={!rows.length}
-                      onClick={exportCsv}
-                    >
-                      <Download size={16} />
-                      Export CSV
-                    </button>
+                  <button type="button" className="ba-button" disabled={!rows.length} onClick={exportCsv}>
+                    <Download size={16} />
+                    Export CSV
+                  </button>
+                </div>
+                <div className="ba-record-toolbar-row">
+                  <label className="ba-search">
+                    <Search size={18} aria-hidden="true" />
+                    <span className="ba-sr-only">Search accounts</span>
+                    <input ref={searchRef} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search account, block, lot, or ID" />
+                    <kbd aria-hidden="true">/</kbd>
+                  </label>
+                  <div className="ba-segment ba-density" role="group" aria-label="Row density">
+                    <button type="button" aria-pressed={!compact} onClick={() => setCompact(false)}>Comfortable</button>
+                    <button type="button" aria-pressed={compact} onClick={() => setCompact(true)}>Compact</button>
                   </div>
                 </div>
-                <div
-                  className="ba-chips"
-                  role="group"
-                  aria-label="Filter by status"
-                >
-                  {FILTERS.map(([key, label]) => (
-                    <button
-                      type="button"
-                      key={key}
-                      aria-pressed={filter === key}
-                      onClick={() => setFilter(key)}
-                    >
-                      {label}
-                      <span>
-                        {count(
-                          searched.filter((row) => matchesFilter(row, key))
-                            .length,
-                        )}
-                      </span>
+                <div className="ba-chips" role="group" aria-label="Filter by billing status">
+                  {[
+                    ["all", "All accounts", searched.length],
+                    ["applied", "Applied", searched.filter((row) => row.billingStatus === "applied" && !row.voided_at).length],
+                    ["review", "Needs review", null],
+                    ["voided", "Voided", searched.filter((row) => row.voided_at).length],
+                  ].map(([key, label, amount]) => (
+                    <button type="button" key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>
+                      {label}<span>{amount == null ? "Not verified" : count(amount)}</span>
                     </button>
                   ))}
                 </div>
-              </div>
-              {data.currentDuesError && (
+              </div>              {data.currentDuesError && (
                 <div className="ba-current-dues-warning" role="alert">
                   <AlertTriangle size={18} aria-hidden="true" />
                   <p>
@@ -987,12 +928,10 @@ export default function MonthlyBillingAuditPage() {
                   <thead>
                     <tr>
                       {sortHead("name", "Account")}
-                      {sortHead("due", "Dues assessed", true)}
-                      {sortHead("currentUnpaid", "Current dues", true)}
-                      {sortHead("evidence", "Billing evidence")}
-                      <th scope="col">
-                        <span className="ba-sr-only">Details</span>
-                      </th>
+                      {sortHead("previousBalance", "Previous balance", true)}
+                      {sortHead("due", "Monthly dues", true)}
+                      {sortHead("balanceAfter", "Balance after billing", true)}
+                      {sortHead("status", "Billing status")}
                     </tr>
                   </thead>
                   <tbody>
@@ -1013,36 +952,26 @@ export default function MonthlyBillingAuditPage() {
                             {row.properties?.lot_number ?? "—"}
                           </small>
                           <span className="ba-class">{classFor(row)}</span>
+                          <button type="button" className="ba-view-details" onClick={() => setSelectedId(row.id)}>
+                            View details <ChevronRight size={14} />
+                          </button>
                         </td>
                         <td
-                          data-label="Dues assessed"
-                          className="ba-number ba-money"
+                          data-label="Previous balance"
+                          className="ba-number"
                         >
+                          <HistoricalAmount value={row.previousBalance} />
+                        </td>
+                        <td data-label="Monthly dues" className="ba-number ba-money">
                           {peso.format(Number(row.amount))}
                         </td>
-                        <td data-label="Current dues" className="ba-number ba-current-dues">
-                          <Amount
-                            value={row.currentUnpaid}
-                            tone="ba-unpaid"
-                            missingText="Unavailable"
-                            missingTitle="No verified live dues ledger item is available for this charge; this does not mean zero"
-                          />
-                          <span className={`ba-status ba-status-${currentPositionFor(row)[1]}`}>
-                            {currentPositionFor(row)[0]}
+                        <td data-label="Balance after billing" className="ba-number">
+                          <HistoricalAmount value={row.balanceAfterBilling} />
+                        </td>
+                        <td data-label="Billing status">
+                          <span className={`ba-status ba-status-${billingStatusFor(row)[1]}`}>
+                            {billingStatusFor(row)[0]}
                           </span>
-                        </td>
-                        <td data-label="Billing evidence">
-                          <BillingEvidence row={row} />
-                        </td>
-                        <td data-label="Details">
-                          <button
-                            type="button"
-                            className="ba-row-open"
-                            aria-label={`View charge details for ${nameFor(row)}`}
-                            onClick={() => setSelectedId(row.id)}
-                          >
-                            <ChevronRight size={19} />
-                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1166,72 +1095,41 @@ export default function MonthlyBillingAuditPage() {
           }
         >
           <p className="ba-detail-address">
-            Block {selected.properties?.block ?? "—"} · Lot{" "}
-            {selected.properties?.lot_number ?? "—"} · {classFor(selected)}
+            Block {selected.properties?.block ?? "�"} � Lot{" "}
+            {selected.properties?.lot_number ?? "�"} � {classFor(selected)}
           </p>
-          <BillingEvidence row={selected} />
-          <dl className="ba-detail-grid">
-            <div>
-              <dt>Dues assessed</dt>
-              <dd>{peso.format(Number(selected.amount))}</dd>
-            </div>
-            <div>
-              <dt>Billing month</dt>
-              <dd>{monthLabel(month)}</dd>
-            </div>
-            <div>
-              <dt>Credit used</dt>
-              <dd>
-                <Amount value={selected.creditUsed} />
-              </dd>
-            </div>
-            <div>
-              <dt>New unpaid</dt>
-              <dd>
-                <Amount value={selected.unpaidAdded} />
-              </dd>
-            </div>
-            <div>
-              <dt>Current unpaid</dt>
-              <dd>
-                <Amount
-                  value={selected.currentUnpaid}
-                  missingText="Unavailable"
-                  missingTitle="No verified live dues ledger item is available for this charge; this does not mean zero"
-                />
-              </dd>
-            </div>
-            <div>
-              <dt>Current position</dt>
-              <dd>
-                <span className={`ba-status ba-status-${currentPositionFor(selected)[1]}`}>
-                  {currentPositionFor(selected)[0]}
-                </span>
-              </dd>
-            </div>
-          </dl>
-          <div className="ba-explanation">
-            {selected.voided_at
-              ? "This charge was cancelled and is excluded from assessed totals."
-              : !selected.hasEvidence
-                ? "No matching saved credit or unpaid activity was found. This does not prove a missed credit, debt, or billing error."
-                : "These adjustments are backed by saved billing activity. They remain historical billing evidence, not a current payment allocation."}
-          </div>
-          <div className="ba-explanation">
-            {selected.hasCurrentSettlement
-              ? "Current unpaid comes from the live dues ledger item linked to this charge. It shows the present amount due, after later account activity, without inferring how any payment was allocated."
-              : "Current settlement is unavailable because no verified live dues ledger item could be read for this charge. This does not establish that the amount due is zero."}
-          </div>
-          <div className="ba-explanation">
-            <strong>Charge ID</strong>
-            <code className="ba-full-id">{selected.id}</code>
-            {selected.description && <p>{selected.description}</p>}
-          </div>
-          <p className="ba-detail-note">
-            Dues assessed and billing evidence are historical. Current unpaid
-            is the verified live ledger position; open the ledger for details.
-          </p>
-        </Overlay>
+          <span className={`ba-status ba-status-${billingStatusFor(selected)[1]}`}>
+            {billingStatusFor(selected)[0]}
+          </span>
+          <section className="ba-drawer-section">
+            <h3>Billing summary</h3>
+            <dl className="ba-detail-grid">
+              <div><dt>Previous balance</dt><dd><HistoricalAmount value={selected.previousBalance} /></dd></div>
+              <div><dt>Monthly association dues</dt><dd>+ {peso.format(Number(selected.amount))}</dd></div>
+              <div><dt>Verified billing-time adjustments</dt><dd><HistoricalAmount value={selected.billingTimeAdjustments} /></dd></div>
+              <div><dt>Balance after billing</dt><dd><HistoricalAmount value={selected.balanceAfterBilling} /></dd></div>
+            </dl>
+            <p className="ba-detail-note">Historical before/after balances are shown only when an authoritative billing-time record exists; this report does not reconstruct them from today�s balance.</p>
+          </section>
+          <section className="ba-drawer-section">
+            <h3>Current account position</h3>
+            <dl className="ba-detail-grid">
+              <div><dt>Current account balance</dt><dd><Amount value={selected.properties?.current_balance} missingText="Unavailable" missingTitle="No current property balance was available" /></dd></div>
+              <div><dt>Current unpaid dues</dt><dd><Amount value={selected.currentUnpaid} missingText="Unavailable" missingTitle="No verified live dues ledger item is available for this charge; this does not mean zero" /></dd></div>
+            </dl>
+            <p className="ba-detail-note">Later payments and adjustments may change the current balance after billing.</p>
+          </section>
+          <details className="ba-processing-details">
+            <summary>Billing processing details</summary>
+            <dl className="ba-detail-grid">
+              <div><dt>Credit used at billing</dt><dd><Amount value={selected.creditUsed} /></dd></div>
+              <div><dt>New unpaid at billing</dt><dd><Amount value={selected.unpaidAdded} /></dd></div>
+              <div><dt>Historical audit evidence</dt><dd><BillingEvidence row={selected} /></dd></div>
+              <div><dt>Billing month</dt><dd>{monthLabel(month)}</dd></div>
+              <div><dt>Posting timestamp</dt><dd>{selected.created_at ? new Date(selected.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" }) : "Not recorded"}</dd></div>
+              <div><dt>Charge ID</dt><dd><code className="ba-full-id">{selected.id}</code></dd></div>
+            </dl>
+          </details>        </Overlay>
       )}
       {guide && (
         <Overlay

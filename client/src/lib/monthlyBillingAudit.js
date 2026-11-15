@@ -46,6 +46,11 @@ export function groupMonthlyBillingAudit(charges, events, balanceItems = null) {
       creditUsed,
       unpaidAdded,
       hasEvidence: !!base,
+      billingStatus: charge.voided_at ? 'voided' : 'applied',
+      historicalBalanceVerified: false,
+      previousBalance: null,
+      billingTimeAdjustments: null,
+      balanceAfterBilling: null,
       currentUnpaid: currentSettlementAvailable && currentUnpaidByCharge.has(String(charge.id))
         ? currentUnpaidByCharge.get(String(charge.id))
         : null,
@@ -58,8 +63,10 @@ export function groupMonthlyBillingAudit(charges, events, balanceItems = null) {
 
 export function summarizeMonthlyBillingAudit(rows) {
   const active = (rows || []).filter(row => !row.voided_at)
+  const accountIds = new Set(active.map(row => String(row.property_id || row.id)))
   return {
     billed: active.length,
+    accountsBilled: accountIds.size,
     assessed: active.reduce((sum, row) => sum + Number(row.amount || 0), 0),
     verifiedCredit: active.reduce((sum, row) => sum + (row.creditUsed || 0), 0),
     verifiedUnpaid: active.reduce((sum, row) => sum + (row.unpaidAdded || 0), 0),
@@ -67,5 +74,7 @@ export function summarizeMonthlyBillingAudit(rows) {
     withCredit: active.filter(row => row.creditUsed > 0).length,
     fullyCovered: active.filter(row => row.fullyCovered).length,
     increasedDue: active.filter(row => row.unpaidAdded > 0).length,
+    applied: new Set(active.filter(row => row.billingStatus === 'applied').map(row => String(row.property_id || row.id))).size,
+    needsReview: null,
   }
 }
