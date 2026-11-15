@@ -5121,3 +5121,15 @@
   outline-offset:-2px;
   background:#eaf4fc;
 }
+.homeowners-page .hpf-controls {
+  background: linear-gradient(115deg, #287fb6, #176ba2 60%, #145889);
+  border-color: #4b94c2;
+  box-shadow:
+    0 8px 20px -12px #13578780,
+    inset 0 1px 0 #ffffff59;
+}
+
+.homeowners-page .hpf-controls > label > span,
+.homeowners-page .hpf-controls > label > span svg {
+  color: #fff;
+}

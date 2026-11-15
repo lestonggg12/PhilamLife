@@ -1,4 +1,5 @@
 import { LayoutDashboard } from 'lucide-react'
+import Chart from 'chart.js/auto'
 import useManilaMonthRollover from '../hooks/useManilaMonthRollover'
 import { isVerifiedDashboardSnapshot } from '../lib/dashboardSnapshot'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -46,6 +47,46 @@ function formatActivityTime(value, dateFormat) {
   return Number.isNaN(parsed.getTime()) ? 'Time unavailable' : formatDateValue(parsed, { dateFormat, withTime: true })
 }
 
+const BALANCE_ITEMS = [
+  { key: 'balanceDue', label: 'Balance due', color: '#c96b59' },
+  { key: 'advanceCredit', label: 'Advance credit', color: '#258d70' },
+  { key: 'clear', label: 'Zero balance', color: '#3d88bb' },
+]
+
+export function buildSecretaryAnalytics(properties, monthlyRows, period) {
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period)) throw new Error('Invalid analytics month.')
+  const [year, month] = period.split('-').map(Number)
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(Date.UTC(year, month - 6 + index, 1))
+    return {
+      key: date.toISOString().slice(0, 7),
+      label: new Intl.DateTimeFormat('en-PH', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date),
+      amount: 0,
+    }
+  })
+  for (const row of monthlyRows) {
+    const entry = months.find(item => item.key === String(row.month_start).slice(0, 7))
+    if (!entry) continue
+    const raw = row.dues_collected
+    const cents = Math.round(Number(raw) * 100)
+    if (raw == null || String(raw).trim() === '' || !Number.isFinite(Number(raw)) || !Number.isSafeInteger(cents) || cents < 0) {
+      throw new Error('Collections analytics contain an unavailable amount.')
+    }
+    entry.amount = cents / 100
+  }
+  const balances = { balanceDue: 0, advanceCredit: 0, clear: 0, total: 0 }
+  for (const property of properties) {
+    if ((property.homeowner_status || 'active') !== 'active') continue
+    const raw = property.current_balance
+    if (raw == null || String(raw).trim() === '' || !Number.isFinite(Number(raw))) throw new Error('Account balance analytics are unavailable.')
+    const cents = Math.round(Number(raw) * 100)
+    if (!Number.isSafeInteger(cents)) throw new Error('Account balance is outside the supported range.')
+    balances[cents > 0 ? 'balanceDue' : cents < 0 ? 'advanceCredit' : 'clear'] += 1
+    balances.total += 1
+  }
+  return { months, balances }
+}
+
 export default function SecretaryDashboard() {
   const { organization } = useOrganization()
   const navigate = useNavigate()
@@ -57,6 +98,8 @@ export default function SecretaryDashboard() {
   const [pageError, setPageError] = useState('')
   const [hasLoaded, setHasLoaded] = useState(false)
   const requestRef = useRef(0)
+  const collectionChartRef = useRef(null)
+  const balanceChartRef = useRef(null)
   const [dashboardPeriod, setDashboardPeriod] = useState(() => {
     const { year, month } = manilaDateParts()
     return year + '-' + month
@@ -81,6 +124,8 @@ export default function SecretaryDashboard() {
     try {
       const { year, month } = manilaDateParts()
       const requestedPeriod = year + '-' + month
+      const firstChartMonth = buildSecretaryAnalytics([], [], requestedPeriod).months[0].key + '-01'
+      const historyStart = [firstChartMonth, `${year}-01-01`].sort()[0]
       const [propertyResult, paymentResult, activityResult, monthlyResult] =
         await Promise.all([
           fetchAll(() => supabase
@@ -92,7 +137,7 @@ export default function SecretaryDashboard() {
             .select('id, homeowner_name, coverage_period, block_name, lot_number, amount_paid, paid_at, status')
             .or('status.is.null,status.neq.Voided')
             .order('paid_at', { ascending: false })
-            .limit(5),
+            .limit(6),
           supabase
             .from('activity_log')
             .select('id, action, target, created_at')
@@ -102,7 +147,7 @@ export default function SecretaryDashboard() {
           supabase
             .from('monthly_collections')
             .select('month_start, dues_collected, dues_only_collected, dues_only_receipts')
-            .gte('month_start', `${year}-01-01`)
+            .gte('month_start', historyStart)
             .lt('month_start', `${Number(year) + 1}-01-01`)
             .order('month_start'),
         ])
@@ -114,6 +159,7 @@ export default function SecretaryDashboard() {
         throw new Error('One or more dashboard queries returned incomplete data.')
       }
       secretaryDashboardSummary(propertyResult.data, monthlyResult.data, manilaDateParts())
+      buildSecretaryAnalytics(propertyResult.data, monthlyResult.data, requestedPeriod)
       // Commit only a complete snapshot; an unsuccessful refresh must not replace
       // previously verified figures with zeros or partial records.
       setProperties(propertyResult.data)
@@ -145,6 +191,42 @@ export default function SecretaryDashboard() {
   const dashboardUnavailable = !hasLoaded || !isVerifiedDashboardSnapshot({
     period: dashboardPeriod, verifiedPeriod, loading, error: pageError,
   })
+
+  const analytics = useMemo(
+    () => buildSecretaryAnalytics(properties, monthlyRows, dashboardPeriod),
+    [properties, monthlyRows, dashboardPeriod],
+  )
+
+  useEffect(() => {
+    if (dashboardUnavailable) return undefined
+    const charts = []
+    if (collectionChartRef.current) {
+      charts.push(new Chart(collectionChartRef.current, {
+        type: 'bar',
+        data: {
+          labels: analytics.months.map(item => item.label),
+          datasets: [{ label: 'Homeowner collections', data: analytics.months.map(item => item.amount), backgroundColor: '#3d8ec5', borderColor: '#247bb4', borderWidth: 1, borderRadius: 7, maxBarThickness: 44 }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `Homeowner collections: ${peso.format(context.parsed.y)}` } } },
+          scales: {
+            x: { grid: { display: false }, border: { display: false }, ticks: { color: '#5d7f96', font: { size: 11 }, maxRotation: 0 } },
+            y: { beginAtZero: true, border: { display: false }, grid: { color: '#e2edf5' }, ticks: { color: '#69889e', maxTicksLimit: 5, callback: value => peso.format(value) } },
+          },
+        },
+      }))
+    }
+    if (balanceChartRef.current && analytics.balances.total > 0) {
+      charts.push(new Chart(balanceChartRef.current, {
+        type: 'doughnut',
+        data: { labels: BALANCE_ITEMS.map(item => item.label), datasets: [{ data: BALANCE_ITEMS.map(item => analytics.balances[item.key]), backgroundColor: BALANCE_ITEMS.map(item => item.color), borderColor: '#fff', borderWidth: 3, hoverOffset: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, cutout: '76%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.label}: ${context.parsed.toLocaleString('en-PH')} properties` } } } },
+      }))
+    }
+    return () => charts.forEach(chart => chart.destroy())
+  }, [analytics, dashboardUnavailable])
 
   return (
     <div className="sec-secretary-dashboard">
@@ -232,6 +314,31 @@ export default function SecretaryDashboard() {
           <p className="sec-stat-description">Accounts with a remaining balance</p>
           <div className="sec-stat-footer"><span className="sec-stat-dot" aria-hidden="true" />Accounts requiring follow-up</div>
         </article>
+      </section>
+
+      <section className="sec-analytics" aria-labelledby="sec-analytics-title" aria-busy={loading}>
+        <div className="sec-analytics-heading"><h2 id="sec-analytics-title">Analytics Overview</h2><span>Last 6 months</span></div>
+        <div className="sec-charts-grid">
+          <article className="sec-panel sec-chart-panel">
+            <header className="sec-chart-heading"><div><span className="sec-chart-kicker">Collections trend</span><h3>Homeowner collections</h3><p>{analytics.months[0].label} – {analytics.months[5].label}</p></div><span className="sec-chart-period">Cash receipts</span></header>
+            {dashboardUnavailable ? <div className="sec-chart-state" role="status">{loading ? 'Loading collection analytics…' : 'Collection analytics are unavailable. Refresh to try again.'}</div> : <>
+              <div className="sec-bar-plot"><canvas ref={collectionChartRef} role="img" aria-label="Homeowner collections for the last six months. Values are available in the following table." /></div>
+              <table className="sec-chart-data"><caption>Monthly homeowner collections</caption><thead><tr><th>Month</th><th>Collections</th></tr></thead><tbody>{analytics.months.map(item => <tr key={item.key}><th scope="row">{item.label}</th><td>{peso.format(item.amount)}</td></tr>)}</tbody></table>
+              <p className="sec-chart-note"><i aria-hidden="true" />All homeowner cash receipts, including dues, balance payments and fees. Service receipts excluded.</p>
+            </>}
+          </article>
+          <article className="sec-panel sec-chart-panel">
+            <header className="sec-chart-heading"><div><span className="sec-chart-kicker">Active property accounts</span><h3>Account balance status</h3><p>{dashboardUnavailable ? 'Waiting for verified records' : `${analytics.balances.total.toLocaleString('en-PH')} active properties`}</p></div><span className="sec-chart-period">Balance mix</span></header>
+            {dashboardUnavailable ? <div className="sec-chart-state" role="status">{loading ? 'Loading account analytics…' : 'Account analytics are unavailable. Refresh to try again.'}</div> : analytics.balances.total === 0 ? <div className="sec-chart-state">No active property accounts yet.</div> : <div className="sec-balance-layout">
+              <div className="sec-donut-plot"><canvas ref={balanceChartRef} role="img" aria-label="Active property balance distribution. Counts follow in the legend." /><div className="sec-donut-center"><strong>{analytics.balances.total.toLocaleString('en-PH')}</strong><span>PROPERTIES</span></div></div>
+              <ul className="sec-balance-legend">{BALANCE_ITEMS.map(item => {
+                const count = analytics.balances[item.key]
+                const percent = count / analytics.balances.total * 100
+                return <li key={item.key}><span className="sec-legend-dot" style={{ backgroundColor: item.color }} aria-hidden="true" /><div><div className="sec-legend-heading"><strong>{item.label}</strong><span>{count > 0 && percent < 1 ? '<1%' : `${Math.round(percent)}%`}</span></div><small>{count.toLocaleString('en-PH')} properties</small><div className="sec-legend-track" aria-hidden="true"><span style={{ width: `${percent}%`, backgroundColor: item.color }} /></div></div></li>
+              })}</ul>
+            </div>}
+          </article>
+        </div>
       </section>
 
       <section className="sec-content-grid">
