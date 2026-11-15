@@ -66,6 +66,46 @@ describe('monthly billing audit evidence is read-only', () => {
     const [row] = groupMonthlyBillingAudit([bill('a')], [{ kind: 'penalty_applied', payload: { source_id: 'a' } }])
     expect(row.hasEvidence).toBe(false)
   })
+  it('displays verified posting-time balances and signed CCTV adjustments', () => {
+    const [row] = groupMonthlyBillingAudit([
+      { ...bill('posted', 456.85), property_id: 1844, billing_month: '2026-12-01' },
+    ], [
+      { kind: 'monthly_billing_posted', payload: {
+        snapshot_version: 1, source_table: 'property_charges', source_id: 'posted',
+        property_id: 1844, billing_month: '2026-12-01', charge_amount: 456.85,
+        balance_before: -150, billing_time_adjustments: -150, balance_after: 156.85,
+      } },
+    ])
+    expect(row).toMatchObject({
+      historicalBalanceVerified: true, previousBalance: -150,
+      billingTimeAdjustments: -150, balanceAfterBilling: 156.85,
+    })
+    expect(row.hasEvidence).toBe(false) // Posting evidence is distinct from credit/unpaid evidence.
+  })
+  it('preserves verified zero balances instead of marking them missing', () => {
+    const [row] = groupMonthlyBillingAudit([
+      { ...bill('zero'), property_id: 3, billing_month: '2026-12-01' },
+    ], [{ kind: 'monthly_billing_posted', payload: {
+      snapshot_version: 1, source_table: 'property_charges', source_id: 'zero',
+      property_id: 3, billing_month: '2026-12-01', charge_amount: 100,
+      balance_before: 0, billing_time_adjustments: -100, balance_after: 0,
+    } }])
+    expect(row).toMatchObject({ historicalBalanceVerified: true, previousBalance: 0, balanceAfterBilling: 0 })
+  })
+  it('rejects a mismatched or invalid snapshot without inventing balances', () => {
+    const charge = { ...bill('bad', 100), property_id: 7, billing_month: '2026-12-01' }
+    const base = {
+      snapshot_version: 1, source_table: 'property_charges', source_id: 'bad',
+      property_id: 7, billing_month: '2026-12-01', charge_amount: 100,
+      balance_before: 0, billing_time_adjustments: 0, balance_after: 99,
+    }
+    const [badArithmetic, wrongAccount, nullBalance] = [
+      base, { ...base, property_id: 8 }, { ...base, balance_before: null },
+    ].map(payload => groupMonthlyBillingAudit([charge], [{ kind: 'monthly_billing_posted', payload }])[0])
+    for (const row of [badArithmetic, wrongAccount, nullBalance]) {
+      expect(row).toMatchObject({ historicalBalanceVerified: false, previousBalance: null, balanceAfterBilling: null })
+    }
+  })
   it('builds the November current-dues lookup by period, not hundreds of charge IDs', () => {
     const calls = []
     const query = {

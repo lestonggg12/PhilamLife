@@ -272,7 +272,7 @@ export default function MonthlyBillingAuditPage() {
         let query = supabase
           .from("account_activity")
           .select("kind,payload")
-          .in("kind", ["credit_applied", "monthly_balance_added"]);
+          .in("kind", ["credit_applied", "monthly_balance_added", "monthly_billing_posted"]);
         return view === "year"
           ? query
               .gte("payload->>billing_month", start)
