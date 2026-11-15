@@ -100,7 +100,7 @@ function BillingEvidence({ row }) {
   return <span className={`ba-status ba-status-${tone}`}>{label}</span>;
 }
 function HistoricalAmount({ value, title = "No authoritative historical billing balance was recorded for this charge." }) {
-  return value == null ? <span className="ba-historical-missing" title={title}>—</span> : <span>{peso.format(value)}</span>;
+  return value == null ? <span className="ba-historical-missing" title={title}>Not captured</span> : <span>{peso.format(value)}</span>;
 }
 function Amount({
   value,
