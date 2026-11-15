@@ -48,6 +48,99 @@ const monthLabel = (value) =>
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${value}-01T00:00:00Z`));
+const todayInManila = () => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const get = (type) =>
+    parts.find((part) => part.type === type)?.value;
+
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
+const billingNoticeFor = (view, month, today, rows) => {
+  if (view !== "month") return null;
+
+  const active = rows.filter((row) => !row.voided_at);
+  const verified = active.filter(
+    (row) => row.historicalBalanceVerified
+  ).length;
+
+  if (month === "2026-11" && verified < active.length) {
+    const title = "November historical balances were not captured.";
+
+    if (today < "2026-12-03") {
+      return {
+        title,
+        body: "November dues were recorded, but historical before/after balances were not saved. Next scheduled billing: December 3, 2026 (Philippine time).",
+      };
+    }
+
+    if (today === "2026-12-03") {
+      return {
+        title,
+        body: "December billing is scheduled for today, December 3, 2026. Check the December audit after the scheduled run.",
+      };
+    }
+
+    return {
+      title,
+      body: "The December 3 scheduled billing date has passed. Select December 2026 to review the new charges and verify their posting-time balances.",
+    };
+  }
+
+  if (month === "2026-12") {
+    if (active.length === 0) {
+      if (today < "2026-12-03") {
+        return {
+          title: "December billing is scheduled for December 3, 2026.",
+          body: "No December dues charges are recorded yet. Historical balances will be captured when new charges are successfully posted.",
+        };
+      }
+
+      if (today === "2026-12-03") {
+        return {
+          title: "December billing is scheduled for today.",
+          body: "No December dues charges are visible yet. Review the records after the scheduled billing run.",
+        };
+      }
+
+      return {
+        title: "December billing has not been verified.",
+        body: "The December 3 scheduled date has passed, but no December dues charges are currently recorded in this report. Check scheduled job logs and eligible accounts. This does not necessarily mean billing failed.",
+      };
+    }
+
+    if (verified === active.length) {
+      return {
+        title: "December posting-time balances recorded.",
+        body: `All ${verified} recorded nonvoided charges have verified previous and after-billing balances. This does not independently confirm that every eligible account was billed or that the scheduled job completed.` +
+          (today < "2027-01-03"
+            ? " Next expected billing: January 3, 2027, if settings remain unchanged."
+            : ""),
+      };
+    }
+
+    return {
+      title: "December billing needs verification.",
+      body: `${verified} of ${active.length} recorded nonvoided charges have verified before/after balances. Review missing posting-time records and scheduled job logs.`,
+    };
+  }
+
+  if (verified < active.length) {
+    return {
+      title: "Historical balances unavailable for some charges.",
+      body: `${verified} of ${active.length} recorded nonvoided charges have verified before/after balances. Missing historical amounts cannot be reliably reconstructed from today's account balance.`,
+    };
+  }
+
+  return null;
+};
+
 const PER_PAGE = 10;
 const FILTERS = [
   ["all", "All accounts"],
@@ -213,6 +306,22 @@ export default function MonthlyBillingAuditPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
+  const [todayManila, setTodayManila] = useState(todayInManila);
+
+  useEffect(() => {
+    let previous = todayInManila();
+
+    const timer = setInterval(() => {
+      const current = todayInManila();
+      if (current !== previous) {
+        previous = current;
+        setTodayManila(current);
+        setRevision((value) => value + 1);
+      }
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
   const [data, setData] = useState({
     scope: "",
     loading: true,
@@ -362,6 +471,7 @@ export default function MonthlyBillingAuditPage() {
   }, [notice]);
 
   const ready = data.scope === scope && !data.loading && !data.error;
+  const billingNotice = ready ? billingNoticeFor(view, month, todayManila, data.rows) : null;
   const totals = useMemo(
     () => summarizeMonthlyBillingAudit(ready ? data.rows : []),
     [ready, data.rows],
@@ -673,7 +783,7 @@ export default function MonthlyBillingAuditPage() {
                 {view === "year"
                   ? `${year} overview`
                   : data.report?.payload?.snapshot_missing
-                    ? "Billing snapshot unavailable"
+                    ? "Collection snapshot unavailable"
                     : data.report?.title ||
                       "Automatic run not confirmed by this view"}
               </strong>
@@ -690,30 +800,18 @@ export default function MonthlyBillingAuditPage() {
             >
               {expanded ? "Hide details" : "Details"}
             </button>
-            {view === "month" &&
-              data.rows.some((row) => !row.voided_at && !row.historicalBalanceVerified) && (
-                <div
-                  className="ba-confidence-details"
-                  role="note"
-                  aria-label="Historical billing balance notice"
-                >
-                  {month === "2026-11" ? (
-                    <p>
-                      <strong>November historical balances were not captured.</strong>{" "}
-                      November dues were recorded, but balances immediately
-                      before and after billing were not saved.{" "}
-                      <strong>Next scheduled billing: December 3, 2026 (Philippine time).</strong>{" "}
-                      New monthly charges are configured to capture both balances
-                      when successfully posted. Check the December audit after that run.
-                    </p>
-                  ) : (
-                    <p>
-                      <strong>Historical balance data is unavailable for some charges.</strong>{" "}
-                      Past balances cannot be reliably reconstructed from today's account balance.
-                    </p>
-                  )}
-                </div>
-              )}
+            {billingNotice && (
+              <div
+                className="ba-confidence-details"
+                role="note"
+                aria-label="Historical billing balance notice"
+              >
+                <p>
+                  <strong>{billingNotice.title}</strong>{" "}
+                  {billingNotice.body}
+                </p>
+              </div>
+            )}
             {expanded && (
               <div id="ba-confidence-details" className="ba-confidence-details">
                 {view === "year" ? (
