@@ -53,9 +53,9 @@ const FILTERS = [
   ["credit", "Credit used"],
   ["unpaid", "New unpaid"],
   ["covered", "Fully covered"],
-  ["unknown", "No linked detail"],
+  ["unknown", "Missing billing evidence"],
 ];
-const statusFor = (row) =>
+const billingEvidenceFor = (row) =>
   row.voided_at
     ? ["Voided", "voided"]
     : !row.hasEvidence
@@ -65,6 +65,12 @@ const statusFor = (row) =>
         : row.unpaidAdded > 0
           ? ["Unpaid portion added", "unpaid"]
           : ["Recorded", "recorded"];
+const currentPositionFor = (row) =>
+  !row.hasCurrentSettlement
+    ? ["Unavailable", "unknown"]
+    : row.currentUnpaid <= 0
+      ? ["No amount due", "covered"]
+      : ["Amount due", "unpaid"];
 const nameFor = (row) =>
   row.properties?.homeowner_name || `Property ${row.property_id}`;
 const classFor = (row) =>
@@ -83,17 +89,22 @@ const csvCell = (value) => {
   return `"${(/^[\s]*[=+@-]/.test(text) ? "'" : "") + text.replaceAll('"', '""')}"`;
 };
 
-function Status({ row }) {
-  const [label, tone] = statusFor(row);
+function BillingEvidence({ row }) {
+  const [label, tone] = billingEvidenceFor(row);
   return <span className={`ba-status ba-status-${tone}`}>{label}</span>;
 }
-function Amount({ value, tone = "" }) {
+function Amount({
+  value,
+  tone = "",
+  missingText = "Not recorded",
+  missingTitle = "No matching saved activity; this does not mean zero",
+}) {
   return value == null ? (
     <span
       className="ba-missing"
-      title="No matching saved activity; this does not mean zero"
+      title={missingTitle}
     >
-      Not recorded
+      {missingText}
     </span>
   ) : (
     <span className={tone}>{peso.format(value)}</span>
@@ -252,6 +263,19 @@ export default function MonthlyBillingAuditPage() {
           : query.eq("payload->>billing_month", `${month}-01`);
       });
       if (activity.error) throw activity.error;
+      const chargeIds = (charges.data || []).map((charge) => charge.id);
+      const balanceItems = chargeIds.length
+        ? await fetchAll(
+            () =>
+              supabase
+                .from("property_balance_items")
+                .select("kind,ref_id,unpaid")
+                .eq("kind", "dues")
+                .in("ref_id", chargeIds)
+                .order("ref_id"),
+            { tiebreaker: "ref_id" },
+          )
+        : { data: [], error: null };
       let report = null;
       if (view === "month") {
         const latest = await supabase
@@ -275,6 +299,7 @@ export default function MonthlyBillingAuditPage() {
           rows: groupMonthlyBillingAudit(
             charges.data || [],
             activity.data || [],
+            balanceItems.error ? null : balanceItems.data || [],
           ),
           report,
         });
@@ -344,7 +369,9 @@ export default function MonthlyBillingAuditPage() {
         due: Number(row.amount),
         credit: row.creditUsed ?? -Infinity,
         unpaid: row.unpaidAdded ?? -Infinity,
-        status: statusFor(row)[0],
+        currentUnpaid: row.currentUnpaid ?? -Infinity,
+        currentPosition: currentPositionFor(row)[0],
+        evidence: billingEvidenceFor(row)[0],
       })[sort.key];
     return [...result].sort((a, b) => {
       const av = value(a),
@@ -484,7 +511,9 @@ export default function MonthlyBillingAuditPage() {
         "Dues assessed",
         "Credit used",
         "New unpaid",
-        "Status",
+        "Current unpaid",
+        "Current position",
+        "Billing evidence",
       ],
       ...rows.map((row) => [
         nameFor(row),
@@ -496,7 +525,9 @@ export default function MonthlyBillingAuditPage() {
         row.amount,
         row.creditUsed,
         row.unpaidAdded,
-        statusFor(row)[0],
+        row.currentUnpaid,
+        currentPositionFor(row)[0],
+        billingEvidenceFor(row)[0],
       ]),
     ];
     const url = URL.createObjectURL(
@@ -679,8 +710,9 @@ export default function MonthlyBillingAuditPage() {
                 <p>
                   Only recorded charges are assessed here. Credit used and new
                   unpaid are verified subsets with saved linked evidence;
-                  missing evidence is not zero. No cash receipt or current
-                  outstanding balance is implied.
+                  missing evidence is not zero. Current unpaid is a separate
+                  live ledger position and does not allocate later payments to
+                  this historical charge.
                 </p>
               </div>
             )}
@@ -938,7 +970,9 @@ export default function MonthlyBillingAuditPage() {
                       {sortHead("due", "Dues assessed", true)}
                       {sortHead("credit", "Credit used", true)}
                       {sortHead("unpaid", "New unpaid", true)}
-                      {sortHead("status", "Status")}
+                      {sortHead("currentUnpaid", "Current unpaid", true)}
+                      {sortHead("currentPosition", "Current position")}
+                      {sortHead("evidence", "Billing evidence")}
                       <th scope="col">
                         <span className="ba-sr-only">Details</span>
                       </th>
@@ -980,8 +1014,21 @@ export default function MonthlyBillingAuditPage() {
                         <td data-label="New unpaid" className="ba-number">
                           <Amount value={row.unpaidAdded} tone="ba-unpaid" />
                         </td>
-                        <td data-label="Status">
-                          <Status row={row} />
+                        <td data-label="Current unpaid" className="ba-number">
+                          <Amount
+                            value={row.currentUnpaid}
+                            tone="ba-unpaid"
+                            missingText="Unavailable"
+                            missingTitle="No verified live dues ledger item is available for this charge; this does not mean zero"
+                          />
+                        </td>
+                        <td data-label="Current position">
+                          <span className={`ba-status ba-status-${currentPositionFor(row)[1]}`}>
+                            {currentPositionFor(row)[0]}
+                          </span>
+                        </td>
+                        <td data-label="Billing evidence">
+                          <BillingEvidence row={row} />
                         </td>
                         <td data-label="Details">
                           <button
@@ -1118,7 +1165,7 @@ export default function MonthlyBillingAuditPage() {
             Block {selected.properties?.block ?? "—"} · Lot{" "}
             {selected.properties?.lot_number ?? "—"} · {classFor(selected)}
           </p>
-          <Status row={selected} />
+          <BillingEvidence row={selected} />
           <dl className="ba-detail-grid">
             <div>
               <dt>Dues assessed</dt>
@@ -1140,13 +1187,36 @@ export default function MonthlyBillingAuditPage() {
                 <Amount value={selected.unpaidAdded} />
               </dd>
             </div>
+            <div>
+              <dt>Current unpaid</dt>
+              <dd>
+                <Amount
+                  value={selected.currentUnpaid}
+                  missingText="Unavailable"
+                  missingTitle="No verified live dues ledger item is available for this charge; this does not mean zero"
+                />
+              </dd>
+            </div>
+            <div>
+              <dt>Current position</dt>
+              <dd>
+                <span className={`ba-status ba-status-${currentPositionFor(selected)[1]}`}>
+                  {currentPositionFor(selected)[0]}
+                </span>
+              </dd>
+            </div>
           </dl>
           <div className="ba-explanation">
             {selected.voided_at
               ? "This charge was cancelled and is excluded from assessed totals."
               : !selected.hasEvidence
                 ? "No matching saved credit or unpaid activity was found. This does not prove a missed credit, debt, or billing error."
-                : "These adjustments are backed by saved billing activity. Later payments may have changed the account balance."}
+                : "These adjustments are backed by saved billing activity. They remain historical billing evidence, not a current payment allocation."}
+          </div>
+          <div className="ba-explanation">
+            {selected.hasCurrentSettlement
+              ? "Current unpaid comes from the live dues ledger item linked to this charge. It shows the present amount due, after later account activity, without inferring how any payment was allocated."
+              : "Current settlement is unavailable because no verified live dues ledger item could be read for this charge. This does not establish that the amount due is zero."}
           </div>
           <div className="ba-explanation">
             <strong>Charge ID</strong>
@@ -1154,8 +1224,8 @@ export default function MonthlyBillingAuditPage() {
             {selected.description && <p>{selected.description}</p>}
           </div>
           <p className="ba-detail-note">
-            Dues assessed are not cash received. Open the ledger for current
-            balances and payments.
+            Dues assessed and billing evidence are historical. Current unpaid
+            is the verified live ledger position; open the ledger for details.
           </p>
         </Overlay>
       )}
@@ -1182,7 +1252,8 @@ export default function MonthlyBillingAuditPage() {
               “Dues assessed” is the charge created, not proof of payment.
             </li>
             <li>
-              “Not recorded” means supporting detail is missing, not zero.
+              “Not recorded” means historical billing evidence is missing, not
+              zero. “Current unpaid” is a separate live ledger check.
             </li>
             <li>
               Open an account to review its ledger. Never enter a payment just
@@ -1192,8 +1263,8 @@ export default function MonthlyBillingAuditPage() {
           <dl className="ba-glossary">
             {[
               [
-                "No linked detail",
-                "No matching credit or unpaid activity was found. It does not prove a missed credit, debt, or billing error.",
+                "Billing evidence: No linked detail",
+                "No matching historical credit or unpaid activity was found. It does not prove a missed credit, current debt, payment status, or billing error.",
               ],
               [
                 "Covered by credit",
@@ -1210,6 +1281,10 @@ export default function MonthlyBillingAuditPage() {
               [
                 "Voided",
                 "The charge was cancelled and is excluded from assessed totals.",
+              ],
+              [
+                "Current position",
+                "This comes from the live dues ledger item linked to the charge. “No amount due” means its verified current unpaid is ₱0.00; “Amount due” means it is greater than ₱0.00; “Unavailable” means it could not be verified.",
               ],
             ].map(([label, text]) => (
               <div key={label}>

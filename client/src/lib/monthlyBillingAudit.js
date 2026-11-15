@@ -1,6 +1,6 @@
 // Display-only interpretation of authoritative charge rows and saved audit events.
 // Never invent historical credit transfers or count credit use as received cash.
-export function groupMonthlyBillingAudit(charges, events) {
+export function groupMonthlyBillingAudit(charges, events, balanceItems = null) {
   const evidence = new Map()
   for (const event of events || []) {
     if (!['credit_applied', 'monthly_balance_added'].includes(event?.kind)) continue
@@ -10,6 +10,15 @@ export function groupMonthlyBillingAudit(charges, events) {
     if (event.kind === 'credit_applied') record.credit = event.payload
     if (event.kind === 'monthly_balance_added') record.unpaid = event.payload
     evidence.set(source, record)
+  }
+  const currentSettlementAvailable = Array.isArray(balanceItems)
+  const currentUnpaidByCharge = new Map()
+  for (const item of balanceItems || []) {
+    if (item?.kind !== 'dues') continue
+    const refId = String(item.ref_id || '')
+    const unpaid = Number(item.unpaid)
+    if (!refId || !Number.isFinite(unpaid)) continue
+    currentUnpaidByCharge.set(refId, unpaid)
   }
   return (charges || []).map(charge => {
     const event = evidence.get(String(charge.id)) || {}
@@ -25,6 +34,10 @@ export function groupMonthlyBillingAudit(charges, events) {
       creditUsed,
       unpaidAdded,
       hasEvidence: !!base,
+      currentUnpaid: currentSettlementAvailable && currentUnpaidByCharge.has(String(charge.id))
+        ? currentUnpaidByCharge.get(String(charge.id))
+        : null,
+      hasCurrentSettlement: currentSettlementAvailable && currentUnpaidByCharge.has(String(charge.id)),
       fullyCovered: creditUsed !== null && Number(charge.amount) > 0 &&
         creditUsed >= Number(charge.amount) - 0.005,
     }

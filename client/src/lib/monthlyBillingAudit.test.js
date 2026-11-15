@@ -7,7 +7,7 @@ describe('monthly billing audit evidence is read-only', () => {
     const rows = groupMonthlyBillingAudit([bill('a')], [
       { kind: 'credit_applied', payload: { source_id: 'a', credit_used: 75, unpaid_charge: 25 } },
       { kind: 'monthly_balance_added', payload: { source_id: 'a', credit_used: 75, unpaid_added: 25 } },
-    ])
+    ], [{ kind: 'dues', ref_id: 'a', unpaid: 25 }])
     expect(rows[0].creditUsed).toBe(75)
     expect(rows[0].unpaidAdded).toBe(25)
     expect(summarizeMonthlyBillingAudit(rows)).toMatchObject({ assessed: 100, verifiedCredit: 75, verifiedUnpaid: 25, withCredit: 1, increasedDue: 1 })
@@ -15,15 +15,29 @@ describe('monthly billing audit evidence is read-only', () => {
   it('marks fully prepaid bills correctly', () => {
     const [row] = groupMonthlyBillingAudit([bill('b')], [
       { kind: 'credit_applied', payload: { source_id: 'b', credit_used: 100, unpaid_charge: 0 } },
-    ])
+    ], [{ kind: 'dues', ref_id: 'b', unpaid: 0 }])
     expect(row.fullyCovered).toBe(true)
     expect(row.unpaidAdded).toBe(0)
+    expect(row).toMatchObject({ currentUnpaid: 0, hasCurrentSettlement: true })
   })
   it('never reconstructs missing historical credit evidence', () => {
-    const [row] = groupMonthlyBillingAudit([bill('historic')], [])
+    const [row] = groupMonthlyBillingAudit([bill('historic')], [], [
+      { kind: 'dues', ref_id: 'historic', unpaid: 0 },
+    ])
     expect(row.creditUsed).toBe(null)
     expect(row.unpaidAdded).toBe(null)
+    expect(row.currentUnpaid).toBe(0)
     expect(summarizeMonthlyBillingAudit([row]).unknown).toBe(1)
+  })
+  it('shows a partially unpaid current dues position without changing historical evidence', () => {
+    const [row] = groupMonthlyBillingAudit([bill('partial')], [
+      { kind: 'monthly_balance_added', payload: { source_id: 'partial', unpaid_added: 25 } },
+    ], [{ kind: 'dues', ref_id: 'partial', unpaid: 10 }])
+    expect(row).toMatchObject({ unpaidAdded: 25, currentUnpaid: 10, hasCurrentSettlement: true })
+  })
+  it('marks current settlement unavailable when the ledger view cannot be read', () => {
+    const [row] = groupMonthlyBillingAudit([bill('unavailable')], [], null)
+    expect(row).toMatchObject({ currentUnpaid: null, hasCurrentSettlement: false })
   })
   it('never counts voided charges toward financial totals', () => {
     const [row] = groupMonthlyBillingAudit([{ ...bill('void'), voided_at: '2026-12-04' }], [])
