@@ -1,10 +1,11 @@
 import { notifySuccess } from '../lib/actionFeedback'
+import { createPortal } from 'react-dom'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../components/Select'
 import AccountActivity from '../components/AccountActivity'
 import { annotateLedgerStatementEvidence } from '../lib/ledgerAuditAnnotations'
 import './LedgerPage.css'
-import { BookOpen, ArrowDownLeft, ClockAlert, WalletCards, AlertCircle, Search, RefreshCw, ChevronDown, ChevronRight, X, Printer, Info } from 'lucide-react'
+import { BookOpen, Home, ArrowDownLeft, ClockAlert, WalletCards, AlertCircle, Search, RefreshCw, ChevronDown, ChevronRight, X, Printer, Info } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import { buildLedgerStatement, ledgerStatementNotes, readableLedgerText } from '../lib/ledgerStatement'
@@ -84,10 +85,11 @@ export default function LedgerPage({ user: suppliedUser }) {
   const [statementLoading, setStatementLoading] = useState(false)
   const [statementError, setStatementError] = useState('')
   const statementRequestRef = useRef(0)
-  const [statementTab, setStatementTab] = useState('transactions')
+  const [statementTab, setStatementTab] = useState('overview')
   const [statementSearch, setStatementSearch] = useState('')
   const statementModalRef = useRef(null)
   const statementCloseRef = useRef(null)
+  useEffect(()=>{const body=statementModalRef.current?.querySelector('.modal-body');if(body)body.scrollTop=0},[statementTab])
   const statementIsOpen = Boolean(statementAccount)
   const visibleStatementLines = useMemo(() => {
     const query = normalize(statementSearch)
@@ -179,7 +181,7 @@ const actorName =
       const [blocks, lots, payments, settings, aging, progress, financial] = await Promise.all([
         fetchAll(() => supabase.from('blocks').select('id, name').order('name')),
         fetchAll(() => supabase.from('properties')
-          .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance, opening_balance')
+          .select('id, block, lot_number, homeowner_name, homeowner_status, current_balance, opening_balance, contact_phone, contact_email, contact_updated_at, created_at, property_classification, lot_size_sqm')
           .order('homeowner_name')),
         fetchAll(() => supabase.from('property_payment_summary')
           .select('property_id, total_paid, latest_previous_balance, latest_amount_paid, latest_paid_at')
@@ -217,7 +219,7 @@ const actorName =
   async function openStatement(entry) {
     if (!ledgerVerified || loading || pageError) return
     const requestId = ++statementRequestRef.current
-    setStatementTab('transactions')
+    setStatementTab('overview')
     setStatementSearch('')
     setStatementAccount(entry)
     setStatementError('')
@@ -402,7 +404,7 @@ const actorName =
         hasPartialPayment: paymentProgress.get(id)?.has_partial_payment === true,
       })
       return {
-        id: property.id, name: property.homeowner_name, block: property.block,
+        id: property.id, name: property.homeowner_name, block: property.block, contactPhone: property.contact_phone, contactEmail: property.contact_email, contactUpdatedAt: property.contact_updated_at, registeredAt: property.created_at, classification: property.property_classification, lotSize: property.lot_size_sqm,
         lot: `Lot ${property.lot_number}`, lotNumberRaw: property.lot_number,
         dueAmount: summary?.latest_previous_balance == null ? null : Number(summary.latest_previous_balance),
         paidAmount: summary?.latest_amount_paid == null ? null : Number(summary.latest_amount_paid),
@@ -522,7 +524,7 @@ const actorName =
                 </tr></thead>
                 <tbody>{ledgerPage.rows.map(entry => (
                   <tr key={entry.id}>
-                    <td><div className="person"><span className="avatar" aria-hidden="true">{entry.name?.trim().charAt(0).toUpperCase() || '?'}</span><div><strong>{entry.name}</strong><span className="sub">{entry.block} · {entry.lot}</span><details className="row-notes"><summary>Balance details <ChevronDown size={12} aria-hidden="true" /></summary><p>Previous balance: {entry.dueAmount == null ? '—' : formatMoney(entry.dueAmount)}<br />{SORT_COLUMNS.find(column => column.key === 'paidAmount').label}: {entry.paidAmount == null ? '—' : peso.format(entry.paidAmount)}</p></details></div></div></td>
+                    <td><div className="person"><span className="avatar" aria-hidden="true">{entry.name?.trim().charAt(0).toUpperCase() || '?'}</span><div><strong>{entry.name}</strong><span className="sub">{entry.block} · {entry.lot}</span></div></div></td>
                     <td><span className={`status ${ledgerStatusClass(entry.status)}`}>{entry.status}</span></td>
                     <td className={`right money ${entry.balance > 0 ? 'red' : ''}`}>{peso.format(entry.balance)}{entry.overdueAmount > 0 && entry.currentAmount > 0 && <span className="sub">Overdue {peso.format(entry.overdueAmount)}<br />Current {peso.format(entry.currentAmount)}</span>}</td>
                     <td className={`right money ${entry.unallocatedCredit > 0 ? 'green' : ''}`}>{entry.unallocatedCredit > 0 ? peso.format(entry.unallocatedCredit) : '—'}</td>
@@ -539,38 +541,23 @@ const actorName =
       <p className="note"><Info size={15} aria-hidden="true" />Summary cards reflect your current filters. Open a statement for the full balance breakdown.</p>
 
       {statementAccount && (
-        <div className="overlay" onMouseDown={event => { if (event.target === event.currentTarget) closeStatement() }}>
+        createPortal(<div className="ledger-page ledger-redesign ledger-statement-overlay" onMouseDown={event => { if (event.target === event.currentTarget) closeStatement() }}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="ledger-statement-name" ref={statementModalRef}>
-            <header className="modal-head">
-              <div><div className="eyebrow">Homeowner statement</div><h2 id="ledger-statement-name">{statementAccount.name}</h2><div className="head-meta"><span>{statementAccount.block} · {statementAccount.lot}</span><span className={`status ${ledgerStatusClass(statementAccount.status)}`}>{statementAccount.status}</span></div></div>
-              <button className="icon-button" type="button" onClick={closeStatement} aria-label="Close statement" ref={statementCloseRef}><X size={18} aria-hidden="true" /></button>
-            </header>
+            <header className="modal-head"><div className="ledger-profile-heading"><span className="ledger-profile-avatar" aria-hidden="true">{String(statementAccount.name || '').trim().split(/\s+/).slice(0,2).map(word=>word[0]).join('').toUpperCase()}</span><div className="ledger-profile-copy"><p className="eyebrow">Homeowner profile</p><div className="ledger-profile-name"><h2 id="ledger-statement-name">{statementAccount.name}</h2><span className={`status ${ledgerStatusClass(statementAccount.status)}`}>{statementAccount.status}</span></div><div className="ledger-profile-location"><Home size={14} aria-hidden="true"/>{statementAccount.block} · {statementAccount.lot}</div></div></div><button className="icon-button" type="button" onClick={closeStatement} aria-label="Close statement" ref={statementCloseRef}><X size={18} aria-hidden="true"/></button></header><nav className="ledger-modal-nav" aria-label="Statement sections" role="tablist">{[['overview','Overview',BookOpen],['transactions','Transactions',WalletCards],['activity','Account activity',ClockAlert],['notes','Notes',Info]].map(([key,label,Icon],index)=><button type="button" key={key} role="tab" id={`ledger-tab-${key}`} aria-controls={`ledger-pane-${key}`} aria-selected={statementTab === key} tabIndex={statementTab === key ? 0 : -1} onClick={()=>setStatementTab(key)} onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const keys=['overview','transactions','activity','notes'];const next=event.key === 'Home'?keys[0]:event.key === 'End'?keys[3]:keys[(index+(event.key==='ArrowRight'?1:3))%4];setStatementTab(next);event.currentTarget.parentElement.querySelector(`#ledger-tab-${next}`)?.focus()}}><Icon size={16}/>{label}</button>)}</nav>
             <div className="modal-body">
               {statementError && <p className="load-error" role="alert">{statementError}</p>}
               {statementLoading ? <div className="empty" role="status"><Skeleton variant="rect" width="100%" height="80px" />Loading statement…</div> : !statementError && statementAccount.statementTotals && (
-                <>
-                  <section className="statement-summary" aria-label="Statement totals">
+                <><section className="ledger-modal-pane" hidden={statementTab !== 'overview'} role="tabpanel" id="ledger-pane-overview" aria-labelledby="ledger-tab-overview"><div className="ledger-pane-heading"><h3>Account overview</h3><p>A verified summary for this property account.</p></div><section className="statement-summary" aria-label="Statement totals">
                     <div className="statement-stat focus"><span className="label">Amount still owed</span><strong>{peso.format(statementAccount.balance)}</strong><small>{statementAccount.balance > 0 ? 'Outstanding on this property' : 'No amount currently owed'}</small></div>
                     <div className="statement-stat"><span className="label">Available credit</span><strong className="green">{peso.format(statementAccount.unallocatedCredit || 0)}</strong><small>For future bills on this property</small></div>
                     <div className="statement-stat"><span className="label">Payments received</span><strong>{peso.format(statementAccount.statementTotals.payments)}</strong><small>Recorded payments in this statement</small></div>
-                  </section>
-                  <details className="statement-disclosure"><summary>How this balance was calculated <ChevronDown size={16} aria-hidden="true" /></summary><div className="breakdown">
+                  </section><div className="ledger-owner-details"><section><h3>Property information</h3><p>Registered details for this account</p><dl><div><dt>Homeowner</dt><dd>{statementAccount.name}</dd></div><div><dt>Property</dt><dd>{statementAccount.block} · {statementAccount.lot}</dd></div><div><dt>Classification</dt><dd>{statementAccount.classification === 'homeowner' ? 'Homeowner' : statementAccount.classification === 'lot_owner' ? 'Lot owner' : 'Not recorded'}</dd></div><div><dt>Lot size</dt><dd>{statementAccount.lotSize == null ? 'Not recorded' : `${Number(statementAccount.lotSize).toLocaleString('en-PH')} sqm`}</dd></div><div><dt>Registered</dt><dd>{statementAccount.registeredAt ? organization.formatDate(statementAccount.registeredAt) : 'Not recorded'}</dd></div></dl></section><section><h3>Contact information</h3><p>Homeowner communication details</p><dl><div><dt>Phone number</dt><dd>{statementAccount.contactPhone || 'Not recorded'}</dd></div><div><dt>Email address</dt><dd>{statementAccount.contactEmail || 'Not recorded'}</dd></div><div><dt>Last updated</dt><dd>{statementAccount.contactUpdatedAt ? organization.formatDate(statementAccount.contactUpdatedAt) : 'Not recorded'}</dd></div></dl></section></div><details className="statement-disclosure"><summary>How this balance was calculated <ChevronDown size={16} aria-hidden="true" /></summary><div className="breakdown">
                     <div><span>Starting balance</span><strong>{formatMoney(statementAccount.statementTotals.openingBalance)}</strong></div>
                     <div><span>New charges</span><strong>{peso.format(statementAccount.statementTotals.addedCharges)}</strong></div>
                     <div><span>Entered balances</span><strong>{peso.format(statementAccount.statementTotals.enteredBalances || 0)}</strong></div>
                     <div><span>Discount: 1 month free</span><strong>{peso.format(statementAccount.statementTotals.annualDiscountCredit)}</strong></div>
                     {statementAccount.statementTotals.netOtherAdjustments !== 0 && <div><span>Other balance changes</span><strong>{peso.format(statementAccount.statementTotals.netOtherAdjustments)}</strong></div>}
-                  </div></details>
-                  <details className="statement-disclosure"><summary>Statement notes & payment allocation <ChevronDown size={16} aria-hidden="true" /></summary><div className="notes-content">
-                    <p>This statement shows changes to this lot’s balance. Cancelled entries and entries with no effect are omitted. Dates are in Philippine time. Credit for future bills can cover later charges.</p>
-                    {ledgerStatementNotes(statementAccount.statementTotals, value => peso.format(value)).map(note => <p key={note}>{note}</p>)}
-                    {statementAccount.closingAdjustment !== 0 && <p>After the owner moved, a balance correction of {peso.format(statementAccount.closingAdjustment)} was recorded. This note does not add a charge or payment.{statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}</p>}
-                  </div></details>
-                  <div className="statement-toolbar">
-                    <div className="tabs" role="group" aria-label="Statement view"><button type="button" className={statementTab === 'transactions' ? 'active' : ''} aria-pressed={statementTab === 'transactions'} onClick={() => setStatementTab('transactions')}>Transactions</button><button type="button" className={statementTab === 'activity' ? 'active' : ''} aria-pressed={statementTab === 'activity'} onClick={() => setStatementTab('activity')}>Activity history</button></div>
-                    {statementTab === 'transactions' && <label className="search"><Search size={17} aria-hidden="true" /><input aria-label="Search statement entries or references" type="search" placeholder="Find entry or reference" value={statementSearch} onChange={event => setStatementSearch(event.target.value)} /></label>}
-                  </div>
-                  <div hidden={statementTab !== 'transactions'}>
+                  </div></details></section><section className="ledger-modal-pane" hidden={statementTab !== 'transactions'} role="tabpanel" id="ledger-pane-transactions" aria-labelledby="ledger-tab-transactions"><div className="ledger-pane-heading"><h3>Account transactions</h3><p>Recorded additions and deductions, in statement order.</p></div><div className="ledger-statement-search">{statementTab === 'transactions' && <label className="search"><Search size={17} aria-hidden="true" /><input aria-label="Search statement entries or references" type="search" placeholder="Find entry or reference" value={statementSearch} onChange={event => setStatementSearch(event.target.value)} /></label>}</div><div hidden={statementTab !== 'transactions'}>
                     <div className="statement-table"><div className="table-scroll"><table aria-label="Lot account statement"><thead><tr><th scope="col">Date recorded</th><th scope="col">Entry</th><th scope="col">Receipt / reference</th><th scope="col" className="right">Added</th><th scope="col" className="right">Deducted</th><th scope="col" className="right">Balance after</th></tr></thead>
                       <tbody>{visibleStatementLines.length === 0 ? <tr><td colSpan="6" className="empty">{statementLines.length ? 'No matching entries. Try another description or reference.' : 'No recorded entries changed this lot’s balance.'}</td></tr> : visibleStatementLines.map((line, index) => (
                         <tr key={line.id || `${line.transaction_date}-${index}`}>
@@ -585,14 +572,31 @@ const actorName =
                       {!statementSearch.trim() && <tfoot><tr><td colSpan="3">Statement totals / closing balance</td><td className="right">{peso.format(statementAccount.statementTotals.totalDebits)}</td><td className="right">{peso.format(statementAccount.statementTotals.totalCredits)}</td><td className="right">{formatMoney(statementAccount.statementTotals.finalBalance)}</td></tr></tfoot>}
                     </table></div><div className="credit-line"><span>Amount available for future bills</span><strong>{peso.format(statementAccount.unallocatedCredit || 0)}</strong></div></div>
                     <p className="statement-hint">{statementSearch.trim() ? `Showing ${visibleStatementLines.length} of ${statementLines.length} entries. Running balances and the summary reflect the full statement.` : `Showing all ${statementLines.length} entries in statement order. Amounts are in PHP; dates use Philippine time.`}</p>
-                  </div>
-                  <div className="statement-activity" hidden={statementTab !== 'activity'}><AccountActivity propertyId={statementAccount.id} /></div>
-                </>
+                  </div></section><section className="ledger-modal-pane" hidden={statementTab !== 'activity'} role="tabpanel" id="ledger-pane-activity" aria-labelledby="ledger-tab-activity"><div className="statement-activity" hidden={statementTab !== 'activity'}><AccountActivity propertyId={statementAccount.id} /></div></section><section className="ledger-modal-pane" hidden={statementTab !== 'notes'} role="tabpanel" id="ledger-pane-notes" aria-labelledby="ledger-tab-notes"><div className="ledger-pane-heading"><h3>Statement notes</h3><p>Payment allocations and explanations for this statement.</p></div><div className="ledger-notes-intro"><Info size={20} aria-hidden="true" /><div><h4>How to read this statement</h4><p>This statement shows changes to this lot’s balance. Cancelled entries and entries with no effect are omitted. Dates are in Philippine time. Credit for future bills can cover later charges.</p></div></div>
+                    <div className="ledger-note-grid">
+                      {ledgerStatementNotes(statementAccount.statementTotals, value => peso.format(value)).map(note => {
+                        const labels = [
+                          ['starting balance is inferred', 'Starting balance', 'review'],
+                          ['discount for one free month', 'Annual payment discount', 'credit'],
+                          ['saved receipt does not explain', 'Credit requiring review', 'review'],
+                          ['Balance corrections', 'Approved balance corrections', 'standard'],
+                          ['did not reduce', 'Payment balance effect', 'standard'],
+                          ['reduced an earlier amount', 'Payments toward earlier balances', 'standard'],
+                          ['No individual bill-to-payment', 'Allocation records unavailable', 'review'],
+                          ['records show which bills', 'Verified payment allocations', 'standard'],
+                          ['available for future bills', 'Credit for future bills', 'credit'],
+                          ['differs from the saved', 'Balance needs review', 'review'],
+                        ]
+                        const [, title, tone] = labels.find(([phrase]) => note.includes(phrase)) || ['', 'Statement explanation', 'standard']
+                        return <article className={`ledger-note-card ledger-note-${tone}`} key={note}><span className="ledger-note-icon" aria-hidden="true">{tone === 'review' ? <AlertCircle size={18} /> : tone === 'credit' ? <WalletCards size={18} /> : <BookOpen size={18} />}</span><div><h4>{title}</h4><p>{note}</p></div></article>
+                      })}
+                      {statementAccount.closingAdjustment !== 0 && <article className="ledger-note-card"><span className="ledger-note-icon" aria-hidden="true"><Info size={18} /></span><div><h4>Owner move balance correction</h4><p>After the owner moved, a balance correction of {peso.format(statementAccount.closingAdjustment)} was recorded. This note does not add a charge or payment.{statementAccount.closingAdjustmentReason ? ` ${statementAccount.closingAdjustmentReason}` : ''}</p></div></article>}
+                    </div></section></>
               )}
             </div>
             <footer className="modal-footer"><small>PHP · Philippine time · Homeowner statement</small><div className="footer-actions"><button type="button" className="button" onClick={closeStatement}>Close statement</button><button type="button" className="button primary" onClick={downloadStatementPdf} disabled={statementLoading || Boolean(statementError) || statementPdfGenerating || !ledgerVerified || loading || Boolean(pageError) || !statementAccount.statementTotals?.canExport}><Printer size={16} aria-hidden="true" />{statementPdfGenerating ? 'Generating…' : 'Print / Save PDF'}</button></div></footer>
           </section>
-        </div>
+        </div>, document.body)
       )}
     </div>
   )

@@ -42,9 +42,9 @@ const initialsOf = (name) =>
 
 const tierIndexOf = (tier) => AGING_TIERS.indexOf(tier)
 
-// Centered account pop-up: facts, contact, log form and history in one place,
+// Account details and history are read-only unless opened in log mode.
 // with Previous / Next to move through the filtered list.
-function AccountDialog({
+export function AccountDialog({
   account,
   position,
   total,
@@ -55,7 +55,7 @@ function AccountDialog({
   canLog,
   historyLoading,
   historyError,
-  focusForm,
+  mode = 'view',
   formatMoney,
   formatDate,
   onSubmit,
@@ -65,11 +65,12 @@ function AccountDialog({
 }) {
   const dialogRef = useRef(null)
   const detailsRef = useRef(null)
+  const showForm = canLog && mode === 'log'
 
   useEffect(() => {
     const previous = document.activeElement
     document.documentElement.style.overflow = 'hidden'
-    ;(focusForm ? detailsRef.current : dialogRef.current)?.focus({ preventScroll: true })
+    ;(showForm ? detailsRef.current : dialogRef.current)?.focus({ preventScroll: true })
     return () => {
       document.documentElement.style.overflow = ''
       if (previous?.isConnected) previous.focus({ preventScroll: true })
@@ -179,7 +180,7 @@ function AccountDialog({
             </div>
           </div>
 
-          {canLog && (
+          {showForm && (
             <form className="od-d-section" onSubmit={onSubmit} noValidate>
               <h3>Log a collection action</h3>
               <div className="od-types" role="group" aria-label="Action type">
@@ -304,7 +305,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   const [statusFilter, setStatusFilter] = useState('Overdue')
   const [agingFilter, setAgingFilter] = useState('All')
   const [detailId, setDetailId] = useState(null)
-  const [focusForm, setFocusForm] = useState(false)
+  const [dialogMode, setDialogMode] = useState('view')
   const [sortKey, setSortKey] = useState('days')
   const [logForm, setLogForm] = useState({ action_type: ACTION_TYPES[0], details: '', document_reference: '' })
   const [logSaving, setLogSaving] = useState(false)
@@ -526,7 +527,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
   function openAccount(account, withForm = false) {
     resetLogForm()
-    setFocusForm(withForm)
+    setDialogMode(withForm && canLog ? 'log' : 'view')
     setDetailId(account.id)
   }
 
@@ -540,13 +541,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
     const nextId = detailIds[detailPosition + direction]
     if (nextId === undefined) return
     resetLogForm()
-    setFocusForm(false)
     setDetailId(nextId)
   }
 
   async function submitLogAction(event) {
     event.preventDefault()
-    if (logSubmitting.current) return
+    if (dialogMode !== 'log' || logSubmitting.current) return
     if (!detail || !canLog) {
       setLogError('Unable to identify the current user. Please refresh and try again.')
       return
@@ -590,17 +590,12 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
   return (
     <div className="overdue-page">
       <header className="od-header">
-        <div className="od-header-heading">
-          <span className="od-header-icon" aria-hidden="true">
-            <AlertCircle size={28} />
-          </span>
-          <div className="od-header-copy">
-            <p className="od-eyebrow">Collections</p>
-            <h1>Overdue Accounts</h1>
-            <p>
-              Aging uses each unpaid item’s due date. Monthly dues use day {penaltySettings.dueDay} with a {penaltySettings.gracePeriodDays}-day grace period. Only posted penalties are included. A lot can have unpaid items in more than one age range.
-            </p>
-          </div>
+        <div>
+          <p className="od-eyebrow">Collections</p>
+          <h1>Overdue Accounts</h1>
+          <p>
+            Aging uses each unpaid item’s due date. Monthly dues use day {penaltySettings.dueDay} with a {penaltySettings.gracePeriodDays}-day grace period. Only posted penalties are included. A lot can have unpaid items in more than one age range.
+          </p>
         </div>
         <button type="button" className="od-btn" onClick={() => loadData(true)} disabled={refreshing}>
           <RefreshCw size={16} />
@@ -618,7 +613,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong className="red">{kpiValue(loading, filtered.length, '42px')}</strong>
           <small>of {scopeCount} {movedScope ? 'moved lots with a balance' : 'active lots'}</small>
-          <div className="od-kpi-footer"><span aria-hidden="true" />Accounts matching current filters</div>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -629,7 +623,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong>{kpiValue(loading, organization.formatMoney(filteredSummary.overdueBalance), '86px')}</strong>
           <small>{agingFilter === 'All' ? 'Past due on matching lots' : `Past due in ${agingFilter}`}</small>
-          <div className="od-kpi-footer"><span aria-hidden="true" />Based on unpaid-item due dates</div>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -640,7 +633,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           </div>
           <strong>{kpiValue(loading, organization.formatMoney(filteredSummary.currentPortion), '86px')}</strong>
           <small>Not yet due on matching lots</small>
-          <div className="od-kpi-footer"><span aria-hidden="true" />Amounts not yet past due</div>
         </article>
         <article className="od-kpi">
           <div className="od-kpi-top">
@@ -657,17 +649,11 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             )}
           </strong>
           <small>Across all matching lots</small>
-          <div className="od-kpi-footer"><span aria-hidden="true" />Recorded collection activity</div>
         </article>
       </section>
 
       {!loading && !movedScope && summary.overdueCount > 0 && (
-        <section className="od-aging-panel" aria-labelledby="od-aging-title">
-          <div className="od-aging-heading">
-            <h2 id="od-aging-title">Overdue aging</h2>
-            <p>Select an age range to filter accounts. A lot may have unpaid items in more than one range.</p>
-          </div>
-          <div className="od-tiers" role="group" aria-label="Filter by age of unpaid items">
+        <section className="od-tiers" aria-label="Filter by age of unpaid items. Lots can have items in more than one age range.">
           {AGING_TIERS.map((tier, index) => (
             <button
               key={tier}
@@ -690,7 +676,6 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
               </div>
             </button>
           ))}
-        </div>
         </section>
       )}
 
@@ -708,7 +693,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
         </p>
       )}
 
-      <section className="od-card" aria-label="Accounts" aria-live="polite">
+      <section className="od-card od-filter-panel" aria-label="Account filters">
         <div className="od-filters">
           <div className="od-f-row">
             <div className="od-search">
@@ -791,7 +776,13 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
             </span>
           </div>
         </div>
+      </section>
 
+      <section className="od-card od-accounts-panel" aria-labelledby="od-accounts-title" aria-live="polite">
+        <header className="od-accounts-heading">
+          <div><h2 id="od-accounts-title">Account records</h2><p>Review balances, collection history and follow-up actions.</p></div>
+          <span>{dataAvailable ? `${filtered.length.toLocaleString('en-PH')} matching lot${filtered.length === 1 ? '' : 's'}` : 'Records unavailable'}</span>
+        </header>
         {movedScope && <p className="od-banner">Moved accounts with outstanding balances are tracked separately from active lots.</p>}
         {loading ? (
           <div className="od-empty" aria-busy="true">
@@ -961,7 +952,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
 
       {detail && (
         <AccountDialog
-          key={detail.id}
+          key={`${detail.id}:${dialogMode}`}
           account={detail}
           position={detailPosition}
           total={detailIds.length}
@@ -972,7 +963,7 @@ export default function OverdueAccountsPage({ user: suppliedUser }) {
           canLog={canLog}
           historyLoading={actionsLoading}
           historyError={actionsError}
-          focusForm={focusForm}
+          mode={dialogMode}
           formatMoney={organization.formatMoney}
           formatDate={organization.formatDate}
           onSubmit={submitLogAction}

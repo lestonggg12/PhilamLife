@@ -4,7 +4,7 @@ import { Turnstile } from '@marsidev/react-turnstile';
 import './LoginPage.css';
 import { Mail, Lock } from '../components/Icons';
 import { setRememberMePreference, clearRememberMePreference, supabase } from '../lib/supabaseClient';
-import { normalizeProfileRole, isActiveStaffProfile } from '../lib/profileRole';
+import { normalizeProfileRole } from '../lib/profileRole';
 import { useOrganization } from '../context/OrganizationContext';
 
 const VALID_ROLES = ['Admin', 'Secretary', 'Treasurer'];
@@ -120,7 +120,6 @@ export default function LoginPage({ onAuthenticated }) {
         } else {
           setError('Invalid email or password');
         }
-        sessionStorage.setItem('philam-idle-last-activity', String(Date.now()));
         setLoading(false);
         return;
       }
@@ -142,15 +141,6 @@ export default function LoginPage({ onAuthenticated }) {
         return;
       }
 
-      // Fail closed even if an Auth ban and profile state become inconsistent.
-      if (!isActiveStaffProfile(profile)) {
-        await cancelSignIn();
-        resetCaptcha();
-        setError('This staff account is inactive or unauthorized. Contact an admin.');
-        setLoading(false);
-        return;
-      }
-
       // Verify the tab they picked matches their actual role
       const normalizedProfile = normalizeProfileRole(profile);
       if (normalizedProfile.role !== selectedRole.toLowerCase()) {
@@ -162,6 +152,8 @@ export default function LoginPage({ onAuthenticated }) {
       }
 
       setLoading(false);
+      // A verified fresh sign-in starts a new idle window in every portal.
+      sessionStorage.setItem('philam-idle-last-activity', String(Date.now()));
       onAuthenticated(normalizedProfile);
     } catch {
       await cancelSignIn();
@@ -365,8 +357,19 @@ export default function LoginPage({ onAuthenticated }) {
             </p>
           )}
 
-          {error && <p style={{ color: '#c0392b', fontSize: '14px', marginTop: '8px' }}>{error}</p>}
-
+          {error && (
+  <p
+    role="alert"
+    style={{
+      color: '#c0392b',
+      fontSize: '14px',
+      lineHeight: 1.5,
+      margin: '12px 0 16px',
+    }}
+  >
+    {error}
+  </p>
+)}
           <button
             type="submit"
             className="login-submit-btn"

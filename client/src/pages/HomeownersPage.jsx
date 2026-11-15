@@ -1,11 +1,19 @@
 import { notifySuccess, notifyAction } from '../lib/actionFeedback'
 import { useSuccessNotice } from '../lib/useSuccessNotice'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import Select from '../components/Select'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-   AlertCircle,
+  AlertCircle,
+  Activity,
   Calendar,
   CreditCard,
   FileText,
@@ -30,13 +38,22 @@ import { useConfirm } from '../components/ConfirmDialog'
 import './HomeownersPage.css'
 import { openPaymentMonthPrint } from '../lib/paymentMonthPrint'
 import { ReceiptDialog } from '../components/ReceiptSheet'
-import { balanceAtReceiptIssuance, loadPaymentReceipt } from '../lib/paymentReceipt'
+import {
+  balanceAtReceiptIssuance,
+  loadPaymentReceipt,
+} from '../lib/paymentReceipt'
 import { buildReceiptModel } from '../lib/receiptModel'
 import { printReceipt } from '../lib/printReceipt'
 import { recordReceiptActivity } from '../lib/receiptActivityAudit'
 import { useSettledAmountStatus } from '../lib/useSettledAmount'
 import ActionDialog from '../components/ActionDialog'
-import { formatDues, formatLotSize, formatRate, hasRecurringDues, parsePositiveAmount } from '../lib/lotDues'
+import {
+  formatDues,
+  formatLotSize,
+  formatRate,
+  hasRecurringDues,
+  parsePositiveAmount,
+} from '../lib/lotDues'
 import BalanceBreakdown from '../components/BalanceBreakdown'
 import BalanceEntryDialog from '../components/BalanceEntryDialog'
 import HomeownerLotChips from '../components/HomeownerLotChips'
@@ -45,15 +62,26 @@ import { duplicateLotMessage, isDuplicateLotError } from '../lib/homeownerLots'
 import HomeownerActionsMenu from '../components/HomeownerActionsMenu'
 import '../components/HomeownerProfileRefresh.css'
 import { Pager } from '../components/PagerControls'
-import { useListPage, matchesHomeownerSearch, summarizeActiveLots } from '../lib/homeownerDirectory'
+import {
+  useListPage,
+  matchesHomeownerSearch,
+  summarizeActiveLots,
+} from '../lib/homeownerDirectory'
 import '../components/HomeownerDirectoryPaging.css'
 import PropertyClassificationPanel from '../components/PropertyClassificationPanel'
 import AccountActivity from '../components/AccountActivity'
 import MonthlyChargeHistory from '../components/MonthlyChargeHistory'
 import CctvElectricityCompensation from '../components/CctvElectricityCompensation'
-import useManilaMonthRollover, { manilaMonth } from '../hooks/useManilaMonthRollover'
+import useManilaMonthRollover, {
+  manilaMonth,
+} from '../hooks/useManilaMonthRollover'
 import { monthLabel } from '../lib/pagedQuery'
-import { getManilaYearMonth, homeownerPaymentTotals, paymentTrackerStatus, serviceInvoiceBalances } from '../lib/homeownerPaymentPeriods'
+import {
+  getManilaYearMonth,
+  homeownerPaymentTotals,
+  paymentTrackerStatus,
+  serviceInvoiceBalances,
+} from '../lib/homeownerPaymentPeriods'
 
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -66,7 +94,10 @@ const monthNames = Array.from({ length: 12 }, (_, month) =>
   ),
 )
 
-const normalize = (value) => String(value ?? '').trim().toLowerCase()
+const normalize = (value) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
 
 const EMPTY_HOMEOWNER = {
   lotSizeSqm: '',
@@ -120,7 +151,9 @@ function initials(name) {
 function formatDate(value, dateFormat) {
   if (!value) return '—'
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : formatDateValue(parsed, { dateFormat, withTime: true })
+  return Number.isNaN(parsed.getTime())
+    ? '—'
+    : formatDateValue(parsed, { dateFormat, withTime: true })
 }
 
 function regularPaymentCategory(payment) {
@@ -134,7 +167,8 @@ function homeownerStatus(activePaymentCount, property) {
     return { key: 'balance', label: 'With balance' }
   }
 
-  if (!activePaymentCount) return { key: 'no-history', label: 'No regular payment history' }
+  if (!activePaymentCount)
+    return { key: 'no-history', label: 'No regular payment history' }
 
   return { key: 'current', label: 'No balance due' }
 }
@@ -176,8 +210,174 @@ function HomeownerProfileSkeleton() {
       <div className="homeowner-payment-analytics homeowner-profile-skeleton-analytics">
         <Skeleton width="100%" height="245px" radius="8px" />
       </div>
-      <span className="skeleton-region-status" role="status">Loading</span>
+      <span className="skeleton-region-status" role="status">
+        Loading
+      </span>
     </div>
+  )
+}
+
+function rankMostActiveHomeowners(entries, paymentCounts) {
+  return entries
+    .filter(
+      ({ property }) => Number(paymentCounts.get(Number(property.id))) > 0,
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(paymentCounts.get(Number(b.property.id))) -
+          Number(paymentCounts.get(Number(a.property.id))) ||
+        String(a.property.homeowner_name || '').localeCompare(
+          String(b.property.homeowner_name || ''),
+        ) ||
+        String(a.property.block || '').localeCompare(
+          String(b.property.block || ''),
+          undefined,
+          { numeric: true },
+        ) ||
+        String(a.property.lot_number || '').localeCompare(
+          String(b.property.lot_number || ''),
+          undefined,
+          { numeric: true },
+        ) ||
+        Number(a.property.id) - Number(b.property.id),
+    )
+    .slice(0, 6)
+}
+
+// Keep this wrapper in the page file; existing detail components and actions stay intact.
+function HomeownerProfileModal({
+  heading,
+  navigation,
+  children,
+  onClose,
+  blocked,
+  backgroundRef,
+  scrollKey,
+}) {
+  const dialogRef = useRef(null)
+  const bodyRef = useRef(null)
+  useLayoutEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0
+  }, [scrollKey])
+  const previousBlocked = useRef(blocked)
+  useEffect(() => {
+    if (previousBlocked.current && !blocked)
+      dialogRef.current
+        ?.querySelector('.hpm-close')
+        ?.focus({ preventScroll: true })
+    previousBlocked.current = blocked
+  }, [blocked])
+  useEffect(() => {
+    const previous = document.activeElement
+    const overflow = document.body.style.overflow
+    const backgrounds = [
+      ...(backgroundRef.current?.querySelectorAll(
+        ':scope > .homeowners-header, :scope > .homeowners-stat-grid, :scope > .homeowners-finder',
+      ) || []),
+    ]
+    const states = backgrounds.map((node) => node.inert)
+    backgrounds.forEach((node) => {
+      node.inert = true
+    })
+    document.body.style.overflow = 'hidden'
+    dialogRef.current
+      ?.querySelector('.hpm-close')
+      ?.focus({ preventScroll: true })
+    return () => {
+      document.body.style.overflow = overflow
+      backgrounds.forEach((node, index) => {
+        node.inert = states[index]
+      })
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+      else
+        backgroundRef.current
+          ?.querySelector('.homeowners-search')
+          ?.focus({ preventScroll: true })
+    }
+  }, [backgroundRef])
+  function keys(event) {
+    if (blocked || !dialogRef.current?.contains(event.target)) return
+    if (event.key === 'Escape') {
+      // Let an open disclosure or custom select consume Escape first.
+      const disclosure = dialogRef.current.querySelector('details[open]')
+      if (disclosure) {
+        event.preventDefault()
+        event.stopPropagation()
+        disclosure.open = false
+        disclosure.querySelector('summary')?.focus()
+        return
+      }
+      if (
+        dialogRef.current.querySelector(
+          '.homeowner-actions-popover, .sel-panel',
+        )
+      )
+        return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    } else if (event.key === 'Tab') {
+      const nodes = [
+        ...dialogRef.current.querySelectorAll(
+          'button:not(:disabled),a[href],input,select,textarea,summary,[tabindex="0"]',
+        ),
+      ].filter(
+        (node) =>
+          !node.closest('[hidden]') &&
+          (!node.closest('details:not([open])') || node.tagName === 'SUMMARY'),
+      )
+      const first = nodes[0],
+        last = nodes[nodes.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last?.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first?.focus()
+      }
+    }
+  }
+  return createPortal(
+    <div
+      className="hpm-overlay"
+      onMouseDown={(event) => {
+        if (!blocked && event.target === event.currentTarget) onClose()
+      }}
+    >
+      <section
+        ref={dialogRef}
+        className="hpm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="homeowner-profile-title"
+        onKeyDown={keys}
+      >
+        <header className="hpm-header">
+          {heading}
+          <button
+            type="button"
+            className="hpm-close"
+            aria-label="Close homeowner profile"
+            disabled={blocked}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+        {navigation}
+        <div className="hpm-body" ref={bodyRef}>
+          {children}
+        </div>
+        <footer className="hpm-footer">
+          <span>Homeowner account · Philippine time</span>
+          <button type="button" disabled={blocked} onClick={onClose}>
+            Done
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
   )
 }
 
@@ -192,14 +392,31 @@ export default function HomeownersPage() {
   const [breakdownKey, setBreakdownKey] = useState(0)
   const [balanceBreakdownOpen, setBalanceBreakdownOpen] = useState(false)
   const [notice, setNotice] = useSuccessNotice()
-  const [properties, setProperties] = useState(() => homeownerDirectoryCache.properties || [])
+  const [properties, setProperties] = useState(
+    () => homeownerDirectoryCache.properties || [],
+  )
   // `payments` / `serviceTransactions` hold ONLY the selected homeowner's records,
   // loaded when a homeowner is opened. The directory uses small per-homeowner counts.
-  const [detailData, setDetailData] = useState({ propertyId: null, payments: [], serviceTransactions: [] })
-  const [paymentCounts, setPaymentCounts] = useState(() => homeownerDirectoryCache.paymentCounts || new Map())
-  const [duesByProperty, setDuesByProperty] = useState(() => homeownerDirectoryCache.duesByProperty || new Map())
-  const [cctvSchedules, setCctvSchedules] = useState({ propertyId: null, rows: [], ready: false, error: '' })
-  const [hasDirectorySnapshot, setHasDirectorySnapshot] = useState(() => homeownerDirectoryCache.properties !== null)
+  const [detailData, setDetailData] = useState({
+    propertyId: null,
+    payments: [],
+    serviceTransactions: [],
+  })
+  const [paymentCounts, setPaymentCounts] = useState(
+    () => homeownerDirectoryCache.paymentCounts || new Map(),
+  )
+  const [duesByProperty, setDuesByProperty] = useState(
+    () => homeownerDirectoryCache.duesByProperty || new Map(),
+  )
+  const [cctvSchedules, setCctvSchedules] = useState({
+    propertyId: null,
+    rows: [],
+    ready: false,
+    error: '',
+  })
+  const [hasDirectorySnapshot, setHasDirectorySnapshot] = useState(
+    () => homeownerDirectoryCache.properties !== null,
+  )
   const [summaryMonth, setSummaryMonth] = useState(manilaMonth)
   useManilaMonthRollover(setSummaryMonth)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
@@ -209,7 +426,9 @@ export default function HomeownersPage() {
   const [openingHistoryReceipt, setOpeningHistoryReceipt] = useState('')
   const [historyReceiptError, setHistoryReceiptError] = useState('')
   const [historyPrintNotice, setHistoryPrintNotice] = useState('')
-  const historySettlement = useSettledAmountStatus(historyReceipt?.kind === 'service' ? historyReceipt.row : null)
+  const historySettlement = useSettledAmountStatus(
+    historyReceipt?.kind === 'service' ? historyReceipt.row : null,
+  )
   const [voidReason, setVoidReason] = useState('')
   const [voiding, setVoiding] = useState(false)
   const [voidError, setVoidError] = useState('')
@@ -219,6 +438,13 @@ export default function HomeownersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [profileSection, setProfileSection] = useState('overview')
+  const [trackerPage, setTrackerPage] = useState(1)
+  const pageRef = useRef(null)
+  const closeProfile = useCallback(
+    () => navigate('/homeowners', { replace: true, preventScrollReset: true }),
+    [navigate],
+  )
   const [historyMonth, setHistoryMonth] = useState(() => {
     const now = getManilaYearMonth(new Date())
     return `${now.year}-${String(now.month + 1).padStart(2, '0')}`
@@ -226,10 +452,15 @@ export default function HomeownersPage() {
   const [trackerOpen, setTrackerOpen] = useState(false)
   const [trackerView, setTrackerView] = useState('monthly')
   const [expandedTrackerMonth, setExpandedTrackerMonth] = useState(null)
-  const [trackerYear, setTrackerYear] = useState(() =>
-    getManilaYearMonth(new Date())?.year || new Date().getFullYear(),
+  const [monthDetailTab, setMonthDetailTab] = useState('payments')
+  const [accountActivityMonth, setAccountActivityMonth] = useState(manilaMonth)
+  const monthBodyRef = useRef(null)
+  const [trackerYear, setTrackerYear] = useState(
+    () => getManilaYearMonth(new Date())?.year || new Date().getFullYear(),
   )
-  const [loading, setLoading] = useState(() => !homeownerDirectoryCache.properties)
+  const [loading, setLoading] = useState(
+    () => !homeownerDirectoryCache.properties,
+  )
   const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
   const classificationDialogRef = useRef(null)
@@ -248,16 +479,26 @@ export default function HomeownersPage() {
   useEffect(() => {
     let active = true
     let channel
-    const refresh = () => { if (active) void loadHomeowners(true) }
+    const refresh = () => {
+      if (active) void loadHomeowners(true)
+    }
     loadHomeowners()
     window.addEventListener('focus', refresh)
     try {
       channel = supabase.channel(`homeowner-dues-rate:${crypto.randomUUID()}`)
-      channel.on('postgres_changes', {
-        event: '*', schema: 'public', table: 'association_dues_rates',
-      }, refresh).subscribe((status) => {
-        if (status === 'SUBSCRIBED') refresh()
-      })
+      channel
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'association_dues_rates',
+          },
+          refresh,
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') refresh()
+        })
     } catch {
       // Focus and the Refresh button also reload the rate and balances.
     }
@@ -274,26 +515,27 @@ export default function HomeownersPage() {
     return () => window.clearTimeout(timer)
   }, [search])
 
-  
-useEffect(() => {
-  if (!balanceBreakdownOpen) return undefined
+  useEffect(() => {
+    if (!balanceBreakdownOpen) return undefined
 
-  function handleEscape(event) {
-    if (event.key === 'Escape') {
-      setBalanceBreakdownOpen(false)
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setBalanceBreakdownOpen(false)
+      }
     }
-  }
 
-  document.addEventListener('keydown', handleEscape)
+    document.addEventListener('keydown', handleEscape)
 
-  return () => {
-    document.removeEventListener('keydown', handleEscape)
-  }
-}, [balanceBreakdownOpen])
-
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [balanceBreakdownOpen])
 
   useEffect(() => {
     setActiveTab('overview')
+    setProfileSection('overview')
+    setAccountActivityMonth(manilaMonth())
+    setTrackerPage(1)
     const now = getManilaYearMonth(new Date())
     setHistoryMonth(`${now.year}-${String(now.month + 1).padStart(2, '0')}`)
     setTrackerOpen(false)
@@ -308,7 +550,10 @@ useEffect(() => {
   // also closes when the click lands on the filter select or elsewhere.
   useEffect(() => {
     function handleOutsideClick(event) {
-      if (searchWrapRef.current && !searchWrapRef.current.contains(event.target)) {
+      if (
+        searchWrapRef.current &&
+        !searchWrapRef.current.contains(event.target)
+      ) {
         setResultsOpen(false)
       }
     }
@@ -321,23 +566,35 @@ useEffect(() => {
     async function resolveUser() {
       const { data: { user: authUser } = {} } = await supabase.auth.getUser()
       if (!authUser) return
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
       if (!cancelled && profile) setCurrentUser(profile)
     }
     resolveUser()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const userRole = currentUser?.is_active === false ? '' : currentUser?.role?.trim().toLowerCase()
+  const userRole =
+    currentUser?.is_active === false
+      ? ''
+      : currentUser?.role?.trim().toLowerCase()
   // Treasurer can manage homeowner details and contacts, but cannot void payments, change balances, or manage blocks.
   const canVoidPayments = userRole === 'secretary'
-  const canManageHomeowners = userRole === 'admin' || userRole === 'secretary' || userRole === 'treasurer'
+  const canManageHomeowners =
+    userRole === 'admin' || userRole === 'secretary' || userRole === 'treasurer'
   const canManageBlocks = userRole === 'admin' || userRole === 'secretary'
   const canManageBalances = canManageBlocks
   const canEditContact = canManageHomeowners
 
   function openVoid(item) {
-    const payment = detailData.payments.find((row) => `payment-${row.id}` === item.id)
+    const payment = detailData.payments.find(
+      (row) => `payment-${row.id}` === item.id,
+    )
     if (!payment) return
     setVoidTarget(payment)
     setVoidReason('')
@@ -351,24 +608,42 @@ useEffect(() => {
       ? selectedServices.find((row) => `service-${row.id}` === item.id)
       : selectedPayments.find((row) => `payment-${row.id}` === item.id)
     if (!sourceRow) {
-      setHistoryReceiptError('Receipt details are unavailable. Refresh the homeowner records and try again.')
+      setHistoryReceiptError(
+        'Receipt details are unavailable. Refresh the homeowner records and try again.',
+      )
       return
     }
     setOpeningHistoryReceipt(item.id)
     setHistoryReceiptError('')
     try {
       const table = isService ? 'service_transactions' : 'payments'
-      const { data, error } = await supabase.from(table).select('*')
-        .eq('id', sourceRow.id).eq('property_id', selectedPropertyId).maybeSingle()
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', sourceRow.id)
+        .eq('property_id', selectedPropertyId)
+        .maybeSingle()
       if (error) throw error
       if (!data || String(data.id) !== String(sourceRow.id)) {
         throw new Error('The receipt could not be verified for this property.')
       }
-      const payment = isService ? data : await loadPaymentReceipt(supabase, data)
-      await recordReceiptActivity('Receipt Viewed', { kind: isService ? 'service' : 'payment', receiptNumber: data.receipt_number, recordId: data.id })
-      setHistoryReceipt({ kind: isService ? 'service' : 'payment', row: payment, propertyId: selectedPropertyId })
+      const payment = isService
+        ? data
+        : await loadPaymentReceipt(supabase, data)
+      await recordReceiptActivity('Receipt Viewed', {
+        kind: isService ? 'service' : 'payment',
+        receiptNumber: data.receipt_number,
+        recordId: data.id,
+      })
+      setHistoryReceipt({
+        kind: isService ? 'service' : 'payment',
+        row: payment,
+        propertyId: selectedPropertyId,
+      })
     } catch (failure) {
-      setHistoryReceiptError(failure?.message || 'Unable to open receipt. Please refresh and retry.')
+      setHistoryReceiptError(
+        failure?.message || 'Unable to open receipt. Please refresh and retry.',
+      )
     } finally {
       setOpeningHistoryReceipt('')
     }
@@ -396,16 +671,27 @@ useEffect(() => {
         .or('status.is.null,status.neq.Voided')
         .select('id')
       if (error) throw error
-      if (!Array.isArray(data) || data.length !== 1 || String(data[0].id) !== String(payment.id)) {
-        throw new Error('The void could not be confirmed. Refresh before trying again.')
+      if (
+        !Array.isArray(data) ||
+        data.length !== 1 ||
+        String(data[0].id) !== String(payment.id)
+      ) {
+        throw new Error(
+          'The void could not be confirmed. Refresh before trying again.',
+        )
       }
 
       // Reload account balances, payment counts and history after the confirmed void.
       setVoidTarget(null)
-      notifySuccess(`Payment ${payment.receipt_number || ''} was cancelled for ${payment.homeowner_name}.`)
+      notifySuccess(
+        `Payment ${payment.receipt_number || ''} was cancelled for ${payment.homeowner_name}.`,
+      )
       await loadHomeowners(true)
     } catch (error) {
-      setVoidError(error?.message || 'Could not void this payment. Please refresh before retrying.')
+      setVoidError(
+        error?.message ||
+          'Could not void this payment. Please refresh before retrying.',
+      )
     } finally {
       setVoiding(false)
     }
@@ -421,7 +707,12 @@ useEffect(() => {
   }
 
   async function handleDeleteHomeowner() {
-    if (!canManageBalances || !selectedProperty || !isActiveHomeowner(selectedProperty)) return
+    if (
+      !canManageBalances ||
+      !selectedProperty ||
+      !isActiveHomeowner(selectedProperty)
+    )
+      return
 
     const entry = selectedProperty
     setPageError('')
@@ -439,15 +730,15 @@ useEffect(() => {
     try {
       await removeHomeowner(supabase, entry.id)
     } catch (error) {
-      setPageError(`Could not remove homeowner: ${error.message} Use Move / Transfer in Contact Manager to preserve an account with history.`)
+      setPageError(
+        `Could not remove homeowner: ${error.message} Use Move / Transfer in Contact Manager to preserve an account with history.`,
+      )
       return
     }
 
     navigate('/homeowners')
     setNotice(`Homeowner ${entry.homeowner_name} was removed.`)
     loadHomeowners(true)
-
-
   }
 
   async function loadHomeowners(isRefresh = false) {
@@ -455,34 +746,56 @@ useEffect(() => {
     if (isRefresh) {
       setRefreshing(true)
       setDetailReloadKey((key) => key + 1)
-    }
-    else if (!homeownerDirectoryCache.properties) setLoading(true)
+    } else if (!homeownerDirectoryCache.properties) setLoading(true)
     setPageError('')
 
     try {
       const [duesResult, propertyResult, paymentResult] = await Promise.all([
-        fetchAll(() => supabase
-          .from('property_monthly_dues')
-          .select('property_id, lot_size_sqm, price_per_sqm, monthly_dues, billing_month, billing_amount, prepaid')
-          .order('property_id'), { tiebreaker: null }),
-        fetchAll(() => supabase
-          .from('properties')
-          .select(
-            'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance, property_classification',
-          )
-          .order('homeowner_name')),
-        fetchAll(() => supabase
-          .from('property_payment_summary')
-          .select('property_id, active_payment_count')
-          .order('property_id'), { tiebreaker: null }),
+        fetchAll(
+          () =>
+            supabase
+              .from('property_monthly_dues')
+              .select(
+                'property_id, lot_size_sqm, price_per_sqm, monthly_dues, billing_month, billing_amount, prepaid',
+              )
+              .order('property_id'),
+          { tiebreaker: null },
+        ),
+        fetchAll(() =>
+          supabase
+            .from('properties')
+            .select(
+              'id, homeowner_id, block, lot_number, lot_size_sqm, homeowner_name, contact_phone, contact_email, contact_updated_at, created_at, homeowner_status, current_balance, property_classification',
+            )
+            .order('homeowner_name'),
+        ),
+        fetchAll(
+          () =>
+            supabase
+              .from('property_payment_summary')
+              .select('property_id, active_payment_count')
+              .order('property_id'),
+          { tiebreaker: null },
+        ),
       ])
       if (request !== directoryRequest.current) return
-      const verified = requireHomeownerSnapshot(duesResult, propertyResult, paymentResult)
+      const verified = requireHomeownerSnapshot(
+        duesResult,
+        propertyResult,
+        paymentResult,
+      )
       // Commit an all-or-nothing snapshot. Never replace reliable cached
       // financial figures with zeros after a failed or partial request.
       const nextProperties = verified.properties
-      const nextPaymentCounts = new Map(verified.payments.map((row) => [Number(row.property_id), Number(row.active_payment_count) || 0]))
-      const nextDuesByProperty = new Map(verified.dues.map((row) => [Number(row.property_id), row]))
+      const nextPaymentCounts = new Map(
+        verified.payments.map((row) => [
+          Number(row.property_id),
+          Number(row.active_payment_count) || 0,
+        ]),
+      )
+      const nextDuesByProperty = new Map(
+        verified.dues.map((row) => [Number(row.property_id), row]),
+      )
       homeownerDirectoryCache.properties = nextProperties
       homeownerDirectoryCache.paymentCounts = nextPaymentCounts
       homeownerDirectoryCache.duesByProperty = nextDuesByProperty
@@ -496,7 +809,9 @@ useEffect(() => {
       const message = homeownerDirectoryCache.properties
         ? 'Showing the last loaded directory. Refresh before making decisions.'
         : 'Refresh to load the directory.'
-      setPageError(`Homeowner information is unavailable: ${error?.message || 'Connection failed.'} ${message}`)
+      setPageError(
+        `Homeowner information is unavailable: ${error?.message || 'Connection failed.'} ${message}`,
+      )
     } finally {
       if (request === directoryRequest.current) {
         setLoading(false)
@@ -526,18 +841,40 @@ useEffect(() => {
     if (!hasQuery && !hasFilter) return []
     return directoryEntries.filter(({ property, status }) => {
       const matchesSearch = matchesHomeownerSearch(property, debouncedSearch)
-      const matchesStatus = statusFilter === 'all' || status.key === statusFilter
-        || (statusFilter === 'current' && status.key === 'no-history')
-      const classification = String(property.property_classification || 'unclassified').trim().toLowerCase() || 'unclassified'
-      const matchesClassification = classificationFilter === 'all' || classification === classificationFilter
+      const matchesStatus =
+        statusFilter === 'all' ||
+        status.key === statusFilter ||
+        (statusFilter === 'current' && status.key === 'no-history')
+      const classification =
+        String(property.property_classification || 'unclassified')
+          .trim()
+          .toLowerCase() || 'unclassified'
+      const matchesClassification =
+        classificationFilter === 'all' ||
+        classification === classificationFilter
       return matchesSearch && matchesStatus && matchesClassification
     })
-  }, [classificationFilter, debouncedSearch, directoryEntries, hasFilter, hasQuery, statusFilter])
+  }, [
+    classificationFilter,
+    debouncedSearch,
+    directoryEntries,
+    hasFilter,
+    hasQuery,
+    statusFilter,
+  ])
 
-  const directoryPage = useListPage(filteredDirectory, [search, statusFilter, classificationFilter], 25)
+  const directoryPage = useListPage(
+    filteredDirectory,
+    [search, statusFilter, classificationFilter],
+    25,
+  )
   const showResults = resultsOpen && (hasQuery || hasFilter)
-  const homeownerStats = useMemo(() => summarizeActiveLots(directoryEntries), [directoryEntries])
-  const directoryCount = (value) => hasDirectorySnapshot ? value.toLocaleString('en-PH') : '—'
+  const homeownerStats = useMemo(
+    () => summarizeActiveLots(directoryEntries),
+    [directoryEntries],
+  )
+  const directoryCount = (value) =>
+    hasDirectorySnapshot ? value.toLocaleString('en-PH') : '—'
 
   function handleSelectHomeowner(id) {
     navigate(`/homeowners/${id}`, { replace: true, preventScrollReset: true })
@@ -560,9 +897,15 @@ useEffect(() => {
   )
 
   const homeownerLots = useMemo(
-    () => selectedProperty?.homeowner_id
-      ? properties.filter((property) => property.homeowner_id === selectedProperty.homeowner_id)
-      : selectedProperty ? [selectedProperty] : [],
+    () =>
+      selectedProperty?.homeowner_id
+        ? properties.filter(
+            (property) =>
+              property.homeowner_id === selectedProperty.homeowner_id,
+          )
+        : selectedProperty
+          ? [selectedProperty]
+          : [],
     [properties, selectedProperty],
   )
 
@@ -571,16 +914,23 @@ useEffect(() => {
   const [duesPopoverPosition, setDuesPopoverPosition] = useState(null)
   const duesInfoRef = useRef(null)
   const duesPopoverRef = useRef(null)
-  const formerAccount = selectedProperty != null && !isActiveHomeowner(selectedProperty)
+  const formerAccount =
+    selectedProperty != null && !isActiveHomeowner(selectedProperty)
   const selectedLotDues = duesByProperty.get(Number(selectedPropertyId))
-  const hasMonthlyDues = selectedLotDues?.prepaid || hasRecurringDues(selectedLotDues)
-  const monthlyDuesAmount = !formerAccount && hasMonthlyDues ? selectedLotDues.billing_amount : null
+  const hasMonthlyDues =
+    selectedLotDues?.prepaid || hasRecurringDues(selectedLotDues)
+  const monthlyDuesAmount =
+    !formerAccount && hasMonthlyDues ? selectedLotDues.billing_amount : null
   const nextBillingLabel = selectedLotDues?.billing_month
-    ? monthLabel(selectedLotDues.billing_month.slice(0, 7)) : 'Next bill'
-  const monthlyDuesNote = formerAccount ? 'Former account · monthly billing ended'
-    : !hasMonthlyDues ? 'Set the lot size and rate to calculate dues.'
-    : selectedLotDues.prepaid ? `${nextBillingLabel} · prepaid monthly equivalent (not a new charge)`
-      : `${nextBillingLabel} · ${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
+    ? monthLabel(selectedLotDues.billing_month.slice(0, 7))
+    : 'Next bill'
+  const monthlyDuesNote = formerAccount
+    ? 'Former account · monthly billing ended'
+    : !hasMonthlyDues
+      ? 'Set the lot size and rate to calculate dues.'
+      : selectedLotDues.prepaid
+        ? `${nextBillingLabel} · prepaid monthly equivalent (not a new charge)`
+        : `${nextBillingLabel} · ${formatLotSize(selectedLotDues.lot_size_sqm)} × ${formatRate(selectedLotDues.price_per_sqm)}`
 
   useEffect(() => {
     setDuesBreakdownExpanded(false)
@@ -592,9 +942,15 @@ useEffect(() => {
   useEffect(() => {
     if (selectedPropertyId == null) return undefined
     let cancelled = false
-    setCctvSchedules({ propertyId: selectedPropertyId, rows: [], ready: false, error: '' })
+    setCctvSchedules({
+      propertyId: selectedPropertyId,
+      rows: [],
+      ready: false,
+      error: '',
+    })
     async function loadCctvSchedules() {
-      const { data, error } = await supabase.from('cctv_electricity_schedules')
+      const { data, error } = await supabase
+        .from('cctv_electricity_schedules')
         .select('monthly_credit,starts_on,ends_before')
         .eq('property_id', selectedPropertyId)
       if (cancelled) return
@@ -606,16 +962,29 @@ useEffect(() => {
       })
     }
     void loadCctvSchedules().catch((error) => {
-      if (!cancelled) setCctvSchedules({ propertyId: selectedPropertyId, rows: [], ready: false,
-        error: error?.message || 'Unknown error' })
+      if (!cancelled)
+        setCctvSchedules({
+          propertyId: selectedPropertyId,
+          rows: [],
+          ready: false,
+          error: error?.message || 'Unknown error',
+        })
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [selectedPropertyId, detailReloadKey])
 
-  const cctvReady = cctvSchedules.ready && cctvSchedules.propertyId === selectedPropertyId
-  const cctvDues = cctvReady && monthlyDuesAmount != null
-    ? cctvMonthlyDues(monthlyDuesAmount, selectedLotDues?.billing_month, cctvSchedules.rows)
-    : null
+  const cctvReady =
+    cctvSchedules.ready && cctvSchedules.propertyId === selectedPropertyId
+  const cctvDues =
+    cctvReady && monthlyDuesAmount != null
+      ? cctvMonthlyDues(
+          monthlyDuesAmount,
+          selectedLotDues?.billing_month,
+          cctvSchedules.rows,
+        )
+      : null
 
   useEffect(() => {
     if (!duesBreakdownExpanded) return undefined
@@ -629,8 +998,13 @@ useEffect(() => {
       const spaceBelow = window.innerHeight - anchorRect.bottom - 12
       const spaceAbove = anchorRect.top - 12
       const openAbove = spaceBelow < height && spaceAbove > spaceBelow
-      const left = Math.min(Math.max(12, anchorRect.right - width), window.innerWidth - width - 12)
-      const top = openAbove ? anchorRect.top - height - 8 : anchorRect.bottom + 8
+      const left = Math.min(
+        Math.max(12, anchorRect.right - width),
+        window.innerWidth - width - 12,
+      )
+      const top = openAbove
+        ? anchorRect.top - height - 8
+        : anchorRect.bottom + 8
       setDuesPopoverPosition({ left, top: Math.max(12, top) })
     }
     const frame = window.requestAnimationFrame(updatePosition)
@@ -646,7 +1020,11 @@ useEffect(() => {
   useEffect(() => {
     if (!duesBreakdownExpanded) return undefined
     const handlePointerDown = (event) => {
-      if (duesInfoRef.current?.contains(event.target) || duesPopoverRef.current?.contains(event.target)) return
+      if (
+        duesInfoRef.current?.contains(event.target) ||
+        duesPopoverRef.current?.contains(event.target)
+      )
+        return
       setDuesBreakdownExpanded(false)
     }
     const handleKeyDown = (event) => {
@@ -677,32 +1055,64 @@ useEffect(() => {
     let cancelled = false
 
     async function loadDetail() {
-      const scope = { propertyId: selectedPropertyId, revision: detailReloadKey }
+      const scope = {
+        propertyId: selectedPropertyId,
+        revision: detailReloadKey,
+      }
       try {
         const [payments, services] = await Promise.all([
-          fetchAll(() => supabase.from('payments')
-            .select('*, manual_payment_discounts(payment_id, discount_amount, gross_amount, cash_received)')
-            .eq('property_id', selectedPropertyId).order('paid_at', { ascending: false })),
-          fetchAll(() => supabase.from('service_transactions').select('*')
-            .eq('property_id', selectedPropertyId).order('paid_at', { ascending: false })),
+          fetchAll(() =>
+            supabase
+              .from('payments')
+              .select(
+                '*, manual_payment_discounts(payment_id, discount_amount, gross_amount, cash_received)',
+              )
+              .eq('property_id', selectedPropertyId)
+              .order('paid_at', { ascending: false }),
+          ),
+          fetchAll(() =>
+            supabase
+              .from('service_transactions')
+              .select('*')
+              .eq('property_id', selectedPropertyId)
+              .order('paid_at', { ascending: false }),
+          ),
         ])
-        if (payments.error || services.error) throw payments.error || services.error
-        if (!cancelled) setDetailData({ ...scope, payments: payments.data || [], serviceTransactions: services.data || [] })
+        if (payments.error || services.error)
+          throw payments.error || services.error
+        if (!cancelled)
+          setDetailData({
+            ...scope,
+            payments: payments.data || [],
+            serviceTransactions: services.data || [],
+          })
       } catch {
         if (!cancelled) setDetailData({ ...scope, loadFailed: true })
       }
     }
 
     loadDetail()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [detailReloadKey, selectedPropertyId])
 
-  const detailMatchesLot = detailData.propertyId === selectedPropertyId && detailData.revision === detailReloadKey
+  const detailMatchesLot =
+    detailData.propertyId === selectedPropertyId &&
+    detailData.revision === detailReloadKey
   const paymentSummaryLoading = !detailMatchesLot || refreshing
   const paymentSummaryReady = !paymentSummaryLoading && !detailData.loadFailed
-  const selectedPayments = useMemo(() => paymentSummaryReady ? detailData.payments : [], [detailData, paymentSummaryReady])
-  const selectedServices = useMemo(() => paymentSummaryReady ? detailData.serviceTransactions : [], [detailData, paymentSummaryReady])
-  const showDetailSkeleton = useDelayedLoading(paymentSummaryLoading, { showDelay: 150 })
+  const selectedPayments = useMemo(
+    () => (paymentSummaryReady ? detailData.payments : []),
+    [detailData, paymentSummaryReady],
+  )
+  const selectedServices = useMemo(
+    () => (paymentSummaryReady ? detailData.serviceTransactions : []),
+    [detailData, paymentSummaryReady],
+  )
+  const showDetailSkeleton = useDelayedLoading(paymentSummaryLoading, {
+    showDelay: 150,
+  })
 
   const activePayments = useMemo(
     () =>
@@ -731,9 +1141,15 @@ useEffect(() => {
   const history = useMemo(() => {
     const regular = selectedPayments.map((payment) => {
       let remaining = null
-      if (normalize(payment.status) !== 'voided' && payment.remaining_balance != null) {
+      if (
+        normalize(payment.status) !== 'voided' &&
+        payment.remaining_balance != null
+      ) {
         try {
-          remaining = balanceAtReceiptIssuance(payment, payment.manual_payment_discounts)
+          remaining = balanceAtReceiptIssuance(
+            payment,
+            payment.manual_payment_discounts,
+          )
         } catch {
           // The verified receipt detail can explain why this balance is unavailable.
         }
@@ -759,8 +1175,10 @@ useEffect(() => {
     const invoiceBalances = serviceInvoiceBalances(selectedServices)
     const services = selectedServices.map((transaction) => {
       const storedStatus = normalize(transaction.payment_status)
-      const remaining = storedStatus === 'voided' ? null : invoiceBalances.get(transaction.id)
-      const status = storedStatus === 'partial' && remaining === 0 ? 'paid' : storedStatus
+      const remaining =
+        storedStatus === 'voided' ? null : invoiceBalances.get(transaction.id)
+      const status =
+        storedStatus === 'partial' && remaining === 0 ? 'paid' : storedStatus
       return {
         id: `service-${transaction.id}`,
         kind: 'services',
@@ -783,16 +1201,23 @@ useEffect(() => {
     )
   }, [selectedPayments, selectedServices])
 
-  const paidTotals = useMemo(() => homeownerPaymentTotals(history, summaryMonth), [history, summaryMonth])
-  const paymentAmount = (amount) => paymentSummaryReady ? peso.format(amount) : '—'
-  const paymentSummaryNote = paymentSummaryLoading ? 'Loading payments…' : 'Payment history unavailable'
+  const paidTotals = useMemo(
+    () => homeownerPaymentTotals(history, summaryMonth),
+    [history, summaryMonth],
+  )
+  const paymentAmount = (amount) =>
+    paymentSummaryReady ? peso.format(amount) : '—'
+  const paymentSummaryNote = paymentSummaryLoading
+    ? 'Loading payments…'
+    : 'Payment history unavailable'
 
   const summary = useMemo(() => {
     const latestRegularPayment = activePayments[0]
     // Stored balance: positive = owed, negative = advance credit.
-    const storedBalance = selectedProperty && selectedProperty.current_balance != null
-      ? Number(selectedProperty.current_balance) || 0
-      : Number(latestRegularPayment?.remaining_balance) || 0
+    const storedBalance =
+      selectedProperty && selectedProperty.current_balance != null
+        ? Number(selectedProperty.current_balance) || 0
+        : Number(latestRegularPayment?.remaining_balance) || 0
     const outstanding = Math.max(storedBalance, 0)
     const credit = Math.max(-storedBalance, 0)
     const latestRecord = history[0]
@@ -800,26 +1225,38 @@ useEffect(() => {
     return {
       outstanding,
       credit,
-      lastPayment: latestRecord ? formatDate(latestRecord.paidAt, organization.dateFormat) : 'No payments yet',
+      lastPayment: latestRecord
+        ? formatDate(latestRecord.paidAt, organization.dateFormat)
+        : 'No payments yet',
       receipts: history.length,
     }
   }, [activePayments, history, selectedProperty, organization.dateFormat])
 
   const visibleHistory = useMemo(() => {
-    if (activeTab === 'dues') return history.filter((item) => item.kind === 'dues')
+    if (activeTab === 'dues')
+      return history.filter((item) => item.kind === 'dues')
     if (activeTab === 'services') {
       return history.filter((item) => item.kind === 'services')
     }
-    if (activeTab === 'other') return history.filter((item) => item.kind === 'other')
+    if (activeTab === 'other')
+      return history.filter((item) => item.kind === 'other')
     return history
   }, [activeTab, history])
 
   // Filter by the actual payment date in Asia/Manila, not the dues coverage month.
   // Keep voided records visible in the historical ledger, exactly as before.
-  const historyMonthRows = useMemo(() => visibleHistory.filter((item) => {
-    const paid = getManilaYearMonth(item.paidAt)
-    return paid && `${paid.year}-${String(paid.month + 1).padStart(2, '0')}` === historyMonth
-  }), [visibleHistory, historyMonth])
+  const historyMonthRows = useMemo(
+    () =>
+      visibleHistory.filter((item) => {
+        const paid = getManilaYearMonth(item.paidAt)
+        return (
+          paid &&
+          `${paid.year}-${String(paid.month + 1).padStart(2, '0')}` ===
+            historyMonth
+        )
+      }),
+    [visibleHistory, historyMonth],
+  )
 
   const trackerRecords = useMemo(
     () =>
@@ -835,7 +1272,8 @@ useEffect(() => {
   )
 
   const trackerYears = useMemo(() => {
-    const currentYear = getManilaYearMonth(new Date())?.year || new Date().getFullYear()
+    const currentYear =
+      getManilaYearMonth(new Date())?.year || new Date().getFullYear()
     return Array.from(
       new Set([
         currentYear,
@@ -855,7 +1293,8 @@ useEffect(() => {
         const categoryTotal = (kind) =>
           records
             .filter((record) => record.kind === kind)
-            .reduce((sum, record) => sum + Math.round(record.amount * 100), 0) / 100
+            .reduce((sum, record) => sum + Math.round(record.amount * 100), 0) /
+          100
 
         const dues = categoryTotal('dues')
         const services = categoryTotal('services')
@@ -868,17 +1307,34 @@ useEffect(() => {
           dues,
           services,
           other,
-          total: records.reduce((sum, record) => sum + Math.round(record.amount * 100), 0) / 100,
+          total:
+            records.reduce(
+              (sum, record) => sum + Math.round(record.amount * 100),
+              0,
+            ) / 100,
         }
       }),
     [trackerRecords, trackerYear],
   )
 
   const monthDialogRef = useRef(null)
-  const selectedTrackerMonth = expandedTrackerMonth === null ? null : monthlyTracker[expandedTrackerMonth]
+  useEffect(() => {
+    setMonthDetailTab('payments')
+  }, [expandedTrackerMonth, trackerYear, selectedPropertyId])
+  useLayoutEffect(() => {
+    if (monthBodyRef.current) monthBodyRef.current.scrollTop = 0
+  }, [monthDetailTab, expandedTrackerMonth])
+  const selectedTrackerMonth =
+    expandedTrackerMonth === null ? null : monthlyTracker[expandedTrackerMonth]
 
   useEffect(() => {
-    if (!paymentSummaryReady || !trackerOpen || trackerView !== 'monthly' || !selectedTrackerMonth) return undefined
+    if (
+      !paymentSummaryReady ||
+      !trackerOpen ||
+      trackerView !== 'monthly' ||
+      !selectedTrackerMonth
+    )
+      return undefined
     const previousFocus = document.activeElement
     const dialog = monthDialogRef.current
     dialog?.focus()
@@ -888,14 +1344,30 @@ useEffect(() => {
         setExpandedTrackerMonth(null)
       }
       if (event.key !== 'Tab' || !dialog) return
-      const targets = Array.from(dialog.querySelectorAll('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'))
-      if (!targets.length) { event.preventDefault(); return }
+      const targets = Array.from(
+        dialog.querySelectorAll(
+          'button:not(:disabled):not([tabindex="-1"]), [href], input, select, textarea, summary, [tabindex="0"]',
+        ),
+      ).filter(
+        (node) =>
+          !node.closest('[hidden]') &&
+          (!node.closest('details:not([open])') || node.tagName === 'SUMMARY'),
+      )
+      if (!targets.length) {
+        event.preventDefault()
+        return
+      }
       const first = targets[0]
       const last = targets[targets.length - 1]
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
-        event.preventDefault(); last.focus()
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || document.activeElement === dialog)
+      ) {
+        event.preventDefault()
+        last.focus()
       } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault(); first.focus()
+        event.preventDefault()
+        first.focus()
       }
     }
     document.addEventListener('keydown', handleDialogKey)
@@ -903,7 +1375,14 @@ useEffect(() => {
       document.removeEventListener('keydown', handleDialogKey)
       if (previousFocus?.isConnected) previousFocus.focus()
     }
-  }, [paymentSummaryReady, trackerOpen, trackerView, expandedTrackerMonth, trackerYear, homeownerId])
+  }, [
+    paymentSummaryReady,
+    trackerOpen,
+    trackerView,
+    expandedTrackerMonth,
+    trackerYear,
+    homeownerId,
+  ])
 
   const annualTracker = useMemo(
     () =>
@@ -914,19 +1393,25 @@ useEffect(() => {
         const categoryTotal = (kind) =>
           records
             .filter((record) => record.kind === kind)
-            .reduce((sum, record) => sum + Math.round(record.amount * 100), 0) / 100
+            .reduce((sum, record) => sum + Math.round(record.amount * 100), 0) /
+          100
         const dues = categoryTotal('dues')
         const services = categoryTotal('services')
         const other = categoryTotal('other')
 
         return {
           year,
-          months: new Set(records.map((record) => record.trackerDate.month)).size,
+          months: new Set(records.map((record) => record.trackerDate.month))
+            .size,
           transactions: records.length,
           dues,
           services,
           other,
-          total: records.reduce((sum, record) => sum + Math.round(record.amount * 100), 0) / 100,
+          total:
+            records.reduce(
+              (sum, record) => sum + Math.round(record.amount * 100),
+              0,
+            ) / 100,
         }
       }),
     [trackerRecords, trackerYears],
@@ -937,9 +1422,40 @@ useEffect(() => {
   }
 
   function closePaymentTracker() {
+    setProfileSection('overview')
     setExpandedTrackerMonth(null)
     setTrackerOpen(false)
   }
+
+  const mostActiveAccounts = useMemo(
+    () => rankMostActiveHomeowners(directoryEntries, paymentCounts),
+    [directoryEntries, paymentCounts],
+  )
+
+  function clearDirectoryFilters() {
+    setSearch('')
+    setDebouncedSearch('')
+    setClassificationFilter('all')
+    setStatusFilter('all')
+    setResultsOpen(false)
+  }
+
+  const trackerTotal =
+    trackerView === 'monthly' ? monthlyTracker.length : annualTracker.length
+  const trackerPageCount = Math.max(1, Math.ceil(trackerTotal / 6))
+  const trackerCurrentPage = Math.min(trackerPage, trackerPageCount)
+  useEffect(() => {
+    setTrackerPage(1)
+    setExpandedTrackerMonth(null)
+  }, [trackerYear, trackerView, selectedPropertyId])
+  useEffect(() => {
+    setTrackerOpen(profileSection === 'tracker')
+    if (profileSection !== 'tracker') setExpandedTrackerMonth(null)
+  }, [profileSection])
+  useEffect(() => {
+    const body = document.querySelector('.hpm-body')
+    if (body) body.scrollTop = 0
+  }, [profileSection, trackerPage, selectedPropertyId])
 
   const selectedStatus = homeownerStatus(
     paymentCounts.get(Number(selectedPropertyId)) || 0,
@@ -947,7 +1463,7 @@ useEffect(() => {
   )
 
   return (
-    <div className="homeowners-page">
+    <div className="homeowners-page" ref={pageRef}>
       <header className="homeowners-header">
         <div className="homeowners-header-heading">
           <span className="homeowners-header-icon" aria-hidden="true">
@@ -956,25 +1472,30 @@ useEffect(() => {
           <div className="homeowners-header-copy">
             <p className="homeowners-eyebrow">Homeowner records</p>
             <h1>Homeowners</h1>
-            <p>Search for a homeowner to view their profile, property, balances, and complete payment history.</p>
+            <p>
+              Search for a homeowner to view their profile, property, balances,
+              and complete payment history.
+            </p>
           </div>
         </div>
         <div className="hod-header-actions">
           {canManageHomeowners && (
             <>
               {canManageBlocks && (
-              <button
-                type="button"
-                className="homeowners-refresh"
-                onClick={() => setAdminDialog({ type: 'blocks' })}
-              >
-                Manage Blocks
-              </button>
+                <button
+                  type="button"
+                  className="homeowners-refresh"
+                  onClick={() => setAdminDialog({ type: 'blocks' })}
+                >
+                  Manage Blocks
+                </button>
               )}
               <button
                 type="button"
                 className="homeowners-refresh hod-primary"
-                onClick={() => setAdminDialog({ type: 'homeowner', property: null })}
+                onClick={() =>
+                  setAdminDialog({ type: 'homeowner', property: null })
+                }
               >
                 + Add New Homeowner
               </button>
@@ -992,865 +1513,1922 @@ useEffect(() => {
         </div>
       </header>
 
-      <section className="homeowners-stat-grid" aria-label="Homeowner summaries">
+      <section
+        className="homeowners-stat-grid"
+        aria-label="Homeowner summaries"
+      >
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Active lots</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
+          <div className="homeowners-stat-top">
+            <span>Active lots</span>
+            <span className="homeowners-stat-icon homeowners-stat-icon-blue">
+              <Users size={18} />
+            </span>
+          </div>
           <strong>{directoryCount(activeLotCount)}</strong>
           <small>Current property accounts</small>
-          <div className="homeowners-stat-footer"><span aria-hidden="true" />Active property records</div>
+          <div className="homeowners-stat-footer">
+            <span aria-hidden="true" />
+            Active property records
+          </div>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Unique owners</span><span className="homeowners-stat-icon homeowners-stat-icon-blue"><Users size={18} /></span></div>
+          <div className="homeowners-stat-top">
+            <span>Unique owners</span>
+            <span className="homeowners-stat-icon homeowners-stat-icon-blue">
+              <Users size={18} />
+            </span>
+          </div>
           <strong>{directoryCount(homeownerStats.uniqueOwners)}</strong>
           <small>Linked owners across active lots</small>
-          <div className="homeowners-stat-footer"><span aria-hidden="true" />Owners linked to active lots</div>
+          <div className="homeowners-stat-footer">
+            <span aria-hidden="true" />
+            Owners linked to active lots
+          </div>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Vacant lots</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><Home size={18} /></span></div>
+          <div className="homeowners-stat-top">
+            <span>Vacant lots</span>
+            <span className="homeowners-stat-icon homeowners-stat-icon-green">
+              <Home size={18} />
+            </span>
+          </div>
           <strong>{directoryCount(homeownerStats.vacantLots)}</strong>
           <small>Active lots classified as Lot Owner</small>
-          <div className="homeowners-stat-footer"><span aria-hidden="true" />Lot Owner classification</div>
+          <div className="homeowners-stat-footer">
+            <span aria-hidden="true" />
+            Lot Owner classification
+          </div>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Lots with balance</span><span className="homeowners-stat-icon homeowners-stat-icon-warning"><CreditCard size={18} /></span></div>
+          <div className="homeowners-stat-top">
+            <span>Lots with balance</span>
+            <span className="homeowners-stat-icon homeowners-stat-icon-warning">
+              <CreditCard size={18} />
+            </span>
+          </div>
           <strong>{directoryCount(homeownerStats.withBalance)}</strong>
           <small>Accounts with a balance due</small>
-          <div className="homeowners-stat-footer"><span aria-hidden="true" />Recorded balance above zero</div>
+          <div className="homeowners-stat-footer">
+            <span aria-hidden="true" />
+            Recorded balance above zero
+          </div>
         </article>
         <article className="homeowners-stat-card">
-          <div className="homeowners-stat-top"><span>Lots with no balance due</span><span className="homeowners-stat-icon homeowners-stat-icon-green"><FileText size={18} /></span></div>
+          <div className="homeowners-stat-top">
+            <span>Lots with no balance due</span>
+            <span className="homeowners-stat-icon homeowners-stat-icon-green">
+              <FileText size={18} />
+            </span>
+          </div>
           <strong>{directoryCount(homeownerStats.noBalanceDue)}</strong>
           <small>Zero balance or advance credit</small>
-          <div className="homeowners-stat-footer"><span aria-hidden="true" />Includes accounts with advance credit</div>
+          <div className="homeowners-stat-footer">
+            <span aria-hidden="true" />
+            Includes accounts with advance credit
+          </div>
         </article>
       </section>
 
       {pageError && <p className="homeowners-error">{pageError}</p>}
-      <section className="homeowners-finder">
-        <div className="homeowners-finder-heading">
+      <section
+        className="homeowners-finder"
+        aria-labelledby="homeowners-finder-title"
+      >
+        <header className="hpf-heading">
           <div>
-            <h2>Find a homeowner or lot owner</h2>
-            <span className="homeowners-finder-count">
-              {loading ? (
-                <Skeleton width="110px" height="14px" radius="999px" />
-              ) : !hasDirectorySnapshot ? (
-                'Directory unavailable'
-              ) : hasQuery || hasFilter ? (
-                `${filteredDirectory.length} of ${activeLotLabel}`
-              ) : (
-                activeLotLabel
-              )}
+            <span className="hpf-icon" aria-hidden="true">
+              <Users size={21} />
             </span>
+            <div>
+              <p>Property directory</p>
+              <h2 id="homeowners-finder-title">
+                Find a homeowner or lot owner
+              </h2>
+              <small>Search an account or choose a frequent payer below.</small>
+            </div>
           </div>
-          <span className="homeowners-directory-icon"><Users size={19} /></span>
-        </div>
-
-        <div className="homeowners-finder-controls">
-          <div className="homeowners-search-wrap" ref={searchWrapRef}>
-            <label className="homeowners-search-label" htmlFor="homeowner-search">
-              Search homeowners and lot owners
-            </label>
-            <div className="homeowners-search-field">
-              <span className="homeowners-search-icon" aria-hidden="true">
-                <Search size={18} />
-              </span>
+          <div className="hpf-heading-right">
+            <span>
+              {loading
+                ? 'Loading…'
+                : hasDirectorySnapshot
+                  ? activeLotLabel
+                  : 'Directory unavailable'}
+            </span>
+            {(hasQuery || hasFilter || search) && (
+              <button type="button" onClick={clearDirectoryFilters}>
+                Clear filters
+              </button>
+            )}
+          </div>
+        </header>
+        <div className="homeowners-finder-controls hpf-controls">
+          <label className="hpf-search-label" htmlFor="homeowner-search">
+            <span>Search accounts</span>
+            <div>
+              <Search size={16} />
               <input
                 id="homeowner-search"
                 type="search"
                 className="homeowners-search"
-                placeholder="Name, block, lot, phone, email"
+                placeholder="Search by name, block, lot, phone, or email"
                 value={search}
                 autoComplete="off"
-                onFocus={() => setResultsOpen(true)}
-                onChange={(event) => {
-                  setSearch(event.target.value)
-                  setResultsOpen(true)
-                }}
-                onKeyDown={handleSearchKeyDown}
+                onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-
-            {showResults && (
-              <div className="homeowners-search-results">
-                <div className="homeowners-directory-results" aria-label="Homeowner search results">
-                {loading ? (
-                  <div className="homeowners-empty" aria-busy="true"><Skeleton variant="rect" width="100%" height="68px" /><Skeleton variant="rect" width="100%" height="68px" /><Skeleton variant="rect" width="100%" height="68px" /><span className="skeleton-region-status" role="status">Loading</span></div>
-                ) : !hasDirectorySnapshot ? (
-                  <p className="homeowners-empty">Directory unavailable. Use Refresh to try again.</p>
-                ) : filteredDirectory.length === 0 ? (
-                  <p className="homeowners-empty">No active lot matches your search.</p>
-                ) : (
-                  directoryPage.rows.map(({ property, status }) => {
-                    const dues = duesByProperty.get(Number(property.id))
-                    return (
-                      <button
-                        type="button"
-                        key={property.id}
-                        className={`homeowner-directory-card${
-                          String(property.id) === String(selectedProperty?.id)
-                            ? ' is-selected'
-                            : ''
-                        }`}
-                        onClick={() => handleSelectHomeowner(property.id)}
-                      >
-                        <span className="homeowner-directory-avatar">
-                          {initials(property.homeowner_name)}
-                        </span>
-                        <span className="homeowner-directory-copy">
-                          <strong>{property.homeowner_name}</strong>
-                          <small>{property.block} · Lot {property.lot_number}</small>
-                          <small>
-                            {dues?.prepaid ? `${formatDues(dues.billing_amount)}/mo · prepaid` : hasRecurringDues(dues)
-                              ? `${formatLotSize(dues.lot_size_sqm)} · ${formatRate(dues.price_per_sqm)} · ${formatDues(dues.monthly_dues)}/mo`
-                              : 'Recurring dues unavailable'}
-                          </small>
-                          <span className={`homeowner-account-badge badge-${status.key}`}>
-                            {status.label}
-                          </span>
-                        </span>
-                      </button>
-                    )
-                  })
-                )}
-                </div>
-                {!loading && <Pager page={directoryPage.page} total={filteredDirectory.length} size={25} onPageChange={directoryPage.setPage} />}
-              </div>
-            )}
+          </label>
+          <label>
+            <span>
+              <Home size={13} aria-hidden="true" /> Classification
+            </span>
+            <Select
+              ariaLabel="Filter homeowners by property classification"
+              value={classificationFilter}
+              onChange={setClassificationFilter}
+              options={[
+                ['all', 'All classifications'],
+                ['lot_owner', 'Lot owners'],
+                ['homeowner', 'Homeowners'],
+                ['unclassified', 'Unclassified'],
+              ].map(([value, label]) => ({ value, label }))}
+            />
+          </label>
+          <label>
+            <span>
+              <AlertCircle size={13} aria-hidden="true" /> Account status
+            </span>
+            <Select
+              ariaLabel="Filter homeowners by account status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                ['all', 'All account statuses'],
+                ['current', 'No balance due'],
+                ['balance', 'With balance'],
+                ['no-history', 'No regular payment history'],
+              ].map(([value, label]) => ({ value, label }))}
+            />
+          </label>
+        </div>
+        <div className="hpf-suggestions">
+          <div className="hpf-suggestion-heading">
+            <h3>
+              {hasQuery || hasFilter
+                ? 'Matching accounts'
+                : 'Most active homeowners'}
+            </h3>
+            <span>
+              {hasQuery || hasFilter
+                ? `${filteredDirectory.length} matching accounts`
+                : 'Quick select · top 6 property accounts'}
+            </span>
           </div>
-
-          <Select ariaLabel="Filter homeowners by property classification" value={classificationFilter} onChange={(value) => { setClassificationFilter(value); setResultsOpen(true) }} options={[['all', 'All classifications'], ['lot_owner', 'Lot owners'], ['homeowner', 'Homeowners'], ['unclassified', 'Unclassified']].map(([value, label]) => ({ value, label }))} />
-
-          <Select ariaLabel="Filter homeowners by account status" value={statusFilter} onChange={(value) => { setStatusFilter(value); setResultsOpen(true) }} options={[['all', 'All account statuses'], ['current', 'No balance due'], ['balance', 'With balance'], ['no-history', 'No regular payment history']].map(([value, label]) => ({ value, label }))} />
+          {loading ? (
+            <Skeleton variant="rect" width="100%" height="110px" />
+          ) : !hasDirectorySnapshot ? (
+            <p role="status">
+              Directory unavailable. Use Refresh to try again.
+            </p>
+          ) : (
+            <>
+              <div className="hpf-cards">
+                {(hasQuery || hasFilter
+                  ? directoryPage.rows
+                  : mostActiveAccounts
+                ).map(({ property, status }) => (
+                  <button
+                    type="button"
+                    key={property.id}
+                    data-homeowner-card={property.id}
+                    className="hpf-card"
+                    aria-pressed={
+                      String(selectedProperty?.id) === String(property.id)
+                    }
+                    title={status.label}
+                    onClick={() => handleSelectHomeowner(property.id)}
+                  >
+                    <span className="hpf-card-top">
+                      <span className="hpf-avatar" aria-hidden="true">
+                        {initials(property.homeowner_name)}
+                      </span>
+                      <span>
+                        <strong>{property.homeowner_name}</strong>
+                        <small>
+                          {property.block} · Lot {property.lot_number}
+                        </small>
+                      </span>
+                    </span>
+                    <span className="hpf-card-bottom">
+                      <span>
+                        <strong>
+                          {(
+                            paymentCounts.get(Number(property.id)) || 0
+                          ).toLocaleString('en-PH')}
+                        </strong>{' '}
+                        payments
+                      </span>
+                      <span aria-hidden="true">›</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {(hasQuery || hasFilter
+                ? filteredDirectory.length === 0
+                : mostActiveAccounts.length === 0) && (
+                <p className="hpf-empty">
+                  {hasQuery || hasFilter
+                    ? 'No active accounts match your search or filters.'
+                    : 'Accounts with regular payment history will appear here. Use search to find any active account.'}
+                </p>
+              )}
+              {(hasQuery || hasFilter) && (
+                <Pager
+                  page={directoryPage.page}
+                  total={filteredDirectory.length}
+                  size={25}
+                  onPageChange={directoryPage.setPage}
+                />
+              )}
+            </>
+          )}
+          <p className="hpf-hint">
+            Ranked by all-time regular payment count per lot. Voided receipts
+            and service payments are excluded. Select an account to open its
+            profile.
+          </p>
         </div>
       </section>
 
-      <main className="homeowner-profile-panel">
-        {loading ? (
-          <HomeownerProfileSkeleton />
-        ) : !selectedProperty ? (
-          <div className="homeowner-profile-empty">
-            <Users size={34} />
-            <h2>{!hasDirectorySnapshot ? 'Directory unavailable' : homeownerId ? 'Homeowner not found' : 'Search for a homeowner'}</h2>
-            <p>
-              {!hasDirectorySnapshot ? 'Use Refresh to load homeowner profiles.' : homeownerId
-                ? 'This property account could not be found.'
-                : 'Use the search bar above to find someone by name, block, lot, phone, or email.'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <section className="homeowner-profile-hero">
-              <div className="homeowner-profile-avatar">
-                {initials(selectedProperty.homeowner_name)}
-              </div>
-              <div className="homeowner-profile-identity">
-                <div className="homeowner-profile-title-row">
-                  <div>
-                    <p>
-  {selectedProperty.property_classification === 'homeowner'
-    ? 'Homeowner profile'
-    : selectedProperty.property_classification === 'lot_owner'
-      ? 'Lot owner profile'
-      : 'Property profile'}
-</p>
-                    <div className="homeowner-name-row">
-                      <h2>{selectedProperty.homeowner_name}</h2>
-                      <span className={`homeowner-account-badge badge-${selectedStatus.key}`}>
-                        {formerAccount ? 'Former account' : selectedStatus.label}
+      {homeownerId && (
+        <HomeownerProfileModal
+          onClose={closeProfile}
+          backgroundRef={pageRef}
+          scrollKey={`${homeownerId}:${profileSection}:${trackerPage}`}
+          blocked={Boolean(
+            adminDialog ||
+            balanceDialog ||
+            balanceBreakdownOpen ||
+            classificationPropertyId != null ||
+            historyReceipt ||
+            historyReceiptError ||
+            historyPrintNotice ||
+            voidTarget ||
+            expandedTrackerMonth !== null ||
+            duesBreakdownExpanded,
+          )}
+          heading={
+            selectedProperty ? (
+              <>
+                <section className="homeowner-profile-hero">
+                  <div className="homeowner-profile-avatar">
+                    {initials(selectedProperty.homeowner_name)}
+                  </div>
+                  <div className="homeowner-profile-identity">
+                    <div className="homeowner-profile-title-row">
+                      <div>
+                        <p>
+                          {selectedProperty.property_classification ===
+                          'homeowner'
+                            ? 'Homeowner profile'
+                            : selectedProperty.property_classification ===
+                                'lot_owner'
+                              ? 'Lot owner profile'
+                              : 'Property profile'}
+                        </p>
+                        <div className="homeowner-name-row">
+                          <h2 id="homeowner-profile-title">
+                            {selectedProperty.homeowner_name}
+                          </h2>
+                          <span
+                            className={`homeowner-account-badge badge-${selectedStatus.key}`}
+                          >
+                            {formerAccount
+                              ? 'Former account'
+                              : selectedStatus.label}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="homeowner-profile-meta">
+                      <span>
+                        <Home size={16} /> {selectedProperty.block}, Lot{' '}
+                        {selectedProperty.lot_number}
+                      </span>
+                      <span>
+                        <Phone size={16} />{' '}
+                        {selectedProperty.contact_phone || 'No phone recorded'}
+                      </span>
+                      <span>
+                        <Mail size={16} />{' '}
+                        {selectedProperty.contact_email || 'No email recorded'}
                       </span>
                     </div>
                   </div>
+                </section>{' '}
+                <div className="homeowner-profile-actions">
+                  {!formerAccount && (
+                    <button
+                      type="button"
+                      className="homeowner-primary-action"
+                      onClick={() =>
+                        navigate('/payments', {
+                          state: {
+                            recordPaymentPropertyId: selectedProperty.id,
+                          },
+                        })
+                      }
+                    >
+                      <CreditCard size={16} /> Record Payment
+                    </button>
+                  )}
+                  <HomeownerActionsMenu>
+                    {!formerAccount && canManageHomeowners && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdminDialog({
+                              type: 'lot',
+                              property: selectedProperty,
+                            })
+                          }
+                        >
+                          Add Lot
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdminDialog({
+                              type: 'homeowner',
+                              property: selectedProperty,
+                            })
+                          }
+                        >
+                          Edit Homeowner
+                        </button>
+                      </>
+                    )}
+                    {!formerAccount && canEditContact && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/contacts?edit=${selectedProperty.id}`)
+                        }
+                      >
+                        Edit Contact
+                      </button>
+                    )}
+                    {!formerAccount && canManageBalances && (
+                      <button
+                        type="button"
+                        onClick={() => setBalanceDialog(selectedProperty)}
+                      >
+                        Add Balance
+                      </button>
+                    )}
+                    {!formerAccount && canManageHomeowners && (
+                      <button
+                        type="button"
+                        onClick={() => setBalanceBreakdownOpen(true)}
+                        aria-haspopup="dialog"
+                        aria-expanded={balanceBreakdownOpen}
+                      >
+                        Balance Breakdown
+                      </button>
+                    )}
+                    {!formerAccount && canManageBlocks && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setClassificationPropertyId(selectedProperty.id)
+                        }
+                      >
+                        Property Classification
+                      </button>
+                    )}
+                  </HomeownerActionsMenu>
                 </div>
-                <div className="homeowner-profile-meta">
-                  <span><Home size={16} /> {selectedProperty.block}, Lot {selectedProperty.lot_number}</span>
-                  <span><Phone size={16} /> {selectedProperty.contact_phone || 'No phone recorded'}</span>
-                  <span><Mail size={16} /> {selectedProperty.contact_email || 'No email recorded'}</span>
+              </>
+            ) : (
+              <h2 id="homeowner-profile-title">
+                {loading ? 'Loading homeowner' : 'Homeowner not found'}
+              </h2>
+            )
+          }
+          navigation={
+            selectedProperty && (
+              <nav
+                className="hpm-nav"
+                role="tablist"
+                aria-label="Profile navigation"
+              >
+                {[
+                  ['overview', 'Overview', Home],
+                  ['payments', 'Payments', FileText],
+                  ['tracker', 'Tracker', Calendar],
+                  ['details', 'Details', Users],
+                  ['activity', 'Account activity', Activity],
+                ].map(([key, label, Icon], i) => (
+                  <button
+                    type="button"
+                    key={key}
+                    role="tab"
+                    id={`hpm-tab-${key}`}
+                    aria-controls={`hpm-pane-${key}`}
+                    aria-selected={profileSection === key}
+                    tabIndex={profileSection === key ? 0 : -1}
+                    onClick={() => setProfileSection(key)}
+                    onKeyDown={(event) => {
+                      if (
+                        !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(
+                          event.key,
+                        )
+                      )
+                        return
+                      event.preventDefault()
+                      const keys = [
+                        'overview',
+                        'payments',
+                        'tracker',
+                        'details',
+                        'activity',
+                      ]
+                      const next =
+                        event.key === 'Home'
+                          ? keys[0]
+                          : event.key === 'End'
+                            ? keys[keys.length - 1]
+                            : keys[
+                                (i +
+                                  (event.key === 'ArrowRight'
+                                    ? 1
+                                    : keys.length - 1)) %
+                                  keys.length
+                              ]
+                      setProfileSection(next)
+                      event.currentTarget.parentElement
+                        .querySelector(`#hpm-tab-${next}`)
+                        ?.focus()
+                    }}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            )
+          }
+        >
+          {loading ? (
+            <HomeownerProfileSkeleton />
+          ) : !selectedProperty ? (
+            <p role="status">
+              {pageError ||
+                'This property account could not be found. Close this dialog and search again.'}
+            </p>
+          ) : (
+            <>
+              {formerAccount && (
+                <p role="status">
+                  Former property account. Historical payments and account
+                  activity are available for review.
+                </p>
+              )}
+              <HomeownerLotChips
+                lots={homeownerLots}
+                selectedId={selectedProperty.id}
+                onSelect={handleSelectHomeowner}
+              />
+              {balanceBreakdownOpen &&
+                createPortal(
+                  <div
+                    className="homeowner-breakdown-overlay"
+                    onMouseDown={(event) => {
+                      if (event.target === event.currentTarget) {
+                        setBalanceBreakdownOpen(false)
+                      }
+                    }}
+                  >
+                    <section
+                      className="homeowner-breakdown-modal"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="homeowner-breakdown-title"
+                    >
+                      <div className="homeowner-breakdown-modal-header">
+                        <div>
+                          <h2 id="homeowner-breakdown-title">
+                            Balance Breakdown
+                          </h2>
+                          <p>
+                            {selectedProperty.homeowner_name} —{' '}
+                            {selectedProperty.block}, Lot{' '}
+                            {selectedProperty.lot_number}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="homeowner-breakdown-close"
+                          onClick={() => setBalanceBreakdownOpen(false)}
+                          aria-label="Close balance breakdown"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      <div className="homeowner-breakdown-modal-content">
+                        <BalanceBreakdown
+                          propertyId={selectedProperty.id}
+                          canManage={canManageBalances}
+                          refreshKey={breakdownKey}
+                          onChanged={(message) => {
+                            setNotice(message)
+                            setBreakdownKey((key) => key + 1)
+                            loadHomeowners(true)
+                          }}
+                        />
+                      </div>
+                    </section>
+                  </div>,
+                  document.body,
+                )}
+              <section
+                role="tabpanel"
+                id="hpm-pane-overview"
+                aria-labelledby="hpm-tab-overview"
+                hidden={profileSection !== 'overview'}
+              >
+                <div className="hpm-pane-intro">
+                  <h3>Account overview</h3>
+                  <p>Current balances and payment totals at a glance.</p>
                 </div>
-              </div>
-              <div className="homeowner-profile-actions">
-                {!formerAccount && <button
-                  type="button"
-                  className="homeowner-primary-action"
-                  onClick={() => navigate('/payments', { state: { recordPaymentPropertyId: selectedProperty.id } })}
+                <section
+                  className="homeowner-summary-grid"
+                  aria-label="Financial summary for the selected lot"
                 >
-                  <CreditCard size={16} /> Record Payment
-                </button>}
-                <HomeownerActionsMenu>
-                  {!formerAccount && canManageHomeowners && (
+                  {showDetailSkeleton ? (
+                    Array.from({ length: 6 }, (_, index) => (
+                      <article
+                        className="homeowner-summary-skeleton-card"
+                        key={index}
+                      >
+                        <Skeleton width="92px" height="14px" />
+                        <Skeleton width="132px" height="25px" />
+                        <Skeleton width="118px" height="13px" />
+                      </article>
+                    ))
+                  ) : (
                     <>
-                      <button type="button" onClick={() => setAdminDialog({ type: 'lot', property: selectedProperty })}>
-                        Add Lot
-                      </button>
-                      <button type="button" onClick={() => setAdminDialog({ type: 'homeowner', property: selectedProperty })}>
-                        Edit Homeowner
-                      </button>
+                      <article>
+                        <span className="homeowner-summary-icon">
+                          <Calendar size={18} />
+                        </span>
+                        <span>Payments received this month</span>
+                        <strong>{paymentAmount(paidTotals.thisMonth)}</strong>
+                        <small>
+                          {paymentSummaryReady
+                            ? `All receipt categories · ${monthLabel(summaryMonth)}`
+                            : paymentSummaryNote}
+                        </small>
+                      </article>
+                      <article>
+                        <span className="homeowner-summary-icon">
+                          <Calendar size={18} />
+                        </span>
+                        <span>Payments received this year</span>
+                        <strong>{paymentAmount(paidTotals.thisYear)}</strong>
+                        <small>
+                          {paymentSummaryReady
+                            ? `All receipt categories · ${summaryMonth.slice(0, 4)} year to date`
+                            : paymentSummaryNote}
+                        </small>
+                      </article>
+                      <article
+                        className={`homeowner-summary-dues-card${selectedLotDues?.prepaid ? ' is-prepaid' : ''}`}
+                      >
+                        <span className="homeowner-summary-icon">
+                          <CreditCard size={18} />
+                        </span>
+                        <span className="homeowner-summary-heading">
+                          <span>
+                            {selectedLotDues?.prepaid
+                              ? 'Covered by annual prepayment'
+                              : 'Monthly association dues'}
+                          </span>
+                          {cctvDues &&
+                            (selectedLotDues?.prepaid ||
+                              cctvDues.credit > 0) && (
+                              <button
+                                type="button"
+                                className="homeowner-dues-info"
+                                ref={duesInfoRef}
+                                aria-label={`${duesBreakdownExpanded ? 'Hide' : 'Show'} dues breakdown`}
+                                aria-expanded={duesBreakdownExpanded}
+                                aria-controls={`homeowner-dues-breakdown-${selectedPropertyId}`}
+                                onClick={() =>
+                                  setDuesBreakdownExpanded((value) => !value)
+                                }
+                              >
+                                <AlertCircle size={16} />
+                              </button>
+                            )}
+                        </span>
+                        <strong>
+                          {monthlyDuesAmount == null
+                            ? '—'
+                            : cctvReady
+                              ? formatDues(cctvDues.net)
+                              : 'Checking credits…'}
+                        </strong>
+                        <small>
+                          {selectedLotDues?.prepaid
+                            ? `${nextBillingLabel} · Prepaid monthly equivalent`
+                            : monthlyDuesNote}
+                        </small>
+                        {cctvSchedules.rows?.length > 0 &&
+                          selectedProperty.property_classification ===
+                            'unclassified' && (
+                            <small
+                              role="status"
+                              style={{ color: '#a15e13', fontWeight: 700 }}
+                            >
+                              Annual overdue penalties are paused because this
+                              lot is unclassified. An Admin must verify its
+                              property classification before penalty assessment.
+                            </small>
+                          )}
+                        {cctvDues &&
+                          (selectedLotDues?.prepaid || cctvDues.credit > 0) &&
+                          duesBreakdownExpanded &&
+                          createPortal(
+                            <div
+                              className="homeowner-cctv-dues-detail homeowner-cctv-dues-popover"
+                              id={`homeowner-dues-breakdown-${selectedPropertyId}`}
+                              aria-label="Association dues after CCTV electricity compensation"
+                              ref={duesPopoverRef}
+                              style={
+                                duesPopoverPosition
+                                  ? {
+                                      left: duesPopoverPosition.left,
+                                      top: duesPopoverPosition.top,
+                                    }
+                                  : { visibility: 'hidden' }
+                              }
+                            >
+                              {selectedLotDues?.prepaid && (
+                                <div>
+                                  <span>
+                                    Standard dues (
+                                    {formatLotSize(
+                                      selectedLotDues.lot_size_sqm,
+                                    )}{' '}
+                                    {'×'}{' '}
+                                    {formatRate(selectedLotDues.price_per_sqm)})
+                                  </span>
+                                  <b>
+                                    {formatDues(selectedLotDues.monthly_dues)}
+                                  </b>
+                                </div>
+                              )}
+                              <div>
+                                <span>
+                                  {selectedLotDues?.prepaid
+                                    ? 'Locked prepaid monthly amount'
+                                    : 'Regular monthly dues'}
+                                </span>
+                                <b>{formatDues(cctvDues.gross)}</b>
+                              </div>
+                              {cctvDues.credit > 0 && (
+                                <div>
+                                  <span>CCTV electricity compensation</span>
+                                  <b>
+                                    {'−'} {formatDues(cctvDues.credit)}
+                                  </b>
+                                </div>
+                              )}
+                              <p>
+                                {selectedLotDues?.prepaid
+                                  ? 'This monthly equivalent is covered by an annual prepayment, not a new payment due. The prepaid price remains locked for the covered month.'
+                                  : 'Approved electricity credit for powering subdivision CCTV equipment.'}
+                              </p>
+                            </div>,
+                            document.body,
+                          )}
+                        {monthlyDuesAmount != null &&
+                          !cctvReady &&
+                          cctvSchedules.propertyId === selectedPropertyId &&
+                          cctvSchedules.error && (
+                            <small role="alert">
+                              Unable to verify CCTV credits. Refresh this
+                              profile before relying on the dues amount.
+                            </small>
+                          )}
+                      </article>
+                      <article
+                        className={summary.outstanding > 0 ? 'has-balance' : ''}
+                      >
+                        <span className="homeowner-summary-icon">
+                          <AlertCircle size={18} />
+                        </span>
+                        <span>HOA account balance</span>
+                        <strong>{peso.format(summary.outstanding)}</strong>
+                        <small>
+                          {summary.outstanding > 0
+                            ? 'Payment still required'
+                            : 'No recorded balance'}
+                        </small>
+                      </article>
+                      <article
+                        className={summary.credit > 0 ? 'has-credit' : ''}
+                      >
+                        <span className="homeowner-summary-icon">
+                          <Home size={18} />
+                        </span>
+                        <span>Credit</span>
+                        <strong>{peso.format(summary.credit)}</strong>
+                        <small>
+                          {summary.credit > 0
+                            ? 'Applied to next dues'
+                            : 'No advance credit'}
+                        </small>
+                      </article>
+                      <article>
+                        <span className="homeowner-summary-icon">
+                          <FileText size={18} />
+                        </span>
+                        <span>Receipts</span>
+                        <strong>
+                          {paymentSummaryReady ? summary.receipts : '—'}
+                        </strong>
+                        <small>
+                          {paymentSummaryReady
+                            ? 'Across all categories · includes voided'
+                            : paymentSummaryNote}
+                        </small>
+                      </article>
                     </>
                   )}
-                  {!formerAccount && canEditContact && (
-                    <button type="button" onClick={() => navigate(`/contacts?edit=${selectedProperty.id}`)}>
-                      Edit Contact
-                    </button>
-                  )}
-                  {!formerAccount && canManageBalances && (
-                    <button type="button" onClick={() => setBalanceDialog(selectedProperty)}>Add Balance</button>
-                  )}
-                  {!formerAccount && canManageHomeowners && (
-                    <button type="button" onClick={() => setBalanceBreakdownOpen(true)}
-                      aria-haspopup="dialog" aria-expanded={balanceBreakdownOpen}>
-                      Balance Breakdown
-                    </button>
-                  )}
-                  {!formerAccount && canManageBlocks && (
-                    <button type="button" onClick={() => setClassificationPropertyId(selectedProperty.id)}>
-                      Property Classification
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    aria-expanded={trackerOpen}
-                    aria-controls="homeowner-payment-tracker"
-                    disabled={!paymentSummaryReady}
-                    onClick={togglePaymentTracker}
-                  >
-                    {trackerOpen ? 'Close Payment Tracker' : 'Open Payment Tracker'}
-                  </button>
-                </HomeownerActionsMenu>
-              </div>
-            </section>
-
-            {formerAccount && <p role="status">Former property account. Historical payments and account activity are available for review.</p>}
-
-            <HomeownerLotChips
-              lots={homeownerLots}
-              selectedId={selectedProperty.id}
-              onSelect={handleSelectHomeowner}
-            />
-
-            <section className="homeowner-summary-grid" aria-label="Financial summary for the selected lot">
-              {showDetailSkeleton
-                ? Array.from({ length: 6 }, (_, index) => (
-                  <article className="homeowner-summary-skeleton-card" key={index}>
-                    <Skeleton width="92px" height="14px" />
-                    <Skeleton width="132px" height="25px" />
-                    <Skeleton width="118px" height="13px" />
-                  </article>
-                ))
-                : <>
-                  <article>
-                    <span className="homeowner-summary-icon"><Calendar size={18} /></span>
-                    <span>Payments received this month</span>
-                    <strong>{paymentAmount(paidTotals.thisMonth)}</strong>
-                    <small>{paymentSummaryReady ? `All receipt categories · ${monthLabel(summaryMonth)}` : paymentSummaryNote}</small>
-                  </article>
-                  <article>
-                    <span className="homeowner-summary-icon"><Calendar size={18} /></span>
-                    <span>Payments received this year</span>
-                    <strong>{paymentAmount(paidTotals.thisYear)}</strong>
-                    <small>{paymentSummaryReady ? `All receipt categories · ${summaryMonth.slice(0, 4)} year to date` : paymentSummaryNote}</small>
-                  </article>
-                  <article className={`homeowner-summary-dues-card${selectedLotDues?.prepaid ? ' is-prepaid' : ''}`}>
-                    <span className="homeowner-summary-icon"><CreditCard size={18} /></span>
-                    <span className="homeowner-summary-heading">
-                      <span>{selectedLotDues?.prepaid ? 'Covered by annual prepayment' : 'Monthly association dues'}</span>
-                      {cctvDues && (selectedLotDues?.prepaid || cctvDues.credit > 0) && (
-                        <button
-                          type="button"
-                          className="homeowner-dues-info"
-                          ref={duesInfoRef}
-                          aria-label={`${duesBreakdownExpanded ? 'Hide' : 'Show'} dues breakdown`}
-                          aria-expanded={duesBreakdownExpanded}
-                          aria-controls={`homeowner-dues-breakdown-${selectedPropertyId}`}
-                          onClick={() => setDuesBreakdownExpanded(value => !value)}
-                        >
-                          <AlertCircle size={16} />
-                        </button>
-                      )}
-                    </span>
-                    <strong>{monthlyDuesAmount == null ? '—' : cctvReady ? formatDues(cctvDues.net) : 'Checking credits…'}</strong>
-                    <small>{selectedLotDues?.prepaid ? `${nextBillingLabel} · Prepaid monthly equivalent` : monthlyDuesNote}</small>
-                    {cctvSchedules.rows?.length > 0 && selectedProperty.property_classification === 'unclassified' && (
-                      <small role="status" style={{ color: '#a15e13', fontWeight: 700 }}>
-                        Annual overdue penalties are paused because this lot is unclassified. An Admin must verify its property classification before penalty assessment.
-                      </small>
-                    )}
-                    {cctvDues && (selectedLotDues?.prepaid || cctvDues.credit > 0) && duesBreakdownExpanded && createPortal(
-                      <div
-                        className="homeowner-cctv-dues-detail homeowner-cctv-dues-popover"
-                        id={`homeowner-dues-breakdown-${selectedPropertyId}`}
-                        aria-label="Association dues after CCTV electricity compensation"
-                        ref={duesPopoverRef}
-                        style={duesPopoverPosition ? { left: duesPopoverPosition.left, top: duesPopoverPosition.top } : { visibility: 'hidden' }}
-                      >
-                        {selectedLotDues?.prepaid && (
-                          <div><span>Standard dues ({formatLotSize(selectedLotDues.lot_size_sqm)} {'×'} {formatRate(selectedLotDues.price_per_sqm)})</span><b>{formatDues(selectedLotDues.monthly_dues)}</b></div>
-                        )}
-                        <div><span>{selectedLotDues?.prepaid ? 'Locked prepaid monthly amount' : 'Regular monthly dues'}</span><b>{formatDues(cctvDues.gross)}</b></div>
-                        {cctvDues.credit > 0 && (
-                          <div><span>CCTV electricity compensation</span><b>{'−'} {formatDues(cctvDues.credit)}</b></div>
-                        )}
-                        <p>{selectedLotDues?.prepaid
-                          ? 'This monthly equivalent is covered by an annual prepayment, not a new payment due. The prepaid price remains locked for the covered month.'
-                          : 'Approved electricity credit for powering subdivision CCTV equipment.'}</p>
-                      </div>,
-                      document.body,
-                    )}
-                    {monthlyDuesAmount != null && !cctvReady && cctvSchedules.propertyId === selectedPropertyId && cctvSchedules.error && (
-                      <small role="alert">Unable to verify CCTV credits. Refresh this profile before relying on the dues amount.</small>
-                    )}
-                  </article>
-                  <article className={summary.outstanding > 0 ? 'has-balance' : ''}>
-                    <span className="homeowner-summary-icon"><AlertCircle size={18} /></span>
-                    <span>HOA account balance</span>
-                    <strong>{peso.format(summary.outstanding)}</strong>
-                    <small>{summary.outstanding > 0 ? 'Payment still required' : 'No recorded balance'}</small>
-                  </article>
-                  <article className={summary.credit > 0 ? 'has-credit' : ''}>
-                    <span className="homeowner-summary-icon"><Home size={18} /></span>
-                    <span>Credit</span>
-                    <strong>{peso.format(summary.credit)}</strong>
-                    <small>{summary.credit > 0 ? 'Applied to next dues' : 'No advance credit'}</small>
-                  </article>
-                  <article>
-                    <span className="homeowner-summary-icon"><FileText size={18} /></span>
-                    <span>Receipts</span>
-                    <strong>{paymentSummaryReady ? summary.receipts : '—'}</strong>
-                    <small>{paymentSummaryReady ? 'Across all categories · includes voided' : paymentSummaryNote}</small>
-                  </article>
-                </>}
-            </section>
-            
-            <section
-              className="homeowner-payment-analytics"
-              aria-labelledby="homeowner-payment-analytics-title"
-            >
-              <div className="homeowner-payment-analytics-header">
-                <div>
-                  <h3 id="homeowner-payment-analytics-title">
-                    Payment Analytics
-                  </h3>
-                  <p>
-                    Payments for {selectedProperty.block}, Lot {selectedProperty.lot_number}.
-                  </p>
-                </div>
-
-                <label className="homeowner-analytics-year">
-                  <span>Year</span>
-                  <Select className="homeowner-analytics-select" ariaLabel="Payment analytics year" value={String(trackerYear)} onChange={(value) => setTrackerYear(Number(value))} options={trackerYears.map((year) => ({ value: String(year), label: String(year) }))} />
-                </label>
-              </div>
-
-              {showDetailSkeleton ? (
-                <Skeleton className="homeowner-analytics-skeleton" width="100%" height="245px" radius="8px" />
-              ) : !paymentSummaryReady ? (
-                <p role="status">{paymentSummaryLoading ? 'Loading payments…' : 'Payment records are unavailable. Refresh to retry.'}</p>
-              ) : monthlyTracker.every((month) => month.total === 0) ? (
-                <div className="homeowner-analytics-empty" role="status">
-                  <FileText size={24} />
-                  <strong>No payments recorded in {trackerYear}</strong>
-                  <p>Monthly collections will appear here after a payment is recorded for this lot.</p>
-                </div>
-              ) : (() => {
-                const chartMax = Math.max(
-                  1,
-                  ...monthlyTracker.map((month) => month.total)
-                );
-
-                const ticks = [1, 0.75, 0.5, 0.25, 0];
-
-                return (
-                  <div
-                    className="homeowner-analytics-chart"
-                    role="img"
-                    aria-label={`Monthly payments for ${trackerYear}: ${monthlyTracker
-                      .map(
-                        (month) =>
-                          `${month.month}: ${peso.format(month.total)}`
-                      )
-                      .join(", ")}`}
-                  >
-                    <div
-                      className="homeowner-analytics-y-axis"
-                      aria-hidden="true"
-                    >
-                      {ticks.map((tick) => (
-                        <span key={tick}>
-                          {peso.format(chartMax * tick)}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="homeowner-analytics-plot">
-                      <div
-                        className="homeowner-analytics-gridlines"
-                        aria-hidden="true"
-                      >
-                        {ticks.map((tick) => (
-                          <span key={tick} />
-                        ))}
-                      </div>
-
-                      <div className="homeowner-analytics-bars">
-                        {monthlyTracker.map((month) => (
-                          <div
-                            className="homeowner-analytics-month"
-                            key={month.month}
-                            title={`${month.month} ${trackerYear}: ${peso.format(
-                              month.total
-                            )}`}
-                          >
-                            <div className="homeowner-analytics-bar-track">
-                              <span
-                                className={`homeowner-analytics-bar${
-                                  month.total > 0 ? " has-value" : ""
-                                }`}
-                                style={{
-                                  height:
-                                    month.total > 0
-                                      ? `${Math.max(
-                                          (month.total / chartMax) * 100,
-                                          2
-                                        )}%`
-                                      : "0%",
-                                }}
-                              />
-                            </div>
-
-                            <span className="homeowner-analytics-month-label">
-                              {month.month.slice(0, 3)}
-                            </span>
-
-                            <span className="homeowner-analytics-month-value">
-                              {peso.format(month.total)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <p className="homeowner-payment-analytics-note">
-                Monthly totals use payment dates in Philippine time.
-                Voided payments are excluded. Months without payments show ₱0.
-              </p>
-            </section>
-
-                      
-          {balanceBreakdownOpen && (
-            <div
-              className="homeowner-breakdown-overlay"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) {
-                  setBalanceBreakdownOpen(false)
-                }
-              }}
-            >
-              <section
-                className="homeowner-breakdown-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="homeowner-breakdown-title"
-              >
-                <div className="homeowner-breakdown-modal-header">
+                </section>
+                <section className="hpm-latest">
                   <div>
-                    <h2 id="homeowner-breakdown-title">Balance Breakdown</h2>
-                    <p>
-                      {selectedProperty.homeowner_name} — {selectedProperty.block},
-                      {' '}Lot {selectedProperty.lot_number}
-                    </p>
+                    <h3>Latest receipts</h3>
+                    <button
+                      type="button"
+                      onClick={() => setProfileSection('payments')}
+                    >
+                      View all payments →
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    className="homeowner-breakdown-close"
-                    onClick={() => setBalanceBreakdownOpen(false)}
-                    aria-label="Close balance breakdown"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="homeowner-breakdown-modal-content">
-                  <BalanceBreakdown
-                    propertyId={selectedProperty.id}
-                    canManage={canManageBalances}
-                    refreshKey={breakdownKey}
-                    onChanged={(message) => {
-                      setNotice(message)
-                      setBreakdownKey((key) => key + 1)
-                      loadHomeowners(true)
-                    }}
-                  />
-                </div>
-              </section>
-            </div>
-          )}
-
-
-            {trackerOpen && paymentSummaryReady && (
-              <div
-                className="homeowner-tracker-overlay"
-                onClick={closePaymentTracker}
-              >
-                <section
-                  id="homeowner-payment-tracker"
-                  ref={trackerRef}
-                  className="homeowner-payment-tracker"
-                  aria-label="Monthly and annual payment tracker"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    className="homeowner-tracker-close"
-                    onClick={closePaymentTracker}
-                    aria-label="Close payment tracker"
-                  >
-                    ×
-                  </button>
-                  <div className="homeowner-tracker-header">
-                    <div className="homeowner-section-heading">
-                      <Calendar size={18} />
-                      <div>
-                        <h3>Payment Tracker</h3>
-                        <p>Payments for {selectedProperty.block}, Lot {selectedProperty.lot_number}.</p>
-                      </div>
-                    </div>
-                    <div className="homeowner-tracker-controls">
-                      <div className="homeowner-tracker-switch" aria-label="Tracker view">
-                        <button
-                          type="button"
-                          className={trackerView === 'monthly' ? 'is-active' : ''}
-                          aria-pressed={trackerView === 'monthly'}
-                          onClick={() => { setTrackerView('monthly'); setExpandedTrackerMonth(null) }}
-                        >
-                          Monthly
-                        </button>
-                        <button
-                          type="button"
-                          className={trackerView === 'annual' ? 'is-active' : ''}
-                          aria-pressed={trackerView === 'annual'}
-                          onClick={() => { setTrackerView('annual'); setExpandedTrackerMonth(null) }}
-                        >
-                          Annual
-                        </button>
-                      </div>
-                      {trackerView === 'monthly' && (
-                        <label className="homeowner-tracker-year">
-                          <span>Year</span>
-                          <Select ariaLabel="Payment analytics year" value={String(trackerYear)} onChange={(value) => { setTrackerYear(Number(value)); setExpandedTrackerMonth(null) }} options={trackerYears.map((year) => ({ value: String(year), label: String(year) }))} />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="homeowner-tracker-table-wrap">
-                    {trackerView === 'monthly' ? (
-                      <table className="homeowner-tracker-table">
-                        <thead>
-                          <tr>
-                            <th>Month</th>
-                            <th>Status</th>
-                            <th>Payments</th>
-                            <th>Association Dues</th>
-                            <th>Amenities &amp; Services</th>
-                            <th>Other</th>
-                            <th>Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {monthlyTracker.map((month, monthIndex) => (
-                            <tr key={month.month} className="homeowner-tracker-row">
-                              <td>
-                                <button
-                                  type="button"
-                                  className="homeowner-tracker-month-button"
-                                  aria-haspopup="dialog"
-                                  aria-label={`View ${month.month} ${trackerYear} payment breakdown`}
-                                  onClick={() => setExpandedTrackerMonth(monthIndex)}
-                                >
-                                  <span aria-hidden="true">▸</span>
-                                  <strong>{month.month}</strong>
-                                  <span className="homeowner-tracker-click-hint">Details</span>
-                                </button>
-                              </td>
-                              <td><span className={`homeowner-tracker-status tracker-${month.status.key}`}>{month.status.label}</span></td>
-                              <td>{month.records.length}</td>
-                              <td className="homeowner-number">{peso.format(month.dues)}</td>
-                              <td className="homeowner-number">{peso.format(month.services)}</td>
-                              <td className="homeowner-number">{peso.format(month.other)}</td>
-                              <td className="homeowner-tracker-total">{peso.format(month.total)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <table className="homeowner-tracker-table annual">
-                        <thead>
-                          <tr>
-                            <th>Year</th>
-                            <th>Months with Payments</th>
-                            <th>Payments</th>
-                            <th>Association Dues</th>
-                            <th>Amenities &amp; Services</th>
-                            <th>Other</th>
-                            <th>Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {annualTracker.map((year) => (
-                            <tr key={year.year}>
-                              <td><strong>{year.year}</strong></td>
-                              <td>{year.months} of 12</td>
-                              <td>{year.transactions}</td>
-                              <td className="homeowner-number">{peso.format(year.dues)}</td>
-                              <td className="homeowner-number">{peso.format(year.services)}</td>
-                              <td className="homeowner-number">{peso.format(year.other)}</td>
-                              <td className="homeowner-tracker-total">{peso.format(year.total)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                  <p className="homeowner-tracker-note">
-                    Voided records are excluded. A blank month means no payment was recorded; it does not automatically mean an unpaid balance.
-                  </p>
-
-                  <AccountActivity propertyId={selectedPropertyId} year={trackerView === 'monthly' ? trackerYear : undefined} refreshKey={detailReloadKey} />
-
-                  {trackerView === 'monthly' && selectedTrackerMonth && createPortal(
-                    <div className="homeowner-month-overlay" onClick={(event) => { event.stopPropagation(); setExpandedTrackerMonth(null) }}>
-                      <section
-                        ref={monthDialogRef}
-                        className="homeowner-month-dialog"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="homeowner-month-dialog-title"
-                        aria-describedby="homeowner-month-dialog-description"
-                        tabIndex={-1}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <header className="homeowner-month-dialog-header">
-                          <div>
-                            <p className="homeowner-month-eyebrow">HOA PAYMENT RECORDS</p>
-                            <h2 id="homeowner-month-dialog-title">{selectedTrackerMonth.month} {trackerYear} · Payment breakdown</h2>
-                            <p id="homeowner-month-dialog-description">{selectedProperty?.homeowner_name} · {selectedProperty?.block} · Lot {selectedProperty?.lot_number}</p>
-                          </div>
-                          <button type="button" className="homeowner-month-close-icon" aria-label="Close monthly payment breakdown" onClick={() => setExpandedTrackerMonth(null)}>×</button>
-                        </header>
-                        <div className="homeowner-month-dialog-body">
-                          <div className="homeowner-month-summary">
-                            <div><span>Recorded activity</span><strong><span className={`homeowner-month-pill is-${selectedTrackerMonth.status.key}`}>{selectedTrackerMonth.status.label}</span></strong></div>
-                            <div><span>Recorded transactions</span><strong>{selectedTrackerMonth.records.length}</strong></div>
-                            <div><span>Total payments received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
-                          </div>
-                          <div className="homeowner-month-transaction-section">
-                          <h3 className="homeowner-month-section-title">Transactions recorded during this month</h3>
-                          {selectedTrackerMonth.records.length > 0 ? (
-                            <div className="homeowner-month-table-scroll" role="region" aria-label="Monthly payment transactions" tabIndex={0}>
-                              <table className="homeowner-month-table">
-                                <thead><tr><th scope="col">Date paid</th><th scope="col">Description / Coverage</th><th scope="col">Receipt / Method</th><th scope="col">Status</th><th scope="col">Amount paid</th></tr></thead>
-                                <tbody>
-                                  {selectedTrackerMonth.records.map((record) => {
-                                    const paidDateText = formatDate(record.paidAt, organization.dateFormat)
-                                    const dateSplit = paidDateText.indexOf(', ')
-                                    const datePart = dateSplit >= 0 ? paidDateText.slice(0, dateSplit) : paidDateText
-                                    const timePart = dateSplit >= 0 ? paidDateText.slice(dateSplit + 2) : ''
-                                    return (
-                                      <tr key={record.id}>
-                                        <td><span className="homeowner-month-date-main">{datePart}</span>{timePart && <span className="homeowner-month-date-sub">{timePart}</span>}</td>
-                                        <td><span className="homeowner-month-description-main">{record.description || '—'}</span><span className={`homeowner-month-pill homeowner-month-category-pill ${record.kind === 'dues' ? 'is-dues' : record.kind === 'services' ? 'is-services' : 'is-other'}`}>{record.category}</span></td>
-                                        <td><span className="homeowner-month-receipt-main">{record.receipt}</span><span className="homeowner-month-receipt-sub">{record.method}</span></td>
-                                        <td><span className={`homeowner-month-pill ${['paid', 'completed'].includes(String(record.statusKey).toLowerCase()) ? 'is-paid' : ['partial', 'pending'].includes(String(record.statusKey).toLowerCase()) ? 'is-partial' : String(record.statusKey).toLowerCase() === 'voided' ? 'is-voided' : 'is-neutral'}`}>{record.status}</span></td>
-                                        <td className="homeowner-number">{peso.format(record.amount)}</td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <p className="homeowner-month-empty">No payment transactions were recorded for this lot in {selectedTrackerMonth.month} {trackerYear}. This does not establish whether dues were paid or unpaid.</p>
-                          )}
-                          </div>
-                          <div className="homeowner-month-bottom">
-                            <p className="homeowner-month-clarification">Grouped by payment date in Manila time, not by the month covered by dues. Voided records are excluded. This is a payment activity summary, not a statement of outstanding balance or a certification that dues are fully paid.</p>
-                            <div className="homeowner-month-totals" aria-label="Payment category totals">
-                            <div><span>Association dues</span><strong className={Number(selectedTrackerMonth.dues) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.dues)}</strong></div>
-                            <div><span>Amenities &amp; services</span><strong className={Number(selectedTrackerMonth.services) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.services)}</strong></div>
-                            <div><span>Other</span><strong className={Number(selectedTrackerMonth.other) === 0 ? 'is-zero' : undefined}>{peso.format(selectedTrackerMonth.other)}</strong></div>
-                            <div className="homeowner-month-grand-total"><span>Total received</span><strong>{peso.format(selectedTrackerMonth.total)}</strong></div>
-                            </div>
-                          </div>
-                          <MonthlyChargeHistory propertyId={selectedPropertyId} month={`${trackerYear}-${String(expandedTrackerMonth + 1).padStart(2, '0')}`} refreshKey={detailReloadKey} />
-                          <AccountActivity propertyId={selectedPropertyId} month={`${trackerYear}-${String(expandedTrackerMonth + 1).padStart(2, '0')}`} refreshKey={detailReloadKey} />
+                  {!paymentSummaryReady ? (
+                    <p role="status">{paymentSummaryNote}</p>
+                  ) : history.length === 0 ? (
+                    <p>No receipts recorded for this account.</p>
+                  ) : (
+                    history.slice(0, 3).map((item) => (
+                      <div className="hpm-latest-row" key={item.id}>
+                        <FileText size={18} />
+                        <div>
+                          <strong>{item.receipt}</strong>
+                          <small>
+                            {item.category} ·{' '}
+                            {formatDate(item.paidAt, organization.dateFormat)}
+                            {item.statusKey === 'voided' ? ' · Voided' : ''}
+                          </small>
                         </div>
-                        <footer className="homeowner-month-dialog-footer">
-                          
-                          <button type="button" className="homeowner-month-action-secondary" onClick={() => setExpandedTrackerMonth(null)}>Close</button>
-                          <button type="button" className="homeowner-month-action-print" onClick={() => openPaymentMonthPrint({
-                                          hoaName: organization.hoaName,
-                                          preparedBy: currentUser?.full_name || currentUser?.email || 'Not recorded',
-                                          preparedRole: currentUser?.role || '',
-                                          homeownerName: selectedProperty?.homeowner_name,
-                                          block: selectedProperty?.block,
-                                          lot: selectedProperty?.lot_number,
-                                          month: selectedTrackerMonth.month,
-                                          year: trackerYear,
-                                          records: selectedTrackerMonth.records,
-                                          dues: selectedTrackerMonth.dues,
-                                          services: selectedTrackerMonth.services,
-                                          other: selectedTrackerMonth.other,
-                                          total: selectedTrackerMonth.total,
-                                        })}>
-                            Print {selectedTrackerMonth.month} breakdown
-                          </button>
-                        </footer>
-                      </section>
-                    </div>, document.body
+                        <span>{peso.format(item.amount)}</span>
+                        <button
+                          type="button"
+                          onClick={() => openHomeownerHistoryReceipt(item)}
+                          disabled={Boolean(openingHistoryReceipt)}
+                        >
+                          View
+                        </button>
+                      </div>
+                    ))
                   )}
                 </section>
-              </div>
-            )}
+                <details className="hpm-analytics">
+                  <summary>
+                    Payment analytics{' '}
+                    <small>View the monthly collections chart</small>
+                  </summary>
+                  <section
+                    className="homeowner-payment-analytics"
+                    aria-labelledby="homeowner-payment-analytics-title"
+                  >
+                    <div className="homeowner-payment-analytics-header">
+                      <div>
+                        <h3 id="homeowner-payment-analytics-title">
+                          Payment Analytics
+                        </h3>
+                        <p>
+                          Payments for {selectedProperty.block}, Lot{' '}
+                          {selectedProperty.lot_number}.
+                        </p>
+                      </div>
 
-            <nav className="homeowner-tabs" aria-label="Homeowner profile sections">
-              {[
-                ['overview', 'Overview', history.length],
-                ['dues', 'Association Dues', duesPayments.length],
-                ['services', 'Amenities & Services', selectedServices.length],
-                ['other', 'Balance / Other Payments', otherPayments.length],
-              ].map(([key, label, count]) => (
-                <button
-                  type="button"
-                  key={key}
-                  className={activeTab === key ? 'is-active' : ''}
-                  onClick={() => setActiveTab(key)}
-                >
-                  {label}<span>{paymentSummaryReady ? count : '—'}</span>
-                </button>
-              ))}
-            </nav>
+                      <label className="homeowner-analytics-year">
+                        <span>Year</span>
+                        <Select
+                          className="homeowner-analytics-select"
+                          ariaLabel="Payment analytics year"
+                          value={String(trackerYear)}
+                          onChange={(value) => setTrackerYear(Number(value))}
+                          options={trackerYears.map((year) => ({
+                            value: String(year),
+                            label: String(year),
+                          }))}
+                        />
+                      </label>
+                    </div>
 
-            {activeTab === 'overview' && userRole === 'admin' && !formerAccount && selectedPropertyId != null && (
-              <div className="homeowner-cctv-section" style={{ marginBottom: 16 }}>
-                <CctvElectricityCompensation key={selectedPropertyId} fixedPropertyId={selectedPropertyId} canEdit onChanged={() => { setDetailReloadKey((key) => key + 1); void loadHomeowners(true) }} />
-              </div>
-            )}
-
-            {activeTab === 'overview' && (
-              <section className="homeowner-overview-grid">
-                <article className="homeowner-info-card">
-                  <div className="homeowner-section-heading">
-                    <Home size={18} />
-                    <div><h3>Property Information</h3><p>Registered property record</p></div>
-                  </div>
-                  <dl>
-                    <div><dt>Homeowner</dt><dd>{selectedProperty.homeowner_name}</dd></div>
-                    <div><dt>Block</dt><dd>{selectedProperty.block}</dd></div>
-                    <div><dt>Lot</dt><dd>Lot {selectedProperty.lot_number}</dd></div>
-                    <div><dt>Registered</dt><dd>{formatDate(selectedProperty.created_at, organization.dateFormat)}</dd></div>
-                  </dl>
-                </article>
-                <article className="homeowner-info-card">
-                  <div className="homeowner-section-heading">
-                    <Phone size={18} />
-                    <div><h3>Contact Information</h3><p>Homeowner communication details</p></div>
-                  </div>
-                  <dl>
-                    <div><dt>Phone</dt><dd>{selectedProperty.contact_phone || 'Not provided'}</dd></div>
-                    <div><dt>Email</dt><dd>{selectedProperty.contact_email || 'Not provided'}</dd></div>
-                    <div><dt>Last updated</dt><dd>{formatDate(selectedProperty.contact_updated_at, organization.dateFormat)}</dd></div>
-                  </dl>
-                </article>
-              </section>
-            )}
-
-            <section className="homeowner-history-card">
-              <div className="homeowner-section-heading">
-                {activeTab === 'services' ? <Calendar size={18} /> : <FileText size={18} />}
-                <div>
-                  <h3>{activeTab === 'overview' ? 'Recent Payment Activity' : 'Payment History'}</h3>
-                  <p>HOA balances are shown at receipt issuance. Service balances are the amount still due on the invoice.</p>
-                </div>
-                <label className="homeowner-history-month-picker">
-                  <span>Payment month</span>
-                  <DateField
-                    ariaLabel="Filter payment history by month"
-                    monthOnly
-                    value={historyMonth}
-                    onChange={setHistoryMonth}
-                  />
-                </label>
-              </div>
-              <div className="homeowner-history-table-wrap">
-                <table className="homeowner-history-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Receipt</th>
-                      <th>Category</th>
-                      <th>Description</th>
-                      <th>Method</th>
-                      <th>Amount</th>
-                      <th>Recorded balance</th>
-                      <th>Status</th>
-                      <th aria-label="Actions" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {!paymentSummaryReady ? (
-                      <tr><td colSpan="9" role="status">{paymentSummaryLoading ? 'Loading payment records…' : 'Payment records are unavailable. Refresh to retry.'}</td></tr>
-                    ) : historyMonthRows.length === 0 ? (
-                      <tr><td colSpan="9" className="homeowners-empty">No payment records for the selected month and category.</td></tr>
+                    {showDetailSkeleton ? (
+                      <Skeleton
+                        className="homeowner-analytics-skeleton"
+                        width="100%"
+                        height="245px"
+                        radius="8px"
+                      />
+                    ) : !paymentSummaryReady ? (
+                      <p role="status">
+                        {paymentSummaryLoading
+                          ? 'Loading payments…'
+                          : 'Payment records are unavailable. Refresh to retry.'}
+                      </p>
+                    ) : monthlyTracker.every((month) => month.total === 0) ? (
+                      <div className="homeowner-analytics-empty" role="status">
+                        <FileText size={24} />
+                        <strong>No payments recorded in {trackerYear}</strong>
+                        <p>
+                          Monthly collections will appear here after a payment
+                          is recorded for this lot.
+                        </p>
+                      </div>
                     ) : (
-                      historyMonthRows.map((item) => (
-                        <tr key={item.id}>
-                          <td>{formatDate(item.paidAt, organization.dateFormat)}</td>
-                          <td><strong>{item.receipt}</strong></td>
-                          <td><span className={`homeowner-category category-${item.kind}`}>{item.category}</span></td>
-                          <td title={item.description}>{item.description}</td>
-                          <td title={item.method}>{item.method}</td>
-                          <td className="homeowner-number">{peso.format(item.amount)}</td>
-                          <td className={item.remaining > 0 ? 'homeowner-balance' : item.remaining < 0 ? 'homeowner-credit' : 'homeowner-number'}>
-                            {item.remaining == null ? '—' : item.remaining < 0 ? `${peso.format(Math.abs(item.remaining))} credit` : peso.format(item.remaining)}
-                          </td>
-                          <td><span className={`homeowner-payment-status status-${normalize(item.status).replace(/\s+/g, '-')}`}>{item.status}</span></td>
-                          <td>
-                            <div className="homeowner-history-actions">
-                              <button type="button" className="homeowner-receipt-view-link" onClick={() => openHomeownerHistoryReceipt(item)} disabled={Boolean(openingHistoryReceipt)}>
-                                {openingHistoryReceipt === item.id ? 'Opening…' : 'View'}
-                              </button>
-                              {!formerAccount && canVoidPayments && item.id.startsWith('payment-') && item.statusKey !== 'voided' && (
-                                <button type="button" className="homeowner-void-link" onClick={() => openVoid(item)}>Void</button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-            <AccountActivity propertyId={selectedPropertyId} month={historyMonth} refreshKey={detailReloadKey} />
-          </>
-        )}
-      </main>
+                      (() => {
+                        const chartMax = Math.max(
+                          1,
+                          ...monthlyTracker.map((month) => month.total),
+                        )
 
-      {!formerAccount && canManageBlocks && classificationPropertyId != null &&
+                        const ticks = [1, 0.75, 0.5, 0.25, 0]
+
+                        return (
+                          <div
+                            className="homeowner-analytics-chart"
+                            role="img"
+                            aria-label={`Monthly payments for ${trackerYear}: ${monthlyTracker
+                              .map(
+                                (month) =>
+                                  `${month.month}: ${peso.format(month.total)}`,
+                              )
+                              .join(', ')}`}
+                          >
+                            <div
+                              className="homeowner-analytics-y-axis"
+                              aria-hidden="true"
+                            >
+                              {ticks.map((tick) => (
+                                <span key={tick}>
+                                  {peso.format(chartMax * tick)}
+                                </span>
+                              ))}
+                            </div>
+
+                            <div className="homeowner-analytics-plot">
+                              <div
+                                className="homeowner-analytics-gridlines"
+                                aria-hidden="true"
+                              >
+                                {ticks.map((tick) => (
+                                  <span key={tick} />
+                                ))}
+                              </div>
+
+                              <div className="homeowner-analytics-bars">
+                                {monthlyTracker.map((month) => (
+                                  <div
+                                    className="homeowner-analytics-month"
+                                    key={month.month}
+                                    title={`${month.month} ${trackerYear}: ${peso.format(
+                                      month.total,
+                                    )}`}
+                                  >
+                                    <div className="homeowner-analytics-bar-track">
+                                      <span
+                                        className={`homeowner-analytics-bar${
+                                          month.total > 0 ? ' has-value' : ''
+                                        }`}
+                                        style={{
+                                          height:
+                                            month.total > 0
+                                              ? `${Math.max(
+                                                  (month.total / chartMax) *
+                                                    100,
+                                                  2,
+                                                )}%`
+                                              : '0%',
+                                        }}
+                                      />
+                                    </div>
+
+                                    <span className="homeowner-analytics-month-label">
+                                      {month.month.slice(0, 3)}
+                                    </span>
+
+                                    <span className="homeowner-analytics-month-value">
+                                      {peso.format(month.total)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })()
+                    )}
+
+                    <p className="homeowner-payment-analytics-note">
+                      Monthly totals use payment dates in Philippine time.
+                      Voided payments are excluded. Months without payments show
+                      ₱0.
+                    </p>
+                  </section>
+                </details>
+              </section>
+              <section
+                role="tabpanel"
+                id="hpm-pane-payments"
+                aria-labelledby="hpm-tab-payments"
+                hidden={profileSection !== 'payments'}
+              >
+                <div className="hpm-pane-intro">
+                  <h3>Payment history</h3>
+                  <p>Choose a category and month to find a receipt.</p>
+                </div>
+                <nav
+                  className="homeowner-tabs"
+                  aria-label="Homeowner profile sections"
+                >
+                  {[
+                    ['overview', 'All payments', history.length],
+                    ['dues', 'Association Dues', duesPayments.length],
+                    [
+                      'services',
+                      'Amenities & Services',
+                      selectedServices.length,
+                    ],
+                    ['other', 'Balance / Other Payments', otherPayments.length],
+                  ].map(([key, label, count]) => (
+                    <button
+                      type="button"
+                      key={key}
+                      className={activeTab === key ? 'is-active' : ''}
+                      onClick={() => setActiveTab(key)}
+                    >
+                      {label}
+                      <span>{paymentSummaryReady ? count : '—'}</span>
+                    </button>
+                  ))}
+                </nav>
+                <section className="homeowner-history-card">
+                  <div className="homeowner-section-heading">
+                    {activeTab === 'services' ? (
+                      <Calendar size={18} />
+                    ) : (
+                      <FileText size={18} />
+                    )}
+                    <div>
+                      <h3>
+                        {activeTab === 'overview'
+                          ? 'Recent Payment Activity'
+                          : 'Payment History'}
+                      </h3>
+                      <p>
+                        HOA balances are shown at receipt issuance. Service
+                        balances are the amount still due on the invoice.
+                      </p>
+                    </div>
+                    <label className="homeowner-history-month-picker">
+                      <span>Payment month</span>
+                      <DateField
+                        ariaLabel="Filter payment history by month"
+                        monthOnly
+                        value={historyMonth}
+                        onChange={setHistoryMonth}
+                      />
+                    </label>
+                  </div>
+                  <div className="homeowner-history-table-wrap">
+                    <table className="homeowner-history-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Date / receipt</th>
+                          <th scope="col">Category / details</th>
+                          <th>Method</th>
+                          <th>Amount</th>
+                          <th>Recorded balance</th>
+                          <th>Status</th>
+                          <th scope="col">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {!paymentSummaryReady ? (
+                          <tr>
+                            <td colSpan="7" role="status">
+                              {paymentSummaryLoading
+                                ? 'Loading payment records…'
+                                : 'Payment records are unavailable. Refresh to retry.'}
+                            </td>
+                          </tr>
+                        ) : historyMonthRows.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="homeowners-empty">
+                              No payment records for the selected month and
+                              category.
+                            </td>
+                          </tr>
+                        ) : (
+                          historyMonthRows.map((item) => (
+                            <tr key={item.id}>
+                              <td>
+                                <strong>{item.receipt}</strong>
+                                <small>
+                                  {formatDate(
+                                    item.paidAt,
+                                    organization.dateFormat,
+                                  )}
+                                </small>
+                              </td>
+                              <td>
+                                <span
+                                  className={`homeowner-category category-${item.kind}`}
+                                >
+                                  {item.category}
+                                </span>
+                                <small>{item.description}</small>
+                              </td>
+                              <td title={item.method}>{item.method}</td>
+                              <td className="homeowner-number">
+                                {peso.format(item.amount)}
+                              </td>
+                              <td
+                                className={
+                                  item.remaining > 0
+                                    ? 'homeowner-balance'
+                                    : item.remaining < 0
+                                      ? 'homeowner-credit'
+                                      : 'homeowner-number'
+                                }
+                              >
+                                {item.remaining == null
+                                  ? '—'
+                                  : item.remaining < 0
+                                    ? `${peso.format(Math.abs(item.remaining))} credit`
+                                    : peso.format(item.remaining)}
+                              </td>
+                              <td>
+                                <span
+                                  className={`homeowner-payment-status status-${normalize(item.status).replace(/\s+/g, '-')}`}
+                                >
+                                  {item.status}
+                                </span>
+                              </td>
+                              <td>
+                                <div className="homeowner-history-actions">
+                                  <button
+                                    type="button"
+                                    className="homeowner-receipt-view-link"
+                                    onClick={() =>
+                                      openHomeownerHistoryReceipt(item)
+                                    }
+                                    disabled={Boolean(openingHistoryReceipt)}
+                                  >
+                                    {openingHistoryReceipt === item.id
+                                      ? 'Opening…'
+                                      : 'View'}
+                                  </button>
+                                  {!formerAccount &&
+                                    canVoidPayments &&
+                                    item.id.startsWith('payment-') &&
+                                    item.statusKey !== 'voided' && (
+                                      <button
+                                        type="button"
+                                        className="homeowner-void-link"
+                                        onClick={() => openVoid(item)}
+                                      >
+                                        Void
+                                      </button>
+                                    )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </section>
+              <section
+                role="tabpanel"
+                id="hpm-pane-tracker"
+                aria-labelledby="hpm-tab-tracker"
+                hidden={profileSection !== 'tracker'}
+              >
+                <div className="hpm-pane-intro">
+                  <h3>Payment tracker</h3>
+                  <p>
+                    Review monthly and annual receipt totals, grouped by
+                    category.
+                  </p>
+                </div>
+                {paymentSummaryReady && (
+                  <div className="homeowner-tracker-overlay hpm-tracker-inline">
+                    <section
+                      id="homeowner-payment-tracker"
+                      ref={trackerRef}
+                      className="homeowner-payment-tracker"
+                      aria-label="Monthly and annual payment tracker"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="homeowner-tracker-close"
+                        onClick={closePaymentTracker}
+                        aria-label="Close payment tracker"
+                      >
+                        ×
+                      </button>
+                      <div className="homeowner-tracker-header">
+                        <div className="homeowner-section-heading">
+                          <Calendar size={18} />
+                          <div>
+                            <h3>Payment Tracker</h3>
+                            <p>
+                              Payments for {selectedProperty.block}, Lot{' '}
+                              {selectedProperty.lot_number}.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="homeowner-tracker-controls">
+                          <div
+                            className="homeowner-tracker-switch"
+                            aria-label="Tracker view"
+                          >
+                            <button
+                              type="button"
+                              className={
+                                trackerView === 'monthly' ? 'is-active' : ''
+                              }
+                              aria-pressed={trackerView === 'monthly'}
+                              onClick={() => {
+                                setTrackerView('monthly')
+                                setExpandedTrackerMonth(null)
+                              }}
+                            >
+                              Monthly
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                trackerView === 'annual' ? 'is-active' : ''
+                              }
+                              aria-pressed={trackerView === 'annual'}
+                              onClick={() => {
+                                setTrackerView('annual')
+                                setExpandedTrackerMonth(null)
+                              }}
+                            >
+                              Annual
+                            </button>
+                          </div>
+                          {trackerView === 'monthly' && (
+                            <label className="homeowner-tracker-year">
+                              <span>Year</span>
+                              <Select
+                                ariaLabel="Payment analytics year"
+                                value={String(trackerYear)}
+                                onChange={(value) => {
+                                  setTrackerYear(Number(value))
+                                  setExpandedTrackerMonth(null)
+                                }}
+                                options={trackerYears.map((year) => ({
+                                  value: String(year),
+                                  label: String(year),
+                                }))}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="homeowner-tracker-table-wrap">
+                        {trackerView === 'monthly' ? (
+                          <table className="homeowner-tracker-table">
+                            <thead>
+                              <tr>
+                                <th>Month</th>
+                                <th>Status</th>
+                                <th>Payments</th>
+                                <th>Association Dues</th>
+                                <th>Amenities &amp; Services</th>
+                                <th>Other</th>
+                                <th>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {monthlyTracker
+                                .slice(
+                                  (trackerCurrentPage - 1) * 6,
+                                  trackerCurrentPage * 6,
+                                )
+                                .map((month, visibleIndex) => (
+                                  <tr
+                                    key={month.month}
+                                    className="homeowner-tracker-row"
+                                  >
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="homeowner-tracker-month-button"
+                                        aria-haspopup="dialog"
+                                        aria-label={`View ${month.month} ${trackerYear} payment breakdown`}
+                                        onClick={() =>
+                                          setExpandedTrackerMonth(
+                                            (trackerCurrentPage - 1) * 6 +
+                                              visibleIndex,
+                                          )
+                                        }
+                                      >
+                                        <span aria-hidden="true">▸</span>
+                                        <strong>{month.month}</strong>
+                                        <span className="homeowner-tracker-click-hint">
+                                          Details
+                                        </span>
+                                      </button>
+                                    </td>
+                                    <td>
+                                      <span
+                                        className={`homeowner-tracker-status tracker-${month.status.key}`}
+                                      >
+                                        {month.status.label}
+                                      </span>
+                                    </td>
+                                    <td>{month.records.length}</td>
+                                    <td className="homeowner-number">
+                                      {peso.format(month.dues)}
+                                    </td>
+                                    <td className="homeowner-number">
+                                      {peso.format(month.services)}
+                                    </td>
+                                    <td className="homeowner-number">
+                                      {peso.format(month.other)}
+                                    </td>
+                                    <td className="homeowner-tracker-total">
+                                      {peso.format(month.total)}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <table className="homeowner-tracker-table annual">
+                            <thead>
+                              <tr>
+                                <th>Year</th>
+                                <th>Months with Payments</th>
+                                <th>Payments</th>
+                                <th>Association Dues</th>
+                                <th>Amenities &amp; Services</th>
+                                <th>Other</th>
+                                <th>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {annualTracker
+                                .slice((trackerPage - 1) * 6, trackerPage * 6)
+                                .map((year) => (
+                                  <tr key={year.year}>
+                                    <td>
+                                      <strong>{year.year}</strong>
+                                    </td>
+                                    <td>{year.months} of 12</td>
+                                    <td>{year.transactions}</td>
+                                    <td className="homeowner-number">
+                                      {peso.format(year.dues)}
+                                    </td>
+                                    <td className="homeowner-number">
+                                      {peso.format(year.services)}
+                                    </td>
+                                    <td className="homeowner-number">
+                                      {peso.format(year.other)}
+                                    </td>
+                                    <td className="homeowner-tracker-total">
+                                      {peso.format(year.total)}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                      <div className="hpm-tracker-pagination">
+                        <span role="status">
+                          Showing{' '}
+                          {trackerTotal ? (trackerCurrentPage - 1) * 6 + 1 : 0}–
+                          {Math.min(trackerCurrentPage * 6, trackerTotal)} of{' '}
+                          {trackerTotal}{' '}
+                          {trackerView === 'monthly' ? 'months' : 'years'}
+                        </span>
+                        <nav aria-label="Tracker pages">
+                          <button
+                            type="button"
+                            disabled={trackerCurrentPage === 1}
+                            onClick={() =>
+                              setTrackerPage(trackerCurrentPage - 1)
+                            }
+                          >
+                            ← Previous
+                          </button>
+                          {Array.from(
+                            { length: trackerPageCount },
+                            (_, i) => i + 1,
+                          ).map((number) => (
+                            <button
+                              type="button"
+                              key={number}
+                              aria-label={`Tracker page ${number}`}
+                              aria-current={
+                                number === trackerCurrentPage
+                                  ? 'page'
+                                  : undefined
+                              }
+                              onClick={() => setTrackerPage(number)}
+                            >
+                              {number}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={trackerCurrentPage === trackerPageCount}
+                            onClick={() =>
+                              setTrackerPage(trackerCurrentPage + 1)
+                            }
+                          >
+                            Next →
+                          </button>
+                        </nav>
+                      </div>
+                      <p className="homeowner-tracker-note">
+                        Voided records are excluded. A blank month means no
+                        payment was recorded; it does not automatically mean an
+                        unpaid balance.
+                      </p>
+
+                      {trackerView === 'monthly' &&
+                        selectedTrackerMonth &&
+                        createPortal(
+                          <div
+                            className="homeowner-month-overlay"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setExpandedTrackerMonth(null)
+                            }}
+                          >
+                            <section
+                              ref={monthDialogRef}
+                              className="homeowner-month-dialog hpm-month-v2"
+                              role="dialog"
+                              aria-modal="true"
+                              aria-labelledby="homeowner-month-dialog-title"
+                              aria-describedby="homeowner-month-dialog-description"
+                              tabIndex={-1}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <header className="homeowner-month-dialog-header">
+                                <div>
+                                  <p className="homeowner-month-eyebrow">
+                                    HOA PAYMENT RECORDS
+                                  </p>
+                                  <h2 id="homeowner-month-dialog-title">
+                                    {selectedTrackerMonth.month} {trackerYear} ·
+                                    Payment breakdown
+                                  </h2>
+                                  <p id="homeowner-month-dialog-description">
+                                    {selectedProperty?.homeowner_name} ·{' '}
+                                    {selectedProperty?.block} · Lot{' '}
+                                    {selectedProperty?.lot_number}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="homeowner-month-close-icon"
+                                  aria-label="Close monthly payment breakdown"
+                                  onClick={() => setExpandedTrackerMonth(null)}
+                                >
+                                  ×
+                                </button>
+                              </header>
+                              <div className="homeowner-month-summary">
+                                <div>
+                                  <span>Month status</span>
+                                  <strong>
+                                    <span
+                                      className={`homeowner-month-pill is-${selectedTrackerMonth.status.key}`}
+                                    >
+                                      {selectedTrackerMonth.status.label}
+                                    </span>
+                                  </strong>
+                                </div>
+                                <div>
+                                  <span>Payments recorded</span>
+                                  <strong>
+                                    {selectedTrackerMonth.records.length}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <span>Total payments received</span>
+                                  <strong>
+                                    {peso.format(selectedTrackerMonth.total)}
+                                  </strong>
+                                </div>
+                              </div>
+                              <nav
+                                className="hpm-month-nav"
+                                role="tablist"
+                                aria-label="Monthly breakdown sections"
+                              >
+                                {[
+                                  ['payments', 'Payments', CreditCard],
+                                  ['billing', 'Billing & credits', FileText],
+                                ].map(([key, label, Icon], index) => (
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    key={key}
+                                    id={`hpm-month-tab-${key}`}
+                                    aria-controls={`hpm-month-pane-${key}`}
+                                    aria-selected={monthDetailTab === key}
+                                    tabIndex={monthDetailTab === key ? 0 : -1}
+                                    onClick={() => setMonthDetailTab(key)}
+                                    onKeyDown={(event) => {
+                                      if (
+                                        ![
+                                          'ArrowLeft',
+                                          'ArrowRight',
+                                          'Home',
+                                          'End',
+                                        ].includes(event.key)
+                                      )
+                                        return
+                                      event.preventDefault()
+                                      const keys = ['payments', 'billing']
+                                      const next =
+                                        event.key === 'Home'
+                                          ? keys[0]
+                                          : event.key === 'End'
+                                            ? keys[keys.length - 1]
+                                            : keys[
+                                                (index +
+                                                  (event.key === 'ArrowRight'
+                                                    ? 1
+                                                    : keys.length - 1)) %
+                                                  keys.length
+                                              ]
+                                      setMonthDetailTab(next)
+                                      event.currentTarget.parentElement
+                                        .querySelector(`#hpm-month-tab-${next}`)
+                                        ?.focus()
+                                    }}
+                                  >
+                                    <Icon size={15} />
+                                    {label}
+                                  </button>
+                                ))}
+                              </nav>
+                              <div
+                                className="homeowner-month-dialog-body"
+                                ref={monthBodyRef}
+                              >
+                                <section
+                                  role="tabpanel"
+                                  id="hpm-month-pane-payments"
+                                  aria-labelledby="hpm-month-tab-payments"
+                                  hidden={monthDetailTab !== 'payments'}
+                                >
+                                  <div
+                                    className="homeowner-month-totals"
+                                    aria-label="Payment category totals"
+                                  >
+                                    <div>
+                                      <span>Association dues</span>
+                                      <strong
+                                        className={
+                                          Number(selectedTrackerMonth.dues) ===
+                                          0
+                                            ? 'is-zero'
+                                            : undefined
+                                        }
+                                      >
+                                        {peso.format(selectedTrackerMonth.dues)}
+                                      </strong>
+                                    </div>
+                                    <div>
+                                      <span>Amenities &amp; services</span>
+                                      <strong
+                                        className={
+                                          Number(
+                                            selectedTrackerMonth.services,
+                                          ) === 0
+                                            ? 'is-zero'
+                                            : undefined
+                                        }
+                                      >
+                                        {peso.format(
+                                          selectedTrackerMonth.services,
+                                        )}
+                                      </strong>
+                                    </div>
+                                    <div>
+                                      <span>Other</span>
+                                      <strong
+                                        className={
+                                          Number(selectedTrackerMonth.other) ===
+                                          0
+                                            ? 'is-zero'
+                                            : undefined
+                                        }
+                                      >
+                                        {peso.format(
+                                          selectedTrackerMonth.other,
+                                        )}
+                                      </strong>
+                                    </div>
+                                    <div className="homeowner-month-grand-total">
+                                      <span>Total received</span>
+                                      <strong>
+                                        {peso.format(
+                                          selectedTrackerMonth.total,
+                                        )}
+                                      </strong>
+                                    </div>
+                                  </div>
+                                  <div className="homeowner-month-transaction-section">
+                                    <h3 className="homeowner-month-section-title">
+                                      Transactions recorded during this month
+                                    </h3>
+                                    {selectedTrackerMonth.records.length > 0 ? (
+                                      <div
+                                        className="homeowner-month-table-scroll"
+                                        role="region"
+                                        aria-label="Monthly payment transactions"
+                                        tabIndex={0}
+                                      >
+                                        <table className="homeowner-month-table">
+                                          <thead>
+                                            <tr>
+                                              <th scope="col">Date paid</th>
+                                              <th scope="col">
+                                                Description / Coverage
+                                              </th>
+                                              <th scope="col">
+                                                Receipt / Method
+                                              </th>
+                                              <th scope="col">Status</th>
+                                              <th scope="col">Amount paid</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {selectedTrackerMonth.records.map(
+                                              (record) => {
+                                                const paidDateText = formatDate(
+                                                  record.paidAt,
+                                                  organization.dateFormat,
+                                                )
+                                                const dateSplit =
+                                                  paidDateText.indexOf(', ')
+                                                const datePart =
+                                                  dateSplit >= 0
+                                                    ? paidDateText.slice(
+                                                        0,
+                                                        dateSplit,
+                                                      )
+                                                    : paidDateText
+                                                const timePart =
+                                                  dateSplit >= 0
+                                                    ? paidDateText.slice(
+                                                        dateSplit + 2,
+                                                      )
+                                                    : ''
+                                                return (
+                                                  <tr key={record.id}>
+                                                    <td>
+                                                      <span className="homeowner-month-date-main">
+                                                        {datePart}
+                                                      </span>
+                                                      {timePart && (
+                                                        <span className="homeowner-month-date-sub">
+                                                          {timePart}
+                                                        </span>
+                                                      )}
+                                                    </td>
+                                                    <td>
+                                                      <span className="homeowner-month-description-main">
+                                                        {record.description ||
+                                                          '—'}
+                                                      </span>
+                                                      <span
+                                                        className={`homeowner-month-pill homeowner-month-category-pill ${record.kind === 'dues' ? 'is-dues' : record.kind === 'services' ? 'is-services' : 'is-other'}`}
+                                                      >
+                                                        {record.category}
+                                                      </span>
+                                                    </td>
+                                                    <td>
+                                                      <span className="homeowner-month-receipt-main">
+                                                        {record.receipt}
+                                                      </span>
+                                                      <span className="homeowner-month-receipt-sub">
+                                                        {record.method}
+                                                      </span>
+                                                    </td>
+                                                    <td>
+                                                      <span
+                                                        className={`homeowner-month-pill ${['paid', 'completed'].includes(String(record.statusKey).toLowerCase()) ? 'is-paid' : ['partial', 'pending'].includes(String(record.statusKey).toLowerCase()) ? 'is-partial' : String(record.statusKey).toLowerCase() === 'voided' ? 'is-voided' : 'is-neutral'}`}
+                                                      >
+                                                        {record.status}
+                                                      </span>
+                                                    </td>
+                                                    <td className="homeowner-number">
+                                                      {peso.format(
+                                                        record.amount,
+                                                      )}
+                                                    </td>
+                                                  </tr>
+                                                )
+                                              },
+                                            )}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      <p className="homeowner-month-empty">
+                                        No payment transactions were recorded
+                                        for this lot in{' '}
+                                        {selectedTrackerMonth.month}{' '}
+                                        {trackerYear}. This does not establish
+                                        whether dues were paid or unpaid.
+                                      </p>
+                                    )}
+                                  </div>
+                                  <details className="hpm-month-explainer">
+                                    <summary>
+                                      How these totals are grouped
+                                    </summary>
+                                    <p className="homeowner-month-clarification">
+                                      Grouped by payment date in Manila time,
+                                      not by the month covered by dues. Voided
+                                      records are excluded. This is a payment
+                                      activity summary, not a statement of
+                                      outstanding balance or a certification
+                                      that dues are fully paid.
+                                    </p>
+                                  </details>
+                                </section>
+                                <section
+                                  role="tabpanel"
+                                  id="hpm-month-pane-billing"
+                                  aria-labelledby="hpm-month-tab-billing"
+                                  hidden={monthDetailTab !== 'billing'}
+                                >
+                                  <div className="hpm-month-intro">
+                                    <h3>Monthly billing audit</h3>
+                                    <p>
+                                      Dues assessed, non-cash credit use and
+                                      dated annual penalty events.
+                                    </p>
+                                  </div>
+                                  <div className="hpm-month-billing">
+                                    <MonthlyChargeHistory
+                                      propertyId={selectedPropertyId}
+                                      month={`${trackerYear}-${String(expandedTrackerMonth + 1).padStart(2, '0')}`}
+                                      refreshKey={detailReloadKey}
+                                    />
+                                  </div>
+                                </section>
+                              </div>
+                              <footer className="homeowner-month-dialog-footer">
+                                <small>Receipt dates · Philippine time</small>
+                                <button
+                                  type="button"
+                                  className="homeowner-month-action-secondary"
+                                  onClick={() => setExpandedTrackerMonth(null)}
+                                >
+                                  Close
+                                </button>
+                                <button
+                                  type="button"
+                                  className="homeowner-month-action-print"
+                                  hidden={monthDetailTab !== 'payments'}
+                                  onClick={() =>
+                                    openPaymentMonthPrint({
+                                      hoaName: organization.hoaName,
+                                      preparedBy:
+                                        currentUser?.full_name ||
+                                        currentUser?.email ||
+                                        'Not recorded',
+                                      preparedRole: currentUser?.role || '',
+                                      homeownerName:
+                                        selectedProperty?.homeowner_name,
+                                      block: selectedProperty?.block,
+                                      lot: selectedProperty?.lot_number,
+                                      month: selectedTrackerMonth.month,
+                                      year: trackerYear,
+                                      records: selectedTrackerMonth.records,
+                                      dues: selectedTrackerMonth.dues,
+                                      services: selectedTrackerMonth.services,
+                                      other: selectedTrackerMonth.other,
+                                      total: selectedTrackerMonth.total,
+                                    })
+                                  }
+                                >
+                                  Print {selectedTrackerMonth.month} breakdown
+                                </button>
+                              </footer>
+                            </section>
+                          </div>,
+                          document.body,
+                        )}
+                    </section>
+                  </div>
+                )}
+                {!paymentSummaryReady && (
+                  <p role="status">{paymentSummaryNote}</p>
+                )}
+              </section>
+              <section
+                role="tabpanel"
+                id="hpm-pane-details"
+                aria-labelledby="hpm-tab-details"
+                hidden={profileSection !== 'details'}
+              >
+                <div className="hpm-pane-intro">
+                  <h3>Property & contact details</h3>
+                  <p>Registered account information and related activity.</p>
+                </div>
+                {
+                  <section className="homeowner-overview-grid">
+                    <article className="homeowner-info-card">
+                      <div className="homeowner-section-heading">
+                        <Home size={18} />
+                        <div>
+                          <h3>Property Information</h3>
+                          <p>Registered property record</p>
+                        </div>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Homeowner</dt>
+                          <dd>{selectedProperty.homeowner_name}</dd>
+                        </div>
+                        <div>
+                          <dt>Block</dt>
+                          <dd>{selectedProperty.block}</dd>
+                        </div>
+                        <div>
+                          <dt>Lot</dt>
+                          <dd>Lot {selectedProperty.lot_number}</dd>
+                        </div>
+                        <div>
+                          <dt>Registered</dt>
+                          <dd>
+                            {formatDate(
+                              selectedProperty.created_at,
+                              organization.dateFormat,
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    </article>
+                    <article className="homeowner-info-card">
+                      <div className="homeowner-section-heading">
+                        <Phone size={18} />
+                        <div>
+                          <h3>Contact Information</h3>
+                          <p>Homeowner communication details</p>
+                        </div>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Phone</dt>
+                          <dd>
+                            {selectedProperty.contact_phone || 'Not provided'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Email</dt>
+                          <dd>
+                            {selectedProperty.contact_email || 'Not provided'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Last updated</dt>
+                          <dd>
+                            {formatDate(
+                              selectedProperty.contact_updated_at,
+                              organization.dateFormat,
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    </article>
+                  </section>
+                }
+                {userRole === 'admin' &&
+                  !formerAccount &&
+                  selectedPropertyId != null && (
+                    <details className="hpm-cctv">
+                      <summary>
+                        CCTV electricity compensation{' '}
+                        <small>Admin feature · non-cash credit</small>
+                      </summary>
+                      <CctvElectricityCompensation
+                        key={selectedPropertyId}
+                        fixedPropertyId={selectedPropertyId}
+                        canEdit
+                        onChanged={() => {
+                          setDetailReloadKey((key) => key + 1)
+                          void loadHomeowners(true)
+                        }}
+                      />
+                    </details>
+                  )}
+              </section>
+              <section
+                role="tabpanel"
+                id="hpm-pane-activity"
+                aria-labelledby="hpm-tab-activity"
+                hidden={profileSection !== 'activity'}
+              >
+                <div className="hpm-activity-toolbar">
+                  <div className="hpm-pane-intro">
+                    <h3>Account activity</h3>
+                    <p>
+                      Balance adjustments, credits, penalties and ownership
+                      events.
+                    </p>
+                  </div>
+                  <label>
+                    Activity month
+                    <DateField
+                      ariaLabel="Filter account activity by month"
+                      monthOnly
+                      value={accountActivityMonth}
+                      onChange={setAccountActivityMonth}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAccountActivityMonth('')}
+                  >
+                    All activity
+                  </button>
+                </div>
+                <AccountActivity
+                  propertyId={selectedPropertyId}
+                  month={accountActivityMonth || undefined}
+                  refreshKey={detailReloadKey}
+                />
+              </section>
+            </>
+          )}
+        </HomeownerProfileModal>
+      )}
+
+      {!formerAccount &&
+        canManageBlocks &&
+        classificationPropertyId != null &&
         selectedProperty &&
         String(selectedProperty.id) === String(classificationPropertyId) && (
           <dialog
             ref={classificationDialogRef}
             className="phase1d-dialog"
             aria-labelledby="phase1d-dialog-title"
-            onClose={() => { setClassificationPropertyId(null); document.querySelector('.homeowner-actions-disclosure > button')?.focus() }}
+            onClose={() => {
+              setClassificationPropertyId(null)
+              document
+                .querySelector('.homeowner-actions-disclosure > button')
+                ?.focus()
+            }}
           >
             <header className="phase1d-dialog-header">
               <div>
                 <h2 id="phase1d-dialog-title">Property Classification</h2>
-                <p>{selectedProperty.block}, Lot {selectedProperty.lot_number}</p>
+                <p>
+                  {selectedProperty.block}, Lot {selectedProperty.lot_number}
+                </p>
               </div>
               <button
                 type="button"
@@ -1870,71 +3448,143 @@ useEffect(() => {
             />
           </dialog>
         )}
-      {historyReceiptError && (
-        <ActionDialog open title="Receipt unavailable" message={historyReceiptError} onConfirm={() => setHistoryReceiptError('')} />
+      {createPortal(
+        createPortal(
+          historyReceiptError && (
+            <ActionDialog
+              open
+              title="Receipt unavailable"
+              message={historyReceiptError}
+              onConfirm={() => setHistoryReceiptError('')}
+            />
+          ),
+          document.body,
+        ),
+        document.body,
       )}
-      {historyReceipt && historyReceipt.propertyId === selectedPropertyId && (() => {
-        const receiptModel = buildReceiptModel(historyReceipt.kind, historyReceipt.row, organization, {
-          settledAmount: historySettlement.amount,
-        })
-        return (
-          <ReceiptDialog
-            model={receiptModel}
-            verificationLoading={historySettlement.loading}
-            verificationError={historySettlement.error}
-            onClose={() => setHistoryReceipt(null)}
-            onPrint={(setup) => printReceipt(receiptModel, setHistoryPrintNotice, setup)}
-          />
-        )
-      })()}
-      <ActionDialog
-        open={Boolean(historyPrintNotice)}
-        title="Print window blocked"
-        message={historyPrintNotice}
-        onConfirm={() => setHistoryPrintNotice('')}
-      />
-      {voidTarget && (
-        <div className="homeowner-void-overlay" onMouseDown={() => !voiding && setVoidTarget(null)}>
-          <form className="homeowner-void-dialog" onSubmit={confirmVoid} onMouseDown={(e) => e.stopPropagation()}>
-            <div className="homeowner-void-icon" aria-hidden="true">!</div>
-            <h2>Void payment</h2>
-            <p>
-              {voidTarget.receipt_number} — {voidTarget.homeowner_name} — {peso.format(Number(voidTarget.amount_paid) || 0)}
-              <br />
-              The homeowner's balance is corrected automatically. This cannot be undone.
-            </p>
-            <label>Reason (required)
-              <textarea value={voidReason} onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }} rows="3" maxLength="250" placeholder="e.g., Wrong amount typed" autoFocus />
-            </label>
-            {voidError && <p className="homeowner-void-error">{voidError}</p>}
-            <div className="homeowner-void-actions">
-              <button type="button" className="button-cancel" onClick={() => setVoidTarget(null)} disabled={voiding}>Cancel</button>
-              <button type="submit" className="homeowner-void-confirm" disabled={voiding}>{voiding ? 'Voiding...' : 'Void payment'}</button>
-            </div>
-          </form>
-        </div>
+      {createPortal(
+        historyReceipt &&
+          historyReceipt.propertyId === selectedPropertyId &&
+          (() => {
+            const receiptModel = buildReceiptModel(
+              historyReceipt.kind,
+              historyReceipt.row,
+              organization,
+              {
+                settledAmount: historySettlement.amount,
+              },
+            )
+            return (
+              <ReceiptDialog
+                model={receiptModel}
+                verificationLoading={historySettlement.loading}
+                verificationError={historySettlement.error}
+                onClose={() => setHistoryReceipt(null)}
+                onPrint={(setup) =>
+                  printReceipt(receiptModel, setHistoryPrintNotice, setup)
+                }
+              />
+            )
+          })(),
+        document.body,
       )}
-      {balanceDialog && canManageBalances && isActiveHomeowner(balanceDialog) && (
-        <BalanceEntryDialog
-          property={balanceDialog}
+      {createPortal(
+        <ActionDialog
+          open={Boolean(historyPrintNotice)}
+          title="Print window blocked"
+          message={historyPrintNotice}
+          onConfirm={() => setHistoryPrintNotice('')}
+        />,
+        document.body,
+      )}
+      {createPortal(
+        voidTarget && (
+          <div
+            className="homeowner-void-overlay"
+            onMouseDown={() => !voiding && setVoidTarget(null)}
+          >
+            <form
+              className="homeowner-void-dialog"
+              onSubmit={confirmVoid}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="homeowner-void-icon" aria-hidden="true">
+                !
+              </div>
+              <h2>Void payment</h2>
+              <p>
+                {voidTarget.receipt_number} — {voidTarget.homeowner_name} —{' '}
+                {peso.format(Number(voidTarget.amount_paid) || 0)}
+                <br />
+                The homeowner's balance is corrected automatically. This cannot
+                be undone.
+              </p>
+              <label>
+                Reason (required)
+                <textarea
+                  value={voidReason}
+                  onChange={(e) => {
+                    setVoidReason(e.target.value)
+                    setVoidError('')
+                  }}
+                  rows="3"
+                  maxLength="250"
+                  placeholder="e.g., Wrong amount typed"
+                  autoFocus
+                />
+              </label>
+              {voidError && <p className="homeowner-void-error">{voidError}</p>}
+              <div className="homeowner-void-actions">
+                <button
+                  type="button"
+                  className="button-cancel"
+                  onClick={() => setVoidTarget(null)}
+                  disabled={voiding}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="homeowner-void-confirm"
+                  disabled={voiding}
+                >
+                  {voiding ? 'Voiding...' : 'Void payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        ),
+        document.body,
+      )}
+      {createPortal(
+        balanceDialog &&
+          canManageBalances &&
+          isActiveHomeowner(balanceDialog) && (
+            <BalanceEntryDialog
+              property={balanceDialog}
+              currentUser={currentUser}
+              onClose={() => setBalanceDialog(null)}
+              onSaved={(message) => {
+                setBalanceDialog(null)
+                setNotice(message)
+                setBreakdownKey((key) => key + 1)
+                loadHomeowners(true)
+              }}
+            />
+          ),
+        document.body,
+      )}
+      {createPortal(
+        <HomeownerAdminDialogs
+          dialog={adminDialog}
           currentUser={currentUser}
-          onClose={() => setBalanceDialog(null)}
-          onSaved={(message) => {
-            setBalanceDialog(null)
-            setNotice(message)
-            setBreakdownKey((key) => key + 1)
-            loadHomeowners(true)
-          }}
-        />
+          canManage={canManageHomeowners}
+          canManageBlocks={canManageBlocks}
+          onClose={() => setAdminDialog(null)}
+          onChanged={handleAdminChanged}
+        />,
+        document.body,
       )}
-      <HomeownerAdminDialogs
-        dialog={adminDialog}
-        currentUser={currentUser}
-        canManage={canManageHomeowners}
-        canManageBlocks={canManageBlocks}
-        onClose={() => setAdminDialog(null)}
-        onChanged={handleAdminChanged}
-      />
     </div>
   )
 }
@@ -1946,13 +3596,18 @@ useEffect(() => {
 
 // Management actions are audited transactionally by the database.
 
-
 // dialog: null | { type: 'blocks' } | { type: 'homeowner' | 'lot', property }
 // canManage: true for active Admin, Secretary, or Treasurer; block management is separate.
 // onChanged: called after a change the page should reload for; receives { message }
-function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks, onClose, onChanged }) {
+function HomeownerAdminDialogs({
+  dialog,
+  currentUser,
+  canManage,
+  canManageBlocks,
+  onClose,
+  onChanged,
+}) {
   const confirm = useConfirm()
-
 
   const [blocks, setBlocks] = useState([])
   const [blocksLoading, setBlocksLoading] = useState(false)
@@ -1983,7 +3638,10 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     setBlocksLoading(true)
     setBlocksLoadError('')
 
-    const { data, error } = await supabase.from('blocks').select('id, name').order('name')
+    const { data, error } = await supabase
+      .from('blocks')
+      .select('id, name')
+      .order('name')
 
     if (error) {
       setBlocks([])
@@ -2014,12 +3672,18 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
           ? {
               homeownerName: property.homeowner_name || '',
               blockName: dialog.type === 'lot' ? '' : property.block || '',
-              lotNumber: dialog.type === 'lot' ? '' : String(property.lot_number ?? ''),
-              lotSizeSqm: dialog.type === 'lot' || property.lot_size_sqm == null ? '' : String(property.lot_size_sqm),
+              lotNumber:
+                dialog.type === 'lot' ? '' : String(property.lot_number ?? ''),
+              lotSizeSqm:
+                dialog.type === 'lot' || property.lot_size_sqm == null
+                  ? ''
+                  : String(property.lot_size_sqm),
             }
           : EMPTY_HOMEOWNER,
       )
-      setEditingHomeownerId(property && dialog.type !== 'lot' ? property.id : null)
+      setEditingHomeownerId(
+        property && dialog.type !== 'lot' ? property.id : null,
+      )
     }
 
     loadBlocks()
@@ -2054,7 +3718,9 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     event.preventDefault()
 
     if (!canManage) {
-      setFormError('Only an Admin, Secretary, or Treasurer can manage homeowners.')
+      setFormError(
+        'Only an Admin, Secretary, or Treasurer can manage homeowners.',
+      )
       return
     }
 
@@ -2063,7 +3729,9 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
       return
     }
 
-    const homeownerName = homeownerForm.homeownerName.trim().replace(/\s+/g, ' ')
+    const homeownerName = homeownerForm.homeownerName
+      .trim()
+      .replace(/\s+/g, ' ')
     const blockName = homeownerForm.blockName.trim()
     const lotNumber = Number(homeownerForm.lotNumber)
 
@@ -2077,7 +3745,9 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
       return
     }
 
-        const existingLot = editingHomeownerId ? dialog?.property?.lot_size_sqm : null
+    const existingLot = editingHomeownerId
+      ? dialog?.property?.lot_size_sqm
+      : null
     const rawLot = String(homeownerForm.lotSizeSqm ?? '').trim()
     let lotSizeSqm = null
     if (rawLot !== '' || !editingHomeownerId || existingLot != null) {
@@ -2102,15 +3772,24 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     try {
       if (editingHomeownerId) {
         const original = dialog.property
-        const changes = Object.fromEntries(Object.entries(payload).filter(([field, value]) => {
-          return field === 'lot_size_sqm' ? Number(value) !== Number(original[field]) : value !== original[field]
-        }))
+        const changes = Object.fromEntries(
+          Object.entries(payload).filter(([field, value]) => {
+            return field === 'lot_size_sqm'
+              ? Number(value) !== Number(original[field])
+              : value !== original[field]
+          }),
+        )
         if (Object.keys(changes).length === 0) {
           setSavingHomeowner(false)
           onClose()
           return
         }
-        data = await updateHomeowner(supabase, editingHomeownerId, changes, original)
+        data = await updateHomeowner(
+          supabase,
+          editingHomeownerId,
+          changes,
+          original,
+        )
       } else if (dialog.type === 'lot') {
         const { data: id, error } = await supabase.rpc('add_homeowner_lot', {
           p_source_property_id: dialog.property.id,
@@ -2120,12 +3799,22 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
           p_lot_size_sqm: payload.lot_size_sqm,
         })
         if (error) throw error
-        if (id == null) throw new Error('The new lot could not be confirmed. Refresh before trying again.')
+        if (id == null)
+          throw new Error(
+            'The new lot could not be confirmed. Refresh before trying again.',
+          )
         data = { id }
       } else {
-        const result = await supabase.from('properties').insert(payload).select('id').single()
+        const result = await supabase
+          .from('properties')
+          .insert(payload)
+          .select('id')
+          .single()
         if (result.error) throw result.error
-        if (result.data?.id == null) throw new Error('The new homeowner could not be confirmed. Refresh before trying again.')
+        if (result.data?.id == null)
+          throw new Error(
+            'The new homeowner could not be confirmed. Refresh before trying again.',
+          )
         data = result.data
       }
     } catch (error) {
@@ -2146,15 +3835,14 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     if (onChanged) {
       onChanged({
         ...(dialog.type === 'lot' && { propertyId: data.id }),
-        message: dialog.type === 'lot'
-          ? `Lot ${lotNumber} was added for ${homeownerName}.`
-          : wasEditing
-          ? `Homeowner ${homeownerName} was updated.`
-          : `Homeowner ${homeownerName} was added.`,
+        message:
+          dialog.type === 'lot'
+            ? `Lot ${lotNumber} was added for ${homeownerName}.`
+            : wasEditing
+              ? `Homeowner ${homeownerName} was updated.`
+              : `Homeowner ${homeownerName} was added.`,
       })
     }
-
-
   }
 
   // ------------------------------------------------------------ Quick add block
@@ -2195,19 +3883,21 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
       .single()
 
     if (error) {
-      setQuickBlockError(error.code === '23505' ? 'That block already exists.' : error.message)
+      setQuickBlockError(
+        error.code === '23505' ? 'That block already exists.' : error.message,
+      )
       setSavingQuickBlock(false)
       return
     }
 
-    setBlocks((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)))
+    setBlocks((current) =>
+      [...current, data].sort((a, b) => a.name.localeCompare(b.name)),
+    )
     setSavingQuickBlock(false)
     setShowQuickBlock(false)
     setQuickBlockName('')
     setHomeownerForm((current) => ({ ...current, blockName: data.name }))
     notifySuccess(`Block ${data.name} was added.`)
-
-
   }
 
   // ------------------------------------------------------------- Manage Blocks
@@ -2238,7 +3928,9 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     const { error } = await supabase.from('blocks').insert({ name })
 
     if (error) {
-      setBlockError(error.code === '23505' ? 'That block already exists.' : error.message)
+      setBlockError(
+        error.code === '23505' ? 'That block already exists.' : error.message,
+      )
       setSavingBlock(false)
       return
     }
@@ -2247,8 +3939,6 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     setNewBlockName('')
     setSavingBlock(false)
     notifySuccess(`Block ${name} was added.`)
-
-
   }
 
   function startEditBlock(block) {
@@ -2296,7 +3986,10 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
       .single()
 
     if (renameError || !renamedBlock) {
-      setBlockActionError(renameError?.message || 'The block changed or is no longer available. Refresh and try again.')
+      setBlockActionError(
+        renameError?.message ||
+          'The block changed or is no longer available. Refresh and try again.',
+      )
       setBlockActionBusyId(null)
       return
     }
@@ -2308,8 +4001,6 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     if (onChanged) {
       onChanged({ message: `Block ${block.name} was renamed to ${newName}.` })
     }
-
-
   }
 
   async function handleDeleteBlock(block) {
@@ -2340,7 +4031,8 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
 
     const confirmed = await confirm({
       title: `Delete ${block.name}?`,
-      message: "No homeowners are assigned to this block. This can't be undone.",
+      message:
+        "No homeowners are assigned to this block. This can't be undone.",
       confirmLabel: 'Delete block',
       cancelLabel: 'Keep block',
       tone: 'danger',
@@ -2350,13 +4042,20 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     setBlockActionBusyId(block.id)
 
     // The foreign key rechecks assignment atomically, including concurrent inserts.
-    const { data: removedBlock, error } = await supabase.from('blocks').delete()
-      .eq('id', block.id).eq('name', block.name).select('id').single()
+    const { data: removedBlock, error } = await supabase
+      .from('blocks')
+      .delete()
+      .eq('id', block.id)
+      .eq('name', block.name)
+      .select('id')
+      .single()
 
     if (error || !removedBlock) {
-      setBlockActionError(['23503', '23001'].includes(error?.code)
-        ? 'This block still has homeowner records (active or historical). Reassign them before deleting it.'
-        : `Could not delete block: ${error?.message || 'The block changed or is no longer available. Refresh and try again.'}`)
+      setBlockActionError(
+        ['23503', '23001'].includes(error?.code)
+          ? 'This block still has homeowner records (active or historical). Reassign them before deleting it.'
+          : `Could not delete block: ${error?.message || 'The block changed or is no longer available. Refresh and try again.'}`,
+      )
       setBlockActionBusyId(null)
       return
     }
@@ -2365,7 +4064,6 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
     setBlockActionBusyId(null)
 
     notifySuccess(`Block ${block.name} was deleted.`)
-
   }
 
   if (!dialog) return null
@@ -2381,16 +4079,29 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
           >
             <div className="hod-heading">
               <div>
-                <h2>{dialogType === 'lot' ? 'Add Lot' : editingHomeownerId ? 'Edit Homeowner' : 'Add New Homeowner'}</h2>
+                <h2>
+                  {dialogType === 'lot'
+                    ? 'Add Lot'
+                    : editingHomeownerId
+                      ? 'Edit Homeowner'
+                      : 'Add New Homeowner'}
+                </h2>
                 <p>
                   {dialogType === 'lot'
                     ? `Add a separate lot for ${dialog.property.homeowner_name}. The lot starts unclassified until an Admin or Secretary verifies its property type.`
                     : editingHomeownerId
-                    ? 'Name changes apply to all linked lots. Changes to block, lot number, and area apply to this lot. The area is used for future dues.'
-                    : 'Add the homeowner and assign an available block and lot.'}
+                      ? 'Name changes apply to all linked lots. Changes to block, lot number, and area apply to this lot. The area is used for future dues.'
+                      : 'Add the homeowner and assign an available block and lot.'}
                 </p>
               </div>
-              <button type="button" className="hod-close" onClick={closeHomeownerForm} aria-label="Close">×</button>
+              <button
+                type="button"
+                className="hod-close"
+                onClick={closeHomeownerForm}
+                aria-label="Close"
+              >
+                ×
+              </button>
             </div>
 
             {dialogType !== 'lot' && (
@@ -2411,7 +4122,25 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
             <div className="hod-row">
               <div>
                 <label htmlFor="hod-homeowner-block">Block</label>
-                <Select ariaLabel="Block" value={homeownerForm.blockName} onChange={(value) => updateHomeownerField({ target: { name: 'blockName', value } })} options={[{ value: '', label: 'Select block' }, ...blocks.map((block) => ({ value: block.name, label: block.name })), ...(canManageBlocks ? [{ value: ADD_BLOCK_OPTION, label: '+ Add Block' }] : [])]} />
+                <Select
+                  ariaLabel="Block"
+                  value={homeownerForm.blockName}
+                  onChange={(value) =>
+                    updateHomeownerField({
+                      target: { name: 'blockName', value },
+                    })
+                  }
+                  options={[
+                    { value: '', label: 'Select block' },
+                    ...blocks.map((block) => ({
+                      value: block.name,
+                      label: block.name,
+                    })),
+                    ...(canManageBlocks
+                      ? [{ value: ADD_BLOCK_OPTION, label: '+ Add Block' }]
+                      : []),
+                  ]}
+                />
               </div>
               <div>
                 <label htmlFor="hod-homeowner-lot">Lot number</label>
@@ -2429,40 +4158,51 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
               </div>
             </div>
 
-     <div>
-    <label htmlFor="hod-homeowner-lot-size">Lot size (sqm)</label>
-    <input
-      id="hod-homeowner-lot-size"
-      name="lotSizeSqm"
-      type="number"
-      inputMode="decimal"
-      min="0.01"
-      step="0.01"
-      value={homeownerForm.lotSizeSqm}
-      onChange={updateHomeownerField}
-      placeholder="e.g., 150.50"
-    />
-  </div>
-
+            <div>
+              <label htmlFor="hod-homeowner-lot-size">Lot size (sqm)</label>
+              <input
+                id="hod-homeowner-lot-size"
+                name="lotSizeSqm"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                value={homeownerForm.lotSizeSqm}
+                onChange={updateHomeownerField}
+                placeholder="e.g., 150.50"
+              />
+            </div>
 
             {blocksLoadError && <p className="hod-error">{blocksLoadError}</p>}
             {!blocksLoading && !blocksLoadError && blocks.length === 0 && (
               <p className="hod-note">
-                No blocks are available. Ask an Admin or Secretary to create a block before adding a homeowner.
+                No blocks are available. Ask an Admin or Secretary to create a
+                block before adding a homeowner.
               </p>
             )}
             {formError && <p className="hod-error">{formError}</p>}
 
             <div className="hod-actions">
-              <button type="button" className="hod-cancel" onClick={closeHomeownerForm} disabled={savingHomeowner}>
+              <button
+                type="button"
+                className="hod-cancel"
+                onClick={closeHomeownerForm}
+                disabled={savingHomeowner}
+              >
                 Cancel
               </button>
-              <button type="submit" className="hod-save" disabled={savingHomeowner || blocks.length === 0}>
+              <button
+                type="submit"
+                className="hod-save"
+                disabled={savingHomeowner || blocks.length === 0}
+              >
                 {savingHomeowner
                   ? 'Saving...'
                   : editingHomeownerId
                     ? 'Save Changes'
-                    : dialogType === 'lot' ? 'Save Lot' : 'Save Homeowner'}
+                    : dialogType === 'lot'
+                      ? 'Save Lot'
+                      : 'Save Homeowner'}
               </button>
             </div>
           </form>
@@ -2474,28 +4214,55 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
           className="hod-backdrop"
           onMouseDown={() => !savingBlock && !blockActionBusyId && onClose()}
         >
-          <div className="hod-modal" onMouseDown={(event) => event.stopPropagation()}>
+          <div
+            className="hod-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <div className="hod-heading">
               <div>
                 <h2>Manage Blocks</h2>
-                <p>Rename or remove existing blocks, or add a new one. Blocks with homeowners still assigned to them can't be deleted.</p>
+                <p>
+                  Rename or remove existing blocks, or add a new one. Blocks
+                  with homeowners still assigned to them can't be deleted.
+                </p>
               </div>
-              <button type="button" className="hod-close" onClick={onClose} aria-label="Close">×</button>
+              <button
+                type="button"
+                className="hod-close"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                ×
+              </button>
             </div>
 
             {blocksLoadError && <p className="hod-error">{blocksLoadError}</p>}
-            {blockActionError && <p className="hod-error">{blockActionError}</p>}
+            {blockActionError && (
+              <p className="hod-error">{blockActionError}</p>
+            )}
 
             <ul className="hod-blocks-list">
-              {blocksLoading && blocks.length === 0 && <li className="hod-note" aria-busy="true"><Skeleton variant="rect" width="100%" height="40px" /><Skeleton variant="rect" width="100%" height="40px" /><span className="skeleton-region-status" role="status">Loading</span></li>}
-              {!blocksLoading && blocks.length === 0 && <li className="hod-note">No blocks yet.</li>}
+              {blocksLoading && blocks.length === 0 && (
+                <li className="hod-note" aria-busy="true">
+                  <Skeleton variant="rect" width="100%" height="40px" />
+                  <Skeleton variant="rect" width="100%" height="40px" />
+                  <span className="skeleton-region-status" role="status">
+                    Loading
+                  </span>
+                </li>
+              )}
+              {!blocksLoading && blocks.length === 0 && (
+                <li className="hod-note">No blocks yet.</li>
+              )}
               {blocks.map((block) => (
                 <li key={block.id} className="hod-block-row">
                   {editingBlockId === block.id ? (
                     <>
                       <input
                         value={editingBlockName}
-                        onChange={(event) => setEditingBlockName(event.target.value)}
+                        onChange={(event) =>
+                          setEditingBlockName(event.target.value)
+                        }
                         maxLength="50"
                         autoFocus
                       />
@@ -2507,19 +4274,33 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
                       >
                         {blockActionBusyId === block.id ? 'Saving...' : 'Save'}
                       </button>
-                      <button type="button" className="hod-icon-btn button-cancel" onClick={cancelEditBlock}>Cancel</button>
+                      <button
+                        type="button"
+                        className="hod-icon-btn button-cancel"
+                        onClick={cancelEditBlock}
+                      >
+                        Cancel
+                      </button>
                     </>
                   ) : (
                     <>
                       <span>{block.name}</span>
-                      <button type="button" className="hod-icon-btn" onClick={() => startEditBlock(block)}>Edit</button>
+                      <button
+                        type="button"
+                        className="hod-icon-btn"
+                        onClick={() => startEditBlock(block)}
+                      >
+                        Edit
+                      </button>
                       <button
                         type="button"
                         className="hod-icon-btn hod-icon-btn-danger"
                         onClick={() => handleDeleteBlock(block)}
                         disabled={blockActionBusyId === block.id}
                       >
-                        {blockActionBusyId === block.id ? 'Working...' : 'Delete'}
+                        {blockActionBusyId === block.id
+                          ? 'Working...'
+                          : 'Delete'}
                       </button>
                     </>
                   )}
@@ -2540,7 +4321,11 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
                   placeholder="e.g., Block F"
                   maxLength="50"
                 />
-                <button type="submit" className="hod-save" disabled={savingBlock}>
+                <button
+                  type="submit"
+                  className="hod-save"
+                  disabled={savingBlock}
+                >
                   {savingBlock ? 'Saving...' : 'Add Block'}
                 </button>
               </div>
@@ -2548,7 +4333,9 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
             </form>
 
             <div className="hod-actions">
-              <button type="button" className="hod-cancel" onClick={onClose}>Close</button>
+              <button type="button" className="hod-cancel" onClick={onClose}>
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -2566,7 +4353,14 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
                 <h2>Add Block</h2>
                 <p>Create a new block before assigning homeowners to it.</p>
               </div>
-              <button type="button" className="hod-close" onClick={closeQuickBlock} aria-label="Close">×</button>
+              <button
+                type="button"
+                className="hod-close"
+                onClick={closeQuickBlock}
+                aria-label="Close"
+              >
+                ×
+              </button>
             </div>
 
             <label htmlFor="hod-quick-block-name">Block name</label>
@@ -2586,10 +4380,19 @@ function HomeownerAdminDialogs({ dialog, currentUser, canManage, canManageBlocks
             {quickBlockError && <p className="hod-error">{quickBlockError}</p>}
 
             <div className="hod-actions">
-              <button type="button" className="hod-cancel" onClick={closeQuickBlock} disabled={savingQuickBlock}>
+              <button
+                type="button"
+                className="hod-cancel"
+                onClick={closeQuickBlock}
+                disabled={savingQuickBlock}
+              >
                 Cancel
               </button>
-              <button type="submit" className="hod-save" disabled={savingQuickBlock}>
+              <button
+                type="submit"
+                className="hod-save"
+                disabled={savingQuickBlock}
+              >
                 {savingQuickBlock ? 'Saving...' : 'Save Block'}
               </button>
             </div>

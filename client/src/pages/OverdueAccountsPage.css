@@ -1099,65 +1099,66 @@
   height: 44px;
   padding: 0 40px;
 }
-/* Module header: matching icon tile and Dashboard display font. */
-.overdue-page .od-header { flex-wrap: wrap; align-items: center; }
-.overdue-page .od-header-heading { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1 1 320px; }
-.overdue-page .od-header-copy { min-width: 0; overflow-wrap: anywhere; }
-.overdue-page .od-header-copy h1 { font-family: var(--font-display); }
-.overdue-page .od-header-icon { display: grid; place-items: center; flex: 0 0 60px; width: 60px; height: 60px; color: #fff; background: linear-gradient(135deg, #176ba2, #128b89); border: 1px solid rgba(255,255,255,.4); border-radius: 18px; box-shadow: 0 10px 22px rgba(17,91,128,.2); }
-.overdue-page .od-header-icon svg { display: block; stroke-width: 1.8; }
-.overdue-page .od-header > .od-btn { flex-shrink: 0; max-width: 100%; }
-@media (max-width: 600px) {
-  .overdue-page .od-header-heading { flex-basis: 100%; gap: 12px; }
-  .overdue-page .od-header-icon { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
+/* Independent filters and table panels, with an inset table surface. */
+.overdue-page .od-filter-panel .od-filters {
+  position: static;
+  border-bottom: 0;
+  background: transparent;
 }
-
-/* Compact Admin Dashboard-style account summaries. */
-
-.overdue-page { container:overdue-summary-layout/inline-size; }
-.overdue-page .od-kpis { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:stretch;margin:20px 0; }
-.overdue-page .od-kpi { --stat-accent:#287fae;display:flex;flex-direction:column;min-width:0;padding:16px 18px 14px;border:1px solid #ffffffed;border-radius:20px;background:linear-gradient(150deg,#ffffffee,#f0f7fe);box-shadow:0 12px 28px -16px #17456835;font-family:'Segoe UI',Arial,sans-serif; }
-.overdue-page .od-kpi-top { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px; }
-.overdue-page .od-kpi-top .od-kpi-label { min-width:0;color:#456b85;font:700 11px/1.4 'Segoe UI',Arial,sans-serif;letter-spacing:.3px; }
-.overdue-page .od-kpi-icon { display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border:0;border-radius:9px;background:#e8f2fb;color:var(--stat-accent);box-shadow:none; }
-.overdue-page .od-kpi-icon svg { width:17px;height:17px; }
-.overdue-page .od-kpi strong { display:block;margin:10px 0 4px;color:#14334a;font:600 clamp(23px,1.8vw,28px)/1.15 Georgia,serif;letter-spacing:-.4px;white-space:normal;overflow-wrap:anywhere;font-variant-numeric:tabular-nums; }
-.overdue-page .od-kpi small { display:block;margin:0 0 9px;color:#527791;font:400 12px/1.45 'Segoe UI',Arial,sans-serif; }
-.overdue-page .od-kpi-footer { display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:8px;border-top:1px solid #dce8f2;color:#54758d;font:400 10.5px/1.4 'Segoe UI',Arial,sans-serif; }
-.overdue-page .od-kpi-footer>span { display:block;width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:var(--stat-accent); }
-.overdue-page .od-kpi:nth-child(2) { --stat-accent:#168461; }
-.overdue-page .od-kpi:nth-child(2) .od-kpi-icon { background:#e8f5ef; }
-.overdue-page .od-kpi:nth-child(3) { --stat-accent:#c48739; }
-.overdue-page .od-kpi:nth-child(3) .od-kpi-icon { background:#fff3e4; }
-.overdue-page .od-kpi:nth-child(4) { --stat-accent:#6b79b4; }
-.overdue-page .od-kpi:nth-child(4) .od-kpi-icon { background:#eef0fb; }
-@container overdue-summary-layout (max-width:1150px) { .overdue-page .od-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@container overdue-summary-layout (max-width:600px) { .overdue-page .od-kpis { grid-template-columns:minmax(0,1fr); } }
-
-.overdue-page .od-kpi { backdrop-filter:none;-webkit-backdrop-filter:none; }
-.overdue-page .od-kpi .od-kpi-icon { color:var(--stat-accent); }
-.overdue-page .od-kpi>strong.red { color:#14334a; }
-
-/* One shared panel for the four interactive aging ranges. */
-.overdue-page .od-aging-panel {
-  min-width:0;
-  padding:20px;
-  border:1px solid rgba(255,255,255,.9);
-  border-radius:22px;
-  background:linear-gradient(150deg,rgba(255,255,255,.85),rgba(240,247,254,.8));
-  box-shadow:0 12px 28px -16px #17456835;
+.overdue-page .od-accounts-panel {
+  padding: 24px;
+  border: 1px solid #ffffffed;
+  border-radius: 24px;
+  background: linear-gradient(130deg, #ffffffed, #edf7ffdf);
+  box-shadow: 0 16px 36px -22px #17456859, inset 0 1px 0 #fff;
 }
-.overdue-page .od-aging-heading { margin-bottom:14px; }
-.overdue-page .od-aging-heading h2 { margin:0;color:#14334a;font:600 21px/1.3 var(--font-display,Georgia,serif); }
-.overdue-page .od-aging-heading p { margin:4px 0 0;color:#527791;font-size:13px;line-height:1.5; }
-.overdue-page .od-aging-panel .od-tiers { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;min-width:0; }
-.overdue-page .od-aging-panel .od-tier { min-width:0;width:100%;box-shadow:none; }
-.overdue-page .od-aging-panel .od-tier-top { flex-wrap:wrap; }
-.overdue-page .od-aging-panel .od-tier strong,.overdue-page .od-aging-panel .od-tier small { overflow-wrap:anywhere; }
-@container overdue-summary-layout (max-width:1000px) {
-  .overdue-page .od-aging-panel .od-tiers { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.overdue-page .od-accounts-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
 }
-@container overdue-summary-layout (max-width:500px) {
-  .overdue-page .od-aging-panel { padding:16px; }
-  .overdue-page .od-aging-panel .od-tiers { grid-template-columns:minmax(0,1fr);gap:10px; }
+.overdue-page .od-accounts-heading h2 {
+  margin: 0;
+  color: var(--text-dark);
+  font: 650 25px/1.3 var(--font-display);
+}
+.overdue-page .od-accounts-heading p {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.overdue-page .od-accounts-heading > span {
+  padding: 8px 11px;
+  border: 1px solid #d4e5f3;
+  border-radius: 10px;
+  background: #ffffffb3;
+  color: #527791;
+  font-size: 12px;
+}
+.overdue-page .od-accounts-panel > .od-table-wrap {
+  border: 1px solid #bdd7eb;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 18px -12px #245e8659;
+  overflow: auto;
+}
+.overdue-page .od-accounts-panel .od-table thead th {
+  background: #176ba2;
+}
+.overdue-page .od-accounts-panel .od-table tbody tr:nth-child(even) {
+  background: #f2f8fd;
+}
+.overdue-page .od-accounts-panel .od-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.overdue-page .od-accounts-panel > .od-pager {
+  padding: 18px 0 0;
+}
+@media (max-width: 640px) {
+  .overdue-page .od-accounts-panel { padding: 18px 14px; border-radius: 20px; }
+  .overdue-page .od-accounts-heading h2 { font-size: 23px; }
 }

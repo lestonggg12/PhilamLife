@@ -3044,3 +3044,88 @@
 /* Override the previous truncation and sheen on Payment summary cards. */
 .payments-page .payments-summary-card::after { display:none; }
 .payments-page .payments-summary-card strong { overflow:visible;text-overflow:clip;white-space:normal; }
+
+/* Compact floating calendar, matching the approved Activity Log picker. */
+.payments-calendar-animation.payments-calendar-floating {
+  position:fixed;
+  z-index:160;
+  margin:0;
+  overflow:auto;
+  overscroll-behavior:contain;
+  max-width:calc(100vw - 24px);
+  border:1px solid #c4daed;
+  border-radius:14px;
+  background:rgba(250,253,255,.98);
+  color:#173d55;
+  box-shadow:0 0 0 1px rgba(255,255,255,.7),0 16px 45px rgba(24,64,96,.25);
+  backdrop-filter:blur(24px);
+  transform-origin:top right;
+  font:11px/1.5 var(--font-body,Arial,sans-serif);
+}
+.payments-calendar-floating * { box-sizing:border-box }
+.payments-calendar-floating .payments-range {
+  display:grid;
+  grid-template-columns:132px minmax(0,1fr);
+  width:100%;
+  max-width:none;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  color:#173d55;
+  overflow:visible;
+  font:inherit;
+}
+.payments-calendar-floating button { min-height:0;font-family:inherit }
+.payments-calendar-floating button:focus-visible,.payments-calendar-floating input:focus-visible { outline:2px solid #1769a2;outline-offset:2px }
+.payments-calendar-floating .payments-range-presets { display:flex;flex-direction:column;gap:2px;padding:12px 9px;background:#edf5fc;border-right:1px solid #d9e7f3;border-bottom:0 }
+.payments-calendar-floating .payments-range-presets h3 { display:block;margin:0 6px 5px;font:700 10px/1.5 var(--font-body,Arial,sans-serif);text-transform:uppercase;letter-spacing:.08em;color:#567992 }
+.payments-calendar-floating .payments-range-presets > button { width:100%;padding:6px 8px;border:0;border-radius:7px;background:transparent;color:#356584;font-size:11px;font-weight:500;line-height:1.5;text-align:left;cursor:pointer }
+.payments-calendar-floating .payments-range-presets > button:hover { background:#e4f0fc }
+.payments-calendar-floating .payments-range-presets > button[aria-pressed='true'] { color:white;background:#1769a2;font-weight:600 }
+.payments-calendar-floating .payments-range-calendar { min-width:0;padding:12px 14px }
+.payments-calendar-floating .payments-range-nav { display:flex;align-items:center;justify-content:space-between;margin-bottom:10px }
+.payments-calendar-floating .payments-range-nav strong { color:#173d55;font:700 13px/1.5 var(--font-body,Arial,sans-serif) }
+.payments-calendar-floating .payments-range-nav button { width:25px;height:25px;border:1px solid #d4e4ef;border-radius:7px;padding:0;background:white;color:#356584;font-size:18px;line-height:1;cursor:pointer }
+.payments-calendar-floating .payments-range-weekdays,.payments-calendar-floating .payments-range-grid { display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center }
+.payments-calendar-floating .payments-range-weekdays { margin-bottom:4px }
+.payments-calendar-floating .payments-range-weekdays span { padding:0;font-size:9px;color:#6b869b;font-weight:650;text-transform:none }
+.payments-calendar-floating .payments-range-grid button { display:grid;place-items:center;position:relative;height:28px;min-height:28px;width:100%;padding:3px;border:0;border-radius:7px;background:transparent;color:#356584;font:11px/1.5 var(--font-body,Arial,sans-serif);cursor:pointer }
+.payments-calendar-floating .payments-range-grid button:hover:not(:disabled) { background:#e4f0fc }
+.payments-calendar-floating .payments-range-grid button.is-outside { color:#8aa1b4 }
+.payments-calendar-floating .payments-range-grid button:disabled,.payments-calendar-floating .payments-range-nav button:disabled { opacity:.3;cursor:default }
+.payments-calendar-floating .payments-range-grid button.is-in-range { background:#e9f3fc }
+.payments-calendar-floating .payments-range-grid button.is-edge { background:#1769a2;color:white;font-weight:700 }
+.payments-calendar-floating .payments-range-grid button.is-today:not(.is-edge) { box-shadow:inset 0 0 0 1px #1769a2 }
+.payments-calendar-floating .payments-range-grid button.is-today::after { content:none }
+.payments-calendar-floating .payments-range-grid button.has-payments::before { content:'';position:absolute;top:auto;right:auto;left:50%;bottom:3px;width:3px;height:3px;border-radius:50%;background:#287eaf;transform:translateX(-50%) }
+.payments-calendar-floating .payments-range-grid button.is-edge.has-payments::before { background:white }
+.payments-calendar-floating .payments-range-legend { display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap;padding:0;margin-top:9px;font-size:9px;color:#5a7e98 }
+.payments-calendar-floating .payments-range-legend > span { display:flex;align-items:center;gap:5px }
+.payments-calendar-floating .payments-range-legend i { width:5px;height:5px;margin:0;background:#287eaf;border-radius:50% }
+.payments-calendar-floating .payments-range-mode { display:flex;align-items:center;gap:4px;font-size:9px }
+.payments-calendar-floating .payments-range-mode input { width:13px;height:13px;margin:0;accent-color:#1769a2 }
+.payments-calendar-floating .payments-range-month { margin-top:6px;padding:8px 2px 0;border-top:1px solid #d8e6f1 }
+.payments-calendar-floating .payments-range-month label,.payments-calendar-floating .payments-range-inputs label { display:flex;flex-direction:column;gap:4px;color:#52758e;font-size:10px;line-height:1.5 }
+.payments-calendar-floating .payments-range-month input,.payments-calendar-floating .payments-range-inputs input { width:100%;height:29px;min-width:0;border:1px solid #c8ddec;border-radius:6px;background:white;color:#173d55;padding:4px;font:10px/1.5 var(--font-body,Arial,sans-serif) }
+.payments-calendar-floating .payments-range-month button { margin-top:5px;min-height:27px;padding:4px 8px;border:1px solid #c7ddeb;border-radius:7px;background:white;color:#356584;font-size:10px;cursor:pointer }
+.payments-calendar-floating .payments-range-inputs { display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px }
+.payments-calendar-floating .payments-range-foot { display:flex;grid-column:1/-1;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-top:1px solid #dce8f3;background:#fbfdff;flex-wrap:wrap }
+.payments-calendar-floating .payments-range-foot > span { flex:1;min-width:100px;color:#62829a;font-size:10px;font-weight:400;line-height:1.4;overflow-wrap:anywhere }
+.payments-calendar-floating .payments-range-foot > div { display:flex;gap:6px }
+.payments-calendar-floating .payments-range-foot button { min-height:29px;padding:4px 9px;border:1px solid #c9dfef;border-radius:7px;background:white;color:#356584;font-size:10.5px;font-weight:500;line-height:1.5;cursor:pointer;box-shadow:none }
+.payments-calendar-floating .payments-range-foot .payments-primary { background:#1769a2;border-color:#1769a2;color:white }
+.payments-calendar-floating button:disabled { opacity:.4;cursor:default }
+@media (max-width:500px) {
+  .payments-calendar-floating .payments-range { grid-template-columns:minmax(0,1fr) }
+  .payments-calendar-floating .payments-range-presets { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:10px;border-right:0;border-bottom:1px solid #d9e7f3 }
+  .payments-calendar-floating .payments-range-presets h3 { grid-column:1/-1;margin:0 0 2px }
+  .payments-calendar-floating .payments-range-presets > button { font-size:10px;padding:5px }
+  .payments-calendar-floating .payments-range-month { grid-column:1/-1;display:flex;align-items:center;gap:7px;margin-top:3px;padding-top:6px }
+  .payments-calendar-floating .payments-range-month label { flex:1;min-width:0 }
+  .payments-calendar-floating .payments-range-month button { margin-top:0;flex-shrink:0 }
+  .payments-calendar-floating .payments-range-calendar { padding:10px 12px }
+}
+@media (prefers-reduced-motion:reduce) {
+  .payments-calendar-animation.payments-calendar-floating { transform:none;transition:none }
+}
