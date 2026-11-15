@@ -391,6 +391,8 @@ export default function MonthlyBillingAuditPage() {
     ...months.map((item) => Math.max(item.assessed, item.verifiedUnpaid)),
   );
   const evidenceCount = Math.max(0, totals.billed - totals.unknown);
+  const missingEvidence = totals.unknown > 0;
+  const noVerifiedEvidence = totals.billed > 0 && totals.unknown === totals.billed;
   const kpis = [
     [
       "Total billed",
@@ -408,15 +410,19 @@ export default function MonthlyBillingAuditPage() {
     ],
     [
       "Credit used",
-      peso.format(totals.verifiedCredit),
-      "Verified advance balance applied",
+      noVerifiedEvidence ? "—" : peso.format(totals.verifiedCredit),
+      missingEvidence
+        ? `Verified amount only; ${count(totals.unknown)} charges lack detail`
+        : "Verified advance balance applied",
       ArrowDownLeft,
       "",
     ],
     [
       "Unpaid portion",
-      peso.format(totals.verifiedUnpaid),
-      "Verified amount added at billing",
+      noVerifiedEvidence ? "—" : peso.format(totals.verifiedUnpaid),
+      missingEvidence
+        ? `Verified amount only; ${count(totals.unknown)} charges lack detail`
+        : "Verified amount added at billing",
       Clock3,
       "",
     ],
