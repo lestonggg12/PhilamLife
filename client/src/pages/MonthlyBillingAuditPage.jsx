@@ -690,6 +690,30 @@ export default function MonthlyBillingAuditPage() {
             >
               {expanded ? "Hide details" : "Details"}
             </button>
+            {view === "month" &&
+              data.rows.some((row) => !row.voided_at && !row.historicalBalanceVerified) && (
+                <div
+                  className="ba-confidence-details"
+                  role="note"
+                  aria-label="Historical billing balance notice"
+                >
+                  {month === "2026-11" ? (
+                    <p>
+                      <strong>November historical balances were not captured.</strong>{" "}
+                      November dues were recorded, but balances immediately
+                      before and after billing were not saved.{" "}
+                      <strong>Next scheduled billing: December 3, 2026 (Philippine time).</strong>{" "}
+                      New monthly charges are configured to capture both balances
+                      when successfully posted. Check the December audit after that run.
+                    </p>
+                  ) : (
+                    <p>
+                      <strong>Historical balance data is unavailable for some charges.</strong>{" "}
+                      Past balances cannot be reliably reconstructed from today's account balance.
+                    </p>
+                  )}
+                </div>
+              )}
             {expanded && (
               <div id="ba-confidence-details" className="ba-confidence-details">
                 {view === "year" ? (
