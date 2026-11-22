@@ -401,16 +401,16 @@
   background: #ffffff2e;
   color: #fff;
 }
-.ba-records .ba-table-wrap {
+.ba-table-wrap {
   width: 100%;
   min-width: 0;
 }
-.ba-records-table {
+.ba-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
-.ba-records-table th {
+.ba-table th {
   text-align: left;
   padding: 11px 16px;
   font-size: 11px;
@@ -420,7 +420,7 @@
   background: #f3f8fc;
   border-bottom: 1px solid var(--ba-line);
 }
-.ba-records-table th button {
+.ba-table th button {
   display: inline-flex;
   gap: 6px;
   align-items: center;
@@ -434,38 +434,29 @@
   color: inherit;
   text-align: inherit;
 }
-.ba-records-table th button span {
+.ba-table th button span {
   opacity: 0.6;
 }
-.ba-records-table th[aria-sort="ascending"],
-.ba-records-table th[aria-sort="descending"] {
+.ba-table th[aria-sort="ascending"],
+.ba-table th[aria-sort="descending"] {
   color: var(--ba-primary);
 }
-.ba-records-table td {
+.ba-table td {
   padding: 11px 16px;
   border-bottom: 1px solid #edf3f8;
   vertical-align: middle;
   overflow-wrap: anywhere;
 }
-.ba-records-table th:nth-child(1) {
-  width: 28%;
+.ba-table th:first-child {
+  width: 27%;
 }
-.ba-records-table th:nth-child(2) {
-  width: 18%;
+.ba-table th:last-child:has(.ba-sr-only) {
+  width: 42px;
 }
-.ba-records-table th:nth-child(3) {
-  width: 16%;
-}
-.ba-records-table th:nth-child(4) {
-  width: 20%;
-}
-.ba-records-table th:nth-child(5) {
-  width: 18%;
-}
-.ba-records-table tbody tr:hover td {
+.ba-table tbody tr:hover td {
   background: #f8fbfe;
 }
-.ba-records-table .ba-number {
+.ba-table .ba-number {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -485,35 +476,6 @@
   display: block;
   color: var(--ba-muted);
   font-size: 12px;
-}
-.ba-account .ba-class {
-  margin-top: 5px;
-}
-.ba-view-details {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-top: 7px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ba-primary);
-  font-size: 12px;
-  font-weight: 700;
-}
-.ba-historical-missing {
-  color: var(--ba-muted);
-  font-weight: 600;
-}
-.ba-record-toolbar-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 22px 14px;
-}
-.ba-record-toolbar-row .ba-search {
-  max-width: 360px;
 }
 .ba-account code {
   font:
@@ -546,7 +508,6 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--ba-light);
-  white-space: nowrap;
 }
 .ba-status {
   display: inline-flex;
@@ -557,7 +518,6 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
-  white-space: nowrap;
 }
 .ba-status:before {
   content: "";
@@ -587,10 +547,10 @@
   background: #fce9e7;
   color: #b44836;
 }
-.ba-records-table .ba-voided-row td {
+.ba-table .ba-voided-row td {
   background: #fff6f5;
 }
-.ba-records-table .ba-selected td {
+.ba-table .ba-selected td {
   background: #e8f2fb;
 }
 .ba-row-open {
@@ -600,53 +560,6 @@
   background: none;
   padding: 3px;
   color: #7e9ab0;
-}
-.ba-current-dues {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-}
-.ba-current-dues-warning {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 22px 14px;
-  padding: 10px 12px;
-  border: 1px solid #e7ca8a;
-  border-radius: 10px;
-  background: #fff9eb;
-  color: #765000;
-  font-size: 13px;
-}
-.ba-current-dues-warning p {
-  flex: 1;
-  margin: 0;
-}
-.ba-current-dues-warning .ba-button {
-  min-height: 32px;
-  padding: 4px 10px;
-  border-color: #d6b768;
-  background: #fff;
-  color: #765000;
-}
-.ba-drawer-section {
-  margin-top: 20px;
-}
-.ba-drawer-section h3,
-.ba-processing-details summary {
-  margin: 0 0 10px;
-  color: var(--ba-text);
-  font-size: 14px;
-  font-weight: 700;
-}
-.ba-processing-details {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--ba-line);
-}
-.ba-processing-details summary {
-  cursor: pointer;
 }
 .ba-pagination {
   display: flex;
@@ -950,8 +863,7 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .ba-record-heading > div,
-  .ba-tools,
-  .ba-record-toolbar-row {
+  .ba-tools {
     width: 100%;
   }
   .ba-search input {
@@ -965,31 +877,31 @@
   .ba-header-actions {
     width: 100%;
   }
-  .ba-records-table thead {
+  .ba-table thead {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
   }
-  .ba-records-table,
-  .ba-records-table tbody {
+  .ba-table,
+  .ba-table tbody {
     display: block;
   }
-  .ba-records-table tbody tr {
+  .ba-table tbody tr {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px 14px;
     padding: 14px 18px;
     border-top: 1px solid var(--ba-line);
   }
-  .ba-records-table td {
+  .ba-table td {
     display: block;
     padding: 0 !important;
     border: 0;
     text-align: left !important;
   }
-  .ba-records-table td:before {
+  .ba-table td:before {
     content: attr(data-label);
     display: block;
     color: var(--ba-muted);
@@ -997,24 +909,21 @@
     font-weight: 600;
     margin-bottom: 3px;
   }
-  .ba-records-table .ba-account {
+  .ba-table .ba-account {
     grid-column: 1/-1;
   }
-  .ba-records-table .ba-view-details {
-    float: right;
-  }
-  .ba-records-table tfoot {
+  .ba-table tfoot {
     display: block;
     padding: 12px 18px;
     background: var(--ba-paper);
   }
-  .ba-records-table tfoot tr {
+  .ba-table tfoot tr {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
   }
-  .ba-records-table tfoot th,
-  .ba-records-table tfoot td {
+  .ba-table tfoot th,
+  .ba-table tfoot td {
     padding: 0;
   }
 }
@@ -1055,14 +964,8 @@
     padding: 0 16px 14px;
   }
   .ba-tools,
-  .ba-search,
-  .ba-record-toolbar-row {
+  .ba-search {
     width: 100%;
-  }
-  .ba-record-toolbar-row {
-    padding: 0 16px 14px;
-    align-items: stretch;
-    flex-direction: column;
   }
   .ba-density {
     flex: 1;
@@ -1186,3 +1089,240 @@
 @media(max-width:500px) { .billing-audit-page .ba-header { padding: 20px; } }
 .billing-audit-page.ba-compact .ba-records .ba-table td { padding: 10px 12px; }
 @container billing-audit (max-width: 700px) { .billing-audit-page.ba-compact .ba-records .ba-table td { padding: 6px 0; } }
+
+.billing-audit-page .ba-header { padding: 25px 28px; border-radius: 26px; background: linear-gradient(115deg,#fff,#edf7ff 55%,#c9e3fa); border: 1px solid #fffffff2; box-shadow: 0 15px 36px -24px #285b8066; }
+.billing-audit-page .ba-header h1 { font-size: 32px; }
+.billing-audit-page .ba-header-actions { gap: 9px; }
+.billing-audit-page .ba-confidence { margin-top: 18px; border-radius: 16px; }
+.billing-audit-page .ba-confidence-review { background: #fff9ed; border: 1px solid #ead6aa; color: #72592e; }
+.billing-audit-page .ba-confidence-review > svg { color: #aa7b24; }
+.billing-audit-page .ba-confidence-review .ba-text-button { color: #826123; }
+.billing-audit-page .ba-kpis { grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px; margin: 18px 0; align-items: stretch; }
+.billing-audit-page .ba-kpi { display: flex; flex-direction: column; min-width: 0; min-height: 156px; padding: 18px 18px 16px; border: 1px solid #d6e6f2; border-radius: 21px; background: linear-gradient(145deg,#fff,#eef7ff); box-shadow: 0 10px 25px -18px #24557459; }
+.billing-audit-page .ba-kpi-top { min-height: 34px; align-items: flex-start; gap: 12px; }
+.billing-audit-page .ba-kpi-top h2 { font-size: 10.5px; letter-spacing: .55px; line-height: 1.5; }
+.billing-audit-page .ba-kpi-icon { width: 32px; height: 32px; border-radius: 10px; flex: 0 0 32px; }
+.billing-audit-page .ba-kpi-icon svg { width: 17px; height: 17px; }
+.billing-audit-page .ba-kpi > strong { font: 600 28px/1.25 Georgia,serif; color: #234f6c; margin: 13px 0 8px; overflow-wrap: anywhere; }
+.billing-audit-page .ba-kpi:nth-child(3) > strong,
+.billing-audit-page .ba-kpi:nth-child(4) > strong { font-size: 24px; }
+.billing-audit-page .ba-kpi > small { margin-top: auto; font-size: 11.5px; color: #648399; line-height: 1.55; }
+.billing-audit-page .ba-kpi-flag { background: linear-gradient(145deg,#fffdfa,#fff5dd); border-color: #eddaae; }
+.billing-audit-page .ba-kpi-flag > strong { color: #956d23; }
+.billing-audit-page .ba-records { padding: 24px; border: 1px solid #ffffffed; border-radius: 25px; background: linear-gradient(145deg,#fffffff0,#edf7ffe6); box-shadow: 0 17px 38px -25px #285b8066; }
+.billing-audit-page .ba-record-tools { background: transparent; border-radius: 0; }
+.billing-audit-page .ba-records .ba-record-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 0; margin-bottom: 19px; }
+.billing-audit-page .ba-records .ba-record-heading > div { flex: 1; min-width: 180px; width: auto; }
+.billing-audit-page .ba-record-heading h2 { font-size: 26px; color: #204a64; }
+.billing-audit-page .ba-record-heading p { margin-top: 7px; font-size: 12px; color: #67859b; }
+.billing-audit-page .ba-records .ba-record-heading > .ba-button { flex: 0 0 auto; color: #176ba2; min-height: 42px; font-size: 12px; }
+.billing-audit-page .ba-search-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; padding: 15px; border: 1px solid #d4e7f5; border-radius: 15px; background: linear-gradient(110deg,#eaf5fd,#f5faff); }
+.billing-audit-page .ba-search-toolbar .ba-search { width: 100%; }
+.billing-audit-page .ba-search-toolbar .ba-search input { display: block; max-width: none; width: 100%; min-width: 0; height: 44px; padding: 0 43px 0 37px; border-color: #b9d7ed; box-shadow: 0 4px 10px -8px #215f8866; font-size: 13px; }
+.billing-audit-page .ba-search-toolbar .ba-search kbd { right: 12px; }
+.billing-audit-page .ba-search-toolbar .ba-density { display: flex; flex: 0 0 auto; width: auto; padding: 4px; background: #e3eff8; border: 1px solid #c9deed; border-radius: 12px; }
+.billing-audit-page .ba-search-toolbar .ba-density button { min-height: 34px; font-size: 11.5px; padding: 7px 13px; }
+.billing-audit-page .ba-chips { padding: 15px 0 18px; gap: 8px; }
+.billing-audit-page .ba-chips button { min-height: 36px; padding: 6px 11px; font-size: 11.5px; }
+.billing-audit-page .ba-chips button[aria-pressed='true'] { background: #176ba2; border-color: #176ba2; }
+.billing-audit-page .ba-records > .ba-table-wrap { border: 1px solid #c9dfef; border-radius: 16px; background: #fff; box-shadow: 0 6px 18px -14px #285b8059; overflow: hidden; }
+.billing-audit-page .ba-records .ba-table { table-layout: fixed; }
+.billing-audit-page .ba-records .ba-table thead th { padding: 15px 12px; font-size: 10.5px; letter-spacing: .35px; background: #176ba2; color: #fff; border: 0; vertical-align: middle; }
+.billing-audit-page .ba-records .ba-table thead th[aria-sort] { color: #fff; }
+.billing-audit-page .ba-records .ba-table th:nth-child(1) { width: 25%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(2) { width: 11%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(3) { width: 15%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(4) { width: 13%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(5) { width: 13%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(6) { width: 15%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(7) { width: 8%; text-align: center; }
+.billing-audit-page .ba-records .ba-table td { padding: 16px 12px; font-size: 13px; line-height: 1.55; border-bottom: 1px solid #e1edf5; }
+.billing-audit-page .ba-records .ba-table tbody tr:nth-child(even) { background: #f3f9fe; }
+.billing-audit-page .ba-records .ba-table tbody tr:last-child td { border-bottom: 0; }
+.billing-audit-page .ba-account > button { font-size: 13px; font-weight: 650; }
+.billing-audit-page .ba-account small { margin-top: 5px; font-size: 11px; }
+.billing-audit-page .ba-account code { font-size: 10px; }
+.billing-audit-page .ba-class { font-size: 10.5px; text-transform: capitalize; padding: 3px 8px; }
+.billing-audit-page .ba-status { font-size: 10.5px; padding: 5px 8px; }
+.billing-audit-page .ba-status-unknown { background: #fff2d7; color: #8c6a27; }
+.billing-audit-page .ba-missing { font-size: 11.5px; color: #778e9f; }
+.billing-audit-page .ba-records .ba-row-open { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 33px; width: auto; height: auto; padding: 6px 8px; border: 1px solid #c7deef; border-radius: 8px; background: #fff; color: #176ba2; font-size: 11px; font-weight: 600; }
+.billing-audit-page .ba-pagination { padding: 17px 0 0; flex-wrap: wrap; gap: 14px; font-size: 12px; }
+@container billing-audit (max-width: 1100px) { .billing-audit-page .ba-kpis { grid-template-columns: repeat(6,minmax(0,1fr)); } .billing-audit-page .ba-kpi { grid-column: span 2; } .billing-audit-page .ba-kpi:nth-child(n+4) { grid-column: span 3; } }
+@container billing-audit (max-width: 700px) {
+ .billing-audit-page .ba-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .billing-audit-page .ba-kpi, .billing-audit-page .ba-kpi:nth-child(n+4) { grid-column: span 1; }
+ .billing-audit-page .ba-kpi:last-child { grid-column: 1 / -1; }
+ .billing-audit-page .ba-records { padding: 18px 14px; }
+ .billing-audit-page .ba-search-toolbar { grid-template-columns: minmax(0,1fr); padding: 12px; }
+ .billing-audit-page .ba-search-toolbar .ba-density { justify-self: start; }
+ .billing-audit-page .ba-records .ba-table th:nth-child(n) { width: auto; }
+ .billing-audit-page .ba-records .ba-table td { padding: 9px 0; }
+ .billing-audit-page .ba-records .ba-table tbody tr { padding: 14px; }
+}
+@media(max-width:500px) { .preview-shell { padding: 16px 12px 24px; } .billing-audit-page .ba-header { padding: 20px; } }
+.billing-audit-page.ba-compact .ba-records .ba-table td { padding: 10px 12px; }
+@container billing-audit (max-width: 700px) { .billing-audit-page.ba-compact .ba-records .ba-table td { padding: 6px 0; } }
+
+.billing-audit-page .ba-year-chart{padding:24px 26px}.ba-annual-plot{display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:28px}.ba-annual-axis{height:190px;display:flex;flex-direction:column;justify-content:space-between;padding-bottom:30px;font-size:11px;color:#7890a5;text-align:right}.billing-audit-page .ba-year .ba-bars{height:190px;background:repeating-linear-gradient(to top,transparent 0,transparent 52px,#e4edf5 53px,#e4edf5 54px)}.billing-audit-page .ba-year .ba-bar{opacity:1;border:0;background:none;display:grid;grid-template-rows:160px 24px;gap:6px;padding:0}.billing-audit-page .ba-year .ba-bar-columns{height:160px;display:flex;align-items:flex-end;justify-content:center;position:relative;gap:0}.ba-annual-column{width:34px;max-width:65%;display:block;border-radius:7px 7px 0 0;background:linear-gradient(#2b8bc2,#156ba6);position:relative}.ba-annual-column strong{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;color:#175d92}.ba-annual-zero{height:4px;width:20px;background:#d7e4ee;border-radius:4px}.billing-audit-page .ba-year .ba-chart-key .ba-key-empty{background:#d7e4ee}.billing-audit-page .ba-year .ba-bar b{font-size:12px}.ba-annual-note{font-size:12px;line-height:1.65;color:#66839c;margin:18px 0 0;padding:12px 14px;background:#eff6fb;border-radius:10px}.ba-annual-count{font-size:12px;border:1px solid #cce0ef;background:#f1f7fc;border-radius:20px;padding:8px 12px;color:#60839f}.billing-audit-page .ba-year .ba-annual-records{padding:24px 26px}.billing-audit-page .ba-year .ba-record-heading{padding:0 0 18px}.billing-audit-page .ba-year .ba-table{table-layout:fixed;min-width:0}.billing-audit-page .ba-year .ba-table th,.billing-audit-page .ba-year .ba-table td{padding:14px 12px;font-size:13px;text-align:left}.billing-audit-page .ba-year .ba-table th{font-size:11px}.billing-audit-page .ba-year .ba-table .ba-number{text-align:right}.billing-audit-page .ba-year .ba-table .ba-annual-center{text-align:center}.ba-annual-badge{display:inline-block;border-radius:18px;padding:5px 8px;font-size:11px;white-space:nowrap;background:#edf2f6;color:#71869a}.ba-annual-review{background:#fff0d1;color:#956208}.billing-audit-page .ba-year .ba-annual-active td{background:#eaf5ff}.billing-audit-page .ba-year tfoot td,.billing-audit-page .ba-year tfoot th{background:#e9f2f9;color:#234d67;font-weight:700}.billing-audit-page .ba-year .ba-text-button{font-size:13px}.billing-audit-page .ba-year .ba-text-button:disabled{color:#8298aa;opacity:1}@media(max-width:700px){.ba-annual-plot{grid-template-columns:60px 1fr}.ba-annual-column strong{font-size:10px}.billing-audit-page .ba-year .ba-annual-records{padding:18px 12px}.billing-audit-page .ba-year .ba-table{min-width:850px}.billing-audit-page .ba-year .ba-table-wrap{overflow-x:auto}.ba-annual-count{display:none}}
+
+.billing-audit-page .ba-period output.ba-year-label{font-size:20px;line-height:1.4;min-width:90px;font-weight:700;}
+
+/* Billing detail drawer -> centered floating modal. Append after existing styles. */
+.ba-overlay.ba-overlay-drawer {
+  place-items: center;
+  justify-items: center;
+  padding: 24px;
+  background: rgb(16 48 72 / 45%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ba-overlay-drawer .ba-drawer {
+  width: min(760px, 100%);
+  height: auto;
+  max-height: calc(100dvh - 48px);
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgb(12 43 68 / 28%), 0 4px 18px rgb(12 43 68 / 12%);
+}
+.ba-overlay-drawer .ba-dialog-head {
+  padding: 24px 28px 20px;
+  background: linear-gradient(115deg, #fff, #e6f3ff);
+  align-items: center;
+}
+.ba-overlay-drawer .ba-dialog-head h2 { font-size: 27px; }
+.ba-overlay-drawer .ba-dialog-body {
+  flex: 0 1 auto;
+  padding: 24px 28px;
+  overscroll-behavior: contain;
+}
+.ba-overlay-drawer .ba-dialog-foot {
+  padding: 18px 28px;
+  gap: 10px;
+  background: #f8fbff;
+}
+.ba-overlay-drawer .ba-dialog-foot .ba-button {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .ba-overlay.ba-overlay-drawer { padding: 12px; }
+  .ba-overlay-drawer .ba-drawer {
+    max-height: calc(100dvh - 24px);
+    border-radius: 18px;
+  }
+  .ba-overlay-drawer .ba-dialog-head,
+  .ba-overlay-drawer .ba-dialog-body,
+  .ba-overlay-drawer .ba-dialog-foot { padding: 18px; }
+  .ba-overlay-drawer .ba-dialog-head h2 { font-size: 23px; }
+}
+
+/* Homeowner-style billing account modal */
+.ba-overlay-drawer .ba-drawer{width:min(1100px,100%);height:min(790px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);border-radius:26px}
+.ba-overlay-drawer .ba-dialog-head{padding:26px 28px;gap:14px;background:linear-gradient(110deg,#fff,#edf7ff 60%,#d2e9fd)}
+.ba-overlay-drawer .ba-dialog-head>div{flex:1;min-width:0}.ba-overlay-drawer .ba-dialog-head h2{font-size:28px}
+.ba-profile-identity{display:flex;align-items:center;gap:16px}.ba-profile-avatar{width:58px;height:58px;display:grid;place-items:center;flex-shrink:0;border-radius:17px;background:linear-gradient(130deg,#1470a7,#118d90);box-shadow:0 7px 18px #16658a20;color:white;font:700 20px/1 'Segoe UI',Arial,sans-serif}
+.ba-profile-copy{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-width:0}.ba-profile-eyebrow{flex-basis:100%;font:700 10px/1.4 'Segoe UI',Arial,sans-serif;letter-spacing:1.5px;color:#1672a5}.ba-profile-name{font:700 30px/1.25 Georgia,serif;color:#163d57;overflow-wrap:anywhere}.ba-profile-copy .ba-status{order:2;font-size:11px}.ba-profile-address{order:3;flex-basis:100%;font:400 13px/1.5 'Segoe UI',Arial,sans-serif;color:#6687a2}.ba-profile-ledger{white-space:nowrap}
+.ba-profile-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 28px;border-bottom:1px solid #cde1f0;background:#f9fcff;flex-shrink:0}.ba-profile-tabs button{display:flex;align-items:center;justify-content:center;gap:9px;min-height:46px;border-radius:12px;border:1px solid transparent;background:transparent;color:#6286a3;font:600 14px/1.4 'Segoe UI',Arial,sans-serif}.ba-profile-tabs button[aria-selected=true]{background:linear-gradient(110deg,#e2f1ff,#d6ebfc);border-color:#b3d9f8;color:#116da5;box-shadow:inset 0 1px #fff}.ba-overlay-drawer .ba-dialog-body{flex:1;padding:25px 28px;background:#f5faff}.ba-profile-section-heading{margin-bottom:20px}.ba-profile-section-heading h3{font:700 27px/1.3 Georgia,serif;color:#234d67;margin:0 0 6px}.ba-profile-section-heading p{font-size:13px;color:#7090aa;margin:0;line-height:1.6}.ba-profile-metrics{gap:14px;margin:0 0 20px}.ba-profile-metrics>div{padding:20px;border:1px solid #cfe3f4;border-radius:17px;background:linear-gradient(115deg,#fff,#e7f3ff)}.ba-profile-metrics dt{font-size:11px;letter-spacing:.35px}.ba-profile-metrics dd{margin-top:10px;font-size:27px;line-height:1.35}.ba-profile-metrics .ba-missing{font-size:20px;color:#728ba0}.ba-profile-metrics p{font-size:12px;line-height:1.5;color:#7190aa;margin:8px 0 0}.ba-profile-explanation{display:flex;align-items:flex-start;gap:12px;background:#fff;border:1px solid #d1e4f3;border-radius:15px;padding:18px;margin-bottom:18px}.ba-profile-explanation>svg{flex-shrink:0;color:#387da9;margin-top:2px}.ba-profile-explanation h4,.ba-profile-description h4,.ba-profile-record-card h4{font-size:14px;color:#315f80;margin:0 0 7px}.ba-profile-explanation p,.ba-profile-description p{font-size:13px;line-height:1.7;margin:0;color:#5e7f99}.ba-profile-description{border:1px solid #d1e4f3;border-radius:15px;background:#fff;padding:18px;margin-bottom:16px}.ba-profile-description .ba-text-button{margin-top:12px}.ba-profile-pager{display:flex;align-items:center;gap:14px}.ba-profile-pager>span{font-size:12px;color:#68869d;white-space:nowrap}.ba-profile-time{margin-left:auto;font-size:11px;color:#7290a6}.ba-profile-record-card{padding:20px;border:1px solid #d0e3f3;border-radius:17px;background:white}.ba-profile-record-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:10px}.ba-profile-record-head h4{margin:0}.ba-profile-fields{margin:0}.ba-profile-fields>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:16px 0;border-bottom:1px solid #e5eef5}.ba-profile-fields>div:last-child{border:0}.ba-profile-fields dt{font-size:13px;color:#7390a6}.ba-profile-fields dd{margin:0;font-size:14px;color:#315a75;overflow-wrap:anywhere}.ba-profile-fields .ba-full-id{margin:0;font-size:13px}.ba-overlay-drawer [hidden]{display:none!important}
+@media(max-width:650px){.ba-overlay-drawer .ba-drawer{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);border-radius:20px}.ba-overlay-drawer .ba-dialog-head{flex-wrap:wrap;padding:18px}.ba-overlay-drawer .ba-dialog-head>div{flex-basis:calc(100% - 60px)}.ba-profile-ledger{order:2;margin-left:74px}.ba-profile-name{font-size:23px}.ba-profile-tabs{padding:10px 18px}.ba-overlay-drawer .ba-dialog-body{padding:20px 18px}.ba-profile-time{display:none}.ba-profile-pager{gap:8px}.ba-overlay-drawer .ba-dialog-foot{padding:14px 18px;justify-content:space-between}.ba-overlay-drawer .ba-dialog-foot .ba-button{padding:8px 10px;font-size:12px}.ba-profile-fields>div{grid-template-columns:110px minmax(0,1fr)}.ba-profile-metrics dd{font-size:23px}}
+@media(max-width:420px){.ba-profile-metrics{grid-template-columns:1fr}.ba-profile-fields>div{grid-template-columns:1fr;gap:7px}}
+
+.ba-profile-billing-details{margin-top:26px;padding-top:24px;border-top:1px solid #d1e3f0;}
+/* Keep the four billing overview cards in a single desktop row. */
+.ba-overlay-drawer .ba-profile-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:stretch;}
+.ba-overlay-drawer .ba-profile-metrics>div{min-width:0;padding:18px 15px;}
+.ba-overlay-drawer .ba-profile-metrics dd{font-size:24px;overflow-wrap:anywhere;}
+.ba-overlay-drawer .ba-profile-metrics .ba-missing{font-size:18px;}
+@media(max-width:900px){.ba-overlay-drawer .ba-profile-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:420px){.ba-overlay-drawer .ba-profile-metrics{grid-template-columns:1fr;}}
+
+/* Reduce the distance from overview to the billing reference. */
+.ba-overlay-drawer .ba-profile-section-heading{margin-bottom:14px;}
+.ba-overlay-drawer .ba-profile-section-heading h3{font-size:25px;}
+.ba-overlay-drawer .ba-profile-metrics{margin-bottom:14px;}
+.ba-overlay-drawer .ba-profile-metrics>div{padding:15px;}
+.ba-overlay-drawer .ba-profile-metrics dd{margin-top:8px;font-size:23px;}
+.ba-profile-compact-notice{border:1px solid #cee1f1;border-radius:11px;background:#edf6fd;color:#416d8c;margin:0;}
+.ba-profile-compact-notice summary{display:flex;align-items:center;gap:9px;padding:11px 14px;font-size:13px;font-weight:600;cursor:pointer;list-style:none;}
+.ba-profile-compact-notice summary::-webkit-details-marker{display:none;}
+.ba-profile-compact-notice summary svg{flex-shrink:0;color:#3283b5;}
+.ba-profile-more{margin-left:auto;white-space:nowrap;color:#1870a7;font-size:12px;font-weight:500;}
+.ba-profile-more:after{content:" +";font-weight:700;}
+.ba-profile-compact-notice[open] .ba-profile-more:after{content:" −";}
+.ba-profile-compact-notice>p{font-size:13px;line-height:1.6;margin:0;padding:0 14px 13px 41px;color:#62819b;}
+.ba-overlay-drawer .ba-profile-billing-details{margin-top:18px;padding-top:18px;}
+.ba-overlay-drawer .ba-profile-record-card{padding:16px 20px;}
+.ba-overlay-drawer .ba-profile-fields>div{padding:12px 0;}
+
+/* Readable text, retaining the approved five-card / seven-column layout. */
+.billing-audit-page{font-size:15px;line-height:1.55;}
+.billing-audit-page .ba-header h1{font-size:34px;}
+.billing-audit-page .ba-header p,.billing-audit-page .ba-confidence{font-size:14px;line-height:1.65;}
+.billing-audit-page .ba-kpi-top h2{font-size:12px;letter-spacing:.4px;}
+.billing-audit-page .ba-kpi>strong{font-size:30px;}
+.billing-audit-page .ba-kpi:nth-child(3)>strong,.billing-audit-page .ba-kpi:nth-child(4)>strong{font-size:26px;}
+.billing-audit-page .ba-kpi>p,.billing-audit-page .ba-kpi>small{font-size:13px;line-height:1.6;}
+.billing-audit-page .ba-record-heading h2{font-size:28px;}
+.billing-audit-page .ba-record-heading p{font-size:14px;line-height:1.6;}
+.billing-audit-page .ba-search-toolbar .ba-search input{font-size:15px;height:48px;}
+.billing-audit-page .ba-search-toolbar .ba-density button,.billing-audit-page .ba-chips button{font-size:13px;}
+.billing-audit-page .ba-records .ba-record-heading>.ba-button{font-size:14px;}
+.billing-audit-page .ba-records .ba-table thead th{font-size:12px;letter-spacing:.2px;line-height:1.5;}
+.billing-audit-page .ba-records .ba-table td{font-size:15px;line-height:1.55;}
+.billing-audit-page .ba-account>button{font-size:15px;font-weight:700;}
+.billing-audit-page .ba-account small{font-size:13px;line-height:1.5;}
+.billing-audit-page .ba-account code{font-size:12px;}
+.billing-audit-page .ba-class,.billing-audit-page .ba-status{font-size:12px;line-height:1.5;}
+.billing-audit-page .ba-missing{font-size:14px;color:#5e798e;}
+.billing-audit-page .ba-records .ba-row-open{font-size:13px;min-height:37px;}
+.billing-audit-page .ba-pagination,.billing-audit-page .ba-pagination .ba-button{font-size:14px;}
+.billing-audit-page .ba-chart-key,.billing-audit-page .ba-annual-note,.billing-audit-page .ba-annual-count{font-size:13px;}
+.billing-audit-page .ba-year .ba-table td{font-size:14px;}
+.billing-audit-page .ba-year .ba-table th{font-size:12px;}
+.billing-audit-page .ba-year .ba-text-button{font-size:14px;}
+.billing-audit-page .ba-year .ba-bar b{font-size:13px;}
+.ba-overlay-drawer .ba-profile-name{font-size:32px;}
+.ba-overlay-drawer .ba-profile-eyebrow{font-size:11px;}
+.ba-overlay-drawer .ba-profile-address{font-size:14px;}
+.ba-overlay-drawer .ba-profile-copy .ba-status{font-size:12px;}
+.ba-overlay-drawer .ba-profile-section-heading p{font-size:14px;}
+.ba-overlay-drawer .ba-profile-metrics dt{font-size:12px;line-height:1.5;}
+.ba-overlay-drawer .ba-profile-metrics dd{font-size:25px;}
+.ba-overlay-drawer .ba-profile-metrics .ba-missing{font-size:19px;}
+.ba-overlay-drawer .ba-profile-metrics p{font-size:13px;}
+.ba-overlay-drawer .ba-profile-compact-notice summary{font-size:14px;}
+.ba-overlay-drawer .ba-profile-compact-notice>p{font-size:14px;}
+.ba-overlay-drawer .ba-profile-fields dt,.ba-overlay-drawer .ba-profile-fields dd{font-size:15px;line-height:1.6;}
+.ba-overlay-drawer .ba-profile-fields .ba-full-id{font-size:14px;}
+.ba-overlay-drawer .ba-profile-record-card h4{font-size:16px;}
+.ba-overlay-drawer .ba-detail-note{font-size:13px;line-height:1.6;}
+.ba-overlay-drawer .ba-dialog-foot .ba-button{font-size:14px;}
+.ba-overlay-drawer .ba-profile-pager>span{font-size:14px;}
+@media(max-width:650px){.ba-overlay-drawer .ba-profile-name{font-size:26px;}.ba-overlay-drawer .ba-profile-metrics dd{font-size:24px;}}
+/* Card labels */
+.billing-audit-page .ba-kpi-top h2 {
+  font-size: 12px;
+}
+
+/* Card values */
+.billing-audit-page .ba-kpi > strong {
+  font-size: 26px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+/* “Not recorded” values */
+.billing-audit-page .ba-kpi:nth-child(3) > strong,
+.billing-audit-page .ba-kpi:nth-child(4) > strong {
+  font-size: 23px;
+}
+
+/* Supporting text */
+.billing-audit-page .ba-kpi > p,
+.billing-audit-page .ba-kpi > small {
+  font-size: 13px;
+  line-height: 1.5;
+}
