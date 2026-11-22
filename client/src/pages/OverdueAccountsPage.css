@@ -1162,3 +1162,54 @@
   .overdue-page .od-accounts-panel { padding: 18px 14px; border-radius: 20px; }
   .overdue-page .od-accounts-heading h2 { font-size: 23px; }
 }
+
+/* Balanced account columns with more space for property labels and amounts. */
+.overdue-page .od-accounts-panel .od-table { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(1) { width: 18%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(2) { width: 14%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(3) { width: 10%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(4) { width: 14%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(5) { width: 10%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(6) { width: 10%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(7) { width: 8%; }
+.overdue-page .od-accounts-panel .od-table th:nth-child(8) { width: 16%; }
+.overdue-page .od-accounts-panel .od-table th,
+.overdue-page .od-accounts-panel .od-table td { padding: 15px 8px; white-space: normal; overflow-wrap: anywhere; }
+.overdue-page .od-accounts-panel .od-table th:first-child,
+.overdue-page .od-accounts-panel .od-table td:first-child { padding-left: 18px; }
+.overdue-page .od-accounts-panel .od-table th:last-child,
+.overdue-page .od-accounts-panel .od-table td:last-child { padding-right: 18px; }
+.overdue-page .od-accounts-panel .od-table td:nth-child(2) { overflow-wrap: normal; word-break: normal; line-height: 1.55; }
+.overdue-page .od-accounts-panel .od-table td:nth-child(5) { white-space: normal; }
+.overdue-page .od-accounts-panel .od-table .od-row-actions { gap: 7px; flex-wrap: wrap; }
+.overdue-page .od-accounts-panel .od-table .od-row-btn { padding-inline: 8px; font-size: 12.5px; }
+
+/* Fit every column to the panel; narrower panels use labeled account rows. */
+.overdue-page .od-accounts-panel { container: overdue-table / inline-size; }
+.overdue-page .od-accounts-panel > .od-table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; }
+.overdue-page .od-accounts-panel .od-table .od-money,
+.overdue-page .od-accounts-panel .od-table .od-sub { white-space: normal; overflow-wrap: anywhere; }
+.overdue-page .od-accounts-panel .od-table .od-row-btn { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.overdue-page .od-accounts-panel .od-table .od-who { gap: 8px; }
+.overdue-page .od-accounts-panel .od-table .od-avatar { width: 30px; height: 30px; }
+@container overdue-table (max-width: 900px) {
+  .overdue-page .od-accounts-panel .od-table { display: block; }
+  .overdue-page .od-accounts-panel .od-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .overdue-page .od-accounts-panel .od-table tbody { display: block; }
+  .overdue-page .od-accounts-panel .od-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; padding: 16px; }
+  .overdue-page .od-accounts-panel .od-table tbody td { display: block; min-width: 0; width: auto; padding: 9px 0; text-align: left; border: 0; }
+  .overdue-page .od-accounts-panel .od-table tbody td::before { display: block; margin-bottom: 7px; color: #547a94; font-size: 10px; font-weight: 700; letter-spacing: .35px; text-transform: uppercase; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(1)::before { content: 'Homeowner'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(2)::before { content: 'Block / Lot'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(3)::before { content: 'Days overdue'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(4)::before { content: 'Balance'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(5)::before { content: 'Last HOA payment'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(6)::before { content: 'Last action'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(7)::before { content: 'Status'; }
+  .overdue-page .od-accounts-panel .od-table td:nth-child(8)::before { content: 'Actions'; }
+  .overdue-page .od-accounts-panel .od-table .od-row-actions { justify-content: flex-start; }
+  .overdue-page .od-accounts-panel .od-table .od-pill { max-width: 100%; white-space: normal; }
+}
+@container overdue-table (max-width: 400px) {
+  .overdue-page .od-accounts-panel .od-table tbody tr { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}

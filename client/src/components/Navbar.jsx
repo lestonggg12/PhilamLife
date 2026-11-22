@@ -17,6 +17,7 @@ const PAGE_LABELS = {
   '/overdue-accounts': 'Overdue Accounts',
   '/documents': 'Document Library',
   '/ledger': 'Ledger',
+  '/billing-audit': 'Monthly Billing Audit',
   '/secretary/grievances': 'Grievances',
   '/treasurer/service-revenue': 'Amenity Revenue',
   '/payments': 'Payments',

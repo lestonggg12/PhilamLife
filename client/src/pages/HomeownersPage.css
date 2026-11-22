@@ -5121,15 +5121,81 @@
   outline-offset:-2px;
   background:#eaf4fc;
 }
+
+/* Stronger blue property-directory control bar. */
 .homeowners-page .hpf-controls {
   background: linear-gradient(115deg, #287fb6, #176ba2 60%, #145889);
   border-color: #4b94c2;
-  box-shadow:
-    0 8px 20px -12px #13578780,
-    inset 0 1px 0 #ffffff59;
+  box-shadow: 0 8px 20px -12px #13578780, inset 0 1px 0 #ffffff59;
 }
-
 .homeowners-page .hpf-controls > label > span,
 .homeowners-page .hpf-controls > label > span svg {
   color: #fff;
 }
+
+/* Approved monthly tracker: all twelve months with aligned column headings. */
+.hpm-dialog .homeowner-tracker-table:not(.annual) td { padding: 7px 12px; font-size: 12px; line-height: 1.4; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th { padding: 11px 12px; font-size: 10px; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) .homeowner-tracker-status { padding: 3px 7px; font-size: 10.5px; line-height: 1.35; }
+.hpm-dialog .homeowner-tracker-month-button { gap: 7px; min-height: 24px; }
+.hpm-dialog .homeowner-tracker-click-hint { font-size: 10.5px; }
+.hpm-dialog .hpm-all-months { margin: 12px 2px 0; font-size: 11px; color: #62839a; }
+
+/* Align each monthly tracker heading with its column values. */
+.hpm-dialog .homeowner-tracker-table:not(.annual) { width: 100%; table-layout: fixed; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th,
+.hpm-dialog .homeowner-tracker-table:not(.annual) td { padding-left: 12px; padding-right: 12px; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(1) { width: 18%; text-align: left; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(2) { width: 20%; text-align: left; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(3) { width: 9%; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(4) { width: 15%; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(5) { width: 18%; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(6) { width: 9%; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(7) { width: 11%; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(3),
+.hpm-dialog .homeowner-tracker-table:not(.annual) td:nth-child(3) { text-align: center; }
+.hpm-dialog .homeowner-tracker-table:not(.annual) th:nth-child(n+4),
+.hpm-dialog .homeowner-tracker-table:not(.annual) td:nth-child(n+4) { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Clearer payment history and a visible destructive Void action. */
+.hpm-dialog #hpm-pane-payments .homeowner-tabs button { font-size: 12.5px; }
+.hpm-dialog #hpm-pane-payments .homeowner-tabs button span { font-size: 11px; }
+.hpm-dialog .homeowner-history-card .homeowner-section-heading h3 { font-size: 16px; }
+.hpm-dialog .homeowner-history-card .homeowner-section-heading p { font-size: 12px; line-height: 1.65; }
+.hpm-dialog .homeowner-history-month-picker { font-size: 11px; }
+.hpm-dialog .homeowner-history-month-picker .df-trigger { min-height: 38px; font-size: 12.5px; }
+.hpm-dialog .homeowner-history-table thead th { font-size: 11px; line-height: 1.5; padding: 13px 12px; }
+.hpm-dialog .homeowner-history-table th:nth-child(1) { width: 18%; }
+.hpm-dialog .homeowner-history-table th:nth-child(2) { width: 23%; }
+.hpm-dialog .homeowner-history-table th:nth-child(3) { width: 10%; }
+.hpm-dialog .homeowner-history-table th:nth-child(4) { width: 13%; }
+.hpm-dialog .homeowner-history-table th:nth-child(5) { width: 17%; }
+.hpm-dialog .homeowner-history-table th:nth-child(6) { width: 10%; }
+.hpm-dialog .homeowner-history-table th:nth-child(7) { width: 9%; }
+.hpm-dialog .homeowner-history-table tbody td { padding: 14px 12px; font-size: 13.5px; line-height: 1.6; color: #345d79; }
+.hpm-dialog .homeowner-history-table td strong { font-size: 13.5px; font-weight: 700; color: #234e6d; }
+.hpm-dialog .homeowner-history-table td small { font-size: 12px; line-height: 1.6; color: #587b95; white-space: normal; }
+.hpm-dialog .homeowner-history-table td:nth-child(4),
+.hpm-dialog .homeowner-history-table td:nth-child(5) { white-space: normal; overflow-wrap: anywhere; }
+.hpm-dialog .homeowner-history-table td.homeowner-credit { color: #14734f; }
+.hpm-dialog .homeowner-history-table .homeowner-category,
+.hpm-dialog .homeowner-history-table .homeowner-payment-status { font-size: 11px; font-weight: 650; padding: 5px 8px; }
+.hpm-dialog .homeowner-history-actions { gap: 7px; }
+.hpm-dialog .homeowner-history-actions button { min-width: 64px; min-height: 34px; max-width: 100%; padding: 7px 10px; font-size: 13px; font-weight: 700; }
+.hpm-dialog .homeowner-history-actions .homeowner-void-link { background: #c0392b; color: #fff; border: 1px solid #ad3024; box-shadow: 0 4px 10px -7px #932a2559; }
+.hpm-dialog .homeowner-history-actions .homeowner-void-link:hover:not(:disabled) { background: #a92f24; color: #fff; border-color: #92281f; }
+.hpm-dialog .homeowner-history-actions .homeowner-void-link:focus-visible { outline: 3px solid #d87164; outline-offset: 3px; }
+
+/* Consistent payment-history header/value alignment. */
+.hpm-dialog .homeowner-history-table thead th { white-space: normal; vertical-align: middle; }
+.hpm-dialog .homeowner-history-table th:nth-child(-n+3),
+.hpm-dialog .homeowner-history-table td:nth-child(-n+3) { text-align: left; }
+.hpm-dialog .homeowner-history-table th:nth-child(4),
+.hpm-dialog .homeowner-history-table th:nth-child(5),
+.hpm-dialog .homeowner-history-table td:nth-child(4),
+.hpm-dialog .homeowner-history-table td:nth-child(5) { text-align: right; }
+.hpm-dialog .homeowner-history-table th:nth-child(6),
+.hpm-dialog .homeowner-history-table th:nth-child(7),
+.hpm-dialog .homeowner-history-table td:nth-child(6),
+.hpm-dialog .homeowner-history-table td:nth-child(7) { text-align: center; }
+.hpm-dialog .homeowner-history-actions { align-items: center; justify-content: center; }

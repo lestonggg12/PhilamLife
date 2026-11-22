@@ -1442,7 +1442,8 @@ export default function HomeownersPage() {
 
   const trackerTotal =
     trackerView === 'monthly' ? monthlyTracker.length : annualTracker.length
-  const trackerPageCount = Math.max(1, Math.ceil(trackerTotal / 6))
+  const trackerPageCount =
+    trackerView === 'monthly' ? 1 : Math.max(1, Math.ceil(trackerTotal / 6))
   const trackerCurrentPage = Math.min(trackerPage, trackerPageCount)
   useEffect(() => {
     setTrackerPage(1)
@@ -2740,12 +2741,7 @@ export default function HomeownersPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {monthlyTracker
-                                .slice(
-                                  (trackerCurrentPage - 1) * 6,
-                                  trackerCurrentPage * 6,
-                                )
-                                .map((month, visibleIndex) => (
+                              {monthlyTracker.map((month, visibleIndex) => (
                                   <tr
                                     key={month.month}
                                     className="homeowner-tracker-row"
@@ -2758,8 +2754,7 @@ export default function HomeownersPage() {
                                         aria-label={`View ${month.month} ${trackerYear} payment breakdown`}
                                         onClick={() =>
                                           setExpandedTrackerMonth(
-                                            (trackerCurrentPage - 1) * 6 +
-                                              visibleIndex,
+                                            visibleIndex,
                                           )
                                         }
                                       >
@@ -2835,6 +2830,7 @@ export default function HomeownersPage() {
                           </table>
                         )}
                       </div>
+                      {trackerView === 'annual' && (
                       <div className="hpm-tracker-pagination">
                         <span role="status">
                           Showing{' '}
@@ -2882,6 +2878,10 @@ export default function HomeownersPage() {
                           </button>
                         </nav>
                       </div>
+                      )}
+                      {trackerView === 'monthly' && (
+                        <p className="hpm-all-months">January–December {trackerYear} · All 12 months</p>
+                      )}
                       <p className="homeowner-tracker-note">
                         Voided records are excluded. A blank month means no
                         payment was recorded; it does not automatically mean an

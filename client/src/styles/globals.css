@@ -554,3 +554,41 @@ svg {
     font-size: 12px;
   }
 }
+/* Application-load fallback: independent of lazy pages and the router. */
+.app-load-error {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(24px, 5vw, 64px) 20px;
+  color: #143a54;
+  background: radial-gradient(ellipse at 90% 10%, #c0ddf4, transparent 55%), linear-gradient(135deg, #e7f1fa, #f1f7fc);
+  font-family: var(--font-body, 'Segoe UI', Arial, sans-serif);
+}
+.app-load-error .app-load-error-content { width: min(100%, 470px); min-width: 0; }
+.app-load-error .app-load-error-brand { display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 30px; color: #3b647f; font-size: 13px; letter-spacing: .3px; }
+.app-load-error .app-load-error-brand svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.app-load-error .app-load-error-card { padding: 34px 32px 25px; text-align: center; background: linear-gradient(135deg, #fffffff5, #f3f9fff0); border: 1px solid #fff; border-radius: 25px; box-shadow: 0 18px 45px -22px #234f7159, inset 0 1px 0 #fff; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.app-load-error .app-load-error-icon { display: grid; place-items: center; width: 66px; height: 66px; margin: 0 auto 21px; border: 1px solid #bfdcef; border-radius: 20px; color: #176ba2; background: linear-gradient(135deg, #ecf7ff, #cde6fa); box-shadow: 0 7px 18px -10px #176ba266; }
+.app-load-error .app-load-error-icon svg { width: 29px; height: 29px; }
+.app-load-error h1 { margin: 0 0 13px; font: 600 clamp(26px, 4vw, 30px)/1.25 var(--font-display, Georgia, serif); letter-spacing: -.35px; color: #143a54; overflow-wrap: anywhere; }
+.app-load-error .app-load-error-message { margin: 0 auto 24px; max-width: 350px; color: #5c7d95; font-size: 14px; line-height: 1.7; }
+.app-load-error .app-load-error-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.app-load-error .app-load-error-actions > button,
+.app-load-error .app-load-error-actions > a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; padding: 11px 18px; border: 1px solid #c5ddec; border-radius: 11px; font: 600 13px/1.4 var(--font-body, 'Segoe UI', Arial, sans-serif); background: #fff; color: #27628c; text-decoration: none; cursor: pointer; box-shadow: none; transition: background .15s ease; }
+.app-load-error .app-load-error-actions > .app-load-error-reload { color: #fff; background: linear-gradient(135deg, #227db5, #14649c); border-color: #176ba2; box-shadow: 0 7px 16px -10px #176ba2a6; }
+.app-load-error .app-load-error-actions svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.app-load-error .app-load-error-actions > .app-load-error-home:hover { background: #edf6fd; }
+.app-load-error .app-load-error-actions > .app-load-error-reload:hover { background: #125789; }
+.app-load-error .app-load-error-actions > :focus-visible { outline: 3px solid #4b9bd6; outline-offset: 3px; }
+.app-load-error .app-load-error-hint { margin: 23px 0 0; padding-top: 17px; border-top: 1px solid #deebf5; color: #627e92; font-size: 12px; line-height: 1.6; }
+@media (max-width: 420px) {
+  .app-load-error { padding: 24px 16px; }
+  .app-load-error .app-load-error-brand { margin-bottom: 22px; }
+  .app-load-error .app-load-error-card { padding: 27px 18px 22px; }
+  .app-load-error .app-load-error-actions { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-load-error .app-load-error-actions > button,
+  .app-load-error .app-load-error-actions > a { transition: none; }
+}

@@ -1014,17 +1014,78 @@
     box-shadow: none;
   }
 }
-.billing-audit-page .ba-header {
-  background: linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(237, 247, 255, 0.92) 48%,
-    rgba(190, 220, 255, 0.88) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 16px 36px -18px rgba(15, 63, 106, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  backdrop-filter: blur(22px) saturate(160%);
+
+/* Approved Billing Audit layout: inset table and organized controls. */
+.billing-audit-page .ba-header { padding: 25px 28px; border-radius: 26px; background: linear-gradient(115deg,#fff,#edf7ff 55%,#c9e3fa); border: 1px solid #fffffff2; box-shadow: 0 15px 36px -24px #285b8066; }
+.billing-audit-page .ba-header h1 { font-size: 32px; }
+.billing-audit-page .ba-header-actions { gap: 9px; }
+.billing-audit-page .ba-confidence { margin-top: 18px; border-radius: 16px; }
+.billing-audit-page .ba-confidence-review { background: #fff9ed; border: 1px solid #ead6aa; color: #72592e; }
+.billing-audit-page .ba-confidence-review > svg { color: #aa7b24; }
+.billing-audit-page .ba-confidence-review .ba-text-button { color: #826123; }
+.billing-audit-page .ba-kpis { grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px; margin: 18px 0; align-items: stretch; }
+.billing-audit-page .ba-kpi { display: flex; flex-direction: column; min-width: 0; min-height: 156px; padding: 18px 18px 16px; border: 1px solid #d6e6f2; border-radius: 21px; background: linear-gradient(145deg,#fff,#eef7ff); box-shadow: 0 10px 25px -18px #24557459; }
+.billing-audit-page .ba-kpi-top { min-height: 34px; align-items: flex-start; gap: 12px; }
+.billing-audit-page .ba-kpi-top h2 { font-size: 10.5px; letter-spacing: .55px; line-height: 1.5; }
+.billing-audit-page .ba-kpi-icon { width: 32px; height: 32px; border-radius: 10px; flex: 0 0 32px; }
+.billing-audit-page .ba-kpi-icon svg { width: 17px; height: 17px; }
+.billing-audit-page .ba-kpi > strong { font: 600 28px/1.25 Georgia,serif; color: #234f6c; margin: 13px 0 8px; overflow-wrap: anywhere; }
+.billing-audit-page .ba-kpi:nth-child(3) > strong,
+.billing-audit-page .ba-kpi:nth-child(4) > strong { font-size: 24px; }
+.billing-audit-page .ba-kpi > small { margin-top: auto; font-size: 11.5px; color: #648399; line-height: 1.55; }
+.billing-audit-page .ba-kpi-flag { background: linear-gradient(145deg,#fffdfa,#fff5dd); border-color: #eddaae; }
+.billing-audit-page .ba-kpi-flag > strong { color: #956d23; }
+.billing-audit-page .ba-records { padding: 24px; border: 1px solid #ffffffed; border-radius: 25px; background: linear-gradient(145deg,#fffffff0,#edf7ffe6); box-shadow: 0 17px 38px -25px #285b8066; }
+.billing-audit-page .ba-record-tools { background: transparent; border-radius: 0; }
+.billing-audit-page .ba-records .ba-record-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 0; margin-bottom: 19px; }
+.billing-audit-page .ba-records .ba-record-heading > div { flex: 1; min-width: 180px; width: auto; }
+.billing-audit-page .ba-record-heading h2 { font-size: 26px; color: #204a64; }
+.billing-audit-page .ba-record-heading p { margin-top: 7px; font-size: 12px; color: #67859b; }
+.billing-audit-page .ba-records .ba-record-heading > .ba-button { flex: 0 0 auto; color: #176ba2; min-height: 42px; font-size: 12px; }
+.billing-audit-page .ba-search-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; padding: 15px; border: 1px solid #d4e7f5; border-radius: 15px; background: linear-gradient(110deg,#eaf5fd,#f5faff); }
+.billing-audit-page .ba-search-toolbar .ba-search { width: 100%; }
+.billing-audit-page .ba-search-toolbar .ba-search input { display: block; max-width: none; width: 100%; min-width: 0; height: 44px; padding: 0 43px 0 37px; border-color: #b9d7ed; box-shadow: 0 4px 10px -8px #215f8866; font-size: 13px; }
+.billing-audit-page .ba-search-toolbar .ba-search kbd { right: 12px; }
+.billing-audit-page .ba-search-toolbar .ba-density { display: flex; flex: 0 0 auto; width: auto; padding: 4px; background: #e3eff8; border: 1px solid #c9deed; border-radius: 12px; }
+.billing-audit-page .ba-search-toolbar .ba-density button { min-height: 34px; font-size: 11.5px; padding: 7px 13px; }
+.billing-audit-page .ba-chips { padding: 15px 0 18px; gap: 8px; }
+.billing-audit-page .ba-chips button { min-height: 36px; padding: 6px 11px; font-size: 11.5px; }
+.billing-audit-page .ba-chips button[aria-pressed='true'] { background: #176ba2; border-color: #176ba2; }
+.billing-audit-page .ba-records > .ba-table-wrap { border: 1px solid #c9dfef; border-radius: 16px; background: #fff; box-shadow: 0 6px 18px -14px #285b8059; overflow: hidden; }
+.billing-audit-page .ba-records .ba-table { table-layout: fixed; }
+.billing-audit-page .ba-records .ba-table thead th { padding: 15px 12px; font-size: 10.5px; letter-spacing: .35px; background: #176ba2; color: #fff; border: 0; vertical-align: middle; }
+.billing-audit-page .ba-records .ba-table thead th[aria-sort] { color: #fff; }
+.billing-audit-page .ba-records .ba-table th:nth-child(1) { width: 25%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(2) { width: 11%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(3) { width: 15%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(4) { width: 13%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(5) { width: 13%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(6) { width: 15%; }
+.billing-audit-page .ba-records .ba-table th:nth-child(7) { width: 8%; text-align: center; }
+.billing-audit-page .ba-records .ba-table td { padding: 16px 12px; font-size: 13px; line-height: 1.55; border-bottom: 1px solid #e1edf5; }
+.billing-audit-page .ba-records .ba-table tbody tr:nth-child(even) { background: #f3f9fe; }
+.billing-audit-page .ba-records .ba-table tbody tr:last-child td { border-bottom: 0; }
+.billing-audit-page .ba-account > button { font-size: 13px; font-weight: 650; }
+.billing-audit-page .ba-account small { margin-top: 5px; font-size: 11px; }
+.billing-audit-page .ba-account code { font-size: 10px; }
+.billing-audit-page .ba-class { font-size: 10.5px; text-transform: capitalize; padding: 3px 8px; }
+.billing-audit-page .ba-status { font-size: 10.5px; padding: 5px 8px; }
+.billing-audit-page .ba-status-unknown { background: #fff2d7; color: #8c6a27; }
+.billing-audit-page .ba-missing { font-size: 11.5px; color: #778e9f; }
+.billing-audit-page .ba-records .ba-row-open { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 33px; width: auto; height: auto; padding: 6px 8px; border: 1px solid #c7deef; border-radius: 8px; background: #fff; color: #176ba2; font-size: 11px; font-weight: 600; }
+.billing-audit-page .ba-pagination { padding: 17px 0 0; flex-wrap: wrap; gap: 14px; font-size: 12px; }
+@container billing-audit (max-width: 1100px) { .billing-audit-page .ba-kpis { grid-template-columns: repeat(6,minmax(0,1fr)); } .billing-audit-page .ba-kpi { grid-column: span 2; } .billing-audit-page .ba-kpi:nth-child(n+4) { grid-column: span 3; } }
+@container billing-audit (max-width: 700px) {
+ .billing-audit-page .ba-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .billing-audit-page .ba-kpi, .billing-audit-page .ba-kpi:nth-child(n+4) { grid-column: span 1; }
+ .billing-audit-page .ba-kpi:last-child { grid-column: 1 / -1; }
+ .billing-audit-page .ba-records { padding: 18px 14px; }
+ .billing-audit-page .ba-search-toolbar { grid-template-columns: minmax(0,1fr); padding: 12px; }
+ .billing-audit-page .ba-search-toolbar .ba-density { justify-self: start; }
+ .billing-audit-page .ba-records .ba-table th:nth-child(n) { width: auto; }
+ .billing-audit-page .ba-records .ba-table td { padding: 9px 0; }
+ .billing-audit-page .ba-records .ba-table tbody tr { padding: 14px; }
 }
+@media(max-width:500px) { .billing-audit-page .ba-header { padding: 20px; } }
+.billing-audit-page.ba-compact .ba-records .ba-table td { padding: 10px 12px; }
+@container billing-audit (max-width: 700px) { .billing-audit-page.ba-compact .ba-records .ba-table td { padding: 6px 0; } }

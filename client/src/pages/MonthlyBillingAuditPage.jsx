@@ -408,15 +408,19 @@ export default function MonthlyBillingAuditPage() {
     ],
     [
       "Credit used",
-      peso.format(totals.verifiedCredit),
-      "Verified advance balance applied",
+      totals.billed > 0 && evidenceCount === 0
+        ? "Not recorded"
+        : peso.format(totals.verifiedCredit),
+      `${count(evidenceCount)} of ${count(totals.billed)} charges have linked detail`,
       ArrowDownLeft,
       "",
     ],
     [
       "Unpaid portion",
-      peso.format(totals.verifiedUnpaid),
-      "Verified amount added at billing",
+      totals.billed > 0 && evidenceCount === 0
+        ? "Not recorded"
+        : peso.format(totals.verifiedUnpaid),
+      `${count(evidenceCount)} of ${count(totals.billed)} charges have linked detail`,
       Clock3,
       "",
     ],
@@ -856,47 +860,47 @@ export default function MonthlyBillingAuditPage() {
                       page · {monthLabel(month)}
                     </p>
                   </div>
-                  <div className="ba-tools">
-                    <label className="ba-search">
-                      <Search size={18} aria-hidden="true" />
-                      <input
-                        ref={searchRef}
-                        aria-label="Search account"
-                        type="search"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Name, block, lot or ID"
-                      />
-                      <kbd aria-hidden="true">/</kbd>
-                    </label>
-                    <div
-                      className="ba-segment ba-density"
-                      role="group"
-                      aria-label="Row density"
-                    >
-                      <button
-                        type="button"
-                        aria-pressed={!compact}
-                        onClick={() => setCompact(false)}
-                      >
-                        Comfortable
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={compact}
-                        onClick={() => setCompact(true)}
-                      >
-                        Compact
-                      </button>
-                    </div>
+                  <button
+                    type="button"
+                    className="ba-button"
+                    disabled={!rows.length}
+                    onClick={exportCsv}
+                  >
+                    <Download size={16} />
+                    Export CSV
+                  </button>
+                </div>
+                <div className="ba-search-toolbar">
+                  <label className="ba-search">
+                    <Search size={18} aria-hidden="true" />
+                    <input
+                      ref={searchRef}
+                      aria-label="Search account"
+                      type="search"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Name, block, lot or ID"
+                    />
+                    <kbd aria-hidden="true">/</kbd>
+                  </label>
+                  <div
+                    className="ba-segment ba-density"
+                    role="group"
+                    aria-label="Row density"
+                  >
                     <button
                       type="button"
-                      className="ba-button"
-                      disabled={!rows.length}
-                      onClick={exportCsv}
+                      aria-pressed={!compact}
+                      onClick={() => setCompact(false)}
                     >
-                      <Download size={16} />
-                      Export CSV
+                      Comfortable
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={compact}
+                      onClick={() => setCompact(true)}
+                    >
+                      Compact
                     </button>
                   </div>
                 </div>
@@ -934,7 +938,7 @@ export default function MonthlyBillingAuditPage() {
                       {sortHead("unpaid", "New unpaid", true)}
                       {sortHead("status", "Status")}
                       <th scope="col">
-                        <span className="ba-sr-only">Details</span>
+                        <span>Details</span>
                       </th>
                     </tr>
                   </thead>
@@ -984,7 +988,8 @@ export default function MonthlyBillingAuditPage() {
                             aria-label={`View charge details for ${nameFor(row)}`}
                             onClick={() => setSelectedId(row.id)}
                           >
-                            <ChevronRight size={19} />
+                            <span>View</span>
+                            <ChevronRight size={15} />
                           </button>
                         </td>
                       </tr>
